@@ -1,0 +1,206 @@
+package service
+
+import (
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+type call struct{ name, args string }
+
+type fakeRunner struct {
+	calls  []call
+	output map[string]string // by joined args
+	fail   map[string]bool
+}
+
+func (f *fakeRunner) Run(stdout, _ io.Writer, name string, args ...string) error {
+	j := strings.Join(args, " ")
+	f.calls = append(f.calls, call{name, j})
+	if o, ok := f.output[j]; ok {
+		io.WriteString(stdout, o)
+	}
+	if f.fail[j] {
+		return errors.New("exit status 1")
+	}
+	return nil
+}
+
+func (f *fakeRunner) list() []string {
+	var s []string
+	for _, c := range f.calls {
+		s = append(s, c.name+" "+c.args)
+	}
+	return s
+}
+
+func newMgr(t *testing.T, bin string) (*Manager, *fakeRunner) {
+	t.Helper()
+	f := &fakeRunner{}
+	return &Manager{Dir: filepath.Join(t.TempDir(), "systemd", "user"), Bin: bin, Runner: f, Out: io.Discard, Err: io.Discard}, f
+}
+
+func TestUnitText(t *testing.T) {
+	got, err := UnitText("/opt/a/aristotle-server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []string{"Type=simple\n", "ExecStart=/opt/a/aristotle-server serve\n", "Restart=on-failure\n", "RestartSec=5\n",
+		"NoNewPrivileges=yes\n", "PrivateTmp=yes\n", "UMask=0077\n", "WantedBy=default.target\n"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("missing %q in\n%s", w, got)
+		}
+	}
+	for _, bad := range []string{"HERMES_HOME", "StateDirectory", "Environment"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("unit must not contain %q", bad)
+		}
+	}
+}
+
+func TestUnitTextQuotesPath(t *testing.T) {
+	got, err := UnitText(`/home/a b/100%/bin`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `ExecStart="/home/a b/100%%/bin" serve`) {
+		t.Fatalf("got %s", got)
+	}
+	if _, err := UnitText("relative/bin"); err == nil {
+		t.Fatal("relative path accepted")
+	}
+	if _, err := UnitText("/a\nExecStart=/evil"); err == nil {
+		t.Fatal("newline accepted")
+	}
+}
+
+func TestUnitDirXDG(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/x/cfg")
+	if d, _ := UnitDir(); d != "/x/cfg/systemd/user" {
+		t.Fatal(d)
+	}
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "/h")
+	if d, _ := UnitDir(); d != "/h/.config/systemd/user" {
+		t.Fatal(d)
+	}
+}
+
+func TestInstallWritesAndEnables(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	if err := m.Install(false, false); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := UnitText(m.Bin)
+	b, err := os.ReadFile(m.UnitPath())
+	if err != nil || string(b) != want {
+		t.Fatalf("unit %q err %v", b, err)
+	}
+	got := strings.Join(f.list(), "|")
+	if got != "systemctl --user daemon-reload|systemctl --user enable aristotle-server.service" {
+		t.Fatal(got)
+	}
+}
+
+func TestInstallStart(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	if err := m.Install(false, true); err != nil {
+		t.Fatal(err)
+	}
+	if l := f.list(); len(l) != 3 || l[2] != "systemctl --user start aristotle-server.service" {
+		t.Fatal(l)
+	}
+}
+
+func TestInstallIdempotentSameUnit(t *testing.T) {
+	m, _ := newMgr(t, "/opt/aristotle-server")
+	if err := m.Install(false, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(false, false); err != nil {
+		t.Fatalf("identical unit refused: %v", err)
+	}
+}
+
+func TestInstallRefusesDifferentUnitUnlessForce(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	os.MkdirAll(m.Dir, 0o755)
+	os.WriteFile(m.UnitPath(), []byte("old\n"), 0o644)
+	err := m.Install(false, false)
+	if !errors.Is(err, ErrUnitDiffers) {
+		t.Fatalf("err %v", err)
+	}
+	if b, _ := os.ReadFile(m.UnitPath()); string(b) != "old\n" || len(f.calls) != 0 {
+		t.Fatal("refused install changed something")
+	}
+	if err := m.Install(true, false); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(m.UnitPath()); string(b) == "old\n" {
+		t.Fatal("force did not replace")
+	}
+}
+
+func TestInstallEnableFailure(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.fail = map[string]bool{"--user enable aristotle-server.service": true}
+	if err := m.Install(false, true); err == nil || !strings.Contains(err.Error(), "enable") {
+		t.Fatal(err)
+	}
+	for _, c := range f.calls {
+		if strings.Contains(c.args, "start") {
+			t.Fatal("started after failed enable")
+		}
+	}
+}
+
+func TestUninstall(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	if err := m.Install(false, false); err != nil {
+		t.Fatal(err)
+	}
+	f.calls = nil
+	if err := m.Uninstall(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(m.UnitPath()); !os.IsNotExist(err) {
+		t.Fatal("unit still there")
+	}
+	got := strings.Join(f.list(), "|")
+	if got != "systemctl --user disable --now aristotle-server.service|systemctl --user daemon-reload" {
+		t.Fatal(got)
+	}
+}
+
+func TestUninstallWhenNotInstalled(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.fail = map[string]bool{"--user disable --now aristotle-server.service": true}
+	if err := m.Uninstall(); err != nil {
+		t.Fatalf("missing unit should be fine: %v", err)
+	}
+}
+
+func TestState(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.output = map[string]string{"--user is-active aristotle-server.service": "inactive\n"}
+	f.fail = map[string]bool{"--user is-active aristotle-server.service": true}
+	if s := m.State("is-active"); s != "inactive" {
+		t.Fatal(s)
+	}
+	if s := m.State("is-enabled"); s != "unknown" {
+		t.Fatal(s)
+	}
+}
+
+func TestLogs(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	m.Logs(false)
+	m.Logs(true)
+	got := strings.Join(f.list(), "|")
+	if got != "journalctl --user -u aristotle-server|journalctl --user -u aristotle-server -f" {
+		t.Fatal(got)
+	}
+}

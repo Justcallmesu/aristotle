@@ -16,6 +16,7 @@ const (
 	cmdPairStart     = "pair.start"
 	cmdDevicesList   = "devices.list"
 	cmdDevicesRevoke = "devices.revoke"
+	cmdStatus        = "status"
 )
 
 type pairStartArgs struct {
@@ -44,6 +45,9 @@ func (s *server) controlHandlers() map[string]control.Handler {
 		cmdPairStart:     s.pairStart,
 		cmdDevicesList:   func(json.RawMessage) (any, error) { return s.devices.List(), nil },
 		cmdDevicesRevoke: s.revoke,
+		cmdStatus: func(json.RawMessage) (any, error) {
+			return statusResult{Version: s.version, Addresses: s.addresses()}, nil
+		},
 	}
 }
 
@@ -103,4 +107,9 @@ func decodeArgs(raw json.RawMessage, v any) error {
 		return errors.New("bad arguments")
 	}
 	return nil
+}
+
+type statusResult struct {
+	Version   string            `json:"version"`
+	Addresses []httpapi.Address `json:"addresses"`
 }
