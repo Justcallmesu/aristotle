@@ -21,8 +21,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T05b | Listener/pairing review fixes: Tailscale by TUN interface (MAJOR, cleartext risk), LAN physical-only + subnet peers, iface names in `pair`, per-IP lockout, pair read deadline, protocol.md §11 | T05 | server, docs | DONE |
 | T05c | Hardening from wave-4 reviews: D9, D10, D12, D13, D14, D15 | T04b, T05b | server, docs §11 | DONE |
 | T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T05c | server | DONE |
-| T06b | Relay review fixes: slow phone not cut by keepalive (MAJOR), revoke on stalled phone, method-name log allowlist, §12 docs | T06 | server, docs §12 | BUILDING |
-| TD1 | Design pass: mockups (pair, sessions, chat live turn, approval, offline), icon concepts, draft design notes (Q37) | — | docs/design | AWAITING-HUMAN (design choices) |
+| T06b | Relay review fixes: slow phone not cut by keepalive (MAJOR), revoke on stalled phone, method-name log allowlist, §12 docs, refuse `desktop_local` (Q43) | T06 | server, docs §12 | BUILDING |
+| TD1 | Design pass: mockups (pair, sessions, chat live turn, approval, offline), icon concepts, draft design notes (Q37) | — | docs/design | DONE |
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | TODO |
 | T08 | Pairing by QR (server prints QR; app scans) | T07 | server, android | TODO |
 | T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07 | android | TODO |
@@ -36,7 +36,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | TODO ⟳ |
-| T20 | Icon: SVG redraw, adaptive + monochrome layers, user review rounds | T02 | android, docs/assets | TODO |
+| TQ1 | Quote loading screen: verified Aristotle quotes with source citations (Q44-Q46 pending user) | T09, Q44-Q46 | android, docs | TODO |
+| T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | TODO |
 | T22 | v1 QA on the Poco + release signing | all above | all | TODO |
 
@@ -183,3 +184,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 T06 built. Smoke test vs real Hermes: session.list -> 3 sessions (read-only). PM gates GREEN (runs/pm-gate-6: 201 Go tests + android). Mutations: redaction fast path forced -> 5 redact tests fail; revoke hook removed -> TestRelayRevokeClosesWithinOneSecond fails; restored sha-match. Review dispatched (deep), incl. whether to strip `desktop_local: true` from phone frames.
 - 2026-11-03 TD1 delivered (13 screens, 3 icon concepts, design-notes.md; slop A 0/10, B 1/10). PM checked the board in the browser (renders, no errors) and opened it on the Poco via adb reverse :8099 (local http.server, loopback only). Awaiting the user's 5 design choices.
 - 2026-11-03 T06 review PASS-WITH-FINDINGS (MAJOR unproven: slow phone cut by 25s/15s keepalive on large frames). Committed a8a44e7; TD1 draft committed 6fb3f88. T06b dispatched (deep). Q43 desktop_local refuse/strip/pass -> user.
+- 2026-11-03 User chose Q43 = refuse desktop_local; steered into running T06b. Design choices Q38-Q42 still open.
+- 2026-11-03 User chose Q38 A (Aristotle palette only), Q39 slightly rounded, Q40 Literata+Atkinson, Q41 as drawn, Q42 icon B. TD1b: consolidate into docs/design.md (light worker).
+- 2026-11-03 docs/design.md written (210 lines). PM accepted the writer's unspecified values (onSecondary, pairing-code type 22/28, reduced-motion rule, 200 ms exit) as technical calls, and its contrast fix (tertiary/error never on surfaceContainerHighest in light). User asked for an Aristotle-quote loading screen: TQ1 added, Q44-Q46 asked.

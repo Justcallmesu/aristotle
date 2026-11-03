@@ -102,7 +102,12 @@ Rules that hold everywhere:
 | Q35 | Remote terminal (T19) is a real shell on the laptop opened by aristotle-server and streamed to the phone, behind the device token. | Hermes Desktop's terminal is a Desktop-local PTY, not a Hermes feature (T01). PM adds a server setting `terminal.enabled`, default off, as a safety default; user may object. |
 | Q36 | Android: keep build-tools 36.0.0 (auto-installed by AGP 9.4.1) and install platform `android-36`; compileSdk/targetSdk 36 and current Compose/androidx versions. | User approved the SDK install 2026-11-03. |
 | Q37 | A design pass (TD1: clickable mockups of the key screens + icon concepts + draft design notes) happens before T07; the approved result becomes `docs/design.md`, which every UI ticket follows. | User chose (a) 2026-11-03. |
-| Q38 | Colour identity: OPEN. Options shown side by side in TD1: Aristotle palette from the engraving vs Material You (and a switch between them). | User answered "A" to the design-pass question only; PM asked him to pick colours from the mockups. |
+| Q38 | Colour identity: Aristotle palette only (parchment/ink, verdigris accent for live work), light + dark. No Material You / dynamic colour option. | User chose A, 2026-11-03. The T02 shell's dynamic colour is removed in T07. |
+| Q39 | Buttons and controls: slightly rounded corners, not M3 pills. | User 2026-11-03. |
+| Q40 | Type: Literata (wordmark, titles) + Atkinson Hyperlegible Next / Mono (UI, codes, terminal), Google downloadable fonts. | User 2026-11-03. Slashed zero accepted. |
+| Q41 | Approval sheet as drawn: Deny + Allow once primary side by side; For this session + Always allow smaller below. | User 2026-11-03. |
+| Q42 | Icon direction for T20: concept B, hand on chin line art. | User chose B over PM's A, 2026-11-03. TD1 rated B weak at 48 dp: T20 must simplify until it reads at 48 dp on the Poco home screen; user approves on device. |
+| Q43 | The relay refuses a phone `client.capabilities` frame carrying `desktop_local` (close 1008 `desktop_local_refused`); the phone can never be treated as the local Desktop. Narrows Q7d. | User chose (a) refuse, 2026-11-03. Found in T06 review. |
 
 ## 4. Risks
 
