@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.markdown.renderer.m3)
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.tls)

@@ -408,9 +408,9 @@ All listeners use the same port (config `port`, default 8760). The server never 
   HTTP request to an HTTPS server") from the TLS layer and never reaches the peer gate or a route. Without a TLS
   configuration no LAN or Tailscale listener is bound at all.
 - The same address ranges on any other interface (a hotel or carrier CGNAT handing out 100.x) get no listener.
-- `aristotle-server pair` prints every listener URL (all `https://`) with its interface: the default-route LAN
-  interface first, other LAN interfaces next, Tailscale last; then the one certificate fingerprint, valid for every
-  address. Interfaces are re-scanned every 10 s.
+- `aristotle-server pair` prints the pairing QR code (§11.4; `--no-qr` leaves it out), then the code, every listener
+  URL (all `https://`) with its interface: the default-route LAN interface first, other LAN interfaces next, Tailscale
+  last; then the one certificate fingerprint, valid for every address. Interfaces are re-scanned every 10 s.
 
 ### 11.2 Endpoints (LAN and Tailscale listeners)
 | Method, path | Auth | Success | Errors |
@@ -468,11 +468,37 @@ courtesy and can be stale.
   `MessageDigest.getInstance("SHA-256").digest(spki)`, uppercase hex, grouped by 4. An OkHttp `CertificatePinner`
   pin `sha256/<base64>` is the base64 of the same 32 bytes.
 - On the manual pairing path the app shows this fingerprint for the user to compare with the laptop's, for a LAN and
-  a Tailscale address alike, and stores it with the device token. One pin per PC covers all its addresses. The pin
-  changes only if the user deletes the key pair, and then every phone must re-pair.
+  a Tailscale address alike, and stores it with the device token. On the QR path (§11.4) the fingerprint comes from
+  the code on the laptop's screen, so there is no compare step; the app shows it small for reference. One pin per PC
+  covers all its addresses. The pin changes only if the user deletes the key pair, and then every phone must re-pair.
 - The app never sends cleartext: `http://`/`ws://` URLs are refused before a socket opens, and the Android network
   security config forbids cleartext with no exceptions. A pairing stored by an earlier build with an `http://`
   Tailscale URL is read as `https://` on the same host and port, keeping its pin; one without a pin must pair again.
+
+### 11.4 Pairing QR code
+`aristotle-server pair` prints, on its own stdout only (never the server log), a QR code holding one URI (T08):
+
+`aristotle://pair?v=1&c=<code>&fp=<fingerprint>&a=<url>&a=<url>…`
+
+| Key | Value |
+|---|---|
+| `v` | payload version, `1`. The app refuses any other value ("update the app"). |
+| `c` | the one-time code as issued: 8 characters of `0123456789ABCDEFGHJKMNPQRSTVWXYZ` (§11.2 rules: single use, 5 minutes) |
+| `fp` | the certificate fingerprint (§11.3) as 64 hex digits, uppercase, no spaces |
+| `a` | one per address, the same URLs in the same order as `GET /v1/addresses` (`https://<ip>:<port>`, IPv6 bracketed), at least 1, at most 8 |
+
+- Each value is query-escaped (Go `url.QueryEscape`: `:` -> `%3A`, `/` -> `%2F`, `[` -> `%5B`, `]` -> `%5D`).
+  Keys appear in the order above, each once except `a`. No device token or any other secret: the code is the only
+  one, and it is the same code `pair` prints for typing.
+- Encoded at error correction level L and drawn with Unicode half blocks (black on bright white, 4-module quiet
+  zone) so it fits 80 columns. If all addresses would make it wider, the last ones are left out (`pair` says how
+  many); the pair response (§11.2) still gives the phone the whole list.
+- The app (Google code scanner, QR only, no camera permission) accepts exactly this form: `aristotle://pair?` prefix,
+  the four keys and nothing else, `v=1`, `c` and `fp` as above, each `a` an `https://` URL whose authority is an IP
+  literal with an explicit port, in the LAN or tailnet ranges (§11.2), at most 4096 characters in all. Anything else
+  is refused with a message. A valid scan then pairs exactly like the manual path, pinned to `fp`, trying the `a`
+  addresses in order; the first that pairs is the stored typed address, and the scanned list is stored with the
+  pair response's.
 
 ## 12. Relay socket (`/v1/ws`)
 The phone's live Hermes session socket, through aristotle-server (T06; code in `server/internal/relay`). One phone

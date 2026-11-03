@@ -15,8 +15,8 @@ sealed interface LinkState {
      * No relay since [sinceMillis]. [address] is the address the cause is about (the first one tried, or the
      * one with a different certificate). [nextAttemptAtMillis] is when the next round starts; null while a
      * round is running ([trying]). [details] is protocol data for the mono block, never translated.
-     * [waiting]: no round is planned; the link waits for a network change, the app coming to the front or
-     * Retry now (a superseded socket, D36).
+     * [waiting]: a superseded socket (D36): no quick retry; the next round starts on a network change, the app
+     * coming to the front or Retry now, else at [nextAttemptAtMillis], the slow backstop (T13b, D39).
      */
     data class Offline(
         val sinceMillis: Long,
@@ -61,7 +61,8 @@ enum class OfflineCause {
 
     /**
      * `4409`: this phone opened a newer relay on the PC's other listener (LAN vs Tailscale), and the server closed
-     * this one. Not retried on a timer, so two of the device's sockets never take turns closing each other (D36).
+     * this one. Only the slow backstop retries it by itself, so two of the device's sockets never take turns closing
+     * each other quickly (D36, T13b).
      */
     Superseded,
 }

@@ -27,6 +27,9 @@ object PairingCode {
         return code.length == LENGTH && code.all { it in ALPHABET }
     }
 
+    /** Exactly as the server issues a code: 8 alphabet characters, uppercase, nothing to normalise (the QR path). */
+    fun isIssued(code: String): Boolean = code.length == LENGTH && code.all { it in ALPHABET }
+
     /** Two groups of four, e.g. "K7Q2 M9XD". */
     fun grouped(input: String): String = sanitize(input).chunked(GROUP).joinToString(" ")
 }

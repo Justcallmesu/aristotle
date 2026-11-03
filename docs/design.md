@@ -146,8 +146,9 @@ Trailing: last-activity time, "now" while running. Pinned: pin as leading icon. 
 **Pairing code + fingerprint**: code field mono, two groups of 4, case-insensitive; `401` sets field error "Invalid or
 expired pairing code" + help line (fingerprint stays confirmed); `403` shows an address-field error. Fingerprint card
 (`medium`, `surfaceContainerLow`): 16 groups in a 4 × 4 grid, mono 17/24, `onSurface`; actions "They don't match" (text) and
-"They match, pair" (filled). On a Tailscale (100.x) address the card is replaced by one line: no certificate there,
-WireGuard encrypts. Scan QR = tonal primary path; manual entry below a divider.
+"They match, pair" (filled). The card shows on every address, Tailscale included (Q49: HTTPS everywhere). Scan QR = tonal
+primary path (the fingerprint comes from the QR, so the compare step is skipped and the fingerprint is shown small for
+reference); manual entry below a divider.
 
 **Chat transcript**: user messages in `secondaryContainer` bubbles (`large`), right-aligned, max 82 % width; assistant text
 no bubble, full width. Inline code `surfaceContainerHigh` + mono. Streaming: `tertiary` block cursor at the text end.

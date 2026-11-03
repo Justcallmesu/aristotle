@@ -263,7 +263,8 @@ class LinkManagerTest {
         assertEquals("close 4409 superseded by a newer connection", offline.details)
         assertTrue(offline.waiting)
         assertFalse(offline.trying)
-        assertEquals(null, offline.nextAttemptAtMillis)
+        // D39: the slow backstop's time, so the banner can count down to it.
+        assertEquals(offline.sinceMillis + 60_000, offline.nextAttemptAtMillis)
         runBlocking { delay(500) } // well past the 40 ms backoff a lost connection would take
         assertEquals(1, dialer.opened.size)
         assertEquals(offline, manager.state.value)
@@ -288,7 +289,8 @@ class LinkManagerTest {
         val manager = link(dialer, supersededRetryMillis = 400)
         val first = manager.await("online") { it is LinkState.Online } as LinkState.Online
         dialer.sockets.single().close(4409, "superseded by a newer connection")
-        manager.await("superseded") { it is LinkState.Offline && it.waiting }
+        val waiting = manager.await("superseded") { it is LinkState.Offline && it.waiting } as LinkState.Offline
+        assertEquals(waiting.sinceMillis + 400, waiting.nextAttemptAtMillis)
         runBlocking { delay(150) }
         assertEquals(1, dialer.opened.size)
         manager.await("back by itself") { it is LinkState.Online && it.generation != first.generation }

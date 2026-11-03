@@ -13,6 +13,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/control"
 	"github.com/justcallmesu/aristotle/server/internal/devices"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/termqr"
 )
 
 // callServer sends one control command to the running server.
@@ -28,11 +29,12 @@ func runPair(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("pair", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	name := fs.String("name", "", "name for the paired device (default: the name the phone sends)")
+	noQR := fs.Bool("no-qr", false, "print only the code, addresses and fingerprint, no QR code")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(stderr, "usage: aristotle-server pair [--name NAME]")
+		fmt.Fprintln(stderr, "usage: aristotle-server pair [--name NAME] [--no-qr]")
 		return 2
 	}
 	var res pairStartResult
@@ -40,11 +42,16 @@ func runPair(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
-	printPairing(stdout, res, time.Now())
+	printPairing(stdout, res, time.Now(), !*noQR)
 	return 0
 }
 
-func printPairing(w io.Writer, res pairStartResult, now time.Time) {
+// printPairing prints the pairing details to the pair command's stdout (never
+// to the server log): the QR code when withQR, then the same data to type in.
+func printPairing(w io.Writer, res pairStartResult, now time.Time, withQR bool) {
+	if withQR {
+		printQR(w, res)
+	}
 	left := res.ExpiresAt.Sub(now).Round(time.Second)
 	fmt.Fprintf(w, "Pairing code:  %s\n", res.Code)
 	fmt.Fprintf(w, "Expires:       %s (in %s); single use; %d wrong tries lock out that address\n\n",
@@ -53,6 +60,49 @@ func printPairing(w io.Writer, res pairStartResult, now time.Time) {
 	printAddrs(w, res.Addresses)
 	fmt.Fprintln(w, "\nCertificate fingerprint (the app shows it for every address; they must match):")
 	fmt.Fprintf(w, "  %s\n", res.Fingerprint)
+}
+
+// qrMaxColumns keeps the QR code inside an 80-column terminal: a wrapped line breaks the code.
+const qrMaxColumns = 80
+
+// printQR prints the pairing QR code (protocol §11.4) with every address, at
+// most pairing.MaxPayloadAddresses. When that would be wider than
+// qrMaxColumns, the last addresses are left out until it fits: the phone needs
+// one that answers, and the pair response gives it the whole list.
+func printQR(w io.Writer, res pairStartResult) {
+	if len(res.Addresses) == 0 {
+		return // the address list below says why
+	}
+	urls := make([]string, len(res.Addresses))
+	for i, a := range res.Addresses {
+		urls[i] = a.URL
+	}
+	for n := min(len(urls), pairing.MaxPayloadAddresses); n > 0; n-- {
+		code, err := qrFor(res, urls[:n])
+		if err != nil {
+			fmt.Fprintf(w, "No QR code (%v); type the code in the app.\n\n", err)
+			return
+		}
+		if code.Columns() > qrMaxColumns {
+			continue
+		}
+		fmt.Fprintln(w, "Scan with the app (Scan QR code):")
+		_ = code.Write(w)
+		if n < len(urls) {
+			fmt.Fprintf(w, "The QR code carries the first %d of %d addresses; the app gets the rest when it pairs.\n", n, len(urls))
+		}
+		fmt.Fprintln(w, "\nOr type it in:")
+		return
+	}
+	fmt.Fprintf(w, "No QR code (it would not fit %d columns); type the code in the app.\n\n", qrMaxColumns)
+}
+
+func qrFor(res pairStartResult, urls []string) (*termqr.Code, error) {
+	text, err := pairing.Payload(res.Code, res.Fingerprint, urls)
+	if err != nil {
+		return nil, err
+	}
+	return termqr.Encode(text)
 }
 
 // printAddrs prints one line per listener in the server's order (default

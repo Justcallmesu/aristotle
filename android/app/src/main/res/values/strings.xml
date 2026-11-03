@@ -5,7 +5,7 @@
 
     <!-- Pair screen -->
     <string name="pair_title">Pair with your PC</string>
-    <string name="pair_lead">On the laptop, run %1$s. It shows the address, a one-time code and the certificate fingerprint.</string>
+    <string name="pair_lead">On the laptop, run %1$s. It shows a QR code, the address and a one-time code.</string>
     <string name="pair_address_label">Address</string>
     <string name="pair_address_help">Wi-Fi or Tailscale address. Port 8760 if you leave it out.</string>
     <string name="pair_code_label">Pairing code</string>
@@ -244,5 +244,16 @@
     <string name="echo_retry">Retry</string>
     <string name="echo_dismiss">Remove; the text goes back to the field</string>
     <string name="offline_cause_superseded">This phone opened a newer connection to the PC on its other address, so the one to %1$s was closed.</string>
-    <string name="offline_waiting">Not reconnecting by itself. Retry now to connect here.</string>
+    <string name="offline_waiting">Waiting so this phone\'s other connection is not cut; next try in %1$d s. Retry now to connect here.</string>
+    <!-- T08: pairing by QR code (protocol §11.4). -->
+    <string name="pair_scan">Scan QR code</string>
+    <string name="pair_or_manual">or type it in</string>
+    <string name="fp_from_qr">Fingerprint from the QR code</string>
+    <string name="scan_error_unavailable">Scanner unavailable — enter the code by hand.</string>
+    <string name="scan_error_not_pairing">This QR code is not from %1$s.</string>
+    <string name="scan_error_version">This QR code comes from another version of aristotle-server. Update the app, or enter the code by hand.</string>
+    <string name="scan_error_code">The pairing code in this QR code is not valid. Run %1$s again.</string>
+    <string name="scan_error_fingerprint">The certificate fingerprint in this QR code is not valid. Run %1$s again.</string>
+    <string name="scan_error_address">This QR code has an address the app does not use (only Wi-Fi or Tailscale IP addresses over HTTPS). Enter the address by hand.</string>
+    <string name="scan_error_malformed">This QR code is damaged or incomplete. Scan it again, or enter the code by hand.</string>
 </resources>

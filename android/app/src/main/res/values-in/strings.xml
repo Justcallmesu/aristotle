@@ -2,7 +2,7 @@
 <resources>
     <!-- Pair screen -->
     <string name="pair_title">Sandingkan dengan PC</string>
-    <string name="pair_lead">Di laptop, jalankan %1$s. Perintah ini menampilkan alamat, kode sekali pakai, dan sidik jari sertifikat.</string>
+    <string name="pair_lead">Di laptop, jalankan %1$s. Perintah ini menampilkan kode QR, alamat, dan kode sekali pakai.</string>
     <string name="pair_address_label">Alamat</string>
     <string name="pair_address_help">Alamat Wi-Fi atau Tailscale. Port 8760 jika tidak diisi.</string>
     <string name="pair_code_label">Kode penyandingan</string>
@@ -239,5 +239,16 @@
     <string name="echo_retry">Coba lagi</string>
     <string name="echo_dismiss">Hapus; teksnya kembali ke kolom pesan</string>
     <string name="offline_cause_superseded">Ponsel ini membuka koneksi baru ke laptop lewat alamat lainnya, jadi koneksi ke %1$s ditutup.</string>
-    <string name="offline_waiting">Tidak menyambung ulang sendiri. Ketuk Coba sekarang untuk tersambung di sini.</string>
+    <string name="offline_waiting">Menunggu agar sambungan lain ponsel ini tidak terputus; percobaan berikutnya dalam %1$d detik. Ketuk Coba sekarang untuk tersambung di sini.</string>
+    <!-- T08: menyandingkan dengan kode QR (protokol §11.4). -->
+    <string name="pair_scan">Pindai kode QR</string>
+    <string name="pair_or_manual">atau ketik manual</string>
+    <string name="fp_from_qr">Sidik jari dari kode QR</string>
+    <string name="scan_error_unavailable">Pemindai tidak tersedia — masukkan kodenya secara manual.</string>
+    <string name="scan_error_not_pairing">Kode QR ini bukan dari %1$s.</string>
+    <string name="scan_error_version">Kode QR ini berasal dari versi aristotle-server yang lain. Perbarui aplikasi, atau masukkan kodenya secara manual.</string>
+    <string name="scan_error_code">Kode penyandingan di kode QR ini tidak valid. Jalankan %1$s lagi.</string>
+    <string name="scan_error_fingerprint">Sidik jari sertifikat di kode QR ini tidak valid. Jalankan %1$s lagi.</string>
+    <string name="scan_error_address">Kode QR ini memuat alamat yang tidak dipakai aplikasi (hanya alamat IP Wi-Fi atau Tailscale lewat HTTPS). Masukkan alamatnya secara manual.</string>
+    <string name="scan_error_malformed">Kode QR ini rusak atau tidak lengkap. Pindai lagi, atau masukkan kodenya secara manual.</string>
 </resources>

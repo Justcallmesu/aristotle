@@ -101,24 +101,16 @@ private fun BodyLine(text: String) {
 /**
  * "Reconnecting… try N" during a round, else "Reconnecting… try N, next in S s" counting down (whole
  * seconds, tabular). N is the try that runs or runs next: [LinkState.Offline.attempt] tries have failed.
- * A link that waits for the user (D36) says so instead.
+ * A superseded link (D36) says why it waits, counting down to the slow backstop (D39).
  */
 @Composable
 private fun RetryStatus(offline: LinkState.Offline) {
     val next = offline.nextAttemptAtMillis
     val tryNumber = offline.attempt + 1
-    val text = if (offline.waiting) {
-        stringResource(R.string.offline_waiting)
-    } else if (next == null) {
-        stringResource(R.string.offline_reconnecting, tryNumber)
-    } else {
-        val left by produceState(secondsUntil(next), next) {
-            while (value > 0) {
-                delay(TICK_MILLIS)
-                value = secondsUntil(next)
-            }
-        }
-        stringResource(R.string.offline_reconnecting_next, tryNumber, left)
+    val text = when {
+        next == null -> stringResource(R.string.offline_reconnecting, tryNumber)
+        offline.waiting -> stringResource(R.string.offline_waiting, secondsLeft(next))
+        else -> stringResource(R.string.offline_reconnecting_next, tryNumber, secondsLeft(next))
     }
     Text(
         text = text,
@@ -142,6 +134,18 @@ private fun ReconnectingLine() {
     } else {
         LinearProgressIndicator(modifier = modifier, color = color, trackColor = Color.Transparent)
     }
+}
+
+/** Whole seconds until [atMillis], ticking down once a second. */
+@Composable
+private fun secondsLeft(atMillis: Long): Int {
+    val left by produceState(secondsUntil(atMillis), atMillis) {
+        while (value > 0) {
+            delay(TICK_MILLIS)
+            value = secondsUntil(atMillis)
+        }
+    }
+    return left
 }
 
 private fun secondsUntil(atMillis: Long): Int = ((atMillis - System.currentTimeMillis() + 999) / 1000).toInt().coerceAtLeast(0)

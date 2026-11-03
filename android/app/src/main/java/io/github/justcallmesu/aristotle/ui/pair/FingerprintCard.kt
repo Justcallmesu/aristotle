@@ -118,3 +118,36 @@ fun FingerprintConfirmed(fingerprint: ByteArray) {
         }
     }
 }
+
+/**
+ * After a scanned QR code: the fingerprint came from the laptop's screen, so nothing is compared. Shown in
+ * full but small, for reference.
+ */
+@Composable
+fun FingerprintFromQr(fingerprint: ByteArray) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_qr_code_scanner),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column {
+                Text(text = stringResource(R.string.fp_from_qr), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = Fingerprint.format(fingerprint),
+                    style = AristotleTextStyles.fingerprintShort,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}

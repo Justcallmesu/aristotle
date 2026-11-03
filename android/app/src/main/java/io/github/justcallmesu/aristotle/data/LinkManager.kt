@@ -77,7 +77,8 @@ data class LinkTimings(
  * Tries the PC's addresses in [EndpointChoice] order, reconnects after a loss with [Backoff] (reset once a
  * relay delivers `gateway.ready`), and at once when the phone's network changes, the app returns to the
  * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s; after `4409`
- * a network change, the foreground or the user starts the next round at once, else a slow backstop (60 s) does (D36).
+ * a network change, the foreground or the user starts the next round at once, else a slow backstop (60 s) does (D36,
+ * T13b), counted down in [LinkState.Offline.nextAttemptAtMillis] (D39).
  * [stop] (the background notification's Stop, T10) closes the relay until [onForeground].
  * Frames are handed off OkHttp's reader thread at once ([RelaySocket]) and parsed here (protocol §12).
  * An unexpected error in a round shows as [OfflineCause.AppError] and the next round runs: the link never dies.
@@ -326,15 +327,18 @@ class LinkManager(
         }
 
         /**
-         * `4409` (D36): the server replaced this socket with a newer one of this device on its other listener. This
-         * socket is not reconnected on a timer, or the two would keep closing each other; the next round waits for a
-         * network change, the app coming to the front, or Retry now.
+         * `4409` (D36): the server replaced this socket with a newer one of this device on its other listener. No
+         * quick retry, or the two would keep closing each other: the next round starts on a network change, the app
+         * coming to the front or Retry now, else after the slow backstop ([LinkTimings.supersededRetryMillis], T13b),
+         * whose time the banner counts down to (D39).
          */
         private suspend fun standDown(end: RoundEnd.Superseded) {
             reached()
             val since = clock().also { offlineSince = it }
-            current.value = LinkState.Offline(since, OfflineCause.Superseded, end.details, end.address, attempt = 0, nextAttemptAtMillis = null, waiting = true)
+            val next = since + timings.supersededRetryMillis
+            current.value = LinkState.Offline(since, OfflineCause.Superseded, end.details, end.address, attempt = 0, nextAttemptAtMillis = next, waiting = true)
             sleep(timings.supersededRetryMillis)
+            current.update { if (it is LinkState.Offline) it.copy(nextAttemptAtMillis = null, waiting = false) else it }
         }
 
         /** The PC answered: it is not offline (whatever Hermes said), and a later loss backs off from the start. */

@@ -15,15 +15,25 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -53,11 +63,14 @@ class PairActions(
     val onFingerprintMatches: () -> Unit,
     val onFingerprintMismatch: () -> Unit,
     val onPair: () -> Unit,
+    val onScan: () -> Unit,
 )
 
 @Composable
 fun PairScreen(viewModel: PairViewModel, notice: PairNotice?) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scanner: QrScanner = remember(context) { GmsQrScanner(context) }
     PairContent(
         state = state,
         notice = notice,
@@ -69,12 +82,16 @@ fun PairScreen(viewModel: PairViewModel, notice: PairNotice?) {
             onFingerprintMatches = viewModel::onFingerprintMatches,
             onFingerprintMismatch = viewModel::onFingerprintMismatch,
             onPair = viewModel::onPair,
+            onScan = { scanner.scan(viewModel::onScanResult) },
         ),
     )
 }
 
 @Composable
 fun PairContent(state: PairUiState, notice: PairNotice?, actions: PairActions) {
+    val addressFocus = remember { FocusRequester() }
+    // No scanner: the form below is the way in, so the cursor goes there.
+    LaunchedEffect(state.scanError) { if (state.scanError == ScanError.Unavailable) addressFocus.requestFocus() }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(
             modifier = Modifier
@@ -100,8 +117,21 @@ fun PairContent(state: PairUiState, notice: PairNotice?, actions: PairActions) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(Spacing.xxl))
-            AddressField(state, actions.onAddressChange)
+            Spacer(Modifier.height(Spacing.xl))
+            ScanButton(enabled = !state.busy, onClick = actions.onScan)
+            state.scanError?.let { error ->
+                Spacer(Modifier.height(Spacing.s))
+                Text(
+                    text = scanErrorText(error),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (error == ScanError.Unavailable) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+            Spacer(Modifier.height(Spacing.xl))
+            OrTypeItIn()
+            Spacer(Modifier.height(Spacing.xl))
+            AddressField(state, actions.onAddressChange, addressFocus)
             Spacer(Modifier.height(Spacing.l))
             CodeField(state, actions.onCodeChange)
             Spacer(Modifier.height(Spacing.l))
@@ -122,12 +152,12 @@ fun PairContent(state: PairUiState, notice: PairNotice?, actions: PairActions) {
 }
 
 @Composable
-private fun AddressField(state: PairUiState, onChange: (String) -> Unit) {
+private fun AddressField(state: PairUiState, onChange: (String) -> Unit, focus: FocusRequester) {
     val error = state.addressError
     OutlinedTextField(
         value = state.address,
         onValueChange = onChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
         label = { Text(stringResource(R.string.pair_address_label)) },
         supportingText = { Text(if (error == null) stringResource(R.string.pair_address_help) else addressErrorText(error)) },
         isError = error != null,
@@ -200,7 +230,7 @@ private fun StepArea(state: PairUiState, actions: PairActions) {
             onMismatch = actions.onFingerprintMismatch,
         )
         is PairStep.Confirmed -> {
-            FingerprintConfirmed(step.fingerprint)
+            if (step.scanned) FingerprintFromQr(step.fingerprint) else FingerprintConfirmed(step.fingerprint)
             Spacer(Modifier.height(Spacing.xl))
             PrimaryRow(
                 label = when {
@@ -212,6 +242,34 @@ private fun StepArea(state: PairUiState, actions: PairActions) {
                 onClick = actions.onPair,
             )
         }
+    }
+}
+
+/** design.md: Scan QR is the tonal primary path, above the manual form. */
+@Composable
+private fun ScanButton(enabled: Boolean, onClick: () -> Unit) {
+    FilledTonalButton(onClick = onClick, enabled = enabled, shape = ButtonShape, modifier = Modifier.fillMaxWidth()) {
+        Icon(
+            painter = painterResource(R.drawable.ic_qr_code_scanner),
+            contentDescription = null,
+            modifier = Modifier.size(ButtonDefaults.IconSize),
+        )
+        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+        Text(stringResource(R.string.pair_scan))
+    }
+}
+
+/** The divider between the scan path and the manual form. */
+@Composable
+private fun OrTypeItIn() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+        HorizontalDivider(modifier = Modifier.weight(1f))
+        Text(
+            text = stringResource(R.string.pair_or_manual),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f))
     }
 }
 
@@ -277,6 +335,20 @@ private fun addressErrorText(error: AddressFieldError): String = stringResource(
         AddressFieldError.NoCertificate -> R.string.address_error_no_certificate
     },
 )
+
+@Composable
+private fun scanErrorText(error: ScanError): String {
+    val command = stringResource(R.string.pair_command)
+    return when (error) {
+        ScanError.Unavailable -> stringResource(R.string.scan_error_unavailable)
+        ScanError.NotPairing -> stringResource(R.string.scan_error_not_pairing, command)
+        ScanError.Version -> stringResource(R.string.scan_error_version)
+        ScanError.Code -> stringResource(R.string.scan_error_code, command)
+        ScanError.Fingerprint -> stringResource(R.string.scan_error_fingerprint, command)
+        ScanError.Address -> stringResource(R.string.scan_error_address)
+        ScanError.Malformed -> stringResource(R.string.scan_error_malformed)
+    }
+}
 
 @Composable
 private fun codeSupportText(error: CodeFieldError?): String = stringResource(

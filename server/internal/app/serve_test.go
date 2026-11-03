@@ -253,7 +253,7 @@ func TestPrintPairing(t *testing.T) {
 			{Address: httpapi.Address{URL: "https://10.0.0.2:8760", Kind: "lan", Iface: "eth0"}},
 			{Address: httpapi.Address{URL: "https://100.74.61.96:8760", Kind: "tailscale", Iface: "tailscale0"}},
 		},
-	}, now)
+	}, now, false)
 	out := buf.String()
 	for _, want := range []string{"ABCD2345", "10:05:00", "5m0s", "AAAA BBBB", fmt.Sprintf("%d wrong tries", pairing.MaxAttemptsPerPeer)} {
 		if !strings.Contains(out, want) {

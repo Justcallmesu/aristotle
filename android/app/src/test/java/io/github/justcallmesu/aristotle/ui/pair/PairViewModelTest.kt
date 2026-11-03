@@ -12,6 +12,7 @@ import io.github.justcallmesu.aristotle.data.MemoryStore
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.PairResult
 import io.github.justcallmesu.aristotle.data.PairingApi
+import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.data.ProbeResult
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.softwareKey
@@ -21,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -36,12 +38,18 @@ class PairViewModelTest {
         ServerEndpoint("192.168.1.23", 8760, Network.Lan),
         ServerEndpoint("100.74.61.96", 8760, Network.Tailscale),
     )
-    private var answer: PairResult = PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n"), reported)
+    private val paired = PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n"), reported)
+    private var answer: PairResult = paired
+    private var answerFor: (ServerEndpoint) -> PairResult = { answer }
     private val pairing = PairingApi { endpoint, pin, code, name ->
         calls += Call(endpoint, pin.copyOf(), code, name)
-        answer
+        answerFor(endpoint)
     }
-    private val probe = CertificateSource { ProbeResult.Certificate(probedPin.copyOf()) }
+    private var probes = 0
+    private val probe = CertificateSource {
+        probes++
+        ProbeResult.Certificate(probedPin.copyOf())
+    }
     private val key = softwareKey()
 
     private fun store(cipher: AesGcmTokenCipher = AesGcmTokenCipher { key }) =
@@ -131,5 +139,138 @@ class PairViewModelTest {
         assertEquals(PairMessage.StoreFailed, vm.uiState.value.message)
         assertFalse(vm.uiState.value.busy)
         assertEquals(CredentialState.Loading, credentials.state.value)
+    }
+
+    // --- T08: pairing by QR code ---
+
+    private val scannedPin = ByteArray(32) { (it * 3 + 1).toByte() }
+    private val qrLan = ServerEndpoint("192.168.1.23", 8760, Network.Lan)
+    private val qrTailnet = ServerEndpoint("100.74.61.96", 8760, Network.Tailscale)
+
+    private fun qr(code: String = "K7Q2M9XD", pin: ByteArray = scannedPin, urls: List<String> = listOf(qrLan.baseUrl, qrTailnet.baseUrl)) =
+        "aristotle://pair?v=1&c=$code&fp=${Fingerprint.format(pin).replace(" ", "")}" + urls.joinToString("") { "&a=$it" }
+
+    private fun saved(credentials: CredentialStore): PcCredentials = (credentials.state.value as CredentialState.Paired).credentials
+
+    @Test
+    fun aScannedCodePairsWithItsPinWithoutACompare() {
+        val credentials = store()
+        val vm = viewModel(credentials)
+        vm.onScanResult(ScanOutcome.Scanned(qr()))
+        assertEquals(0, probes) // no certificate fetched: the pin came from the laptop's screen
+        val call = calls.single()
+        assertArrayEquals(scannedPin, call.pin)
+        assertEquals(qrLan, call.endpoint)
+        assertEquals("K7Q2 M9XD", call.code)
+        assertEquals("POCO X5 Pro 5G", call.name)
+        val pc = saved(credentials)
+        assertEquals(Fingerprint.format(scannedPin), pc.fingerprint)
+        assertEquals(qrLan, pc.typed)
+        assertEquals(qrLan, pc.lastGood)
+        // The address that paired, the PC's reported list, then the rest of the scanned list.
+        assertEquals(
+            listOf("https://192.168.1.23:8760", "https://192.168.1.61:8760", "https://100.74.61.96:8760"),
+            pc.addresses.map { it.baseUrl },
+        )
+        assertEquals(qrLan.displayAddress, vm.uiState.value.address)
+        assertEquals("K7Q2 M9XD", vm.uiState.value.code)
+    }
+
+    // Requirement 4: typed = the first scanned address that pairs; the scanned list seeds the stored one.
+    @Test
+    fun theFirstScannedAddressThatPairsIsTheTypedOne() {
+        answerFor = { if (it == qrLan) PairResult.Failed(ConnectionProblem.Unreachable) else PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n"), emptyList()) }
+        val credentials = store()
+        viewModel(credentials).onScanResult(ScanOutcome.Scanned(qr()))
+        assertEquals(listOf(qrLan, qrTailnet), calls.map { it.endpoint })
+        assertTrue(calls.all { it.pin.contentEquals(scannedPin) })
+        val pc = saved(credentials)
+        assertEquals(qrTailnet, pc.typed)
+        assertEquals(qrTailnet, pc.lastGood)
+        assertEquals(listOf(qrTailnet, qrLan), pc.addresses)
+    }
+
+    @Test
+    fun aWrongNetworkOrAnotherCertificateTriesTheNextAddressButARefusedCodeStops() {
+        answerFor = { if (it == qrLan) PairResult.Forbidden else PairResult.Failed(ConnectionProblem.CertificateChanged) }
+        val vm = viewModel()
+        vm.onScanResult(ScanOutcome.Scanned(qr()))
+        assertEquals(2, calls.size)
+        // Every address failed: the first one's outcome is shown, on the address field (which holds it).
+        assertEquals(AddressFieldError.NotAllowed, vm.uiState.value.addressError)
+        assertEquals(PairStep.Entry, vm.uiState.value.step)
+        assertFalse(vm.uiState.value.busy)
+
+        calls.clear()
+        answerFor = { PairResult.InvalidCode }
+        val again = viewModel()
+        again.onScanResult(ScanOutcome.Scanned(qr()))
+        assertEquals(1, calls.size) // a 401 is the code, not the address: no second try with it
+        assertEquals(CodeFieldError.Invalid, again.uiState.value.codeError)
+        val step = again.uiState.value.step as PairStep.Confirmed
+        assertTrue(step.scanned)
+        // A fresh code typed in pairs again with the scanned pin over the scanned addresses.
+        answerFor = { answer }
+        again.onCodeChange("ab12cd34")
+        again.onPair()
+        assertEquals("AB12 CD34", calls.last().code)
+        assertArrayEquals(scannedPin, calls.last().pin)
+    }
+
+    // One code path after parsing: the scan reaches the same PairingApi call, with the same arguments, and
+    // stores the same pairing as the manual path with the same address, code and (compared) pin.
+    @Test
+    fun scannedAndManualPathsMakeTheSamePairingCall() {
+        val manualStore = store()
+        val manual = viewModel(manualStore)
+        manual.fill("192.168.1.23")
+        manual.onContinue()
+        manual.onFingerprintMatches()
+        val manualCall = calls.single()
+        calls.clear()
+
+        val scannedStore = store()
+        viewModel(scannedStore).onScanResult(ScanOutcome.Scanned(qr(pin = probedPin, urls = listOf(qrLan.baseUrl))))
+        val scannedCall = calls.single()
+        assertEquals(manualCall.endpoint, scannedCall.endpoint)
+        assertArrayEquals(manualCall.pin, scannedCall.pin)
+        assertEquals(manualCall.code, scannedCall.code)
+        assertEquals(manualCall.name, scannedCall.name)
+        assertEquals(saved(manualStore), saved(scannedStore))
+    }
+
+    @Test
+    fun aRefusedScanSaysWhyAndPairsNothing() {
+        val vm = viewModel()
+        val cases = listOf(
+            "https://example.com" to ScanError.NotPairing,
+            qr().replace("v=1", "v=2") to ScanError.Version,
+            qr(code = "k7q2m9xd") to ScanError.Code,
+            qr().replace("&a=https://192.168.1.23:8760", "&a=http://192.168.1.23:8760") to ScanError.Address,
+            qr() + "&token=x" to ScanError.Malformed,
+        )
+        for ((text, error) in cases) {
+            vm.onScanResult(ScanOutcome.Scanned(text))
+            assertEquals(text, error, vm.uiState.value.scanError)
+            assertEquals(PairStep.Entry, vm.uiState.value.step)
+        }
+        assertTrue(calls.isEmpty())
+        assertEquals("", vm.uiState.value.address)
+        vm.onAddressChange("192.168.1.2")
+        assertNull(vm.uiState.value.scanError)
+    }
+
+    @Test
+    fun noScannerPointsToTheManualFormAndCancelDoesNothing() {
+        val vm = viewModel()
+        vm.onScanResult(ScanOutcome.Cancelled)
+        assertEquals(PairUiState(deviceName = "POCO X5 Pro 5G"), vm.uiState.value)
+        vm.onScanResult(ScanOutcome.Unavailable)
+        assertEquals(ScanError.Unavailable, vm.uiState.value.scanError)
+        // The manual path still works as before.
+        vm.fill("192.168.1.23")
+        vm.onContinue()
+        vm.onFingerprintMatches()
+        assertArrayEquals(probedPin, calls.single().pin)
     }
 }
