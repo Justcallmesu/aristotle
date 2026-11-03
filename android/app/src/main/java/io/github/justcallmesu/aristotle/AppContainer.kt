@@ -1,8 +1,19 @@
 package io.github.justcallmesu.aristotle
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.os.Build
+import android.os.Bundle
 import android.util.Log
+import io.github.justcallmesu.aristotle.background.BackgroundController
+import io.github.justcallmesu.aristotle.background.Notifier
+import io.github.justcallmesu.aristotle.data.AlertRouter
+import io.github.justcallmesu.aristotle.data.AppSettings
+import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
+import io.github.justcallmesu.aristotle.data.DeviceMaker
+import io.github.justcallmesu.aristotle.data.ScreenFocus
+import io.github.justcallmesu.aristotle.data.SessionWatcher
 import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
 import io.github.justcallmesu.aristotle.data.CertificateProbe
 import io.github.justcallmesu.aristotle.data.CredentialCodec
@@ -21,6 +32,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 /** Why the app went back to the pair screen on its own. */
@@ -57,6 +70,17 @@ class AppContainer(context: Context) {
         memory = credentials,
     )
 
+    val settings = AppSettings(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
+    val notifier = Notifier(context)
+    val background = BackgroundController(context, link, credentials.state, settings, scope)
+
+    /** HyperOS stops background apps unless told otherwise; the battery guide is for these phones (spec Q27). */
+    val isXiaomiFamily = DeviceMaker.isXiaomiFamily(Build.MANUFACTURER, Build.BRAND)
+
+    /** The session open on screen; the chat screen (T11) sets it. No notification is posted for it. */
+    val openSession = MutableStateFlow<String?>(null)
+    private val alerts = AlertRouter()
+
     private val notice = MutableStateFlow<PairNotice?>(null)
     val pairNotice: StateFlow<PairNotice?> = notice.asStateFlow()
 
@@ -68,7 +92,22 @@ class AppContainer(context: Context) {
         reloadCredentials()
         link.start()
         scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
+        notifier.createChannels()
+        watchSessions()
     }
+
+    /** Notifications from the watched sessions (T10); router and notifier run on the main thread. */
+    private fun watchSessions() {
+        scope.launch {
+            SessionWatcher(link).alerts().flowOn(Dispatchers.Default).collect { alert ->
+                alerts.onAlert(alert, ScreenFocus(background.appVisible.value, openSession.value)).forEach(notifier::apply)
+            }
+        }
+        scope.launch { openSession.filterNotNull().collect { id -> alerts.onOpened(id).forEach(notifier::apply) } }
+    }
+
+    /** A "needs you" notification was swiped away (main thread, like the router's other callers). */
+    fun onAlertDismissed(sessionId: String, promptId: String) = alerts.onDismissed(sessionId, promptId)
 
     /** Reads the stored pairing again (at start, and Retry after the Keystore was unavailable). */
     fun reloadCredentials() {
@@ -88,10 +127,27 @@ class AppContainer(context: Context) {
 
     private companion object {
         const val CREDENTIALS_FILE = "credentials"
+        const val SETTINGS_FILE = "settings"
         const val TAG = "Aristotle"
     }
 }
 
 class AristotleApplication : Application() {
     val container: AppContainer by lazy { AppContainer(this) }
+
+    override fun onCreate() {
+        super.onCreate()
+        registerActivityLifecycleCallbacks(VisibilityCallbacks())
+    }
+
+    /** Tells the background controller when the app comes on screen and leaves it (T10). */
+    private inner class VisibilityCallbacks : ActivityLifecycleCallbacks {
+        override fun onActivityStarted(activity: Activity) = container.background.onActivityStarted()
+        override fun onActivityStopped(activity: Activity) = container.background.onActivityStopped(activity.isChangingConfigurations)
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+        override fun onActivityResumed(activity: Activity) = Unit
+        override fun onActivityPaused(activity: Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+        override fun onActivityDestroyed(activity: Activity) = Unit
+    }
 }

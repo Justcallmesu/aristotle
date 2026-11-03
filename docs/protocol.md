@@ -148,6 +148,17 @@ request), `todo.updated`, `subagent.start|text|tool|thinking|complete|roster`, `
 Token-type events (`message.delta`, `reasoning.delta`, `thinking.delta`) are coalesced ~33 ms server-side
 (`ws.py:129-130`).
 
+**Background subscription rule (phone, T10).** A socket gets a session's events only after it resumed it (§4). On
+every new relay the app calls `session.list` (launch profile) and `session.resume {session_id, omit_messages:true}`
+for each `running` session; after `sessions.changed` it lists again and resumes the ones that started since. A
+resumed session stays resumed until a `session.replay_gap` for it (Hermes ended this viewer's subscription; the app
+removes it from the resumed set and resumes it again on the same socket, which rebuilds the snapshot and re-reads the
+open prompts) or until the socket ends. Alerts: `message.complete` = turn finished (not when `outcome`
+is `cancelled`); `approval.request` / `clarify.request` (and the resume snapshot's `prompts`, the same dicts,
+`gateway/session_pending_controls.py:53-64`) = needs you; `*.settled` removes that notification. Side effect: a resume calls `cancel_persisted_close`, so the phone's automatic
+resume can cancel a pending close of a session that a TUI/CLI left mid-turn (narrow case; the Desktop sends no
+`end_reason`, unaffected); when the phone socket drops, Hermes arms an orphan close for it again.
+
 ### 2.1 `session.info`: two payload shapes (+ two snapshot forms)
 
 `session.info` is the one event type whose `payload` is NOT a fixed set of keys. Hermes publishes it from several

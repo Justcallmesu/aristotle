@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -43,17 +44,23 @@ import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 
 @Composable
-fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit) {
+fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit, onSettings: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    SessionsContentView(state = state, timeText = viewModel::timeText, onRetry = viewModel::retry, onPairAgain = onPairAgain)
+    SessionsContentView(state = state, timeText = viewModel::timeText, onRetry = viewModel::retry, onPairAgain = onPairAgain, onSettings = onSettings)
 }
 
 @Composable
-fun SessionsContentView(state: SessionsUiState, timeText: (Long) -> String, onRetry: () -> Unit, onPairAgain: () -> Unit) {
+fun SessionsContentView(
+    state: SessionsUiState,
+    timeText: (Long) -> String,
+    onRetry: () -> Unit,
+    onPairAgain: () -> Unit,
+    onSettings: () -> Unit,
+) {
     val address = state.address?.hostForUrl.orEmpty()
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            TopBar(state, address)
+            TopBar(state, address, onSettings)
             val page = pageFor(state)
             if (page != null) {
                 ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain)
@@ -88,12 +95,12 @@ private fun ListBody(state: SessionsUiState, address: String) {
 }
 
 @Composable
-private fun TopBar(state: SessionsUiState, address: String) {
+private fun TopBar(state: SessionsUiState, address: String, onSettings: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = Sizes.topBarHeight)
-            .padding(horizontal = Spacing.l),
+            .padding(start = Spacing.l, end = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -101,6 +108,9 @@ private fun TopBar(state: SessionsUiState, address: String) {
             ConnectionLine(state.link, address)
         }
         state.profileName?.let { ProfileLabel(it) }
+        IconButton(onClick = onSettings) {
+            Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings_title))
+        }
     }
 }
 

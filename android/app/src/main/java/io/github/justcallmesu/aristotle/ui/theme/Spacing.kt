@@ -28,4 +28,6 @@ object Sizes {
     val lineIcon: Dp = 14.dp
     val progressLine: Dp = 4.dp
     val divider: Dp = 1.dp
+    val stepBadge: Dp = 28.dp
+    val stepIcon: Dp = 18.dp
 }

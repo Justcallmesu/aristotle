@@ -92,4 +92,56 @@
     <!-- Stored pairing unreadable for now -->
     <string name="creds_unavailable_title">Can\'t open the pairing</string>
     <string name="creds_unavailable_body">Android\'s key store did not open this phone\'s pairing with the laptop. This is usually brief, right after the phone starts. Retry; if it keeps failing, pair again.</string>
+
+    <!-- Background link and notifications (T10) -->
+    <string name="channel_link">Connection to your PC</string>
+    <string name="channel_link_description">Keeps the link to Hermes open while Aristotle is closed. Silent.</string>
+    <string name="channel_turns">Turn finished</string>
+    <string name="channel_turns_description">A Hermes session finished its turn.</string>
+    <string name="channel_needs">Hermes needs you</string>
+    <string name="channel_needs_description">Hermes asks for an approval or an answer.</string>
+    <string name="link_connected_wifi">Connected to %1$s via Wi-Fi</string>
+    <string name="link_connected_tailscale">Connected to %1$s via Tailscale</string>
+    <string name="link_reconnecting">Reconnecting…</string>
+    <string name="link_offline_since">PC offline since %1$s</string>
+    <string name="link_hermes_down">Hermes isn\'t running on %1$s</string>
+    <string name="link_stop">Stop</string>
+    <string name="notify_turn_public">Turn finished</string>
+    <string name="notify_needs_public">Hermes needs you</string>
+    <string name="notify_turn_no_text">Turn finished</string>
+    <string name="notify_needs_approval">Wants to run a command. Open Aristotle to answer.</string>
+    <string name="notify_needs_approval_generic">Wants your approval. Open Aristotle to answer.</string>
+    <string name="notify_needs_clarify">Asks: %1$s</string>
+    <string name="notify_needs_clarify_no_text">Has a question. Open Aristotle to answer.</string>
+
+    <!-- Notification permission (Android 13+) -->
+    <string name="perm_title">Allow notifications?</string>
+    <string name="perm_body">Aristotle tells you when a turn finishes or Hermes needs you, also while the app is closed. Android asks next.</string>
+    <string name="perm_continue">Continue</string>
+    <string name="perm_not_now">Not now</string>
+
+    <!-- Settings -->
+    <string name="nav_back">Back</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_keep_connected">Keep connected in background</string>
+    <string name="settings_keep_connected_body">While Aristotle is closed, a silent notification keeps the link to your PC so you hear when a turn finishes or Hermes needs you. Stop it from that notification.</string>
+    <string name="settings_notifications_off">Notifications are off</string>
+    <string name="settings_notifications_off_body">Aristotle can\'t tell you when a turn finishes or Hermes needs you.</string>
+    <string name="settings_battery_guide">Show the battery guide again</string>
+    <string name="settings_battery_guide_body">Settings that keep Android from stopping Aristotle in the background.</string>
+
+    <!-- Battery guide (mockup 6) -->
+    <string name="guide_title">Keep Aristotle running</string>
+    <string name="guide_body_xiaomi">HyperOS stops apps in the background. Without these three settings you can miss approvals and “turn finished” alerts.</string>
+    <string name="guide_body_other">Android may stop apps in the background to save battery. Without this setting you can miss approvals and “turn finished” alerts.</string>
+    <string name="guide_step_optimisation">Battery optimisation: off</string>
+    <string name="guide_step_optimisation_body">Aristotle checks this one itself.</string>
+    <string name="guide_step_saver">Battery saver: No restrictions</string>
+    <string name="guide_step_saver_body">A HyperOS setting. Aristotle can\'t read it, so tick it when done.</string>
+    <string name="guide_step_autostart">Autostart: on</string>
+    <string name="guide_step_autostart_body">Also a HyperOS setting.</string>
+    <string name="guide_done">Done</string>
+    <string name="guide_open_settings">Open settings</string>
+    <string name="guide_marked">I\'ve done this</string>
+    <string name="guide_step_number">Step %1$d</string>
 </resources>

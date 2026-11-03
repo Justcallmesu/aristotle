@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -68,6 +69,7 @@ data class LinkTimings(
  * Tries the PC's addresses in [EndpointChoice] order, reconnects after a loss with [Backoff] (reset once a
  * relay delivers `gateway.ready`), and at once when the phone's network changes, the app returns to the
  * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s.
+ * [stop] (the background notification's Stop, T10) closes the relay until [onForeground].
  * Frames are handed off OkHttp's reader thread at once ([RelaySocket]) and parsed here (protocol §12).
  * An unexpected error in a round shows as [OfflineCause.AppError] and the next round runs: the link never dies.
  */
@@ -87,6 +89,7 @@ class LinkManager(
     override val events: SharedFlow<InboundFrame> = frames.asSharedFlow()
 
     private val wakes = Channel<Wake>(Channel.UNLIMITED)
+    private val stopped = MutableStateFlow(false)
 
     @Volatile
     private var live: RelayRpc? = null
@@ -102,14 +105,27 @@ class LinkManager(
                 unlessCancelled { dialer.networkChanged() }
             }
         }
-        credentials
-            .map { (it as? CredentialState.Paired)?.credentials }
-            .distinctUntilChanged { a, b -> a?.pcId == b?.pcId && a?.token == b?.token }
-            .collectLatest { pc -> if (pc == null) current.value = LinkState.Idle else PcSession(pc).run() }
+        combine(credentials.map { (it as? CredentialState.Paired)?.credentials }, stopped, ::Target)
+            // The link updates the stored addresses itself; only another PC, token or a stop restarts it.
+            .distinctUntilChanged { a, b -> a.pc?.pcId == b.pc?.pcId && a.pc?.token == b.pc?.token && a.stopped == b.stopped }
+            .collectLatest { target ->
+                when {
+                    target.pc == null -> current.value = LinkState.Idle
+                    target.stopped -> current.value = LinkState.Stopped
+                    else -> PcSession(target.pc).run()
+                }
+            }
     }
 
+    /** The app is in front again: a stopped link starts, one waiting to retry tries now. */
     fun onForeground() {
+        stopped.value = false
         wakes.trySend(Wake.Foreground)
+    }
+
+    /** Closes the relay and stays off until [onForeground]; the user stopped the background link (T10). */
+    fun stop() {
+        stopped.value = true
     }
 
     override fun retryNow() {
@@ -304,6 +320,8 @@ class LinkManager(
             while (wakes.tryReceive().isSuccess) Unit
         }
     }
+
+    private data class Target(val pc: PcCredentials?, val stopped: Boolean)
 
     private sealed interface Start {
         data object Ready : Start

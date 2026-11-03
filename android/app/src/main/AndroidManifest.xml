@@ -4,6 +4,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- T09: follow the default network to switch between Wi-Fi and Tailscale addresses. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- T10: the specialUse foreground service that keeps the link open, and its notifications. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- T10 battery guide step 1: Android's one-tap "don't optimise" dialog (sideloaded, spec Q11). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".AristotleApplication"
@@ -25,6 +31,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".background.AlertDismissReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".background.LinkService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user's own Hermes agent session link open so turn-finished and approval notifications arrive while the app is closed." />
+        </service>
     </application>
 
 </manifest>

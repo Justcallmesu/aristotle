@@ -88,4 +88,56 @@
     <!-- Stored pairing unreadable for now -->
     <string name="creds_unavailable_title">Penyandingan tidak bisa dibuka</string>
     <string name="creds_unavailable_body">Penyimpanan kunci Android tidak membuka penyandingan ponsel ini dengan laptop. Biasanya ini hanya sebentar, tepat setelah ponsel menyala. Coba lagi; jika terus gagal, sandingkan lagi.</string>
+
+    <!-- Tautan latar belakang dan notifikasi (T10) -->
+    <string name="channel_link">Koneksi ke PC Anda</string>
+    <string name="channel_link_description">Menjaga tautan ke Hermes tetap terbuka saat Aristotle ditutup. Tanpa suara.</string>
+    <string name="channel_turns">Giliran selesai</string>
+    <string name="channel_turns_description">Sesi Hermes menyelesaikan gilirannya.</string>
+    <string name="channel_needs">Hermes membutuhkan Anda</string>
+    <string name="channel_needs_description">Hermes meminta persetujuan atau jawaban.</string>
+    <string name="link_connected_wifi">Tersambung ke %1$s lewat Wi-Fi</string>
+    <string name="link_connected_tailscale">Tersambung ke %1$s lewat Tailscale</string>
+    <string name="link_reconnecting">Menyambung ulang…</string>
+    <string name="link_offline_since">PC offline sejak %1$s</string>
+    <string name="link_hermes_down">Hermes tidak berjalan di %1$s</string>
+    <string name="link_stop">Hentikan</string>
+    <string name="notify_turn_public">Giliran selesai</string>
+    <string name="notify_needs_public">Hermes membutuhkan Anda</string>
+    <string name="notify_turn_no_text">Giliran selesai</string>
+    <string name="notify_needs_approval">Ingin menjalankan perintah. Buka Aristotle untuk menjawab.</string>
+    <string name="notify_needs_approval_generic">Meminta persetujuan Anda. Buka Aristotle untuk menjawab.</string>
+    <string name="notify_needs_clarify">Bertanya: %1$s</string>
+    <string name="notify_needs_clarify_no_text">Punya pertanyaan. Buka Aristotle untuk menjawab.</string>
+
+    <!-- Izin notifikasi (Android 13+) -->
+    <string name="perm_title">Izinkan notifikasi?</string>
+    <string name="perm_body">Aristotle memberi tahu saat giliran selesai atau Hermes membutuhkan Anda, juga saat aplikasi ditutup. Setelah ini Android akan bertanya.</string>
+    <string name="perm_continue">Lanjutkan</string>
+    <string name="perm_not_now">Nanti saja</string>
+
+    <!-- Pengaturan -->
+    <string name="nav_back">Kembali</string>
+    <string name="settings_title">Pengaturan</string>
+    <string name="settings_keep_connected">Tetap tersambung di latar belakang</string>
+    <string name="settings_keep_connected_body">Saat Aristotle ditutup, notifikasi tanpa suara menjaga tautan ke PC agar Anda tahu saat giliran selesai atau Hermes membutuhkan Anda. Hentikan dari notifikasi itu.</string>
+    <string name="settings_notifications_off">Notifikasi nonaktif</string>
+    <string name="settings_notifications_off_body">Aristotle tidak bisa memberi tahu saat giliran selesai atau Hermes membutuhkan Anda.</string>
+    <string name="settings_battery_guide">Tampilkan lagi panduan baterai</string>
+    <string name="settings_battery_guide_body">Pengaturan agar Android tidak menghentikan Aristotle di latar belakang.</string>
+
+    <!-- Panduan baterai (mockup 6) -->
+    <string name="guide_title">Biarkan Aristotle tetap berjalan</string>
+    <string name="guide_body_xiaomi">HyperOS menghentikan aplikasi di latar belakang. Tanpa tiga pengaturan ini, Anda bisa melewatkan persetujuan dan notifikasi “giliran selesai”.</string>
+    <string name="guide_body_other">Android bisa menghentikan aplikasi di latar belakang untuk menghemat baterai. Tanpa pengaturan ini, Anda bisa melewatkan persetujuan dan notifikasi “giliran selesai”.</string>
+    <string name="guide_step_optimisation">Optimasi baterai: nonaktif</string>
+    <string name="guide_step_optimisation_body">Aristotle mengecek yang ini sendiri.</string>
+    <string name="guide_step_saver">Penghemat baterai: Tanpa batasan</string>
+    <string name="guide_step_saver_body">Pengaturan HyperOS. Aristotle tidak bisa membacanya, jadi centang jika sudah.</string>
+    <string name="guide_step_autostart">Mulai otomatis: aktif</string>
+    <string name="guide_step_autostart_body">Juga pengaturan HyperOS.</string>
+    <string name="guide_done">Selesai</string>
+    <string name="guide_open_settings">Buka pengaturan</string>
+    <string name="guide_marked">Sudah saya atur</string>
+    <string name="guide_step_number">Langkah %1$d</string>
 </resources>

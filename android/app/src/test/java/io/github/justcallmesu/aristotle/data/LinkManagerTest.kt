@@ -470,4 +470,34 @@ class LinkManagerTest {
         waitFor("socket closed") { dialer.sockets.single().closedByPhone }
         assertFalse(dialer.sockets.size > 1)
     }
+
+    @Test
+    fun stopClosesTheLinkUntilTheAppIsInFrontAgain() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val network = FakeNetwork(lan = true)
+        val manager = link(dialer, network)
+        manager.await("online") { it is LinkState.Online }
+        manager.stop()
+        manager.await("stopped") { it == LinkState.Stopped }
+        waitFor("socket closed") { dialer.sockets.single().closedByPhone }
+        network.change(preferLan = true)
+        manager.retryNow()
+        runBlocking { delay(300) }
+        assertEquals(1, dialer.opened.size)
+        assertEquals(LinkState.Stopped, manager.state.value)
+        manager.onForeground()
+        manager.await("online again") { it is LinkState.Online }
+        assertEquals(2, dialer.opened.size)
+    }
+
+    @Test
+    fun anAddressUpdateDoesNotRestartALiveLink() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val manager = link(dialer)
+        manager.await("online") { it is LinkState.Online }
+        credentials.value = CredentialState.Paired(pc.copy(lastGood = lan))
+        runBlocking { delay(200) }
+        assertEquals(1, dialer.opened.size)
+        assertTrue(manager.state.value is LinkState.Online)
+    }
 }

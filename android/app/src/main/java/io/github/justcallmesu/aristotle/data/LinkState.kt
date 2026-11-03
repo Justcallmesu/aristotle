@@ -27,6 +27,9 @@ sealed interface LinkState {
         val trying: Boolean get() = nextAttemptAtMillis == null
     }
 
+    /** The user stopped the link from the background notification; it starts again when the app is opened. */
+    data object Stopped : LinkState
+
     /** The device token was refused (`4401`, HTTP 401): the pairing is wiped, no retry. */
     data object Revoked : LinkState
 

@@ -1,0 +1,29 @@
+# T10 build report: background link (FGS) + notifications + Xiaomi guide
+Route deep. No commits. android/** and a §2 note in docs/protocol.md only; server/ untouched. Phone not attached: nothing run on a device.
+
+## What was built
+- **Service** `background/LinkService` (`specialUse` + `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`; FOREGROUND_SERVICE, FOREGROUND_SERVICE_SPECIAL_USE, POST_NOTIFICATIONS). It owns nothing: it keeps the process, and so the existing `LinkManager`, alive. `BackgroundController` starts it from the last activity's `onStop`. Android 12+ exempts the moment the app leaves the screen; rotations don't count. `START_STICKY`, `onTaskRemoved` keeps running, no wake lock, no boot start. It stops itself when `BackgroundPolicy.keepRunning` turns false: setting off, Stop, unpaired/Unavailable, Revoked, HermesUpdated or `LinkState.Stopped`. While credentials are still `Loading` after a sticky restart, it stays.
+- **Ongoing notification** (channel `link`, LOW, silent): "Connected to <addr> via Wi-Fi/Tailscale" / "Reconnecting…" / "PC offline since HH:MM" / "Hermes isn't running on <addr>". Tapping it opens the app. **Stop** calls `LinkManager.stop()` (new): the relay closes and the state becomes `LinkState.Stopped` until the app is opened (`onForeground()` resumes). <PC> is the address: the protocol carries no PC name.
+- **Subscription rule** (`SessionWatcher`, noted in protocol §2). On every relay: `session.list` → `session.resume {omit_messages:true}` for each `running` session. On `sessions.changed`: debounced re-list, then resume only the sessions that started since. A resumed session stays resumed for the socket's life. A Hermes refusal is retried on the next pass. A timeout counts as resumed, so the session is never subscribed twice. Events are collected separately from calls. Frames were already handed off the OkHttp thread (RelaySocket UNLIMITED buffer); that is unchanged.
+- **Alerts.** `message.complete` = turn finished, skipped when `outcome` is `cancelled`. `approval.request`/`clarify.request` and the resume snapshot's `prompts` = needs you (the prompts shape was checked in Hermes source `session_pending_controls.py:53-64`; no captured frame shows a non-empty `prompts`). `*.settled` removes the "needs you" notification only when it shows that prompt.
+- **Notification text** (`AlertRouter`/`NotificationText`). Title = session title (from the list, updated by `session.info.title`). Text = first line of the final text: blank and fence lines skipped, `#` stripped, at most 120 chars with "…", never cut inside a surrogate pair. Tag `turn:<sid>` / `needs:<sid>` collapses per session. Channels `turn_finished` (DEFAULT) and `needs_you` (HIGH), names in EN and ID. Lock screen shows only "Aristotle · Turn finished / Hermes needs you".
+- **Decision:** approval notifications never show the command (a command line can hold a secret), only "Wants to run a command…". Clarify shows the question's first line.
+- **Suppression:** nothing is posted for the session on screen (`ScreenFocus(appVisible, AppContainer.openSession)`). Opening a session cancels its notifications. Nothing sets `openSession` yet: T11's chat screen must.
+- **Battery guide** (mockup 6, `ui/settings/BatteryGuideScreen`). Step 1 is read from `PowerManager` (one-tap `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; added the permission, BatteryLife suppressed: sideloaded). Steps 2–3 open MIUI `HiddenAppsConfigActivity` and `AutoStartManagementActivity` and fall back to App info if either won't start. The user ticks "I've done this" because the app cannot read those settings. Steps 2–3 show only on Xiaomi/Redmi/POCO (`DeviceMaker`). The guide opens once after pairing on those phones. **Deviation:** the "done" badge uses primaryContainer and the check is primary. The mockup's verdigris clashes with design.md §1 (verdigris = live work only).
+- **Settings** (gear in the session top bar): "Keep connected in background" switch (default on), "Notifications are off → Open settings" (shown while denied), "Show the battery guide again". The POST_NOTIFICATIONS request (13+) is explained once in a dialog over the session list before Android asks.
+
+## Verify (run here)
+- `GATE_ONLY=android bash docs/v1-tickets/gates.sh docs/v1-tickets/runs/T10` → `PASS android`, exit 0. 157 unit tests, 0 failed; 26 new (AlertRouter 9, SessionWatcher 7, BackgroundRules 6, AppSettings 3, LinkManager +2). Lint: 0 errors, the 11 earlier warnings only.
+- Mutation check: 5 mutations applied together (no `running` filter, notify cancelled turns, ignore `appVisible`, no surrogate guard, Stop not restarting the link) → 6 targeted tests failed. Sources were restored from a copy.
+
+## Device checks for the PM table (Poco, HyperOS)
+- DC4: pair → the guide opens once. Each "Open settings" lands on the right HyperOS page; step 1 shows Done after allowing.
+- DC5: app closed 8 h (screen off, Doze) → a desktop turn gives one "turn finished" with the session title and first line. A second turn replaces it.
+- DC6: an approval or clarify on the Desktop → heads-up "Hermes needs you"; answering on the Desktop removes it. Nothing for the session open in the app (after T11).
+- DC7: ongoing notification text through Wi-Fi → Tailscale → offline → back. Stop closes the link and the notification; opening the app reconnects. Swiping from recents keeps it running.
+- DC8: Android 14 permission dialog flow; the specialUse FGS starts on leaving the app (no ForegroundServiceStartNotAllowedException in logcat).
+
+## Open
+- Only the launch profile's sessions are watched (`session.list` without `profile`; T14). A turn that ends between list and resume is missed.
+- T11 resuming a session on the same socket would subscribe it twice. Reuse the watcher's resumed set (not exposed yet).
+- No PC name for "Connected to <PC>" (address shown). The status-bar icon is a Material chat bubble until T20.

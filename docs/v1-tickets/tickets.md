@@ -28,11 +28,12 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T07b | App + connector fixes from T07 review and device test: D18 (server), D19, D21, D22 | T07 | android, server/internal/hermes | DONE |
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | DONE |
 | T07c | HTTPS + pin on the Tailscale listener too; remove all cleartext paths in server and app (Q49, D23) | T07b | server, android, docs | DONE |
+| T10b | SessionWatcher: re-resume on session.replay_gap (MAJOR), no repeated alerts, approval wording, §2 note | T10 | android, docs §2 | DONE (re-check in T11 review) |
 | T08 | Pairing by QR (server prints QR; app scans) | T07c | server, android | TODO |
 | T09 | App connection core: all PC addresses stored + refreshed, endpoint choice + switch on network change, one process-wide socket, reconnect with backoff, "PC offline since"; D24, D26, D27, D28 | T07c | android, server | DONE |
 | T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | DONE |
-| T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | BUILDING |
-| T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | TODO ⟳ |
+| T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | DONE |
+| T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | BUILDING |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | TODO ⟳ |
 | T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
@@ -44,7 +45,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | DONE |
 | TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | TODO |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
-| T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | REVIEW |
+| T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | T22 | v1 QA on the Poco + release signing | all above | all | TODO |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -55,6 +56,9 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 |---|---|---|
 | DC1 | Wi-Fi -> Wi-Fi off (auto Tailscale, "via Tailscale") -> Tailscale off ("PC offline since") -> back on (auto reconnect) | T09, T09b |
 | DC2 | Light-mode launch has no dark flash; launcher icon placeholder | T02b |
+| DC4 | App closed / swiped away for hours: persistent notification stays, 'Turn finished' and 'Hermes needs you' still arrive (T10) | T10 |
+| DC5 | Notification permission dialog on first background; Stop action; settings switch (T10) | T10 |
+| DC6 | Xiaomi guide: battery / Autostart intents open the right HyperOS screens (T10) | T10 |
 | DC3 | Wi-Fi to another Wi-Fi with Tailscale on reconnects at once | T09b |
 
 ## Deferred review findings
@@ -90,6 +94,8 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D28 | Unpinned old pairing is wiped silently (show a one-line 'please pair again' notice); unwrap loop depth limit; specific 'Tailscale may be off' hint on a 100.x unreachable; migration writes before wipe; long comment (T07c review) | T09 | DONE (T09) |
 | D29 | Network-change signal raised while a connect is in flight is not cleared -> one wasted reconnect after a Wi-Fi move; stale preferred-kind addresses tried before the working one (worst ~15 s); T09-built pairings lack the typed address; Go test helper matches runtime names (T09b review) | T14 | OPEN |
 | D30 | slog bridge for net/http errors covers only the loopback server; LAN/Tailscale servers in internal/listen still log via stdlib (T21) | T14 | OPEN |
+| D31 | `install --force` does not restart a running service; symlinked unit replaced by a file; `status` exit 0 when inactive (T21 review) | T22 | OPEN |
+| D32 | srq- server requests (sudo, secret, batch clarify) reach the phone for watched sessions and are neither notified nor declined; background traffic of every running session (~170 frames/min worst) — measure in DC5 (T10 review) | T12 | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
 ## Tickets
@@ -238,3 +244,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 16:06 T09b worker finished during the pause: both gates pass per its report (android 130 tests), NOT yet PM-gated or reviewed, uncommitted in the working tree. PM accepts its call: a failed address save during refresh keeps the working link (no reconnect loop). Open notes for review: iface dropped on parse; possible OkHttp cancel gap during TLS handshake (test now cancels after handshake start).
 - 2026-11-03 Resumed ("go, always continue"). gates.sh gained GATE_ONLY. T09b PM gates GREEN (runs/pm-gate-12), mutation merge->fresh-only fails 6 tests. T09b review (deep) and T21 build (std, server-only, parallel) dispatched.
 - 2026-11-03 T09b review PASS-WITH-FINDINGS (all 13 T09 findings fixed; OkHttp TLS cancel gap real but harmless) -> committed. T21 built (server gate GREEN, 254 Go tests; worker ran `git checkout` on app/cli.go to undo its own edit — rule breach noted; no foreign change lost, cli.go matches HEAD). T10 dispatched (deep); T21 review (std).
+- 2026-11-03 T21 review PASS-WITH-FINDINGS -> committed 1d4f868. T10 built (android gate GREEN, runs/pm-gate-14, 157 tests); review dispatched (deep). T11 must set AppContainer.openSession and reuse SessionWatcher subscriptions (T10 report).
+- 2026-11-03 T10 review CHANGES-REQUIRED (MAJOR: replay_gap silently drops a watched session). T10b dispatched (std). Order decision (PM): T11 chat before T08 QR.
+- 2026-11-03 T10b PM gate GREEN (runs/pm-gate-15, 163 tests); mutation replay_gap->no-op fails 1 test, restored. Committed T10+T10b without a separate re-review (small, mutation-proven fix); T11's deep review also re-checks the T10b diff. T11 dispatched (deep).

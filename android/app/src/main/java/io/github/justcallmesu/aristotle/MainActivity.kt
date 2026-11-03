@@ -27,10 +27,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    /** Back in the foreground: a link that is waiting to retry tries now (T09). */
-    override fun onStart() {
-        super.onStart()
-        (application as AristotleApplication).container.link.onForeground()
-    }
 }
