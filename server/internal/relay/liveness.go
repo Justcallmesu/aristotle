@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bufio"
-	"crypto/tls"
 	"net"
 	"net/http"
 	"time"
@@ -121,10 +120,7 @@ func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	w.s.raw = c
-	if tc, ok := c.(*tls.Conn); ok {
-		w.s.raw = tc.NetConn() // closing under TLS does not wait to send close_notify to a stalled phone
-	}
+	w.s.raw = transportOf(c) // closing it under TLS does not wait to send close_notify to a stalled phone
 	setNotSentLowat(w.s.raw)
 	pc := &progressConn{Conn: c, s: w.s, timed: true}
 	// Under TLS the records reach the TCP connection through tls.Conn, below pc: only the listener's
@@ -141,6 +137,19 @@ func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	}
 	brw.Writer.Reset(pc)
 	return pc, brw, nil
+}
+
+// transportOf returns the connection under every layer that exposes one (tls.Conn.NetConn on the LAN and
+// Tailscale listeners, and any listener wrapper above WrapListener): the accepted TCP connection, which is
+// the WrapListener wrapper when there is one.
+func transportOf(c net.Conn) net.Conn {
+	for {
+		layer, ok := c.(interface{ NetConn() net.Conn })
+		if !ok {
+			return c
+		}
+		c = layer.NetConn()
+	}
 }
 
 // drained records that a write which had to wait for the phone got bytes out.

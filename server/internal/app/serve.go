@@ -44,8 +44,8 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 	return srv.run(ctx)
 }
 
-// server is one running aristotle-server: loopback listener, LAN/Tailscale
-// listener manager, control socket and the /v1/ws relay hub, sharing the
+// server is one running aristotle-server: loopback listener (plain HTTP,
+// /healthz only), LAN/Tailscale HTTPS listener manager, control socket and the /v1/ws relay hub, sharing the
 // pairing codes and devices.
 type server struct {
 	cfg      config.Config
@@ -109,8 +109,10 @@ func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, e
 	if err != nil {
 		log.Warn("interface scan failed; certificate gets no IP SANs", "err", err)
 	}
-	sansPolicy := listen.Policy{LAN: true, LANInterfaces: cfg.LANInterfaces}
-	sans := listen.LANAddrs(listen.Select(ifaces, sansPolicy))
+	// SANs only matter for a new certificate and only as a courtesy: phones pin the key (SPKI), so an
+	// existing certificate is never regenerated to add addresses.
+	sansPolicy := listen.Policy{LAN: true, Tailscale: true, LANInterfaces: cfg.LANInterfaces}
+	sans := listen.Addrs(listen.Select(ifaces, sansPolicy))
 	cert, created, err := tlscert.LoadOrCreate(stateDir, sans, time.Now())
 	if err != nil {
 		return tlscert.Cert{}, err

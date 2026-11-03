@@ -1,6 +1,7 @@
 // Package listen finds the laptop's LAN and Tailscale addresses, binds one
-// listener per address (HTTPS on LAN, HTTP on Tailscale) and keeps that set
-// in sync with the interfaces. It never binds a wildcard address.
+// HTTPS listener per address (the same pinned certificate on both networks)
+// and keeps that set in sync with the interfaces. It never binds a wildcard
+// address.
 package listen
 
 import (
@@ -98,13 +99,9 @@ type Endpoint struct {
 	Subnet netip.Prefix // the interface's on-link prefix (LAN peer gate)
 }
 
-// URL is the base URL a client uses for this endpoint.
+// URL is the base URL a client uses for this endpoint: HTTPS on every network.
 func (e Endpoint) URL(port int) string {
-	scheme := "http"
-	if e.Kind == LAN {
-		scheme = "https"
-	}
-	return scheme + "://" + net.JoinHostPort(e.Addr.String(), strconv.Itoa(port))
+	return "https://" + net.JoinHostPort(e.Addr.String(), strconv.Itoa(port))
 }
 
 // Select returns the endpoints to bind, one per address, in SortEndpoints
@@ -115,7 +112,7 @@ func (e Endpoint) URL(port int) string {
 //     bridge, veth and VPN interfaces therefore get nothing by default;
 //   - a Tailscale-range address counts only on a TUN interface whose name
 //     starts with "tailscale"; the same range handed out by a Wi-Fi or
-//     carrier CGNAT never gets a plain-HTTP listener;
+//     carrier CGNAT never gets a listener;
 //   - anything else (link-local, public, wildcard) is ignored.
 func Select(ifaces []Iface, p Policy) []Endpoint {
 	var out []Endpoint
@@ -191,13 +188,11 @@ func SortEndpoints(eps []Endpoint, defaultIface string) {
 	})
 }
 
-// LANAddrs returns the LAN addresses among endpoints.
-func LANAddrs(eps []Endpoint) []netip.Addr {
-	var out []netip.Addr
+// Addrs returns the address of each endpoint, in order.
+func Addrs(eps []Endpoint) []netip.Addr {
+	out := make([]netip.Addr, 0, len(eps))
 	for _, e := range eps {
-		if e.Kind == LAN {
-			out = append(out, e.Addr)
-		}
+		out = append(out, e.Addr)
 	}
 	return out
 }

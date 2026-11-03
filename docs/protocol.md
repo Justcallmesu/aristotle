@@ -362,23 +362,28 @@ that the fields exist in these places (scan of every frame in `docs/spikes/frame
 - The phone gets `system_prompt_chars` only so a UI can show that a prompt exists; nothing else about it.
 
 ## 11. aristotle-server API (phone side)
-What the app talks to on the laptop (T05/T05b; code in `server/internal/{listen,httpapi,pairing,tlscert}`).
-This is aristotle-server's own API, not Hermes'.
+What the app talks to on the laptop (T05/T05b/T07c; code in `server/internal/{listen,httpapi,pairing,tlscert}`).
+This is aristotle-server's own API, not Hermes'. No cleartext between phone and laptop on any network (spec Q49):
+every phone-facing listener is HTTPS with the same pinned certificate (§11.3).
 
 ### 11.1 Listeners
 All listeners use the same port (config `port`, default 8760). The server never binds `0.0.0.0`/`::`.
 
 | Listener | Bound on | Scheme | Peers admitted (else `403`, text body `forbidden`) |
 |---|---|---|---|
-| LAN | each RFC1918 IPv4 address of an up and running (carrier) physical interface (`/sys/class/net/<if>/device` exists), or only the interfaces named in config `lan_interfaces` | HTTPS, self-signed cert, pinned | RFC1918 peers inside that interface's own subnet (on-link) |
-| Tailscale | each 100.64.0.0/10 or fd7a:115c:a1e0::/48 address of a TUN interface named `tailscale*` | plain HTTP (WireGuard encrypts) | tailnet peers (same two ranges) |
-| Loopback | config `host` (127.0.0.1 or ::1) | HTTP | local only; serves `/healthz` only |
+| LAN | each RFC1918 IPv4 address of an up and running (carrier) physical interface (`/sys/class/net/<if>/device` exists), or only the interfaces named in config `lan_interfaces` | HTTPS (`wss://` for §12), self-signed cert, pinned | RFC1918 peers inside that interface's own subnet (on-link) |
+| Tailscale | each 100.64.0.0/10 or fd7a:115c:a1e0::/48 address of a TUN interface named `tailscale*` | HTTPS (`wss://` for §12), the same cert as LAN, same pin | tailnet peers (same two ranges) |
+| Loopback | config `host` (127.0.0.1 or ::1) | HTTP | local only (not for phones); serves `/healthz` only |
 
 - Each listener is also pinned to its interface (`SO_BINDTODEVICE`), so a packet arriving on another interface never reaches it. The interface pin applies on Linux only; elsewhere the peer gate is the only interface check.
 - A LAN interface must be up and running (has carrier) to get a listener; the same holds for Tailscale.
+- LAN and Tailscale listeners speak TLS only. A plain-HTTP request to them gets Go's fixed `400` ("Client sent an
+  HTTP request to an HTTPS server") from the TLS layer and never reaches the peer gate or a route. Without a TLS
+  configuration no LAN or Tailscale listener is bound at all.
 - The same address ranges on any other interface (a hotel or carrier CGNAT handing out 100.x) get no listener.
-- `aristotle-server pair` prints every listener URL with its interface: the default-route LAN interface first,
-  other LAN interfaces next, Tailscale last. Interfaces are re-scanned every 10 s.
+- `aristotle-server pair` prints every listener URL (all `https://`) with its interface: the default-route LAN
+  interface first, other LAN interfaces next, Tailscale last; then the one certificate fingerprint, valid for every
+  address. Interfaces are re-scanned every 10 s.
 
 ### 11.2 Endpoints (LAN and Tailscale listeners)
 | Method, path | Auth | Success | Errors |
@@ -415,26 +420,31 @@ A revoke (`aristotle-server devices revoke <id>`) applies from the next request 
 allowed on that listener (wrong network, or a LAN peer outside the interface's subnet). Re-pairing does not help;
 use another address. `401` means the code or token was refused: pair again (or re-enter the code).
 
-### 11.3 Certificate pin (LAN only)
-The LAN certificate is self-signed (ECDSA P-256, 20 years). It is created on first start and kept across restarts
-and IP changes. The app trusts it by pin, not by CA or hostname: the IP SANs are only a courtesy and can be stale.
+### 11.3 Certificate pin (every listener)
+The certificate is self-signed (ECDSA P-256, 20 years) and served by every LAN and Tailscale listener. It is created
+on first start and kept across restarts and IP changes. The app trusts it by pin, not by CA or hostname: the IP SANs
+(LAN and Tailscale addresses seen when it was created; LAN only for a certificate from before T07c) are only a
+courtesy and can be stale.
 
 - **Fingerprint** = SHA-256 of the certificate's DER-encoded SubjectPublicKeyInfo, shown as uppercase hex in
   space-separated groups of 4 characters (16 groups), e.g. `7E54 D87B … BCA7 EAA7`. `pair` prints it.
 - **Android:** `val spki = (cert as X509Certificate).publicKey.encoded` (the DER SubjectPublicKeyInfo), then
   `MessageDigest.getInstance("SHA-256").digest(spki)`, uppercase hex, grouped by 4. An OkHttp `CertificatePinner`
   pin `sha256/<base64>` is the base64 of the same 32 bytes.
-- On the manual pairing path the app shows this fingerprint for the user to compare with the laptop's, and stores
-  it with the device token. The pin changes only if the user deletes the key pair, and then every phone must re-pair.
-- The Tailscale listener has no TLS, so there is no pin there.
+- On the manual pairing path the app shows this fingerprint for the user to compare with the laptop's, for a LAN and
+  a Tailscale address alike, and stores it with the device token. One pin per PC covers all its addresses. The pin
+  changes only if the user deletes the key pair, and then every phone must re-pair.
+- The app never sends cleartext: `http://`/`ws://` URLs are refused before a socket opens, and the Android network
+  security config forbids cleartext with no exceptions. A pairing stored by an earlier build with an `http://`
+  Tailscale URL is read as `https://` on the same host and port, keeping its pin; one without a pin must pair again.
 
 ## 12. Relay socket (`/v1/ws`)
 The phone's live Hermes session socket, through aristotle-server (T06; code in `server/internal/relay`). One phone
 socket = one fresh Hermes `/api/ws` socket (own ticket, `scope:"host"`, launch profile; §1, §3). Frames pass through
 unchanged both ways, except §10's redaction on the way to the phone. No method allowlist (spec Q7d).
 
-**Upgrade.** `GET /v1/ws` on the LAN (`wss://`, pinned cert §11.3) and Tailscale (`ws://`) listeners, HTTP/1.1
-upgrade (ALPN `http/1.1` on TLS; OkHttp does this). Header `Authorization: Bearer <device token>`, as for every
+**Upgrade.** `GET /v1/ws` as `wss://` on the LAN and Tailscale listeners alike (pinned cert §11.3; there is no
+`ws://`), HTTP/1.1 upgrade (ALPN `http/1.1`; OkHttp does this). Header `Authorization: Bearer <device token>`, as for every
 `/v1/*` route. No subprotocol, no compression. An `Origin` header is optional; if sent, its host must equal `Host`, else
 `403` (the WebSocket library's check; with Bearer-only auth it is the cross-site defence). Missing/unknown/revoked token -> HTTP `401`
 before any upgrade (Hermes is not contacted); a peer outside the listener's range -> `403` (§11.2). The request log

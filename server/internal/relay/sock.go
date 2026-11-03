@@ -4,8 +4,8 @@ import "net"
 
 // WrapListener returns ln with every accepted TCP connection wrapped so that the relay can tell
 // exactly when a write to the phone had to wait for it (liveness.go, sock_unix.go). The remote
-// listeners pass through it (listen.Manager.Wrap). Under TLS, tls.Conn.NetConn returns the wrapper, so
-// the relay finds it under both the LAN (TLS) and the Tailscale (plain) listener. On non-Unix systems
+// listeners pass through it (listen.Manager.Wrap). Every remote listener serves TLS, and tls.Conn.NetConn
+// returns the wrapper, so the relay finds it on the LAN and the Tailscale listener alike. On non-Unix systems
 // connections pass unwrapped and the relay measures write durations instead (drainWait).
 func WrapListener(ln net.Listener) net.Listener { return trackListener{ln} }
 

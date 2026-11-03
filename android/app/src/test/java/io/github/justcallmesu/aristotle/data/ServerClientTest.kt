@@ -16,8 +16,8 @@ import org.junit.Test
 class ServerClientTest {
     private val held = lanCertificate()
     private val server: MockWebServer = startServer(held)
-    private val endpoint = localEndpoint(server, Network.Lan)
-    private val client = ServerClient(testClients().forEndpoint(endpoint, pinOf(held)), endpoint.baseUrl)
+    private val endpoint = localEndpoint(server)
+    private val client = ServerClient(testClients().pinnedTo(pinOf(held)), endpoint.baseUrl)
 
     @After
     fun stop() = server.close()
@@ -82,7 +82,7 @@ class ServerClientTest {
     fun unreachableServer() = runBlocking {
         val port = ServerSocket(0).use { it.localPort }
         val gone = ServerEndpoint("127.0.0.1", port, Network.Lan)
-        val offline = ServerClient(testClients().forEndpoint(gone, pinOf(held)), gone.baseUrl)
+        val offline = ServerClient(testClients().pinnedTo(pinOf(held)), gone.baseUrl)
         assertEquals(PairResult.Failed(ConnectionProblem.Unreachable), offline.pair("K7Q2M9XD", ""))
         assertEquals(MeResult.Failed(ConnectionProblem.Unreachable), offline.me(DeviceToken("t")))
     }

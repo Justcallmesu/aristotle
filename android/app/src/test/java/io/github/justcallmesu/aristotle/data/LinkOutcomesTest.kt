@@ -43,10 +43,6 @@ class LinkOutcomesTest {
             LinkOutcome.Show(ConnectionIssue.Generic("no connection")),
             LinkOutcomes.ofFailure(null, ConnectionProblem.Unreachable),
         )
-        assertEquals(
-            ConnectionIssue.TailscaleOff::class,
-            (LinkOutcomes.ofFailure(null, ConnectionProblem.TailscaleOff) as LinkOutcome.Show).issue::class,
-        )
     }
 
     @Test

@@ -20,7 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,12 +27,12 @@ import org.junit.Test
 class PairViewModelTest {
     private val probedPin = ByteArray(32) { (it * 7).toByte() }
 
-    private class Call(val endpoint: ServerEndpoint, val pin: ByteArray?, val code: String, val name: String)
+    private class Call(val endpoint: ServerEndpoint, val pin: ByteArray, val code: String, val name: String)
 
     private val calls = mutableListOf<Call>()
     private var answer: PairResult = PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n"))
     private val pairing = PairingApi { endpoint, pin, code, name ->
-        calls += Call(endpoint, pin?.copyOf(), code, name)
+        calls += Call(endpoint, pin.copyOf(), code, name)
         answer
     }
     private val probe = CertificateSource { ProbeResult.Certificate(probedPin.copyOf()) }
@@ -81,24 +80,32 @@ class PairViewModelTest {
         assertTrue(calls.isEmpty())
     }
 
+    // Q49: a Tailscale address gets the same fingerprint compare as the LAN, and its pin is stored.
     @Test
-    fun aTailnetPairingHasNoPin() {
-        val vm = viewModel()
+    fun aTailnetPairingComparesAndStoresThePin() {
+        val credentials = store()
+        val vm = viewModel(credentials)
         vm.fill("100.101.102.103")
         vm.onContinue()
-        assertTrue(vm.uiState.value.step is PairStep.Tailnet)
-        vm.onPair()
-        assertNull(calls.single().pin)
+        val compare = vm.uiState.value.step as PairStep.Compare
+        assertEquals("100.101.102.103", compare.endpoint.host)
+        vm.onPair() // nothing to pair before the user compared
+        assertTrue(calls.isEmpty())
+        vm.onFingerprintMatches()
+        assertArrayEquals(probedPin, calls.single().pin)
+        val saved = (credentials.state.value as CredentialState.Paired).credentials
+        assertEquals(listOf("https://100.101.102.103:8760"), saved.baseUrls)
+        assertEquals(Fingerprint.format(probedPin), saved.fingerprint)
     }
 
     @Test
-    fun tailscaleOffIsShownOnTheAddress() {
-        answer = PairResult.Failed(ConnectionProblem.TailscaleOff)
+    fun anUnreachableTailnetAddressIsShownOnTheAddress() {
+        answer = PairResult.Failed(ConnectionProblem.Unreachable)
         val vm = viewModel()
         vm.fill("100.101.102.103")
         vm.onContinue()
-        vm.onPair()
-        assertEquals(AddressFieldError.TailscaleOff, vm.uiState.value.addressError)
+        vm.onFingerprintMatches()
+        assertEquals(AddressFieldError.Unreachable, vm.uiState.value.addressError)
         assertFalse(vm.uiState.value.busy)
     }
 
@@ -108,7 +115,7 @@ class PairViewModelTest {
         val vm = viewModel(credentials)
         vm.fill("100.101.102.103")
         vm.onContinue()
-        vm.onPair()
+        vm.onFingerprintMatches()
         assertEquals(PairMessage.StoreFailed, vm.uiState.value.message)
         assertFalse(vm.uiState.value.busy)
         assertEquals(CredentialState.Loading, credentials.state.value)

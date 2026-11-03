@@ -3,10 +3,13 @@ package relay
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"runtime"
 	"strings"
@@ -20,7 +23,9 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/hermes"
 	"github.com/justcallmesu/aristotle/server/internal/hermes/hermestest"
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
+	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/tlscert"
 )
 
 type lockedBuffer struct {
@@ -259,6 +264,73 @@ func TestRelayOverTLSWithHTTP2Enabled(t *testing.T) {
 	s := sessionOf(t, h)
 	if _, watched := s.raw.(drainNotifier); watched != exactDrain {
 		t.Fatalf("phone connection under TLS is %T: watched %v, want %v", s.raw, watched, exactDrain)
+	}
+}
+
+// tailnetPeers makes accepted connections report a tailnet peer, so the Tailscale listener's peer gate admits
+// a loopback test client. It sits above WrapListener and exposes it through NetConn, as tls.Conn does.
+type tailnetPeers struct{ net.Listener }
+
+func (l tailnetPeers) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return tailnetPeerConn{c}, nil
+}
+
+type tailnetPeerConn struct{ net.Conn }
+
+func (c tailnetPeerConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("100.101.102.103"), Port: 40000}
+}
+
+func (c tailnetPeerConn) NetConn() net.Conn { return c.Conn }
+
+// Q49 + T06d: the Tailscale listener is TLS too, and under it the relay still reaches the listener's
+// wrapper (through tls.Conn.NetConn and any layer above WrapListener), so waiting writes are watched.
+func TestRelayOverTailscaleTLSListenerWatchesWrites(t *testing.T) {
+	h := newHarness(t, nil)
+	cert, _, err := tlscert.LoadOrCreate(t.TempDir(), nil, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var addr string
+	m := &listen.Manager{
+		Port: 8760, Policy: listen.Policy{Tailscale: true}, TLS: cert.ServerConfig(),
+		Handler: func(listen.Kind) http.Handler { return h.srv.Config.Handler },
+		Scan: func() ([]listen.Iface, error) {
+			return []listen.Iface{{Name: "tailscale0", Up: true, Tun: true,
+				Addrs: []netip.Prefix{netip.MustParsePrefix("100.74.61.96/32")}}}, nil
+		},
+		Bind: func(listen.Endpoint, int) (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") },
+		Wrap: func(ln net.Listener) net.Listener {
+			mu.Lock()
+			addr = ln.Addr().String()
+			mu.Unlock()
+			return tailnetPeers{WrapListener(ln)}
+		},
+		Log: slog.New(slog.NewTextHandler(h.logs, nil)),
+	}
+	m.Reconcile()
+	t.Cleanup(m.Close)
+	mu.Lock()
+	host := addr
+	mu.Unlock()
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}} // pin: app tests
+	pc, _, err := websocket.Dial(testCtx(t), "wss://"+host+"/v1/ws", &websocket.DialOptions{
+		HTTPClient: client, HTTPHeader: http.Header{"Authorization": {"Bearer " + h.token}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pc.CloseNow()
+	if got := read(t, pc); !strings.Contains(got, "gateway.ready") {
+		t.Fatalf("first frame over the Tailscale TLS listener = %s", got)
+	}
+	s := sessionOf(t, h)
+	if _, watched := s.raw.(drainNotifier); watched != exactDrain {
+		t.Fatalf("phone connection on the Tailscale TLS listener is %T: watched %v, want %v", s.raw, watched, exactDrain)
 	}
 }
 

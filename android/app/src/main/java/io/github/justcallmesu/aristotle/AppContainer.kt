@@ -3,7 +3,6 @@ package io.github.justcallmesu.aristotle
 import android.app.Application
 import android.content.Context
 import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
-import io.github.justcallmesu.aristotle.data.AndroidVpnRoutes
 import io.github.justcallmesu.aristotle.data.CertificateProbe
 import io.github.justcallmesu.aristotle.data.CredentialCodec
 import io.github.justcallmesu.aristotle.data.CredentialStore
@@ -30,7 +29,7 @@ class AppContainer(context: Context) {
         SharedPreferencesStore(context.getSharedPreferences(CREDENTIALS_FILE, Context.MODE_PRIVATE)),
         CredentialCodec(AesGcmTokenCipher(encryptKey = KeystoreTokenKey::getOrCreate, decryptKey = KeystoreTokenKey::existing)),
     )
-    val httpClients = HttpClients(AndroidVpnRoutes(context))
+    val httpClients = HttpClients()
     val certificateProbe = CertificateProbe()
 
     private val notice = MutableStateFlow<PairNotice?>(null)

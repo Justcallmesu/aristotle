@@ -31,7 +31,6 @@ private fun copyOf(issue: ConnectionIssue): PageCopy = when (issue) {
     is ConnectionIssue.HermesNotRunning -> PageCopy(R.string.conn_4503_title, R.string.conn_4503_body, PageAction.RetryNow)
     is ConnectionIssue.HermesUpdated -> PageCopy(R.string.conn_4505_title, R.string.conn_4505_body, PageAction.CheckAgain)
     is ConnectionIssue.CertificateChanged -> PageCopy(R.string.conn_cert_title, R.string.conn_cert_body, PageAction.PairAgain)
-    is ConnectionIssue.TailscaleOff -> PageCopy(R.string.conn_tailscale_title, R.string.conn_tailscale_body, PageAction.RetryNow)
     is ConnectionIssue.Generic -> PageCopy(R.string.conn_generic_title, R.string.conn_generic_body, PageAction.RetryNow)
 }
 

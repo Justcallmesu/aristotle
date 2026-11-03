@@ -6,13 +6,12 @@ import java.net.InetAddress
 enum class Network { Lan, Tailscale }
 
 /**
- * A validated server address. [host] is an IP literal (IPv6 without brackets).
- * LAN means HTTPS with a pinned certificate; Tailscale means plain HTTP inside WireGuard.
+ * A validated server address. [host] is an IP literal (IPv6 without brackets). Every network is HTTPS
+ * with the PC's pinned certificate (spec Q49); [network] only labels where the address lives.
  */
 data class ServerEndpoint(val host: String, val port: Int, val network: Network) {
-    val scheme: String get() = if (network == Network.Tailscale) "http" else "https"
     val hostForUrl: String get() = if (':' in host) "[$host]" else host
-    val baseUrl: String get() = "$scheme://$hostForUrl:$port"
+    val baseUrl: String get() = "https://$hostForUrl:$port"
     val displayAddress: String get() = "$hostForUrl:$port"
 
     /** The address as an [InetAddress], built from the literal's bytes (no lookup). */
@@ -23,7 +22,7 @@ data class ServerEndpoint(val host: String, val port: Int, val network: Network)
 enum class AddressError {
     Empty,
 
-    /** A name instead of an IP: the scheme rule needs the address itself. */
+    /** A name instead of an IP: the address rule needs the address itself, and names are never resolved. */
     NotAnIpAddress,
     BadPort,
 
@@ -52,11 +51,6 @@ object ServerAddress {
         val network = networkOf(bytes) ?: return AddressCheck.Refused(AddressError.NotPrivate)
         return AddressCheck.Ok(ServerEndpoint(canonicalHost(bytes), port, network))
     }
-
-    /** Network of a URL host (IP literal) or null when it is in neither allowed range. */
-    fun networkOfHost(host: String): Network? = parseIpLiteral(host.removePrefix("[").removeSuffix("]"))?.let(::networkOf)
-
-    fun isTailnetHost(host: String): Boolean = networkOfHost(host) == Network.Tailscale
 
     internal fun networkOf(address: ByteArray): Network? = when {
         isTailscale(address) -> Network.Tailscale

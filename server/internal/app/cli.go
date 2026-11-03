@@ -51,7 +51,7 @@ func printPairing(w io.Writer, res pairStartResult, now time.Time) {
 		res.ExpiresAt.Local().Format("15:04:05"), left, pairing.MaxAttemptsPerPeer)
 	fmt.Fprintln(w, "Addresses (enter one in the app):")
 	printAddrs(w, res.Addresses)
-	fmt.Fprintln(w, "\nCertificate fingerprint (the app shows it on Wi-Fi/LAN; they must match):")
+	fmt.Fprintln(w, "\nCertificate fingerprint (the app shows it for every address; they must match):")
 	fmt.Fprintf(w, "  %s\n", res.Fingerprint)
 }
 
@@ -72,7 +72,7 @@ func printAddrs(w io.Writer, addrs []pairAddr) {
 func addrNote(a pairAddr) string {
 	switch {
 	case a.Kind == "tailscale":
-		return "Tailscale, HTTP"
+		return "Tailscale, HTTPS"
 	case a.DefaultRoute:
 		return "LAN, HTTPS, default route"
 	}

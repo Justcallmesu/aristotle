@@ -48,12 +48,12 @@ private data class MeBody(@SerialName("device_id") val deviceId: String, val nam
 
 /** `POST /v1/pair` with the client pinned to [pin]; a seam so the pair screen can be tested without a server. */
 fun interface PairingApi {
-    suspend fun pair(endpoint: ServerEndpoint, pin: ByteArray?, code: String, deviceName: String): PairResult
+    suspend fun pair(endpoint: ServerEndpoint, pin: ByteArray, code: String, deviceName: String): PairResult
 }
 
 class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
-    override suspend fun pair(endpoint: ServerEndpoint, pin: ByteArray?, code: String, deviceName: String): PairResult =
-        ServerClient(httpClients.forEndpoint(endpoint, pin), endpoint.baseUrl).pair(code, deviceName)
+    override suspend fun pair(endpoint: ServerEndpoint, pin: ByteArray, code: String, deviceName: String): PairResult =
+        ServerClient(httpClients.pinnedTo(pin), endpoint.baseUrl).pair(code, deviceName)
 }
 
 /** aristotle-server's REST API (docs/protocol.md §11.2). Nothing here logs; tokens and codes stay in memory. */

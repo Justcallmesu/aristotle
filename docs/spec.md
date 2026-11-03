@@ -42,7 +42,7 @@ public-internet exposure.
 
 ```
 Poco X5 Pro — Aristotle app (Kotlin + Compose M3, EN/ID)
-  │  device token (pairing), HTTPS + pinned cert on trusted Wi-Fi, plain HTTP inside Tailscale
+  │  device token (pairing), HTTPS + pinned cert on every listener (Wi-Fi and Tailscale, Q49)
   ▼
 aristotle-server (Go, systemd user service, laptop "little-boy")
   ├─ relay: phone WS <-> Hermes /api/ws (loopback, control-socket ticket per connection)
@@ -113,6 +113,7 @@ Rules that hold everywhere:
 | Q46 | Animation: calm line-by-line fade-in with a thin verdigris progress line, plus the app icon (static) above the quote. | User "A, and an icon too" 2026-11-03; PM reads it as the static icon, not a stroke-drawing animation. Icon = T20 result; placeholder until then. |
 | Q47 | Loading-screen quotes: all 24 in `docs/quotes.json` approved as they are (period translations kept verbatim). | User 2026-11-03. |
 | Q48 | Session list shows live sessions on top and stored history below (`session.list` scope live + stored), matching the Desktop sidebar. | User 2026-11-03. Built in T14. |
+| Q49 | Every phone-facing listener (LAN and Tailscale) serves HTTPS with the same pinned self-signed certificate; no cleartext anywhere. The phone pins one fingerprint per PC for all its addresses. Replaces "plain HTTP inside Tailscale". | User chose (a) 2026-11-03 after the third cleartext finding (T05, T07, T07b). Resolves D23. |
 
 ## 4. Risks
 

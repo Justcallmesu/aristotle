@@ -15,7 +15,7 @@ import (
 const usage = `usage: aristotle-server <command>
 
 commands:
-  serve                 run the server (loopback, LAN over HTTPS, Tailscale over HTTP)
+  serve                 run the server (loopback health check; LAN and Tailscale over HTTPS)
   pair [--name NAME]    get a one-time pairing code from the running server
   devices list          list paired devices
   devices revoke <id>   revoke a paired device

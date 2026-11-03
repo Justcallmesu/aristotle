@@ -1,5 +1,8 @@
 package io.github.justcallmesu.aristotle.data
 
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.SocketAddress
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -14,8 +17,8 @@ class RelaySocketTest {
     private val held = lanCertificate()
 
     private fun relay(server: mockwebserver3.MockWebServer, token: String = "tok"): RelaySocket {
-        val endpoint = localEndpoint(server, Network.Lan)
-        return RelaySocket(testClients().forEndpoint(endpoint, pinOf(held)), endpoint.baseUrl, DeviceToken(token))
+        val endpoint = localEndpoint(server)
+        return RelaySocket(testClients().pinnedTo(pinOf(held)), endpoint.baseUrl, DeviceToken(token))
     }
 
     @Test
@@ -46,24 +49,32 @@ class RelaySocketTest {
     fun wssUpgradeToAnotherKeyIsRefusedBeforeAnyRequest() = runBlocking {
         startServer(held).use { server ->
             server.enqueue(MockResponse.Builder().code(101).build())
-            val endpoint = localEndpoint(server, Network.Lan)
-            val relay = RelaySocket(testClients().forEndpoint(endpoint, pinOf(lanCertificate())), endpoint.baseUrl, DeviceToken("secret"))
+            val endpoint = localEndpoint(server)
+            val relay = RelaySocket(testClients().pinnedTo(pinOf(lanCertificate())), endpoint.baseUrl, DeviceToken("secret"))
             val events = withTimeout(10_000) { relay.events().toList() }
             assertEquals(listOf(RelayEvent.Failed(null, ConnectionProblem.CertificateChanged)), events)
             assertEquals(0, server.requestCount)
         }
     }
 
+    // Q49: the relay to a tailnet address is wss:// with the PC's pin, like the LAN.
     @Test
-    fun wsUpgradeToANonTailnetHostIsRefusedByTheCleartextGuard() = runBlocking {
-        startServer().use { server ->
-            server.enqueue(MockResponse.Builder().code(101).build())
-            val endpoint = localEndpoint(server, Network.Tailscale)
-            assertEquals("http://127.0.0.1:${server.port}", endpoint.baseUrl)
-            val relay = RelaySocket(testClients().forEndpoint(endpoint, null), endpoint.baseUrl, DeviceToken("secret"))
+    fun relayToATailnetAddressIsPinnedWss() = runBlocking {
+        startServer(held).use { server ->
+            server.enqueue(
+                MockResponse.Builder().webSocketUpgrade(object : WebSocketListener() {
+                    override fun onOpen(webSocket: WebSocket, response: Response) {
+                        webSocket.close(1000, "")
+                    }
+                }).build(),
+            )
+            val tailnet = ServerEndpoint("100.101.102.103", 8760, Network.Tailscale)
+            val sockets = RedirectingSockets(InetSocketAddress(InetAddress.getByName("127.0.0.1"), server.port))
+            val relay = RelaySocket(testClients(sockets).pinnedTo(pinOf(held)), tailnet.baseUrl, DeviceToken("secret"))
             val events = withTimeout(10_000) { relay.events().toList() }
-            assertEquals(listOf(RelayEvent.Failed(null, ConnectionProblem.CleartextRefused)), events)
-            assertEquals(0, server.requestCount)
+            assertEquals(RelayEvent.Opened, events.first())
+            assertEquals(listOf<SocketAddress?>(InetSocketAddress(tailnet.inetAddress, 8760)), sockets.dialed)
+            assertEquals("Bearer secret", server.takeRequest().headers["Authorization"])
         }
     }
 

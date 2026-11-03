@@ -10,9 +10,6 @@ sealed interface ConnectionIssue {
     data class HermesNotRunning(override val details: String) : ConnectionIssue
     data class HermesUpdated(override val details: String) : ConnectionIssue
     data class CertificateChanged(override val details: String) : ConnectionIssue
-
-    /** A tailnet PC while no VPN network routes it: nothing was sent. */
-    data class TailscaleOff(override val details: String) : ConnectionIssue
     data class Generic(override val details: String) : ConnectionIssue
 }
 
@@ -44,7 +41,6 @@ object LinkOutcomes {
     fun ofFailure(httpStatus: Int?, problem: ConnectionProblem): LinkOutcome = when {
         httpStatus == HTTP_UNAUTHORIZED -> LinkOutcome.Revoked
         problem == ConnectionProblem.CertificateChanged -> LinkOutcome.Show(ConnectionIssue.CertificateChanged(CERT_DETAILS))
-        problem == ConnectionProblem.TailscaleOff -> LinkOutcome.Show(ConnectionIssue.TailscaleOff(TAILSCALE_OFF_DETAILS))
         httpStatus != null -> LinkOutcome.Show(ConnectionIssue.Generic("/v1/ws HTTP $httpStatus"))
         else -> LinkOutcome.Show(ConnectionIssue.Generic(problemDetails(problem)))
     }
@@ -63,10 +59,7 @@ object LinkOutcomes {
     private fun problemDetails(problem: ConnectionProblem): String = when (problem) {
         ConnectionProblem.Unreachable -> "no connection"
         ConnectionProblem.CertificateChanged -> CERT_DETAILS
-        ConnectionProblem.CleartextRefused -> "plain HTTP refused: not a Tailscale address"
-        ConnectionProblem.TailscaleOff -> TAILSCALE_OFF_DETAILS
     }
 
     private const val CERT_DETAILS = "certificate SPKI SHA-256 differs from the pinned fingerprint"
-    private const val TAILSCALE_OFF_DETAILS = "no VPN network routes the tailnet address; nothing sent"
 }

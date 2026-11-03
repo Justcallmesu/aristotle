@@ -27,14 +27,16 @@ interface PcLink {
     fun openRelay(): RelayChannel
 }
 
-/** A stored PC as an endpoint the app can dial, or null when its address or pin cannot be used. */
-class PcTarget private constructor(val endpoint: ServerEndpoint, val pin: ByteArray?) {
+/**
+ * A stored PC as an endpoint the app can dial, or null when its address or pin cannot be used. The PC's one
+ * pin applies to whichever address is dialled, LAN or Tailscale (spec Q49).
+ */
+class PcTarget private constructor(val endpoint: ServerEndpoint, val pin: ByteArray) {
     companion object {
         fun of(credentials: PcCredentials): PcTarget? {
             val endpoint = (credentials.baseUrls.firstOrNull()?.let(ServerAddress::parse) as? AddressCheck.Ok)?.endpoint
                 ?: return null
-            val pin = credentials.fingerprint?.let(Fingerprint::parse)
-            if (endpoint.network == Network.Lan && pin == null) return null
+            val pin = Fingerprint.parse(credentials.fingerprint) ?: return null
             return PcTarget(endpoint, pin)
         }
     }
@@ -42,7 +44,7 @@ class PcTarget private constructor(val endpoint: ServerEndpoint, val pin: ByteAr
 
 class HttpPcLink(target: PcTarget, httpClients: HttpClients, private val token: DeviceToken) : PcLink {
     private val baseUrl = target.endpoint.baseUrl
-    private val client = httpClients.forEndpoint(target.endpoint, target.pin)
+    private val client = httpClients.pinnedTo(target.pin)
 
     override suspend fun me(): MeResult = ServerClient(client, baseUrl).me(token)
 

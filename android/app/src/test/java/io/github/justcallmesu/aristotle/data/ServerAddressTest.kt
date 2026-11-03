@@ -1,8 +1,6 @@
 package io.github.justcallmesu.aristotle.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,10 +23,10 @@ class ServerAddressTest {
     }
 
     @Test
-    fun tailscaleAddressUsesPlainHttp() {
+    fun tailscaleAddressUsesHttpsLikeTheLan() {
         val e = ok("100.101.102.103:8760")
         assertEquals(Network.Tailscale, e.network)
-        assertEquals("http://100.101.102.103:8760", e.baseUrl)
+        assertEquals("https://100.101.102.103:8760", e.baseUrl)
         assertEquals(Network.Tailscale, ok("100.64.0.1").network)
         assertEquals(Network.Tailscale, ok("100.127.255.255").network)
     }
@@ -37,7 +35,7 @@ class ServerAddressTest {
     fun tailscaleIpv6NeedsBracketsForAPort() {
         val e = ok("[fd7a:115c:a1e0::1]:8760")
         assertEquals(Network.Tailscale, e.network)
-        assertEquals("http://[fd7a:115c:a1e0:0:0:0:0:1]:8760", e.baseUrl)
+        assertEquals("https://[fd7a:115c:a1e0:0:0:0:0:1]:8760", e.baseUrl)
         assertEquals(8760, ok("fd7a:115c:a1e0:ab12::3").port)
     }
 
@@ -106,13 +104,16 @@ class ServerAddressTest {
         assertEquals(AddressError.BadPort, refused("192.168.1.23:87a0"))
     }
 
+    // Q49: no address, however it is typed or pasted, gives an http:// base URL.
     @Test
-    fun tailnetHostCheckForTheCleartextGuard() {
-        assertTrue(ServerAddress.isTailnetHost("100.101.102.103"))
-        assertTrue(ServerAddress.isTailnetHost("fd7a:115c:a1e0::1"))
-        assertFalse(ServerAddress.isTailnetHost("192.168.1.23"))
-        assertFalse(ServerAddress.isTailnetHost("127.0.0.1"))
-        assertFalse(ServerAddress.isTailnetHost("example.com"))
-        assertNull(ServerAddress.networkOfHost("8.8.8.8"))
+    fun everyAcceptedAddressGetsAnHttpsBaseUrl() {
+        val inputs = listOf(
+            "192.168.1.23", "http://192.168.1.23:8760/", "10.0.0.5:9000", "172.16.0.1",
+            "100.101.102.103", "http://100.101.102.103:8760", "ws://100.64.0.1", "[fd7a:115c:a1e0::1]:8760", "fd7a:115c:a1e0::2",
+        )
+        for (input in inputs) {
+            val url = ok(input).baseUrl
+            assertTrue("$input -> $url", url.startsWith("https://"))
+        }
     }
 }

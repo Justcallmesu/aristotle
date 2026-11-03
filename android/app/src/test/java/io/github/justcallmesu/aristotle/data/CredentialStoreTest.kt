@@ -6,9 +6,15 @@ import java.security.UnrecoverableKeyException
 import javax.crypto.AEADBadTagException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -131,6 +137,49 @@ class CredentialStoreTest {
         val failing = CredentialCodec(AesGcmTokenCipher { throw ProviderException("keystore2 down") })
         assertThrows(ProviderException::class.java) { runBlocking { store(storage, failing).save(creds) } }
         assertEquals(emptyMap<String, String>(), storage.map)
+    }
+
+    /** The entry an earlier build stored: [creds] with [baseUrl] and, when given, [fingerprint]. */
+    private fun legacyStorage(baseUrl: String, fingerprint: String?): MemoryStore {
+        val storage = savedStorage()
+        val entry = Json.parseToJsonElement(storage.map.getValue("pc.dev_0123456789ab")).jsonObject
+        val legacy = JsonObject(
+            entry.filterKeys { it != "fingerprint" } + ("base_urls" to JsonArray(listOf(JsonPrimitive(baseUrl)))) +
+                (fingerprint?.let { mapOf("fingerprint" to JsonPrimitive(it)) } ?: emptyMap()),
+        )
+        storage.map["pc.dev_0123456789ab"] = legacy.toString()
+        return storage
+    }
+
+    // Q49: an http:// base URL from an earlier build becomes https:// on the same host and port; the pin stays.
+    @Test
+    fun aStoredHttpUrlIsMigratedToHttpsAndKeepsThePin() {
+        val storage = legacyStorage("http://100.101.102.103:8760", creds.fingerprint)
+        val sealedBefore = Json.parseToJsonElement(storage.map.getValue("pc.dev_0123456789ab")).jsonObject["token_sealed"]
+        val expected = creds.copy(baseUrls = listOf("https://100.101.102.103:8760"))
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
+        val stored = Json.parseToJsonElement(storage.map.getValue("pc.dev_0123456789ab")).jsonObject
+        assertEquals(JsonArray(listOf(JsonPrimitive("https://100.101.102.103:8760"))), stored["base_urls"])
+        assertEquals(sealedBefore, stored["token_sealed"])
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
+    }
+
+    // Q49: a pairing without a pin (Tailscale, earlier build) cannot be used over HTTPS: pair again.
+    @Test
+    fun aStoredPairingWithoutAPinMustPairAgain() {
+        val storage = legacyStorage("http://100.101.102.103:8760", fingerprint = null)
+        assertEquals(CredentialState.Unpaired, loaded(storage))
+        assertEquals(emptyMap<String, String>(), storage.map)
+    }
+
+    // Q49: one pin per PC, used for its tailnet address as for the LAN.
+    @Test
+    fun thePcPinAppliesToItsTailnetAddress() {
+        val target = PcTarget.of(creds.copy(baseUrls = listOf("https://100.101.102.103:8760")))!!
+        assertEquals(Network.Tailscale, target.endpoint.network)
+        assertEquals("https://100.101.102.103:8760", target.endpoint.baseUrl)
+        assertArrayEquals(Fingerprint.parse(creds.fingerprint), target.pin)
+        assertNull(PcTarget.of(creds.copy(fingerprint = "not a pin")))
     }
 
     @Test

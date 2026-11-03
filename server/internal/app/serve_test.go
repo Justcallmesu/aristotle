@@ -3,8 +3,12 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -26,6 +30,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/hermes/hermestest"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/tlscert"
 )
 
 type lockedBuffer struct {
@@ -68,7 +73,8 @@ type testServer struct {
 
 // startServer runs a test server. hermesHome is the Hermes home its relay
 // dials; "" is an empty temp dir, so no test reaches the real ~/.hermes.
-func startServer(t *testing.T, scan func() ([]listen.Iface, error), hermesHome string) testServer {
+// tweaks run on the built server before it starts.
+func startServer(t *testing.T, scan func() ([]listen.Iface, error), hermesHome string, tweaks ...func(*server)) testServer {
 	t.Helper()
 	root, err := os.MkdirTemp("", "ar")
 	if err != nil {
@@ -94,6 +100,9 @@ func startServer(t *testing.T, scan func() ([]listen.Iface, error), hermesHome s
 		t.Fatal(err)
 	}
 	srv.listen.Bind = func(listen.Endpoint, int) (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
+	for _, tweak := range tweaks {
+		tweak(srv)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- srv.run(ctx) }()
@@ -241,7 +250,7 @@ func TestPrintPairing(t *testing.T) {
 		Addresses: []pairAddr{
 			{URL: "https://192.168.1.61:8760", Kind: "lan", Iface: "wlan0", DefaultRoute: true},
 			{URL: "https://10.0.0.2:8760", Kind: "lan", Iface: "eth0"},
-			{URL: "http://100.74.61.96:8760", Kind: "tailscale", Iface: "tailscale0"},
+			{URL: "https://100.74.61.96:8760", Kind: "tailscale", Iface: "tailscale0"},
 		},
 	}, now)
 	out := buf.String()
@@ -250,11 +259,14 @@ func TestPrintPairing(t *testing.T) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
 	}
+	if n := strings.Count(out, "AAAA BBBB"); n != 1 || strings.Contains(out, "http://") {
+		t.Errorf("want one fingerprint line and no http:// URL:\n%s", out)
+	}
 	lines := addrLines(out)
 	want := [][]string{
 		{"https://192.168.1.61:8760", "wlan0", "LAN,", "HTTPS,", "default", "route"},
 		{"https://10.0.0.2:8760", "eth0", "LAN,", "HTTPS"},
-		{"http://100.74.61.96:8760", "tailscale0", "Tailscale,", "HTTP"},
+		{"https://100.74.61.96:8760", "tailscale0", "Tailscale,", "HTTPS"},
 	}
 	if len(lines) != len(want) {
 		t.Fatalf("address lines %q\n%s", lines, out)
@@ -312,8 +324,8 @@ func TestPairOutputOrderAndInterfaces(t *testing.T) {
 	want := [][2]string{
 		{"https://192.168.1.61:0", "wlan0"},
 		{"https://10.0.0.2:0", "eth0"},
-		{"http://100.74.61.96:0", "tailscale0"},
-		{"http://[fd7a:115c:a1e0::d628:3d61]:0", "tailscale0"},
+		{"https://100.74.61.96:0", "tailscale0"},
+		{"https://[fd7a:115c:a1e0::d628:3d61]:0", "tailscale0"},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("addresses %v\nwant %v\n%s", got, want, out)
@@ -400,5 +412,111 @@ func TestRemoteListenersAreWrappedForTheRelay(t *testing.T) {
 	defer got.Close()
 	if _, plain := got.(*net.TCPConn); plain && runtime.GOOS == "linux" {
 		t.Fatalf("accepted %T, want the relay's wrapper", got)
+	}
+}
+
+// tailnetPeers makes every accepted connection report a tailnet peer, so the Tailscale listener's peer gate
+// admits a loopback test client. It sits above the server's own wrapper and exposes it through NetConn, as
+// tls.Conn does, so the relay still finds the wrapper underneath.
+type tailnetPeers struct{ net.Listener }
+
+func (l tailnetPeers) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return tailnetPeerConn{c}, nil
+}
+
+type tailnetPeerConn struct{ net.Conn }
+
+func (c tailnetPeerConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("100.101.102.103"), Port: 40000}
+}
+
+func (c tailnetPeerConn) NetConn() net.Conn { return c.Conn }
+
+// pinnedClient trusts only the certificate whose SPKI fingerprint is fingerprint, as the phone does.
+func pinnedClient(fingerprint string) *http.Client {
+	return &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true, // replaced by the pin check below (self-signed, stale IP SANs)
+		VerifyPeerCertificate: func(raw [][]byte, _ [][]*x509.Certificate) error {
+			if len(raw) == 0 {
+				return errors.New("no certificate")
+			}
+			leaf, err := x509.ParseCertificate(raw[0])
+			if err != nil {
+				return err
+			}
+			if got := tlscert.Fingerprint(leaf); got != fingerprint {
+				return fmt.Errorf("pin mismatch: %s", got)
+			}
+			return nil
+		},
+	}}}
+}
+
+// Q49: the Tailscale listener serves HTTPS with the server's one certificate (the fingerprint pair prints).
+// Plain HTTP is refused; /healthz and the /v1/ws relay work over the pinned TLS connection.
+func TestTailscaleListenerIsPinnedTLS(t *testing.T) {
+	fake := hermestest.New(t)
+	scan := func() ([]listen.Iface, error) {
+		return []listen.Iface{{Name: "tailscale0", Up: true, Tun: true, Addrs: prefixes("100.74.61.96/32")}}, nil
+	}
+	var mu sync.Mutex
+	var addr string
+	ts := startServer(t, scan, fake.Home, func(s *server) {
+		wrap := s.listen.Wrap // the server's own wrapper stays underneath
+		s.listen.Wrap = func(ln net.Listener) net.Listener {
+			mu.Lock()
+			addr = ln.Addr().String()
+			mu.Unlock()
+			return tailnetPeers{wrap(ln)}
+		}
+	})
+	for deadline := time.Now().Add(5 * time.Second); len(ts.srv.listen.Active()) < 1 && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if active := ts.srv.listen.Active(); len(active) != 1 || active[0].Kind != listen.Tailscale {
+		t.Fatalf("active = %v", active)
+	}
+	mu.Lock()
+	host := addr
+	mu.Unlock()
+
+	plain, err := http.Get("http://" + host + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain.Body.Close()
+	if plain.StatusCode != http.StatusBadRequest {
+		t.Fatalf("plain HTTP status %d, want the TLS layer's 400", plain.StatusCode)
+	}
+
+	client := pinnedClient(ts.srv.cert.Fingerprint)
+	resp, err := client.Get("https://" + host + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"status":"ok"`) {
+		t.Fatalf("healthz over TLS = %d %s", resp.StatusCode, body)
+	}
+
+	_, token, err := ts.srv.devices.Add("phone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	pc, _, err := websocket.Dial(ctx, "wss://"+host+"/v1/ws", &websocket.DialOptions{
+		HTTPClient: client, HTTPHeader: http.Header{"Authorization": {"Bearer " + token}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pc.CloseNow()
+	if _, ready, err := pc.Read(ctx); err != nil || !strings.Contains(string(ready), "gateway.ready") {
+		t.Fatalf("first relay frame over the Tailscale TLS listener %q, %v", ready, err)
 	}
 }

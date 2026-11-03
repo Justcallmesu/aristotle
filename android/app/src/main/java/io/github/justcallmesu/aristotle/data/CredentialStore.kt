@@ -69,7 +69,7 @@ class CredentialStore(
 
     private fun readActive(): CredentialState {
         val pcId = storage.get(ACTIVE_KEY) ?: return CredentialState.Unpaired
-        val entry = storage.get(entryKey(pcId))
+        val entry = storage.get(entryKey(pcId))?.let { upgraded(entryKey(pcId), it) }
         val decoded = if (entry == null) DecodeResult.Unreadable else codec.decode(entry)
         return when (decoded) {
             is DecodeResult.Ok -> CredentialState.Paired(decoded.credentials)
@@ -80,6 +80,9 @@ class CredentialStore(
             }
         }
     }
+
+    /** Stores an entry from an earlier build in its current form (spec Q49 `https://` URLs) and returns it. */
+    private fun upgraded(key: String, entry: String): String = codec.upgrade(entry)?.also { storage.put(key, it) } ?: entry
 
     private fun removeActive() {
         storage.get(ACTIVE_KEY)?.let { storage.remove(entryKey(it)) }

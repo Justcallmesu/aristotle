@@ -199,13 +199,8 @@ private fun StepArea(state: PairUiState, actions: PairActions) {
             onMatch = actions.onFingerprintMatches,
             onMismatch = actions.onFingerprintMismatch,
         )
-        is PairStep.Tailnet -> {
-            TailnetLine()
-            Spacer(Modifier.height(Spacing.l))
-            PrimaryRow(R.string.pair_action, enabled = !state.busy, onClick = actions.onPair)
-        }
         is PairStep.Confirmed -> {
-            step.fingerprint?.let { FingerprintConfirmed(it) } ?: TailnetLine()
+            FingerprintConfirmed(step.fingerprint)
             Spacer(Modifier.height(Spacing.xl))
             PrimaryRow(
                 label = when {
@@ -227,15 +222,6 @@ private fun PrimaryRow(@StringRes label: Int, enabled: Boolean, onClick: () -> U
             Text(stringResource(label))
         }
     }
-}
-
-@Composable
-private fun TailnetLine() {
-    Text(
-        text = stringResource(R.string.fp_tailnet_line),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable
@@ -283,7 +269,6 @@ private fun addressErrorText(error: AddressFieldError): String = stringResource(
         AddressFieldError.Unreachable -> R.string.address_error_unreachable
         AddressFieldError.NotAllowed -> R.string.address_error_not_allowed
         AddressFieldError.NoCertificate -> R.string.address_error_no_certificate
-        AddressFieldError.TailscaleOff -> R.string.address_error_tailscale_off
     },
 )
 

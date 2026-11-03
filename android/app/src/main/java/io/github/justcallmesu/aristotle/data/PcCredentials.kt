@@ -9,12 +9,13 @@ class DeviceToken(val value: String) {
 
 /**
  * What the phone keeps per PC (spec Q25: keyed per PC; v1 holds one). [pcId] is the device id
- * this PC issued, which is unique per PC and pairing. [fingerprint] is null for a tailnet-only pairing.
+ * this PC issued, which is unique per PC and pairing. [fingerprint] is the PC's one pinned key, used for
+ * every address in [baseUrls], LAN and Tailscale alike (spec Q49).
  */
 data class PcCredentials(
     val pcId: String,
     val deviceId: String,
     val baseUrls: List<String>,
-    val fingerprint: String?,
+    val fingerprint: String,
     val token: DeviceToken,
 )

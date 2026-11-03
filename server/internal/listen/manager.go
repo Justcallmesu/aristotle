@@ -19,12 +19,14 @@ const (
 	shutdownTimeout = 5 * time.Second
 )
 
-// Manager keeps one HTTP server per selected endpoint and re-scans the
+// Manager keeps one HTTPS server per selected endpoint and re-scans the
 // interfaces every Interval, adding and removing servers as the set changes.
+// Every server, LAN and Tailscale alike, serves TLS with the same
+// certificate (spec Q49): there is no cleartext listener for phones.
 type Manager struct {
 	Port     int
 	Policy   Policy
-	TLS      *tls.Config                               // used by LAN listeners
+	TLS      *tls.Config                               // every listener; nil: nothing is bound
 	Handler  func(Kind) http.Handler                   // wrapped in PeerGate
 	Scan     func() ([]Iface, error)                   // default SystemInterfaces
 	Bind     func(Endpoint, int) (net.Listener, error) // default BindTCP
@@ -107,11 +109,7 @@ func (m *Manager) removeStale(want []Endpoint) {
 
 // add binds e and starts serving. Caller holds m.mu.
 func (m *Manager) add(e Endpoint) {
-	bind := m.Bind
-	if bind == nil {
-		bind = BindTCP
-	}
-	ln, err := bind(e, m.Port)
+	ln, err := m.bind(e)
 	if err != nil {
 		if !m.bindFailed[e] {
 			m.Log.Warn("listener bind failed; retrying on each scan", "kind", e.Kind, "iface", e.Iface, "addr", e.Addr, "err", err)
@@ -132,6 +130,18 @@ func (m *Manager) add(e Endpoint) {
 	go m.serve(e, srv, ln)
 }
 
+// bind refuses to bind without a TLS config: a remote listener never serves
+// cleartext, so a missing config means no listener rather than plain HTTP.
+func (m *Manager) bind(e Endpoint) (net.Listener, error) {
+	if m.TLS == nil {
+		return nil, errors.New("no TLS config: remote listeners serve HTTPS only")
+	}
+	if m.Bind != nil {
+		return m.Bind(e, m.Port)
+	}
+	return BindTCP(e, m.Port)
+}
+
 func setTrue(m map[Endpoint]bool, e Endpoint) map[Endpoint]bool {
 	if m == nil {
 		m = map[Endpoint]bool{}
@@ -148,21 +158,14 @@ func (m *Manager) newServer(e Endpoint) *http.Server {
 		MaxHeaderBytes:    64 << 10,
 		ErrorLog:          slog.NewLogLogger(m.Log.Handler(), slog.LevelDebug),
 	}
-	if e.Kind == LAN {
-		// One copy per server: ServeTLS sets up HTTP/2 by writing to
-		// srv.TLSConfig, which races when servers share a config.
-		srv.TLSConfig = m.TLS.Clone()
-	}
+	// One copy per server: ServeTLS sets up HTTP/2 by writing to
+	// srv.TLSConfig, which races when servers share a config.
+	srv.TLSConfig = m.TLS.Clone()
 	return srv
 }
 
 func (m *Manager) serve(e Endpoint, srv *http.Server, ln net.Listener) {
-	var err error
-	if e.Kind == LAN {
-		err = srv.ServeTLS(ln, "", "")
-	} else {
-		err = srv.Serve(ln)
-	}
+	err := srv.ServeTLS(ln, "", "")
 	if errors.Is(err, http.ErrServerClosed) {
 		return
 	}

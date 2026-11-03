@@ -8,7 +8,6 @@ import io.github.justcallmesu.aristotle.data.CertificateSource
 import io.github.justcallmesu.aristotle.data.ConnectionProblem
 import io.github.justcallmesu.aristotle.data.CredentialStore
 import io.github.justcallmesu.aristotle.data.Fingerprint
-import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.PairResult
 import io.github.justcallmesu.aristotle.data.PairingApi
 import io.github.justcallmesu.aristotle.data.PairingCode
@@ -27,7 +26,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Errors shown on the address field. */
-enum class AddressFieldError { Empty, NotAnIpAddress, BadPort, NotPrivate, Unreachable, NotAllowed, NoCertificate, TailscaleOff }
+enum class AddressFieldError { Empty, NotAnIpAddress, BadPort, NotPrivate, Unreachable, NotAllowed, NoCertificate }
 
 enum class CodeFieldError { Incomplete, Invalid }
 
@@ -45,21 +44,18 @@ sealed interface PairMessage {
 sealed interface PairStep {
     data object Entry : PairStep
 
-    /** LAN: the user compares [fingerprint] with what `aristotle-server pair` printed. */
+    /** Any address, LAN or Tailscale: the user compares [fingerprint] with what `aristotle-server pair` printed. */
     data class Compare(val endpoint: ServerEndpoint, val fingerprint: ByteArray) : PairStep {
         override fun equals(other: Any?) =
             other is Compare && other.endpoint == endpoint && other.fingerprint.contentEquals(fingerprint)
         override fun hashCode() = 31 * endpoint.hashCode() + fingerprint.contentHashCode()
     }
 
-    /** Tailscale: no certificate; one line explains why, then Pair. */
-    data class Tailnet(val endpoint: ServerEndpoint) : PairStep
-
-    /** Fingerprint confirmed (or tailnet); stays after a 401 so only the code needs fixing. */
-    data class Confirmed(val endpoint: ServerEndpoint, val fingerprint: ByteArray?) : PairStep {
-        override fun equals(other: Any?) = other is Confirmed && other.endpoint == endpoint &&
-            (other.fingerprint?.contentEquals(fingerprint) ?: (fingerprint == null))
-        override fun hashCode() = 31 * endpoint.hashCode() + (fingerprint?.contentHashCode() ?: 0)
+    /** Fingerprint confirmed; stays after a 401 so only the code needs fixing. */
+    data class Confirmed(val endpoint: ServerEndpoint, val fingerprint: ByteArray) : PairStep {
+        override fun equals(other: Any?) =
+            other is Confirmed && other.endpoint == endpoint && other.fingerprint.contentEquals(fingerprint)
+        override fun hashCode() = 31 * endpoint.hashCode() + fingerprint.contentHashCode()
     }
 }
 
@@ -92,15 +88,11 @@ class PairViewModel(
 
     fun onDeviceNameChange(value: String) = state.update { it.copy(deviceName = value.take(MAX_NAME)) }
 
-    /** Validates the form, then fetches the certificate (LAN) or explains Tailscale. */
+    /** Validates the form, then fetches the certificate to compare (every address, LAN or Tailscale). */
     fun onContinue() {
         val current = state.value
         if (current.busy) return
         val endpoint = validEndpoint(current) ?: return
-        if (endpoint.network == Network.Tailscale) {
-            state.update { it.copy(step = PairStep.Tailnet(endpoint), message = null) }
-            return
-        }
         state.update { it.copy(busy = true, message = null) }
         viewModelScope.launch { showFingerprint(endpoint, probe.fetch(endpoint)) }
     }
@@ -112,13 +104,10 @@ class PairViewModel(
 
     fun onFingerprintMismatch() = state.update { it.copy(step = PairStep.Entry, message = PairMessage.FingerprintRejected) }
 
-    /** Pair on a Tailscale address, or try again after a refused code. */
+    /** Try again after a refused code. */
     fun onPair() {
-        when (val step = state.value.step) {
-            is PairStep.Tailnet -> pair(PairStep.Confirmed(step.endpoint, null))
-            is PairStep.Confirmed -> pair(step)
-            else -> Unit
-        }
+        val step = state.value.step as? PairStep.Confirmed ?: return
+        pair(step)
     }
 
     private fun validEndpoint(current: PairUiState): ServerEndpoint? {
@@ -162,7 +151,7 @@ class PairViewModel(
                     pcId = result.deviceId,
                     deviceId = result.deviceId,
                     baseUrls = listOf(step.endpoint.baseUrl),
-                    fingerprint = step.fingerprint?.let(Fingerprint::format),
+                    fingerprint = Fingerprint.format(step.fingerprint),
                     token = result.token,
                 ),
             )
@@ -172,9 +161,7 @@ class PairViewModel(
             is PairResult.Rejected -> state.update { it.copy(busy = false, message = PairMessage.Rejected(result.status)) }
             is PairResult.Failed -> when (result.problem) {
                 ConnectionProblem.CertificateChanged -> backToEntry(message = PairMessage.CertificateChanged)
-                ConnectionProblem.TailscaleOff -> backToEntry(addressError = AddressFieldError.TailscaleOff)
-                ConnectionProblem.Unreachable, ConnectionProblem.CleartextRefused ->
-                    backToEntry(addressError = AddressFieldError.Unreachable)
+                ConnectionProblem.Unreachable -> backToEntry(addressError = AddressFieldError.Unreachable)
             }
         }
     }

@@ -22,7 +22,7 @@ sealed interface ProbeResult {
     /** No TCP connection (wrong address, server down, other network). */
     data object Unreachable : ProbeResult
 
-    /** Connected, but no TLS certificate came back (not an aristotle-server LAN listener). */
+    /** Connected, but no TLS certificate came back (not an aristotle-server listener). */
     data object NoCertificate : ProbeResult
 }
 

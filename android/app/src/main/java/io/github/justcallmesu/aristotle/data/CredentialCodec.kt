@@ -20,7 +20,10 @@ private data class StoredPc(
 sealed interface DecodeResult {
     data class Ok(val credentials: PcCredentials) : DecodeResult
 
-    /** Can never be read again (corrupt entry, wrong or lost key): safe to wipe. */
+    /**
+     * Can never be read or used again: safe to wipe. A corrupt entry, a wrong or lost key, or no usable pin
+     * (a Tailscale pairing from before spec Q49 stored none; that PC must be paired again).
+     */
     data object Unreadable : DecodeResult
 
     /** The Keystore failed for now (e.g. busy right after boot): keep the entry and retry. */
@@ -45,15 +48,41 @@ class CredentialCodec(private val cipher: TokenCipher) {
 
     fun decode(text: String): DecodeResult = try {
         val stored = json.decodeFromString(StoredPc.serializer(), text)
-        val sealed = Base64.getDecoder().decode(stored.tokenSealed)
-        val token = cipher.decrypt(sealed, aad(stored.pcId, stored.deviceId)).toString(Charsets.UTF_8)
-        DecodeResult.Ok(PcCredentials(stored.pcId, stored.deviceId, stored.baseUrls, stored.fingerprint, DeviceToken(token)))
+        val pin = stored.fingerprint?.takeIf { Fingerprint.parse(it) != null }
+        if (pin == null) {
+            DecodeResult.Unreadable
+        } else {
+            val sealed = Base64.getDecoder().decode(stored.tokenSealed)
+            val token = cipher.decrypt(sealed, aad(stored.pcId, stored.deviceId)).toString(Charsets.UTF_8)
+            DecodeResult.Ok(PcCredentials(stored.pcId, stored.deviceId, stored.baseUrls.map(::httpsBaseUrl), pin, DeviceToken(token)))
+        }
     } catch (e: Exception) {
         if (KeystoreFailures.isPermanent(e)) DecodeResult.Unreadable else DecodeResult.Unavailable
     }
 
+    /**
+     * The entry rewritten for spec Q49 when it holds a base URL from an earlier build: [httpsBaseUrl] on each,
+     * the pin and the sealed token kept byte for byte (no Keystore call). Null when nothing changes or the
+     * entry does not parse ([decode] then decides).
+     */
+    fun upgrade(text: String): String? {
+        val stored = runCatching { json.decodeFromString(StoredPc.serializer(), text) }.getOrNull() ?: return null
+        val urls = stored.baseUrls.map(::httpsBaseUrl)
+        if (urls == stored.baseUrls) return null
+        return json.encodeToString(StoredPc.serializer(), stored.copy(baseUrls = urls))
+    }
+
     private fun aad(pcId: String, deviceId: String): ByteArray = "aristotle-token\u0000$pcId\u0000$deviceId".toByteArray(Charsets.UTF_8)
 }
+
+/**
+ * A base URL as spec Q49 stores it. Builds before Q49 stored Tailscale addresses as plain-HTTP URLs; the
+ * server now serves HTTPS with the same certificate on the same host and port, so only the scheme changes.
+ */
+internal fun httpsBaseUrl(url: String): String =
+    if (url.startsWith(LEGACY_SCHEME, ignoreCase = true)) "https://" + url.substring(LEGACY_SCHEME.length) else url
+
+private const val LEGACY_SCHEME = "http://" // read from old entries only; never used to connect
 
 /** Which decode failures mean the entry is gone for good (T07 review: a transient error must not wipe a pairing). */
 object KeystoreFailures {

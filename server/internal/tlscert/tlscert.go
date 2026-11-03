@@ -1,9 +1,10 @@
 // Package tlscert creates and loads the server's self-signed TLS certificate.
 //
 // The phone pins the SHA-256 of the certificate's SubjectPublicKeyInfo (shown
-// at pairing), not a hostname or IP. The SANs are filled with the LAN IPs seen
-// on first start only as a courtesy; when the laptop gets a new LAN IP the
-// certificate is NOT regenerated, because the pin still matches. The key pair
+// at pairing), not a hostname or IP. The SANs are filled with the LAN and
+// Tailscale IPs seen on first start only as a courtesy; when the laptop gets
+// a new IP the certificate is NOT regenerated, because the pin still matches.
+// The same certificate serves every remote listener (spec Q49). The key pair
 // is created once and reused, so the fingerprint stays stable across restarts.
 package tlscert
 
@@ -153,7 +154,7 @@ func Fingerprint(cert *x509.Certificate) string {
 	return strings.Join(groups, " ")
 }
 
-// ServerConfig returns the TLS config for the LAN listeners.
+// ServerConfig returns the TLS config for every remote (LAN and Tailscale) listener.
 func (c Cert) ServerConfig() *tls.Config {
 	return &tls.Config{Certificates: []tls.Certificate{c.TLS}, MinVersion: tls.VersionTLS12}
 }

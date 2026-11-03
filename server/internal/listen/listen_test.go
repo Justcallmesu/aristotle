@@ -3,6 +3,7 @@ package listen
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -280,7 +281,7 @@ func TestEndpointURL(t *testing.T) {
 	if got := wifiEP.URL(8760); got != "https://192.168.1.61:8760" {
 		t.Error(got)
 	}
-	if got := ep(Tailscale, "tailscale0", "fd7a:115c:a1e0::1/128").URL(8760); got != "http://[fd7a:115c:a1e0::1]:8760" {
+	if got := ep(Tailscale, "tailscale0", "fd7a:115c:a1e0::1/128").URL(8760); got != "https://[fd7a:115c:a1e0::1]:8760" {
 		t.Error(got)
 	}
 }
@@ -451,27 +452,45 @@ func TestManagerScanErrorKeepsListeners(t *testing.T) {
 	}
 }
 
-func TestManagerServesWithPeerGateAndStops(t *testing.T) {
+// tailnetManager serves one Tailscale endpoint on a loopback port; bound reports that port's address.
+func tailnetManager(t *testing.T, handler http.Handler) (m *Manager, bound func() string) {
+	t.Helper()
+	cert, _, err := tlscert.LoadOrCreate(t.TempDir(), nil, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
 	var mu sync.Mutex
-	var bound net.Listener
-	m := &Manager{
-		Port: 8760, Policy: Policy{Tailscale: true},
-		Handler: func(Kind) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-		},
+	var ln net.Listener
+	m = &Manager{
+		Port: 8760, Policy: Policy{Tailscale: true}, TLS: cert.ServerConfig(),
+		Handler: func(Kind) http.Handler { return handler },
 		Scan: func() ([]Iface, error) {
 			return []Iface{{Name: "tailscale0", Up: true, Tun: true, Addrs: pfxs("100.74.61.96/32")}}, nil
 		},
 		Bind: func(Endpoint, int) (net.Listener, error) {
-			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			l, err := net.Listen("tcp", "127.0.0.1:0")
 			mu.Lock()
-			bound = ln
+			ln = l
 			mu.Unlock()
-			return ln, err
+			return l, err
 		},
 		Interval: time.Hour,
 		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
+	return m, func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return ln.Addr().String()
+	}
+}
+
+// tlsClient trusts any certificate: these tests are about the listener, not the pin.
+func tlsClient() *http.Client {
+	return &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+}
+
+func TestManagerServesWithPeerGateAndStops(t *testing.T) {
+	m, bound := tailnetManager(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { m.Run(ctx); close(done) }()
@@ -479,10 +498,7 @@ func TestManagerServesWithPeerGateAndStops(t *testing.T) {
 	for len(m.Active()) == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	mu.Lock()
-	addr := bound.Addr().String()
-	mu.Unlock()
-	resp, err := http.Get("http://" + addr + "/healthz")
+	resp, err := tlsClient().Get("https://" + bound() + "/healthz")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,6 +515,43 @@ func TestManagerServesWithPeerGateAndStops(t *testing.T) {
 	}
 	if len(m.Active()) != 0 {
 		t.Fatal("servers still active after stop")
+	}
+}
+
+// Q49: the Tailscale listener speaks TLS only. A plain-HTTP request gets Go's fixed 400 from the TLS
+// layer; it never reaches the peer gate or a handler.
+func TestTailscaleListenerRefusesPlainHTTP(t *testing.T) {
+	var reached atomic.Int32
+	m, bound := tailnetManager(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached.Add(1) }))
+	m.Reconcile()
+	defer m.Close()
+	if len(m.Active()) != 1 {
+		t.Fatalf("active = %v", m.Active())
+	}
+	resp, err := http.Get("http://" + bound() + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "HTTPS server") {
+		t.Fatalf("plain HTTP got %d %q, want the TLS layer's 400", resp.StatusCode, body)
+	}
+	if reached.Load() != 0 {
+		t.Fatal("a plain-HTTP request reached the handler")
+	}
+}
+
+// Without a TLS config nothing is bound: a remote listener never falls back to cleartext.
+func TestManagerWithoutTLSBindsNothing(t *testing.T) {
+	m, _ := tailnetManager(t, http.NotFoundHandler())
+	m.TLS = nil
+	var binds atomic.Int32
+	m.Bind = func(Endpoint, int) (net.Listener, error) { binds.Add(1); return net.Listen("tcp", "127.0.0.1:0") }
+	m.Reconcile()
+	defer m.Close()
+	if len(m.Active()) != 0 || binds.Load() != 0 {
+		t.Fatalf("active %v, binds %d without a TLS config", m.Active(), binds.Load())
 	}
 }
 

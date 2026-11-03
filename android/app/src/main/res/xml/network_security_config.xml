@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Cleartext is permitted here only because a network security config cannot express an IP range
-  (100.64.0.0/10, fd7a:115c:a1e0::/48). The real rule is enforced in code before every request:
-  data/HttpClients.kt CleartextGuard refuses plain HTTP to anything but a tailnet IP, and the LAN
-  uses HTTPS with a pinned certificate. User-installed CAs are never trusted.
+  No cleartext to any host, no exceptions (spec Q49): every connection to the PC is HTTPS with its
+  pinned certificate, on Wi-Fi and Tailscale alike (data/HttpClients.kt). User-installed CAs are
+  never trusted.
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
