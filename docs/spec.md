@@ -111,6 +111,7 @@ Rules that hold everywhere:
 | Q44 | Quote loading screen shows only while really loading: app start while connecting, and the reconnecting state; minimum display ~1.2 s so it can be read. | User 2026-11-03. |
 | Q45 | Quote language: English (public-domain translation) with the original Greek in small type and a source citation (work + Bekker number). Not localised. | User 2026-11-03. Only quotes traceable to Aristotle's works; misattributions (e.g. Durant's "We are what we repeatedly do") excluded. |
 | Q46 | Animation: calm line-by-line fade-in with a thin verdigris progress line, plus the app icon (static) above the quote. | User "A, and an icon too" 2026-11-03; PM reads it as the static icon, not a stroke-drawing animation. Icon = T20 result; placeholder until then. |
+| Q47 | Loading-screen quotes: all 24 in `docs/quotes.json` approved as they are (period translations kept verbatim). | User 2026-11-03. |
 
 ## 4. Risks
 

@@ -21,11 +21,14 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T05b | Listener/pairing review fixes: Tailscale by TUN interface (MAJOR, cleartext risk), LAN physical-only + subnet peers, iface names in `pair`, per-IP lockout, pair read deadline, protocol.md §11 | T05 | server, docs | DONE |
 | T05c | Hardening from wave-4 reviews: D9, D10, D12, D13, D14, D15 | T04b, T05b | server, docs §11 | DONE |
 | T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T05c | server | DONE |
-| T06b | Relay review fixes: slow phone not cut by keepalive (MAJOR), revoke on stalled phone, method-name log allowlist, §12 docs, refuse `desktop_local` (Q43) | T06 | server, docs §12 | BUILDING |
+| T06b | Relay review fixes: slow phone not cut by keepalive (MAJOR), revoke on stalled phone, method-name log allowlist, §12 docs, refuse `desktop_local` (Q43) | T06 | server, docs §12 | DONE |
+| T06c | Relay liveness: dead phone closed even while Hermes streams small frames (T06b review MAJOR, proven) | T06b | server/internal/relay | DONE |
 | TD1 | Design pass: mockups (pair, sessions, chat live turn, approval, offline), icon concepts, draft design notes (Q37) | — | docs/design | DONE |
-| T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | TODO |
-| T08 | Pairing by QR (server prints QR; app scans) | T07 | server, android | TODO |
-| T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07 | android | TODO |
+| T06d | Relay hardening D20 | T06c | server/internal/relay, docs §12 | TODO |
+| T07b | App + connector fixes from T07 review and device test: D18 (server), D19, D21, D22 | T07 | android, server/internal/hermes | TODO |
+| T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | DONE |
+| T08 | Pairing by QR (server prints QR; app scans) | T07b | server, android | TODO |
+| T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07b | android | TODO |
 | T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09 | android | TODO |
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | TODO ⟳ |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
@@ -36,7 +39,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | TODO ⟳ |
-| TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | AWAITING-HUMAN (approve list) |
+| TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | DONE |
 | TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | TODO |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | TODO |
@@ -64,6 +67,11 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D14 | One rejection-log limiter per listener; hard-coded "5 tries" text; control lock taken after cert creation; §11 omissions (T05b review NITs) | T05c | DONE (T05c) |
 | D15 | `decodeEnvelope` `sizeOK` parameter is dead (T04b review NIT) | T05c | DONE (T05c) |
 | D16 | No positive test that the interface pin is applied (getsockopt SO_BINDTODEVICE); empty iface name silently unpins (`manager.go:220`) (T05c review F1+F2) | T06 | DONE (T06) |
+| D18 | Connector looks for `gateway.sock` only in `$HERMES_HOME`; when that is a profile home (e.g. `profiles/pm`, set in any Hermes-launched shell) it reports 4503 although the root gateway runs. Fall back to the root home / follow Hermes' own resolution (found in T07 device test) | T07b | OPEN |
+| D19 | Default device name is the model code (`22101320G`); use the marketing name (`Settings.Global.DEVICE_NAME` / `Build.MODEL` fallback) (T07 device test) | T07b | OPEN |
+| D20 | Relay: detect blocked writes exactly (wrap the TLS listener, write via SyscallConn) instead of the 10 ms threshold; `TCP_NOTSENT_LOWAT` ~128 KiB on phone sockets; §12: clients must answer every ping and hand frames off fast (T06c review F1, F3, F5, F6) | T06d | OPEN |
+| D21 | App: Tailscale cleartext only over the VPN `Network` (refuse when Tailscale is off) + `Proxy.NO_PROXY` on every client (T07 review MAJOR, unproven) | T07b | OPEN |
+| D22 | App: transient Keystore decrypt error must not wipe pairing; Keystore off the main thread; `parseIpv6` never resolves DNS; move relay logic from SessionsViewModel to `data/` with tests; 3 missing security tests; 4 NITs (T07 review MINORs) | T07b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
 ## Tickets
@@ -190,3 +198,8 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 docs/design.md written (210 lines). PM accepted the writer's unspecified values (onSecondary, pairing-code type 22/28, reduced-motion rule, 200 ms exit) as technical calls, and its contrast fix (tertiary/error never on surfaceContainerHighest in light). User asked for an Aristotle-quote loading screen: TQ1 added, Q44-Q46 asked.
 - 2026-11-03 User: Q44 a, Q45 c, Q46 a + icon. TQ0 quote research dispatched (std).
 - 2026-11-03 TQ0 delivered 24 quotes (NE 12, Metaphysics 5, Poetics 3, Rhetoric 2, Politics 2) + 12 misattributions. PM spot-checked 4 random quotes against the MIT Classics texts: all 4 match verbatim. Awaiting user approval of the list.
+- 2026-11-03 User approved all 24 quotes (Q47). T06b built; PM accepted its stricter desktop_local check (all phone frames, not only those containing `capabilities`, closes \u-escape bypass). Note for T07/T09: the app must not set OkHttp pingInterval during large downloads (T06b report).
+- 2026-11-03 T06b review CHANGES-REQUIRED (MAJOR proven: write-start counted as progress, so a dead phone stays open while Hermes streams). Not committed; T06c dispatched (deep, relay retry 2/2). T07 dispatched in parallel (deep): android only, relay wire contract unchanged by T06c.
+- 2026-11-03 T06c + T07 built. PM gates GREEN (runs/pm-gate-8: 211 Go tests; android lint + 59 unit tests + assemble). T07 mutation: pin check disabled -> 2 of 59 tests fail; restored sha-match. T07 not run on device (phone not visible to adb at the time). T06c uses a 10 ms blocked-write threshold (no API); reviewer asked to judge vs Linux SIOCOUTQ. Reviews dispatched (deep x2).
+- 2026-11-03 T07 device test with the user: Wi-Fi pairing with fingerprint compare WORKED (/v1/pair 201, /v1/me 200 over pinned HTTPS). Relay gave 4503 because the PM's shell exported HERMES_HOME=profiles/pm (no gateway.sock there) -> D18. Server restarted with HERMES_HOME=~/.hermes for the demo.
+- 2026-11-03 T06c review PASS-WITH-FINDINGS (dead phone closed at ping+pong 3/3; recommends exact SyscallConn detection over SIOCOUTQ) and T07 review PASS-WITH-FINDINGS (MAJOR unproven: 100.64/10 trusted by range on the phone too). Committed T06b+T06c and T07. Follow-ups T06d (D20) and T07b (D18, D19, D21, D22) before T08/T09.
