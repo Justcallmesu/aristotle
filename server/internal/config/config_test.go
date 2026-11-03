@@ -1,10 +1,13 @@
 package config
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestDefaults(t *testing.T) {
@@ -12,8 +15,31 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Addr() != "127.0.0.1:8760" {
-		t.Fatalf("addr = %s", cfg.Addr())
+	if cfg.Addr() != "127.0.0.1:8760" || !cfg.LANEnabled || !cfg.TailscaleEnabled {
+		t.Fatalf("defaults = %+v", cfg)
+	}
+}
+
+func TestParseLANInterfaces(t *testing.T) {
+	cfg, err := Parse([]byte(`{"lan_interfaces": ["wlan0"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.LANInterfaces) != 1 || cfg.LANInterfaces[0] != "wlan0" {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	if def := Default(); def.LANInterfaces != nil {
+		t.Fatalf("default lan_interfaces = %v, want unset", def.LANInterfaces)
+	}
+}
+
+func TestParseListenerToggles(t *testing.T) {
+	cfg, err := Parse([]byte(`{"lan_enabled": false}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LANEnabled || !cfg.TailscaleEnabled {
+		t.Fatalf("cfg = %+v", cfg)
 	}
 }
 
@@ -35,6 +61,21 @@ func TestParse(t *testing.T) {
 		{"duplicate key", `{"host":"127.0.0.1","host":"::1"}`, `duplicate key "host"`, ""},
 		{"empty file", "  \n", "config file is empty", ""},
 		{"bad port", `{"port": 70000}`, "out of range", ""},
+		{"null file", `null`, "must be a JSON object", ""},
+		{"array file", `[]`, "must be a JSON object", ""},
+		{"null value", `{"lan_enabled": null}`, `"lan_enabled" must not be null`, ""},
+		{"mixed-case toggle", `{"LAN_enabled": false}`, `"LAN_enabled"`, ""},
+		{"toggle wrong type", `{"tailscale_enabled": "no"}`, "invalid config", ""},
+		{"lan_interfaces list", `{"lan_interfaces": ["wlan0", "enp3s0"]}`, "", "127.0.0.1:8760"},
+		{"lan_interfaces empty", `{"lan_interfaces": []}`, "", "127.0.0.1:8760"},
+		{"lan_interfaces null", `{"lan_interfaces": null}`, `"lan_interfaces" must not be null`, ""},
+		{"lan_interfaces string", `{"lan_interfaces": "wlan0"}`, "invalid config", ""},
+		{"lan_interfaces empty name", `{"lan_interfaces": [""]}`, "not an interface name", ""},
+		{"lan_interfaces path", `{"lan_interfaces": ["../wlan0"]}`, "not an interface name", ""},
+		{"lan_interfaces space", `{"lan_interfaces": ["wl an0"]}`, "not an interface name", ""},
+		{"lan_interfaces too long", `{"lan_interfaces": ["abcdefghijklmnop"]}`, "not an interface name", ""},
+		{"lan_interfaces duplicate", `{"lan_interfaces": ["wlan0", "wlan0"]}`, "listed twice", ""},
+		{"lan_interfaces mixed case key", `{"LAN_interfaces": ["wlan0"]}`, `"LAN_interfaces"`, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -129,5 +170,56 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 	}
 	if got := info.Mode().Perm(); got != want {
 		t.Fatalf("mode = %v, want %v", got, want)
+	}
+}
+
+func TestEnsureDirRefusesFileInPlace(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "state")
+	if err := os.WriteFile(p, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureDir(p, nil); err == nil {
+		t.Fatal("want error for a regular file")
+	}
+}
+
+// fakeInfo lets the other-owner check run without root (D3).
+type fakeInfo struct {
+	mode fs.FileMode
+	sys  any
+}
+
+func (f fakeInfo) Name() string       { return "state" }
+func (f fakeInfo) Size() int64        { return 0 }
+func (f fakeInfo) Mode() fs.FileMode  { return f.mode }
+func (f fakeInfo) ModTime() time.Time { return time.Time{} }
+func (f fakeInfo) IsDir() bool        { return f.mode.IsDir() }
+func (f fakeInfo) Sys() any           { return f.sys }
+
+func TestCheckDirSafe(t *testing.T) {
+	uid := uint32(os.Getuid())
+	tests := []struct {
+		name    string
+		info    fakeInfo
+		wantErr string
+	}{
+		{"own dir", fakeInfo{fs.ModeDir | 0o700, &syscall.Stat_t{Uid: uid}}, ""},
+		{"other owner", fakeInfo{fs.ModeDir | 0o700, &syscall.Stat_t{Uid: uid + 1}}, "owned by uid"},
+		{"symlink", fakeInfo{fs.ModeSymlink | 0o777, &syscall.Stat_t{Uid: uid}}, "symlink"},
+		{"regular file", fakeInfo{0o600, &syscall.Stat_t{Uid: uid}}, "not a directory"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkDirSafe("/x/state", tt.info)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }

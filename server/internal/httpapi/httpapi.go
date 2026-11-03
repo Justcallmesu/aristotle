@@ -1,10 +1,13 @@
-// Package httpapi holds the HTTP router and handlers.
+// Package httpapi holds the HTTP routers and handlers.
 package httpapi
 
 import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/justcallmesu/aristotle/server/internal/devices"
+	"github.com/justcallmesu/aristotle/server/internal/pairing"
 )
 
 type healthResponse struct {
@@ -12,11 +15,35 @@ type healthResponse struct {
 	Version string `json:"version"`
 }
 
-// NewRouter returns the server's handler.
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+// Deps are what the phone-facing routes need.
+type Deps struct {
+	Codes   *pairing.Codes
+	Devices *devices.Store
+}
+
+// NewRouter returns the loopback handler: health only.
 func NewRouter(version string, log *slog.Logger) http.Handler {
+	return logRequests(log, newMux(version))
+}
+
+// NewRemoteRouter returns the handler for the LAN and Tailscale listeners.
+// Every /v1/* route needs a device token except POST /v1/pair.
+func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
+	mux := newMux(version)
+	mux.Handle("POST /v1/pair", pairHandler(d, log, newRejectLog(log)))
+	mux.Handle("GET /v1/me", requireDevice(d.Devices, http.HandlerFunc(meHandler)))
+	mux.Handle("/v1/", requireDevice(d.Devices, http.NotFoundHandler()))
+	return logRequests(log, mux)
+}
+
+func newMux(version string) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(version))
-	return logRequests(log, mux)
+	return mux
 }
 
 func healthHandler(version string) http.HandlerFunc {
@@ -27,22 +54,11 @@ func healthHandler(version string) http.HandlerFunc {
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// logRequests logs method and route pattern (path if no route matched): never
-// bodies, queries or headers. Secrets must never go in URL paths.
-func logRequests(log *slog.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
-		log.Info("request", "method", r.Method, "route", routeLabel(r))
-	})
-}
-
-func routeLabel(r *http.Request) string {
-	if r.Pattern != "" {
-		return r.Pattern
-	}
-	return r.URL.Path
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, errorResponse{Error: msg})
 }

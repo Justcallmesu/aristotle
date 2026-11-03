@@ -355,3 +355,68 @@ that the fields exist in these places (scan of every frame in `docs/spikes/frame
   partial key characters, so it must not reach the phone or logs. The committed frames show the literal string
   `"[REDACTED]"` (the spike client already replaced it), so the real masked shape is not in the repo.
 - The phone gets `system_prompt_chars` only so a UI can show that a prompt exists; nothing else about it.
+
+## 11. aristotle-server API (phone side)
+What the app talks to on the laptop (T05/T05b; code in `server/internal/{listen,httpapi,pairing,tlscert}`).
+This is aristotle-server's own API, not Hermes'.
+
+### 11.1 Listeners
+All listeners use the same port (config `port`, default 8760). The server never binds `0.0.0.0`/`::`.
+
+| Listener | Bound on | Scheme | Peers admitted (else `403`, text body `forbidden`) |
+|---|---|---|---|
+| LAN | each RFC1918 IPv4 address of a physical interface (`/sys/class/net/<if>/device` exists), or only the interfaces named in config `lan_interfaces` | HTTPS, self-signed cert, pinned | RFC1918 peers inside that interface's own subnet (on-link) |
+| Tailscale | each 100.64.0.0/10 or fd7a:115c:a1e0::/48 address of a TUN interface named `tailscale*` | plain HTTP (WireGuard encrypts) | tailnet peers (same two ranges) |
+| Loopback | config `host` (127.0.0.1 or ::1) | HTTP | local only; serves `/healthz` only |
+
+- The same address ranges on any other interface (a hotel or carrier CGNAT handing out 100.x) get no listener.
+- `aristotle-server pair` prints every listener URL with its interface: the default-route LAN interface first,
+  other LAN interfaces next, Tailscale last. Interfaces are re-scanned every 10 s.
+
+### 11.2 Endpoints (LAN and Tailscale listeners)
+| Method, path | Auth | Success | Errors |
+|---|---|---|---|
+| `GET /healthz` | none | `200 {"status":"ok","version":"…"}` | — |
+| `POST /v1/pair` | none (one-time code in the body) | `201 {"device_id":"dev_<12 hex>","token":"<43 chars>"}` | `400`, `401`, `500` (below) |
+| `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…"}` | `401` |
+| any other `/v1/*` | Bearer | `404` with a valid token | `401` without one |
+
+All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"<message>"}`.
+
+**`POST /v1/pair`** request body (JSON object, unknown fields refused, at most 4 KiB, must arrive within 10 s):
+`{"code":"<8 chars>","device_name":"<optional, ≤64 chars>"}`.
+- `code`: the code `aristotle-server pair` printed. Case-insensitive; hyphens and spaces ignored; `O`→`0`, `I`/`L`→`1`.
+  Never put it in the URL or query.
+- `device_name`: control (Cc), format (Cf: bidi overrides/isolates, zero-width) and line/paragraph separator
+  characters are stripped, then spaces trimmed; more than 64 characters left -> `400`. A name given on the laptop
+  (`pair --name`) wins; with neither, the name is `device`.
+- `400`: body not that JSON object, `code` missing, name too long, body over 4 KiB or too slow. A `400` does not
+  count as a wrong attempt.
+- `401 {"error":"invalid or expired pairing code"}`: no active code, expired, wrong, already used, or this peer is
+  locked out. The cases are not distinguished.
+- `500`: the device could not be stored; run `pair` again.
+- Code rules: one active code at a time (a new `pair` replaces it), single use, expires 5 minutes after issue.
+  Wrong attempts are counted per peer IP: after 5 that IP cannot redeem this code, other IPs still can. After 20
+  wrong attempts in total the code is invalidated.
+
+**Bearer auth.** Every `/v1/*` route except `POST /v1/pair` needs `Authorization: Bearer <token>` (scheme
+case-insensitive). The token is 32 random bytes, base64url without padding (43 chars). The server stores only its
+SHA-256. Unknown or revoked token -> `401 {"error":"unauthorized"}` with `WWW-Authenticate: Bearer`.
+A revoke (`aristotle-server devices revoke <id>`) applies from the next request on.
+
+**`401` vs `403`.** `403` comes from the listener's peer gate, before any route runs: the phone's address is not
+allowed on that listener (wrong network, or a LAN peer outside the interface's subnet). Re-pairing does not help;
+use another address. `401` means the code or token was refused: pair again (or re-enter the code).
+
+### 11.3 Certificate pin (LAN only)
+The LAN certificate is self-signed (ECDSA P-256, 20 years). It is created on first start and kept across restarts
+and IP changes. The app trusts it by pin, not by CA or hostname: the IP SANs are only a courtesy and can be stale.
+
+- **Fingerprint** = SHA-256 of the certificate's DER-encoded SubjectPublicKeyInfo, shown as uppercase hex in
+  space-separated groups of 4 characters (16 groups), e.g. `7E54 D87B … BCA7 EAA7`. `pair` prints it.
+- **Android:** `val spki = (cert as X509Certificate).publicKey.encoded` (the DER SubjectPublicKeyInfo), then
+  `MessageDigest.getInstance("SHA-256").digest(spki)`, uppercase hex, grouped by 4. An OkHttp `CertificatePinner`
+  pin `sha256/<base64>` is the base64 of the same 32 bytes.
+- On the manual pairing path the app shows this fingerprint for the user to compare with the laptop's, and stores
+  it with the device token. The pin changes only if the user deletes the key pair, and then every phone must re-pair.
+- The Tailscale listener has no TLS, so there is no pin there.

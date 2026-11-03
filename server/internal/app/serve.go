@@ -1,0 +1,148 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/justcallmesu/aristotle/server/internal/config"
+	"github.com/justcallmesu/aristotle/server/internal/control"
+	"github.com/justcallmesu/aristotle/server/internal/devices"
+	"github.com/justcallmesu/aristotle/server/internal/httpapi"
+	"github.com/justcallmesu/aristotle/server/internal/listen"
+	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/tlscert"
+)
+
+const shutdownTimeout = 5 * time.Second
+
+// Serve loads config, prepares the state dir and serves until ctx is done.
+func Serve(ctx context.Context, version string, log *slog.Logger) error {
+	cfgPath, err := config.ConfigPath()
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return err
+	}
+	stateDir, err := config.EnsureStateDir(log)
+	if err != nil {
+		return err
+	}
+	srv, err := newServer(cfg, stateDir, version, log, nil)
+	if err != nil {
+		return err
+	}
+	return srv.run(ctx)
+}
+
+// server is one running aristotle-server: loopback listener, LAN/Tailscale
+// listener manager and control socket, sharing the pairing codes and devices.
+type server struct {
+	cfg      config.Config
+	stateDir string
+	version  string
+	log      *slog.Logger
+	cert     tlscert.Cert
+	codes    *pairing.Codes
+	devices  *devices.Store
+	listen   *listen.Manager
+	control  *control.Server
+}
+
+// newServer builds the components. scan, when non-nil, replaces the system
+// interface scan (tests).
+func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, scan func() ([]listen.Iface, error)) (*server, error) {
+	if scan == nil {
+		scan = listen.SystemInterfaces
+	}
+	store, err := devices.Open(stateDir, nil, log)
+	if err != nil {
+		return nil, err
+	}
+	cert, err := loadCert(cfg, stateDir, scan, log)
+	if err != nil {
+		return nil, err
+	}
+	s := &server{cfg: cfg, stateDir: stateDir, version: version, log: log, cert: cert, codes: &pairing.Codes{}, devices: store}
+	s.listen = &listen.Manager{
+		Port: cfg.Port, Policy: listenPolicy(cfg),
+		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
+	}
+	s.control = &control.Server{Path: control.SocketPath(stateDir), Handlers: s.controlHandlers(), Log: log}
+	return s, nil
+}
+
+func listenPolicy(cfg config.Config) listen.Policy {
+	return listen.Policy{LAN: cfg.LANEnabled, Tailscale: cfg.TailscaleEnabled, LANInterfaces: cfg.LANInterfaces}
+}
+
+func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, error), log *slog.Logger) (tlscert.Cert, error) {
+	ifaces, err := scan()
+	if err != nil {
+		log.Warn("interface scan failed; certificate gets no IP SANs", "err", err)
+	}
+	sansPolicy := listen.Policy{LAN: true, LANInterfaces: cfg.LANInterfaces}
+	sans := listen.LANAddrs(listen.Select(ifaces, sansPolicy))
+	cert, created, err := tlscert.LoadOrCreate(stateDir, sans, time.Now())
+	if err != nil {
+		return tlscert.Cert{}, err
+	}
+	log.Info("tls certificate", "created", created, "fingerprint", cert.Fingerprint)
+	return cert, nil
+}
+
+func (s *server) remoteHandler(kind listen.Kind) http.Handler {
+	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices}
+	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
+}
+
+// run serves until ctx is done or the loopback listener fails.
+func (s *server) run(ctx context.Context) error {
+	if err := s.control.Listen(); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	wg.Go(func() { s.control.Serve(ctx) })
+	ln, err := net.Listen("tcp", s.cfg.Addr())
+	if err != nil {
+		cancel()
+		wg.Wait()
+		return fmt.Errorf("listen %s: %w", s.cfg.Addr(), err)
+	}
+	s.log.Info("listening", "addr", ln.Addr().String(), "kind", "loopback", "state_dir", s.stateDir, "version", s.version)
+	wg.Go(func() { s.listen.Run(ctx) })
+	err = serveListener(ctx, ln, httpapi.NewRouter(s.version, s.log), s.log)
+	cancel()
+	wg.Wait()
+	return err
+}
+
+func serveListener(ctx context.Context, ln net.Listener, h http.Handler, log *slog.Logger) error {
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.Serve(ln) }()
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	log.Info("shutting down")
+	sctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(sctx); err != nil {
+		return fmt.Errorf("shutdown: %w", err)
+	}
+	if err := <-errc; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
