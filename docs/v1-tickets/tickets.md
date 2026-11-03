@@ -30,7 +30,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T07c | HTTPS + pin on the Tailscale listener too; remove all cleartext paths in server and app (Q49, D23) | T07b | server, android, docs | DONE |
 | T08 | Pairing by QR (server prints QR; app scans) | T07c | server, android | TODO |
 | T09 | App connection core: all PC addresses stored + refreshed, endpoint choice + switch on network change, one process-wide socket, reconnect with backoff, "PC offline since"; D24, D26, D27, D28 | T07c | android, server | DONE |
-| T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | BUILDING |
+| T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | BUILT (unreviewed, paused) |
 | T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | TODO |
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | TODO ⟳ |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
@@ -225,3 +225,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
   (2) Restart demo server on the T09b build (XDG dirs in pm scratch/demo, keeps the Poco pairing) and run the device test with the user:
       Wi-Fi -> Wi-Fi off (auto Tailscale) -> Tailscale off (PC offline banner) -> back on (auto reconnect).
   (3) Ask the user about speed-ups (a)/(c)/(d) before T10. Then T10, T08, T11-T13.
+- 2026-11-03 16:06 T09b worker finished during the pause: both gates pass per its report (android 130 tests), NOT yet PM-gated or reviewed, uncommitted in the working tree. PM accepts its call: a failed address save during refresh keeps the working link (no reconnect loop). Open notes for review: iface dropped on parse; possible OkHttp cancel gap during TLS handshake (test now cancels after handshake start).
