@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- T09: follow the default network to switch between Wi-Fi and Tailscale addresses. -->
@@ -68,6 +69,19 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the user's own Hermes agent session link open so turn-finished and approval notifications arrive while the app is closed." />
         </service>
+
+        <!-- TD40 (spec Q58): the code scanner's transitive Google datatransport/CCT stack only uploads ML Kit usage
+             metrics. Removed so nothing is scheduled or sent to Google. The scanner itself (delegate activity,
+             MlKitComponentDiscoveryService + its registrars, MlKitInitProvider) is kept. -->
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            tools:node="remove" />
+        <service
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+            tools:node="remove" />
+        <receiver
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+            tools:node="remove" />
     </application>
 
 </manifest>
