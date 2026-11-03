@@ -45,7 +45,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T16 | Send pictures and files | T13 | android (+server) | TODO ⟳ |
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
-| T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | TODO ⟳ |
+| T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | BLOCKED: user decisions Q52-Q55 (red-team done) |
 | TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | DONE |
 | T14b | T14 minors: stored-list failure must not hide live sessions; sessions.changed refetch debounced + live-only (stored refreshed on open/pull/load-more); unserved remembered profile falls back to the launch profile so the watcher keeps notifying; NITs from runs/T14/review-report.md | T14 | android | DONE |
 | TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | DONE |
@@ -286,3 +286,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 T14 review PASS-WITH-FINDINGS (all source-only methods match; rename = last writer wins, accepted, documented in protocol §4 by PM). Committed. T14b (std) for the minors that affect notifications/traffic.
 - 2026-11-04 T14b PM gate GREEN runs/pm-gate-25 (worker showed 8 tests red against a scratch copy of the old code). Committed without separate review (minors). TQ1 dispatched (std).
 - 2026-11-04 TQ1 PM gate GREEN runs/pm-gate-26 (393 tests; quotes.json in the APK); mutation (picker may repeat) fails 2 tests. Committed; UI-only, its review is folded into T15's. T15 dispatched (deep).
+- 2026-11-04 T19 design red-team: READY-FOR-USER-DECISIONS, 2 BLOCKER fixes folded into the design (state-dir grant file + relay-style check ordering; terminal = full account access, refuse pair/grant/enable from terminal processes, lost-phone runbook). Asked the user Q52-Q55. T19 not built until answered.
