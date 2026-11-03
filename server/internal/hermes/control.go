@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -105,12 +106,26 @@ func (id Identity) launchProfileID() (string, error) {
 	return "", fmt.Errorf("hermes identify: launch profile %q is not in served_profiles", id.HermesHome)
 }
 
-// mintTicket requests a single-use ticket. The value must never be logged.
-func (c *Connector) mintTicket(ctx context.Context, id Identity, purpose, scope string) (string, error) {
-	profileID, err := id.launchProfileID()
-	if err != nil {
-		return "", err
+// resolveProfile maps a profile name, profile_id or home to a served profile_id. "" and "default"
+// select the launch profile.
+func (id Identity) resolveProfile(profile string) (string, error) {
+	if profile == "" || profile == "default" {
+		return id.launchProfileID()
 	}
+	for _, p := range id.ServedProfiles {
+		home := filepath.Clean(p.Home)
+		if profile == p.ProfileID || filepath.Clean(profile) == home || filepath.Clean(profile) == filepath.Clean(p.ProfileID) {
+			return p.ProfileID, nil
+		}
+		if filepath.Base(filepath.Dir(home)) == "profiles" && filepath.Base(home) == profile {
+			return p.ProfileID, nil
+		}
+	}
+	return "", fmt.Errorf("%w: %q", ErrUnknownProfile, profile)
+}
+
+// mintTicket requests a single-use ticket. The value must never be logged.
+func (c *Connector) mintTicket(ctx context.Context, id Identity, profileID, purpose, scope string) (string, error) {
 	params := map[string]any{"profile_id": profileID, "instance_id": id.InstanceID, "purpose": purpose}
 	if scope != "" {
 		params["scope"] = scope
@@ -152,19 +167,64 @@ func (c *Connector) control(ctx context.Context, request map[string]any) (json.R
 		return nil, fmt.Errorf("dial hermes control socket: %w", err)
 	}
 	defer conn.Close()
+	if err := checkPeer(conn); err != nil {
+		return nil, err
+	}
 	_ = conn.SetDeadline(deadlineFor(ctx))
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	defer stop()
 	line, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := conn.Write(append(line, '\n')); err != nil {
-		return nil, fmt.Errorf("write control request: %w", err)
+		return nil, ctxOr(ctx, fmt.Errorf("write control request: %w", err))
 	}
-	answer, err := bufio.NewReaderSize(conn, 64*1024).ReadBytes('\n')
+	answer, err := bufio.NewReaderSize(io.LimitReader(conn, controlMaxLine+1), 64*1024).ReadBytes('\n')
+	if len(answer) > controlMaxLine {
+		return nil, errors.New("control answer too large")
+	}
 	if len(answer) == 0 {
-		return nil, fmt.Errorf("read control answer: %w", orEOF(err))
+		return nil, ctxOr(ctx, fmt.Errorf("read control answer: %w", orEOF(err)))
 	}
-	return decodeEnvelope(answer, len(answer) <= controlMaxLine)
+	return decodeEnvelope(answer, true)
+}
+
+// ctxOr prefers the context's error when the context caused the failure.
+func ctxOr(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
+}
+
+// ownUID is replaced in tests.
+var ownUID = os.Getuid
+
+// checkPeer refuses a control socket whose server runs as another uid (SO_PEERCRED).
+func checkPeer(conn net.Conn) error {
+	uc, ok := conn.(*net.UnixConn)
+	if !ok {
+		return nil
+	}
+	raw, err := uc.SyscallConn()
+	if err != nil {
+		return fmt.Errorf("inspect control socket peer: %w", err)
+	}
+	var cred *syscall.Ucred
+	var credErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, credErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	}); err != nil {
+		return fmt.Errorf("inspect control socket peer: %w", err)
+	}
+	if credErr != nil {
+		return fmt.Errorf("inspect control socket peer: %w", credErr)
+	}
+	if int(cred.Uid) != ownUID() {
+		return fmt.Errorf("%w: uid %d", ErrForeignSocket, cred.Uid)
+	}
+	return nil
 }
 
 func decodeEnvelope(answer []byte, sizeOK bool) (json.RawMessage, error) {
@@ -184,19 +244,23 @@ func decodeEnvelope(answer []byte, sizeOK bool) (json.RawMessage, error) {
 	return env.Result, nil
 }
 
-// socketPath is $HERMES_HOME/gateway.sock, or the path named by gateway.sock.path when the
-// default is too long for sun_path (docs/protocol.md §1.1).
+// socketPath mirrors Hermes' resolve_client_socket_path (gateway/control_socket.py:122-133): the
+// direct $HOME/gateway.sock when it exists, else the gateway.sock.path target when that exists.
+// With neither present it returns the direct path, so the dial reports "not running".
 func (c *Connector) socketPath() (string, error) {
-	named, err := os.ReadFile(filepath.Join(c.home, controlSocketName+".path"))
-	switch {
-	case err == nil:
-		if p := strings.TrimSpace(string(named)); p != "" {
-			return p, nil
-		}
-	case !errors.Is(err, os.ErrNotExist):
-		return "", fmt.Errorf("read gateway.sock.path: %w", err)
+	direct := filepath.Join(c.home, controlSocketName)
+	if _, err := os.Stat(direct); err == nil {
+		return direct, nil
 	}
-	return filepath.Join(c.home, controlSocketName), nil
+	if named, err := os.ReadFile(direct + ".path"); err == nil {
+		target := strings.TrimSpace(strings.TrimPrefix(string(named), "\ufeff"))
+		if target != "" {
+			if _, err := os.Stat(target); err == nil {
+				return target, nil
+			}
+		}
+	}
+	return direct, nil
 }
 
 func isNotRunning(err error) bool {
@@ -204,10 +268,11 @@ func isNotRunning(err error) bool {
 }
 
 func deadlineFor(ctx context.Context) time.Time {
-	if d, ok := ctx.Deadline(); ok {
+	limit := time.Now().Add(controlTimeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(limit) {
 		return d
 	}
-	return time.Now().Add(controlTimeout)
+	return limit
 }
 
 func orEOF(err error) error {

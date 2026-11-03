@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 )
 
 func testCtx(t *testing.T) context.Context {
@@ -67,7 +70,7 @@ func TestTicketIsSingleUse(t *testing.T) {
 	c := f.connector()
 	ctx := testCtx(t)
 	id, _ := c.Identify(ctx)
-	ticket, err := c.mintTicket(ctx, id, purposeInteractive, scopeHost)
+	ticket, err := c.mintTicket(ctx, id, f.home, purposeInteractive, scopeHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +182,7 @@ func TestDoMintsFreshTicketPerRequest(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://placeholder.invalid/api/echo?x=1", nil)
 		req.Header.Set("Origin", "http://evil.example")
-		resp, err := c.Do(ctx, req)
+		resp, err := c.Do(ctx, "", req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,5 +218,220 @@ func TestBackoffMonotonicAndCapped(t *testing.T) {
 	}
 	if Backoff(0) != 500*time.Millisecond || Backoff(99) != 30*time.Second || Backoff(-3) != Backoff(0) {
 		t.Fatalf("Backoff endpoints: %v %v %v", Backoff(0), Backoff(99), Backoff(-3))
+	}
+}
+
+func doGet(t *testing.T, c *Connector, profile, path string, hdr map[string]string) *http.Response {
+	t.Helper()
+	ctx := testCtx(t)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://placeholder.invalid"+path, nil)
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	resp, err := c.Do(ctx, profile, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func TestDoMintsTicketForTargetProfile(t *testing.T) {
+	f := newFakeHermes(t)
+	c := f.connector()
+	resp := doGet(t, c, "pm", "/api/echo", nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	doGet(t, c, "", "/api/echo", nil)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.minted) != 2 || f.minted[0].ProfileID != f.home+"/profiles/pm" || f.minted[1].ProfileID != f.home {
+		t.Fatalf("minted = %+v, want pm then launch profile", f.minted)
+	}
+	if f.minted[0].Purpose != "native-http" || f.minted[0].Scope != "" {
+		t.Fatalf("minted = %+v", f.minted[0])
+	}
+}
+
+func TestDoUnknownProfileMintsNothing(t *testing.T) {
+	f := newFakeHermes(t)
+	closed := &closeSpy{Reader: strings.NewReader("x")}
+	req, _ := http.NewRequest(http.MethodPost, "http://x/api/echo", closed)
+	_, err := f.connector().Do(testCtx(t), "nope", req)
+	if !errors.Is(err, ErrUnknownProfile) {
+		t.Fatalf("err = %v", err)
+	}
+	if !closed.closed {
+		t.Fatal("request body not closed on early failure")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.minted) != 0 {
+		t.Fatal("ticket minted for unknown profile")
+	}
+}
+
+type closeSpy struct {
+	io.Reader
+	closed bool
+}
+
+func (c *closeSpy) Close() error { c.closed = true; return nil }
+
+func TestDoDoesNotFollowRedirects(t *testing.T) {
+	f := newFakeHermes(t)
+	resp := doGet(t, f.connector(), "", "/api/redirect", nil)
+	if resp.StatusCode != http.StatusTemporaryRedirect || resp.Header.Get("Location") != "/api/echo" {
+		t.Fatalf("status %d location %q, want the 307 itself", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.redeemRefused != 0 || len(f.restSeen) != 0 {
+		t.Fatalf("redirect was followed: refused=%d echoes=%d", f.redeemRefused, len(f.restSeen))
+	}
+}
+
+func TestDoStripsCallerCredentialHeaders(t *testing.T) {
+	f := newFakeHermes(t)
+	doGet(t, f.connector(), "", "/api/echo", map[string]string{
+		"Authorization": "Bearer phone", "Cookie": "s=1", "X-Hermes-Gateway-Ticket": "forged",
+		"x-hermes-other": "1", "Proxy-Authorization": "p", "X-Keep": "yes",
+	})
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.restSeen) != 1 {
+		t.Fatalf("requests seen: %d", len(f.restSeen))
+	}
+	h := f.restSeen[0]
+	for _, k := range []string{"Authorization", "Cookie", "X-Hermes-Other", "Proxy-Authorization"} {
+		if h.Get(k) != "" {
+			t.Errorf("header %s reached Hermes", k)
+		}
+	}
+	if h.Get(ticketHTTPHeader) == "forged" || h.Get(ticketHTTPHeader) == "" {
+		t.Errorf("ticket header = %q, want the minted ticket", h.Get(ticketHTTPHeader))
+	}
+	if h.Get("X-Keep") != "yes" {
+		t.Error("harmless header was dropped")
+	}
+}
+
+func TestDialKeepsSeveralPreAckFrames(t *testing.T) {
+	f := newFakeHermes(t)
+	f.preAck = 5
+	ctx := testCtx(t)
+	conn, err := f.connector().Dial(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for i := 0; i < 5; i++ {
+		frame, err := conn.Read(ctx)
+		if err != nil || !strings.Contains(string(frame), `"n":`+string(rune('0'+i))) {
+			t.Fatalf("pre-ack frame %d = %q, %v", i, frame, err)
+		}
+	}
+}
+
+func TestDialPreAckOverflowFails(t *testing.T) {
+	f := newFakeHermes(t)
+	f.preAck = maxPendingFrames + 5
+	if _, err := f.connector().Dial(testCtx(t)); !errors.Is(err, ErrPendingOverflow) {
+		t.Fatalf("err = %v, want ErrPendingOverflow", err)
+	}
+}
+
+func TestDialAckTimeout(t *testing.T) {
+	f := newFakeHermes(t)
+	f.noAck = true
+	c, _ := New(Options{Home: f.home, HandshakeTimeout: 200 * time.Millisecond})
+	start := time.Now()
+	_, err := c.Dial(context.Background())
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want deadline exceeded", err)
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("handshake took %v", time.Since(start))
+	}
+}
+
+func TestCloseCodesSurface(t *testing.T) {
+	for _, tc := range []struct {
+		code websocket.StatusCode
+		want error
+	}{{1013, ErrDraining}, {4403, ErrForbidden}} {
+		f := newFakeHermes(t)
+		f.closeCode = tc.code
+		_, err := f.connector().Dial(testCtx(t))
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("close %d: err = %v, want %v", tc.code, err, tc.want)
+		}
+		if code, ok := CloseCode(err); !ok || code != int(tc.code) {
+			t.Fatalf("CloseCode = %d,%v want %d", code, ok, tc.code)
+		}
+	}
+	if _, ok := CloseCode(errors.New("plain")); ok {
+		t.Fatal("CloseCode reported a code for a plain error")
+	}
+}
+
+func TestSocketDiscoveryPrefersDirectOverStalePointer(t *testing.T) {
+	f := newFakeHermes(t)
+	if err := os.WriteFile(filepath.Join(f.home, "gateway.sock.path"), []byte("/nonexistent/stale.sock\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.connector().Identify(testCtx(t)); err != nil {
+		t.Fatalf("stale pointer broke discovery: %v", err)
+	}
+}
+
+func TestStalePointerWithoutDirectIsNotRunning(t *testing.T) {
+	home, _ := os.MkdirTemp("", "fh")
+	t.Cleanup(func() { os.RemoveAll(home) })
+	if err := os.WriteFile(filepath.Join(home, "gateway.sock.path"), []byte("/nonexistent/stale.sock\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := New(Options{Home: home})
+	if _, err := c.Identify(testCtx(t)); !errors.Is(err, ErrHermesNotRunning) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestForeignUIDSocketRefused(t *testing.T) {
+	f := newFakeHermes(t)
+	old := ownUID
+	ownUID = func() int { return os.Getuid() + 1 }
+	t.Cleanup(func() { ownUID = old })
+	_, err := f.connector().Identify(testCtx(t))
+	if !errors.Is(err, ErrForeignSocket) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestControlHonoursContextCancel(t *testing.T) {
+	home, _ := os.MkdirTemp("", "fh")
+	t.Cleanup(func() { os.RemoveAll(home) })
+	ln, err := net.Listen("unix", filepath.Join(home, controlSocketName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() { // accept and never answer
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { c.Close() })
+		}
+	}()
+	c, _ := New(Options{Home: home})
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	start := time.Now()
+	_, err = c.Identify(ctx)
+	if !errors.Is(err, context.Canceled) || time.Since(start) > 3*time.Second {
+		t.Fatalf("err = %v after %v, want prompt context.Canceled", err, time.Since(start))
 	}
 }

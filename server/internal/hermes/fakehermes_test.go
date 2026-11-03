@@ -35,6 +35,10 @@ type fakeHermes struct {
 	originSeen    bool
 	firstFrames   []string
 	restHeaders   []string
+	restSeen      []http.Header // all headers of each accepted REST request
+	preAck        int           // frames sent before the ack (default 1: gateway.ready)
+	closeCode     websocket.StatusCode
+	noAck         bool
 }
 
 type mintRequest struct{ Purpose, Scope, ProfileID string }
@@ -79,6 +83,7 @@ func (f *fakeHermes) startHTTP() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/ws", f.handleWS)
 	mux.HandleFunc("/api/echo", f.handleREST)
+	mux.HandleFunc("/api/redirect", f.handleRedirect)
 	srv := httptest.NewServer(mux)
 	f.mu.Lock()
 	f.srv = srv
@@ -155,7 +160,7 @@ func (f *fakeHermes) replyTicketLocked(conn net.Conn, id int, params map[string]
 	switch {
 	case params["instance_id"] != f.instanceID:
 		deny("stale runtime instance")
-	case profileID != f.home || (purpose != "interactive" && purpose != "native-http") || (scope == "host" && purpose != "interactive"):
+	case (profileID != f.home && profileID != f.home+"/profiles/pm") || (purpose != "interactive" && purpose != "native-http") || (scope == "host" && purpose != "interactive"):
 		deny("bootstrap binding rejected")
 	default:
 		ticket := fmt.Sprintf("tkt-%d-%d", f.generation, len(f.minted)+1)
@@ -207,7 +212,22 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.CloseNow()
 	ctx := r.Context()
-	_ = ws.Write(ctx, websocket.MessageText, []byte(`{"jsonrpc":"2.0","method":"event","params":{"type":"gateway.ready"}}`))
+	f.mu.Lock()
+	preAck, closeCode, noAck := f.preAck, f.closeCode, f.noAck
+	f.mu.Unlock()
+	if closeCode != 0 {
+		_ = ws.Close(closeCode, "test close")
+		return
+	}
+	if preAck == 0 {
+		preAck = 1
+	}
+	for i := 0; i < preAck; i++ {
+		frame := fmt.Sprintf(`{"jsonrpc":"2.0","method":"event","params":{"type":"gateway.ready","n":%d}}`, i)
+		if ws.Write(ctx, websocket.MessageText, []byte(frame)) != nil {
+			return
+		}
+	}
 	for first := true; ; first = false {
 		_, data, err := ws.Read(ctx)
 		if err != nil {
@@ -217,6 +237,9 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 		f.firstFrames = append(f.firstFrames, string(data))
 		f.mu.Unlock()
 		reply := data
+		if first && noAck {
+			continue
+		}
 		if first {
 			reply = []byte(`{"jsonrpc":"2.0","id":1,"result":{"declines_not_shown":true}}`)
 		}
@@ -234,6 +257,16 @@ func (f *fakeHermes) handleREST(w http.ResponseWriter, r *http.Request) {
 	}
 	f.mu.Lock()
 	f.restHeaders = append(f.restHeaders, ticket)
+	f.restSeen = append(f.restSeen, r.Header.Clone())
 	f.mu.Unlock()
 	_, _ = w.Write([]byte(r.URL.RequestURI()))
+}
+
+// handleRedirect redeems the ticket, then answers 307 so a following client would replay it.
+func (f *fakeHermes) handleRedirect(w http.ResponseWriter, r *http.Request) {
+	if !f.redeem(r.Header.Get(ticketHTTPHeader), "native-http") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	http.Redirect(w, r, "/api/echo", http.StatusTemporaryRedirect)
 }

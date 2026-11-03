@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // SupportedProtocols lists the Hermes runtime_protocol values this build speaks.
@@ -27,6 +28,18 @@ var (
 	ErrNotReady = errors.New("hermes is not ready")
 	// ErrUpgradeRefused: /api/ws did not switch protocols (wrapped with the HTTP status).
 	ErrUpgradeRefused = errors.New("hermes refused the websocket upgrade")
+	// ErrUnknownProfile: the requested profile is not in identify.served_profiles.
+	ErrUnknownProfile = errors.New("hermes does not serve that profile")
+	// ErrForeignSocket: the control socket's peer runs as another uid; nothing is sent to it.
+	ErrForeignSocket = errors.New("hermes control socket belongs to another user")
+	// ErrDraining: Hermes closed the socket with 1013 (draining or not ready; try again later).
+	// A 1013 sent before the upgrade is accepted reaches the client as HTTP 403, i.e. ErrUpgradeRefused.
+	ErrDraining = errors.New("hermes is draining (close 1013)")
+	// ErrForbidden: Hermes closed the socket with 4403 (refused). Before accept it looks like
+	// ErrUpgradeRefused (HTTP 403), indistinguishable from a bad ticket.
+	ErrForbidden = errors.New("hermes refused the connection (close 4403)")
+	// ErrPendingOverflow: Hermes sent too many frames before acknowledging client.capabilities.
+	ErrPendingOverflow = errors.New("hermes sent too much data before the capabilities ack")
 )
 
 const (
@@ -41,6 +54,9 @@ const (
 	requiredAuthority   = "session-authority-v1"
 	wsPath              = "/api/ws"
 	maxFrameBytes       = 64 << 20
+	defaultAckTimeout   = 10 * time.Second
+	maxPendingFrames    = 64
+	maxPendingBytes     = 1 << 20
 	capabilitiesRequest = `{"jsonrpc":"2.0","id":1,"method":"client.capabilities","params":{"server_requests":true}}`
 )
 
@@ -52,13 +68,16 @@ type Options struct {
 	Logger *slog.Logger
 	// HTTPClient is used for the upgrade and REST calls. Default: a plain client without timeout.
 	HTTPClient *http.Client
+	// HandshakeTimeout bounds the client.capabilities ack wait in Dial. Default: 10 s.
+	HandshakeTimeout time.Duration
 }
 
 // Connector reaches one Hermes gateway. It holds no connection state, so it is safe for concurrent use.
 type Connector struct {
-	home   string
-	log    *slog.Logger
-	client *http.Client
+	home       string
+	log        *slog.Logger
+	client     *http.Client
+	ackTimeout time.Duration
 }
 
 // New builds a Connector from opts.
@@ -75,7 +94,14 @@ func New(opts Options) (*Connector, error) {
 	if client == nil {
 		client = &http.Client{}
 	}
-	return &Connector{home: home, log: log, client: client}, nil
+	// Never follow redirects: a redirect would replay a spent ticket and forward headers to another host.
+	noRedirect := *client
+	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	ack := opts.HandshakeTimeout
+	if ack <= 0 {
+		ack = defaultAckTimeout
+	}
+	return &Connector{home: home, log: log, client: &noRedirect, ackTimeout: ack}, nil
 }
 
 func resolveHome(configured string) (string, error) {
