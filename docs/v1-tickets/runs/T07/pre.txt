@@ -1,0 +1,18 @@
+ M docs/protocol.md
+ M docs/spec.md
+ M docs/v1-tickets/tickets.md
+ M server/internal/relay/limits.go
+ M server/internal/relay/relay.go
+ M server/internal/relay/relay_test.go
+ M server/internal/relay/session.go
+?? docs/v1-tickets/runs/T06b/build-report.md
+?? docs/v1-tickets/runs/T06b/review-report.md
+?? docs/v1-tickets/runs/T06c/
+?? docs/v1-tickets/runs/T07/
+?? docs/v1-tickets/runs/pm-gate-7/
+?? docs/v1-tickets/runs/review-brief-T06b.md
+?? server/internal/relay/liveness.go
+?? server/internal/relay/liveness_test.go
+?? server/internal/relay/phoneframe.go
+?? server/internal/relay/phoneframe_test.go
+00266e4 TQ0: 24 verified Aristotle quotes (Greek + PD English + Bekker), misattribution list; spec Q44-Q46

@@ -1,0 +1,111 @@
+package io.github.justcallmesu.aristotle.data
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
+
+/** JSON settings for Hermes frames: unknown keys and nulls are normal there (protocol §2.1). */
+val HermesJson: Json = Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+    explicitNulls = false
+}
+
+data class RpcError(val code: Int, val message: String)
+
+/** One JSON-RPC 2.0 text frame from the relay, classified (docs/protocol.md §1.3, §2). */
+sealed interface InboundFrame {
+    data class Response(val id: Long, val result: JsonElement?, val error: RpcError?) : InboundFrame
+    data class Event(val type: String, val sessionId: String, val payload: JsonObject?) : InboundFrame
+
+    /** A Hermes -> client request (`srq-…` id). */
+    data class ServerRequest(val id: String, val method: String) : InboundFrame
+    data object Unknown : InboundFrame
+}
+
+object RpcFrames {
+    const val GATEWAY_READY = "gateway.ready"
+    const val SESSIONS_CHANGED = "sessions.changed"
+
+    fun request(id: Long, method: String, params: JsonObject = JsonObject(emptyMap())): String =
+        buildJsonObject {
+            put("jsonrpc", "2.0")
+            put("id", id)
+            put("method", method)
+            put("params", params)
+        }.toString()
+
+    fun parse(text: String): InboundFrame {
+        val obj = runCatching { HermesJson.parseToJsonElement(text).jsonObject }.getOrNull() ?: return InboundFrame.Unknown
+        val method = obj.stringOrNull("method")
+        val id = obj["id"] as? JsonPrimitive
+        return when {
+            method == "event" -> event(obj)
+            method != null && id != null && id.isString -> InboundFrame.ServerRequest(id.content, method)
+            method == null && id?.longOrNull != null -> response(id.longOrNull!!, obj)
+            else -> InboundFrame.Unknown
+        }
+    }
+
+    private fun event(obj: JsonObject): InboundFrame {
+        val params = obj["params"] as? JsonObject ?: return InboundFrame.Unknown
+        val type = params.stringOrNull("type") ?: return InboundFrame.Unknown
+        return InboundFrame.Event(type, params.stringOrNull("session_id").orEmpty(), params["payload"] as? JsonObject)
+    }
+
+    private fun response(id: Long, obj: JsonObject): InboundFrame {
+        val error = (obj["error"] as? JsonObject)?.let {
+            RpcError(it["code"]?.jsonPrimitive?.intOrNull ?: 0, it.stringOrNull("message").orEmpty())
+        }
+        return InboundFrame.Response(id, obj["result"], error)
+    }
+
+    private fun JsonObject.stringOrNull(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+}
+
+/** One row of `session.list` (protocol §4). Missing or null fields fall back to the defaults. */
+@Serializable
+data class SessionSummary(
+    @SerialName("session_id") val sessionId: String = "",
+    val id: String = "",
+    val title: String = "",
+    @SerialName("started_at") val startedAt: Double? = null,
+    @SerialName("last_active") val lastActive: Double? = null,
+    @SerialName("message_count") val messageCount: Int = 0,
+    val running: Boolean = false,
+) {
+    /** Seconds since the epoch of the latest known activity; `session.list` only carries `started_at` today. */
+    val lastActivitySeconds: Double? get() = lastActive ?: startedAt
+    val key: String get() = sessionId.ifEmpty { id }
+}
+
+@Serializable
+data class SessionListResult(val sessions: List<SessionSummary> = emptyList())
+
+@Serializable
+data class RuntimeDescription(@SerialName("profile_id") val profileId: String = "")
+
+object Profiles {
+    /**
+     * Profile name from a Hermes `profile_id`, which is the profile's home path (protocol §1.1, §3):
+     * `…/.hermes` is `default`, `…/.hermes/profiles/pm` is `pm`.
+     */
+    fun nameOf(profileId: String): String? {
+        val path = profileId.trimEnd('/')
+        if (path.isEmpty()) return null
+        val parent = path.substringBeforeLast('/', "")
+        return if (parent.endsWith("/profiles")) path.substringAfterLast('/') else DEFAULT
+    }
+
+    const val DEFAULT = "default"
+}

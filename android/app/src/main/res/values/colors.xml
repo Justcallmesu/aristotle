@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background before Compose draws: palette A light surface (ui/theme/Color.kt). -->
+    <color name="window_background">#F5EEDF</color>
+</resources>

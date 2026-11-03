@@ -1,5 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="pairing_not_paired">Belum dipasangkan</string>
-    <string name="pairing_paired">Sudah dipasangkan</string>
+    <!-- Pair screen -->
+    <string name="pair_title">Sandingkan dengan PC</string>
+    <string name="pair_lead">Di laptop, jalankan %1$s. Perintah ini menampilkan alamat, kode sekali pakai, dan sidik jari sertifikat.</string>
+    <string name="pair_address_label">Alamat</string>
+    <string name="pair_address_help">Alamat Wi-Fi atau Tailscale. Port 8760 jika tidak diisi.</string>
+    <string name="pair_code_label">Kode penyandingan</string>
+    <string name="pair_code_help">8 karakter, berlaku 5 menit</string>
+    <string name="pair_name_label">Nama perangkat</string>
+    <string name="pair_name_help">Ditampilkan di daftar perangkat laptop</string>
+    <string name="pair_continue">Lanjut</string>
+    <string name="pair_connecting">Menghubungkan…</string>
+    <string name="pair_action">Sandingkan</string>
+    <string name="pair_pairing">Menyandingkan…</string>
+    <string name="pair_try_again">Coba lagi</string>
+    <string name="pair_notice_revoked">Ponsel ini dihapus dari laptop. Sandingkan lagi.</string>
+
+    <string name="fp_title">Cocokkan sidik jari sertifikat</string>
+    <string name="fp_body">Laptop di %1$s menjawab dengan sertifikat ini. Ke-16 kelompok harus sama persis dengan yang ditampilkan pair di laptop.</string>
+    <string name="fp_match">Sama, sandingkan</string>
+    <string name="fp_no_match">Tidak sama</string>
+    <string name="fp_matched">Sidik jari cocok</string>
+    <string name="fp_tailnet_line">Alamat Tailscale: tidak ada sertifikat untuk dicocokkan. WireGuard mengenkripsi koneksi ini.</string>
+
+    <string name="code_error_invalid">Kode penyandingan tidak valid atau kedaluwarsa</string>
+    <string name="code_error_help">Kode hanya bisa dipakai sekali dan kedaluwarsa setelah 5 menit. Jalankan %1$s lagi di laptop untuk kode baru.</string>
+    <string name="code_error_incomplete">Masukkan ke-8 karakter</string>
+
+    <string name="address_error_empty">Masukkan alamat laptop</string>
+    <string name="address_error_not_ip">Masukkan alamat IP, misalnya 192.168.1.23 atau 100.101.102.103</string>
+    <string name="address_error_port">Port harus angka 1 sampai 65535</string>
+    <string name="address_error_not_private">Hanya alamat Wi-Fi rumah atau kantor (192.168.x, 10.x, 172.16–31.x) atau alamat Tailscale (100.64–127.x) yang bisa dipakai. Aristotle tidak pernah tersambung lewat internet publik.</string>
+    <string name="address_error_unreachable">Alamat ini tidak bisa dijangkau. Periksa alamatnya, dan pastikan aristotle-server berjalan di laptop.</string>
+    <string name="address_error_not_allowed">Laptop tidak menerima ponsel ini di alamat itu (jaringan berbeda). Pakai alamat lain yang ditampilkan pair.</string>
+    <string name="address_error_no_certificate">Ada yang menjawab di sini, tetapi tanpa sertifikat. Di Wi-Fi, pakai alamat Wi-Fi yang ditampilkan pair.</string>
+
+    <string name="pair_message_fp_rejected">Tidak disandingkan. Mungkin perangkat lain yang menjawab di alamat ini. Pastikan ponsel ada di Wi-Fi Anda sendiri dan alamatnya sama dengan yang ditampilkan pair.</string>
+    <string name="pair_message_cert_changed">Sertifikat berubah setelah Anda mencocokkannya. Tidak disandingkan; mulai lagi.</string>
+    <string name="pair_message_server_error">Laptop tidak bisa menyimpan ponsel ini. Jalankan %1$s lagi.</string>
+    <string name="pair_message_rejected">Laptop menolak permintaan ini (HTTP %1$d).</string>
+
+    <!-- Sessions screen -->
+    <string name="sessions_via_wifi">%1$s · Wi-Fi</string>
+    <string name="sessions_via_tailscale">%1$s · Tailscale</string>
+    <string name="sessions_profile_label">Profil</string>
+    <string name="sessions_profile_description">Profil Hermes: %1$s</string>
+    <string name="sessions_connecting">Menghubungkan ke %1$s…</string>
+    <string name="sessions_section_today">Hari ini</string>
+    <string name="sessions_section_yesterday">Kemarin</string>
+    <string name="sessions_section_earlier">Sebelumnya</string>
+    <string name="session_running">Berjalan</string>
+    <string name="session_now">baru saja</string>
+    <string name="session_untitled">Sesi tanpa judul</string>
+    <plurals name="session_messages">
+        <item quantity="other">%d pesan</item>
+    </plurals>
+    <string name="sessions_empty_title">Tidak ada sesi terbuka</string>
+    <string name="sessions_empty_body">Sesi yang terbuka di Hermes pada laptop muncul di sini.</string>
+
+    <!-- Connection pages -->
+    <string name="conn_details">Detail</string>
+    <string name="conn_retry_now">Coba sekarang</string>
+    <string name="conn_check_again">Periksa lagi</string>
+    <string name="conn_pair_again">Sandingkan lagi</string>
+    <string name="conn_4503_title">Hermes tidak berjalan</string>
+    <string name="conn_4503_body">aristotle-server di %1$s menjawab, tetapi Hermes tidak berjalan di sana. Jalankan Hermes di laptop, lalu coba lagi.</string>
+    <string name="conn_4505_title">Hermes diperbarui</string>
+    <string name="conn_4505_body">Hermes di %1$s sekarang memakai protokol yang lebih baru dari yang dikenal aristotle-server ini, jadi server berhenti meneruskan demi keamanan. Perbarui aristotle-server di laptop.</string>
+    <string name="conn_generic_title">Tidak bisa menjangkau Hermes</string>
+    <string name="conn_generic_body">Koneksi ke aristotle-server di %1$s terputus atau tidak bisa dimulai. Pastikan laptop menyala dan ada di jaringan yang sama, lalu coba lagi.</string>
+    <string name="conn_cert_title">Sertifikat laptop berubah</string>
+    <string name="conn_cert_body">Aristotle menolak tersambung: %1$s menjawab dengan sertifikat yang berbeda dari yang Anda cocokkan saat penyandingan. Jika kunci aristotle-server dihapus, sandingkan lagi. Jika tidak, mungkin perangkat lain yang menjawab di alamat ini.</string>
 </resources>

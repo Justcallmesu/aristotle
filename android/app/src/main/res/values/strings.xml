@@ -1,6 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Aristotle</string>
-    <string name="pairing_not_paired">Not paired yet</string>
-    <string name="pairing_paired">Paired</string>
+    <string name="pair_command" translatable="false">aristotle-server pair</string>
+
+    <!-- Pair screen -->
+    <string name="pair_title">Pair with your PC</string>
+    <string name="pair_lead">On the laptop, run %1$s. It shows the address, a one-time code and the certificate fingerprint.</string>
+    <string name="pair_address_label">Address</string>
+    <string name="pair_address_help">Wi-Fi or Tailscale address. Port 8760 if you leave it out.</string>
+    <string name="pair_code_label">Pairing code</string>
+    <string name="pair_code_help">8 characters, valid for 5 minutes</string>
+    <string name="pair_name_label">Device name</string>
+    <string name="pair_name_help">Shown in the laptop\'s device list</string>
+    <string name="pair_continue">Continue</string>
+    <string name="pair_connecting">Connecting…</string>
+    <string name="pair_action">Pair</string>
+    <string name="pair_pairing">Pairing…</string>
+    <string name="pair_try_again">Try again</string>
+    <string name="pair_notice_revoked">This phone was removed from the laptop. Pair it again.</string>
+
+    <string name="fp_title">Compare the certificate fingerprint</string>
+    <string name="fp_body">The laptop at %1$s answered with this certificate. All 16 groups must match what pair shows on the laptop.</string>
+    <string name="fp_match">They match, pair</string>
+    <string name="fp_no_match">They don\'t match</string>
+    <string name="fp_matched">Fingerprint matched</string>
+    <string name="fp_tailnet_line">Tailscale address: there is no certificate to compare. WireGuard encrypts this connection.</string>
+
+    <string name="code_error_invalid">Invalid or expired pairing code</string>
+    <string name="code_error_help">A code works once and expires after 5 minutes. Run %1$s again on the laptop for a new one.</string>
+    <string name="code_error_incomplete">Enter all 8 characters</string>
+
+    <string name="address_error_empty">Enter the laptop\'s address</string>
+    <string name="address_error_not_ip">Enter the IP address, like 192.168.1.23 or 100.101.102.103</string>
+    <string name="address_error_port">The port must be a number from 1 to 65535</string>
+    <string name="address_error_not_private">Only a home or office Wi-Fi address (192.168.x, 10.x, 172.16–31.x) or a Tailscale address (100.64–127.x) works. Aristotle never connects over the public internet.</string>
+    <string name="address_error_unreachable">Can\'t reach this address. Check it, and check that aristotle-server is running on the laptop.</string>
+    <string name="address_error_not_allowed">The laptop doesn\'t accept this phone on that address (different network). Use another address that pair shows.</string>
+    <string name="address_error_no_certificate">Something answered here, but without a certificate. On Wi-Fi, use the Wi-Fi address that pair shows.</string>
+
+    <string name="pair_message_fp_rejected">Not paired. Another device may be answering at this address. Check that the phone is on your own Wi-Fi and that the address is the one pair shows.</string>
+    <string name="pair_message_cert_changed">The certificate changed after you compared it. Not paired; start again.</string>
+    <string name="pair_message_server_error">The laptop could not save this phone. Run %1$s again.</string>
+    <string name="pair_message_rejected">The laptop refused the request (HTTP %1$d).</string>
+
+    <!-- Sessions screen -->
+    <string name="sessions_via_wifi">%1$s · Wi-Fi</string>
+    <string name="sessions_via_tailscale">%1$s · Tailscale</string>
+    <string name="sessions_profile_label">Profile</string>
+    <string name="sessions_profile_description">Hermes profile: %1$s</string>
+    <string name="sessions_connecting">Connecting to %1$s…</string>
+    <string name="sessions_section_today">Today</string>
+    <string name="sessions_section_yesterday">Yesterday</string>
+    <string name="sessions_section_earlier">Earlier</string>
+    <string name="session_running">Running</string>
+    <string name="session_now">now</string>
+    <string name="session_untitled">Untitled session</string>
+    <plurals name="session_messages">
+        <item quantity="one">%d message</item>
+        <item quantity="other">%d messages</item>
+    </plurals>
+    <string name="sessions_empty_title">No open sessions</string>
+    <string name="sessions_empty_body">Sessions open in Hermes on the laptop show up here.</string>
+
+    <!-- Connection pages -->
+    <string name="conn_details">Details</string>
+    <string name="conn_retry_now">Retry now</string>
+    <string name="conn_check_again">Check again</string>
+    <string name="conn_pair_again">Pair again</string>
+    <string name="conn_4503_title">Hermes isn\'t running</string>
+    <string name="conn_4503_body">aristotle-server on %1$s answered, but Hermes is not running there. Start Hermes on the laptop, then retry.</string>
+    <string name="conn_4505_title">Hermes was updated</string>
+    <string name="conn_4505_body">Hermes on %1$s now speaks a newer protocol than this aristotle-server knows, so the server stopped relaying to stay safe. Update aristotle-server on the laptop.</string>
+    <string name="conn_generic_title">Can\'t reach Hermes</string>
+    <string name="conn_generic_body">The connection to aristotle-server on %1$s ended or could not start. Check that the laptop is awake and on the same network, then retry.</string>
+    <string name="conn_cert_title">The laptop\'s certificate changed</string>
+    <string name="conn_cert_body">Aristotle refused to connect: %1$s answered with a different certificate than the one you confirmed when pairing. If aristotle-server\'s key was deleted, pair again. Otherwise another device may be answering at this address.</string>
 </resources>
