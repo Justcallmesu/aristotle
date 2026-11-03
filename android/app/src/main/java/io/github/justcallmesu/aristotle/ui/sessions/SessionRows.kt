@@ -30,7 +30,8 @@ data class SessionRow(
 )
 
 /** How the history ends: more pages to load, Hermes' paging limit reached, or nothing more. */
-enum class HistoryEnd { More, Loading, Capped, All }
+/** [Failed]: the history call failed (the live rows above are good); the footer offers Retry. */
+enum class HistoryEnd { More, Loading, Capped, All, Failed }
 
 sealed interface SessionListItem {
     data class Header(val section: ListSection) : SessionListItem
@@ -79,7 +80,8 @@ fun sessionListItems(input: ListInput, now: ZonedDateTime, locale: Locale): List
     section(ListSection.Live, live.filterNot { it.pinned })
     section(ListSection.History, stored.filterNot { it.pinned })
     if (search.isNotEmpty() && items.isEmpty()) items += SessionListItem.NoMatch
-    val footer = input.end != HistoryEnd.All && (search.isEmpty() || input.end == HistoryEnd.More || input.end == HistoryEnd.Loading)
+    val footer = input.end != HistoryEnd.All &&
+        (search.isEmpty() || input.end == HistoryEnd.More || input.end == HistoryEnd.Loading || input.end == HistoryEnd.Failed)
     if (footer) items += SessionListItem.Footer(input.end)
     return items
 }

@@ -59,7 +59,7 @@
         <item quantity="other">%d messages</item>
     </plurals>
     <string name="sessions_empty_title">No sessions yet</string>
-    <string name="sessions_empty_body">Sessions from Hermes on the laptop show up here, live ones first.</string>
+    <string name="sessions_empty_body">Sessions from Hermes on the PC show up here, live ones first.</string>
     <string name="sessions_section_pinned">Pinned on this phone</string>
     <string name="sessions_section_live">Live</string>
     <string name="sessions_section_history">History</string>
@@ -71,6 +71,9 @@
     <string name="sessions_load_more">Load more</string>
     <string name="sessions_loading_more">Loading older sessions…</string>
     <string name="sessions_history_capped">Hermes lists the newest 200 here. Older sessions are on the PC.</string>
+    <string name="sessions_history_failed">Couldn\u2019t load history \u00b7</string>
+    <string name="sessions_history_retry">Retry</string>
+    <string name="sessions_profile_fell_back">The PC no longer serves profile %1$s. Showing the launch profile instead.</string>
     <string name="sessions_new">New session</string>
     <string name="sessions_new_busy">Creating…</string>
     <string name="sessions_new_failed">Couldn\'t create a session: %1$s</string>

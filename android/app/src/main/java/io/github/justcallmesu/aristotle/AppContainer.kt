@@ -126,7 +126,7 @@ class AppContainer(context: Context) {
     /** Notifications from the watched sessions (T10); router and notifier run on the main thread. */
     private fun watchSessions() {
         scope.launch {
-            SessionWatcher(link, resumed = resumedSessions, profile = profileSelection.selected).alerts().flowOn(Dispatchers.Default).collect { alert ->
+            SessionWatcher(link, resumed = resumedSessions, profile = profileSelection.selected, onUnserved = { profileSelection.fallBack(it) }).alerts().flowOn(Dispatchers.Default).collect { alert ->
                 alerts.onAlert(alert, ScreenFocus(background.appVisible.value, openSession.value)).forEach(notifier::apply)
             }
         }

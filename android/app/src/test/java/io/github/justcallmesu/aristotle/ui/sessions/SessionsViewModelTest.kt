@@ -11,6 +11,7 @@ import io.github.justcallmesu.aristotle.data.ProfileSelection
 import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.RpcError
 import io.github.justcallmesu.aristotle.data.RpcException
+import io.github.justcallmesu.aristotle.data.RpcFrames
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.SessionPins
 import java.time.ZoneId
@@ -233,5 +234,65 @@ class SessionsViewModelTest {
         waitFor("failed") { vm.uiState.value.message != null }
         assertEquals(SessionsMessage.RenameFailed("invalid_params"), vm.uiState.value.message)
         assertEquals(row, vm.uiState.value.renaming) // the dialog stays for another try
+    }
+
+    private fun refusal(reason: String) =
+        RpcException(RpcError(4001, reason, json("""{"reason":"$reason"}""") as JsonObject), "session.list failed: 4001")
+
+    private fun count(link: FakeLink, scope: String) = link.calls.count { it.method == "session.list" && it.text("scope") == scope }
+
+    // T14b (T14 review MINOR-2): history failing leaves the live rows and a Retry row; Retry brings the history back.
+    @Test
+    fun aFailedHistoryKeepsTheLiveRowsAndRetryRecovers() {
+        var storedFails = true
+        val link = FakeLink { call ->
+            if (call.method == "session.list" && call.text("scope") == "stored" && storedFails) throw refusal("storage_unavailable") else hermes(call)
+        }
+        val vm = viewModel(link)
+        link.state.value = LinkState.Online(lan, 1)
+        waitFor("live rows") { vm.uiState.value.items != null }
+        assertNull(vm.uiState.value.listProblem)
+        assertEquals(listOf("default-live-0"), vm.keys())
+        assertEquals(SessionListItem.Footer(HistoryEnd.Failed), vm.uiState.value.items!!.last())
+        storedFails = false
+        vm.retryHistory()
+        waitFor("history") { vm.keys().size > 1 }
+        assertTrue(vm.uiState.value.items!!.none { it == SessionListItem.Footer(HistoryEnd.Failed) })
+    }
+
+    // T14b (MINOR-3): a sessions.changed burst costs one live refetch, no stored one; pull to refresh fetches both.
+    @Test
+    fun sessionsChangedRefetchesLiveOnlyAndPullToRefreshBoth() {
+        val link = FakeLink(::hermes)
+        val vm = viewModel(link)
+        link.state.value = LinkState.Online(lan, 1)
+        waitFor("listed") { vm.uiState.value.items != null }
+        repeat(5) { link.events.tryEmit(InboundFrame.Event(RpcFrames.SESSIONS_CHANGED, "", null)) }
+        waitFor("live refetch") { count(link, "live") == 2 }
+        runBlocking { delay(300) }
+        assertEquals(2, count(link, "live"))
+        assertEquals(1, count(link, "stored"))
+        vm.refresh()
+        waitFor("both again") { count(link, "live") == 3 && count(link, "stored") == 2 }
+        waitFor("refresh done") { !vm.uiState.value.refreshing }
+    }
+
+    // T14b (MINOR-4): a remembered profile the PC no longer serves falls back to the launch profile, once told, and sticks.
+    @Test
+    fun anUnservedRememberedProfileFallsBackToTheLaunchProfileWithOneNotice() {
+        selection.select("gone")
+        val link = FakeLink { call -> if (call.text("profile") == "gone" && call.method == "session.list") throw refusal("profile_mismatch") else hermes(call) }
+        val vm = viewModel(link)
+        link.state.value = LinkState.Online(lan, 1)
+        waitFor("fell back") { vm.uiState.value.items != null }
+        assertNull(vm.uiState.value.profile)
+        assertNull(vm.uiState.value.listProblem)
+        assertNull(selection.selected.value)
+        assertEquals(SessionsMessage.ProfileFellBack("gone"), vm.uiState.value.message)
+        assertNull(selection.fellBackFrom.value)
+        assertEquals(listOf("default-live-0"), vm.keys().take(1))
+        vm.messageShown()
+        runBlocking { delay(100) }
+        assertNull(vm.uiState.value.message) // said once
     }
 }

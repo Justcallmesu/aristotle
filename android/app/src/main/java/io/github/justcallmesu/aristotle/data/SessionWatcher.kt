@@ -78,12 +78,15 @@ object Subscriptions {
  * call, so frames keep flowing while a resume is in flight. [resumed] is shared with the chat screen: a session
  * either of them resumed on this socket is not resumed again. Switching the profile on the same socket detaches
  * the old profile's sessions the watcher holds (`session.detach`), and only the new profile's sessions alert.
+ * A profile the PC does not serve (any more) is handed to [onUnserved], so notifications do not stop with it.
  */
 class SessionWatcher(
     private val link: RelayLink,
     private val timings: FeedTimings = FeedTimings(),
     private val resumed: ResumedSessions = ResumedSessions(),
     private val profile: StateFlow<String?> = MutableStateFlow(null),
+    /** Hermes refused [profile] as not served (`profile_mismatch`): the owner of the selection falls back to the launch profile. */
+    private val onUnserved: (String) -> Unit = {},
 ) {
     private data class Watch(val generation: Long, val profile: String?)
 
@@ -174,7 +177,9 @@ class SessionWatcher(
             val sessions = try {
                 val result = calls.call("session.list", buildJsonObject { put("limit", SESSION_LIMIT) })
                 HermesJson.decodeFromJsonElement(SessionListResult.serializer(), result).sessions
-            } catch (_: RpcException) {
+            } catch (e: RpcException) {
+                // The selection follows (profile flow); the watcher starts over on the launch profile.
+                if (profile != null && e.error?.reason == "profile_mismatch") onUnserved(profile)
                 return
             } catch (_: IllegalArgumentException) {
                 return // SerializationException: an answer of another shape

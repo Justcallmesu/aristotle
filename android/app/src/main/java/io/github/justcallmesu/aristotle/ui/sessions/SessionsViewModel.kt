@@ -36,6 +36,9 @@ data class OpenRequest(val sessionId: String, val title: String?, val profile: S
 sealed interface SessionsMessage {
     data class RenameFailed(val reason: String) : SessionsMessage
     data class CreateFailed(val reason: String) : SessionsMessage
+
+    /** The PC no longer serves the remembered profile [name]; the launch profile is listed instead. */
+    data class ProfileFellBack(val name: String) : SessionsMessage
 }
 
 data class SessionsUiState(
@@ -52,6 +55,8 @@ data class SessionsUiState(
     val listedAt: String? = null,
     /** `session.list` failed although the link is up. */
     val listProblem: String? = null,
+    /** Pull to refresh is running: the live and stored lists are fetched again. */
+    val refreshing: Boolean = false,
     val searching: Boolean = false,
     val query: String = "",
     /** The profile sheet is open. */
@@ -105,6 +110,15 @@ class SessionsViewModel(
     init {
         repository.show(state.value.profile)
         work.launch { link.state.collect(::onLink) }
+        // The watcher (or this list) fell back from a profile the PC no longer serves: follow, and say so once.
+        work.launch { selection.selected.collect(::applyProfile) }
+        work.launch {
+            selection.fellBackFrom.collect { name ->
+                if (name == null) return@collect
+                state.update { it.copy(message = SessionsMessage.ProfileFellBack(name)) }
+                selection.noticeShown()
+            }
+        }
         startFeed()
     }
 
@@ -116,6 +130,16 @@ class SessionsViewModel(
             repository.reload()
         }
     }
+
+    /** Pull to refresh: both lists again; offline it is a Retry of the link. */
+    fun refresh() {
+        if (state.value.link !is LinkState.Online) return link.retryNow()
+        state.update { it.copy(refreshing = true, listProblem = null) }
+        repository.reload()
+    }
+
+    /** The history row's Retry: both lists again (the live rows stay meanwhile). */
+    fun retryHistory() = repository.reload()
 
     /** "HH:mm" in the phone's zone, for "PC offline since …". */
     fun timeText(epochMillis: Long): String =
@@ -168,10 +192,16 @@ class SessionsViewModel(
         state.update { it.copy(picker = null) }
         if (profile == state.value.profile) return
         selection.select(profile)
+        applyProfile(profile)
+    }
+
+    /** The listed profile becomes [profile] (idempotent: the selection flow reports a pick a second time). */
+    private fun applyProfile(profile: String?) {
+        if (profile == state.value.profile) return
         listing = null
         loadingMore = false
         pinned = pins.of(pc.pcId, profile)
-        state.update { it.copy(profile = profile, items = null, listedAt = null, listProblem = null, actionsFor = null, renaming = null) }
+        state.update { it.copy(profile = profile, items = null, listedAt = null, listProblem = null, refreshing = false, actionsFor = null, renaming = null) }
         repository.show(profile)
     }
 
@@ -245,7 +275,7 @@ class SessionsViewModel(
             is LinkState.Offline -> link.address
             else -> null
         }
-        it.copy(link = link, address = address ?: it.address)
+        it.copy(link = link, address = address ?: it.address, refreshing = it.refreshing && link is LinkState.Online)
     }
 
     private fun onFeed(event: SessionFeedEvent) {
@@ -258,12 +288,14 @@ class SessionsViewModel(
                 listing = event
                 loadingMore = false
                 val at = now()
-                state.update { it.copy(listedAt = at.format(DateTimeFormatter.ofPattern(TIME, locale())), listProblem = null) }
+                state.update { it.copy(listedAt = at.format(DateTimeFormatter.ofPattern(TIME, locale())), listProblem = null, refreshing = false) }
                 rebuild()
             }
             is SessionFeedEvent.ListFailed -> if (event.profile == state.value.profile) {
                 loadingMore = false
-                state.update { it.copy(listProblem = event.details) }
+                val fellBack = event.unserved && event.profile != null && selection.fallBack(event.profile)
+                if (fellBack) applyProfile(selection.selected.value) // the notice follows through [SessionsMessage.ProfileFellBack]
+                else state.update { it.copy(listProblem = event.details, refreshing = false) }
             }
         }
     }
@@ -273,6 +305,7 @@ class SessionsViewModel(
         val current = listing ?: return
         val end = when {
             loadingMore -> HistoryEnd.Loading
+            current.historyProblem != null -> HistoryEnd.Failed
             current.more -> HistoryEnd.More
             current.capped -> HistoryEnd.Capped
             else -> HistoryEnd.All

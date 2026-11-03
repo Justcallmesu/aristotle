@@ -63,6 +63,14 @@ class SessionRowsTest {
         assertEquals(listOf("no-match"), shape(miss))
     }
 
+    // T14b: a failed history shows its Retry row, searching or not (the live rows above are good).
+    @Test
+    fun aFailedHistoryKeepsItsRetryRowEvenWhileSearching() {
+        val live = listOf(session("a", null, title = "relay"))
+        assertEquals(listOf("#Live", "a", "footer:Failed"), shape(sessionListItems(ListInput(live, emptyList(), end = HistoryEnd.Failed), now, Locale.ENGLISH)))
+        assertEquals(listOf("#Live", "a", "footer:Failed"), shape(sessionListItems(ListInput(live, emptyList(), query = "rel", end = HistoryEnd.Failed), now, Locale.ENGLISH)))
+    }
+
     @Test
     fun historyEndsSayWhyThereIsNoMore() {
         val stored = listOf(session("h", null))

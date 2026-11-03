@@ -38,24 +38,32 @@ sealed interface SessionFeedEvent {
         val storedLimit: Int = SessionFrames.PAGE,
         val more: Boolean = false,
         val capped: Boolean = false,
+        /** The stored-history call failed (the live rows are still good); [stored] is empty then. Null = history loaded. */
+        val historyProblem: String? = null,
     ) : SessionFeedEvent {
         /** Every row, live first. */
         val sessions: List<SessionSummary> get() = live + stored
     }
 
     /** Hermes answered `session.list` with an error or something unreadable; the link itself is fine. */
-    data class ListFailed(val details: String, val profile: String? = null) : SessionFeedEvent
+    data class ListFailed(val details: String, val profile: String? = null, val unserved: Boolean = false) : SessionFeedEvent
 }
 
-data class FeedTimings(val refreshDebounceMillis: Long = 1_000)
+/**
+ * [refreshDebounceMillis]: the background watcher's wait after `sessions.changed`. [liveRefetchMillis]: the session
+ * list's, at most one live refetch per this long (Hermes sends `sessions.changed` on every message-count move).
+ */
+data class FeedTimings(val refreshDebounceMillis: Long = 1_000, val liveRefetchMillis: Long = 2_000)
 
 /** What to list: [profile] (null = launch) with [storedLimit] rows of history; [nonce] forces a reload. */
 private data class ListRequest(val profile: String?, val storedLimit: Int, val nonce: Int = 0)
 
 /**
  * The session list over the process-wide link (T09, T14): on every new relay connection `runtime.describe`
- * (launch profile), then `session.list` live + stored for the profile on show; again after `sessions.changed`
- * once a list was delivered, after [show], [loadMore] and [reload]. Connecting, reconnecting and their pages are
+ * (launch profile), then `session.list` live + stored for the profile on show; again after [show], [loadMore] and
+ * [reload]. After `sessions.changed` (once a list was delivered, coalesced, at most every [FeedTimings.liveRefetchMillis])
+ * only the live list is fetched again; the stored page is kept. A failing stored call leaves the live rows
+ * ([SessionFeedEvent.Sessions.historyProblem]). Connecting, reconnecting and their pages are
  * the link's business ([LinkState]). Also the list's actions: new session, rename, the profile roster.
  */
 class SessionRepository(private val link: RelayLink, private val timings: FeedTimings = FeedTimings()) {
@@ -72,7 +80,7 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
         return true
     }
 
-    /** Lists again now (Retry, after a rename). */
+    /** Lists again now, live and stored (Retry, pull to refresh, after a rename). */
     fun reload() = request.update { it.copy(nonce = it.nonce + 1) }
 
     /** Runs until cancelled. */
@@ -95,7 +103,8 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
     /**
      * Renames [sessionId] of [profile]. The phone holds no revision for a session it has not opened, so the first
      * try names revision 0; a `revision_conflict` refusal carries the session's current one in `error.data.revision`
-     * and is retried once at it, as Hermes intends (`gateway/session_controls.py:845-849`). Throws [RpcException].
+     * and is retried once at it (`gateway/session_controls.py:845-849`). So a rename made on the PC meanwhile is overwritten:
+     * last writer wins, unlike the Desktop. Throws [RpcException].
      */
     suspend fun rename(profile: String?, sessionId: String, title: String, newRequestId: () -> String = ::newId) {
         try {
@@ -111,6 +120,7 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
     private inner class Connection(private val out: SendChannel<SessionFeedEvent>) {
         private var listed = false
         private var refresh: Job? = null
+        private var fetched: Fetched? = null
         private val changes = MutableStateFlow(0)
 
         suspend fun run() = coroutineScope {
@@ -133,12 +143,17 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
             null // SerializationException: an answer of another shape
         }
 
+        /** The stored page of the last full listing of [request]: [rows], or why it failed. */
+        private inner class Fetched(val request: ListRequest, val rows: List<SessionSummary>, val problem: String?)
+
+        /** A listing: live always; stored only when [wanted] is not what was fetched last (show, load more, reload). */
         private suspend fun load(wanted: ListRequest) {
             try {
                 val live = list(SessionFrames.LIVE, SessionFrames.MAX_LIMIT, wanted.profile)
-                val stored = list(SessionFrames.STORED, wanted.storedLimit, wanted.profile)
-                val (liveRows, storedRows) = SessionLists.merge(live, stored)
-                val full = stored.size >= wanted.storedLimit
+                val kept = fetched?.takeIf { it.request == wanted }
+                val page = kept ?: storedPage(wanted).also { fetched = it }
+                val (liveRows, storedRows) = SessionLists.merge(live, page.rows)
+                val full = page.rows.size >= wanted.storedLimit
                 listed = true
                 out.send(
                     SessionFeedEvent.Sessions(
@@ -148,25 +163,38 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
                         storedLimit = wanted.storedLimit,
                         more = full && wanted.storedLimit < SessionFrames.MAX_LIMIT,
                         capped = full && wanted.storedLimit >= SessionFrames.MAX_LIMIT,
+                        historyProblem = page.problem,
                     ),
                 )
             } catch (e: RpcException) {
                 // A closed link is reported by the link state; only Hermes' own failure is the list's.
-                if (!e.linkClosed) out.send(SessionFeedEvent.ListFailed(e.message.orEmpty(), wanted.profile))
+                if (!e.linkClosed) out.send(SessionFeedEvent.ListFailed(e.message.orEmpty(), wanted.profile, unserved = wanted.profile != null && e.error?.reason == PROFILE_MISMATCH))
             } catch (_: IllegalArgumentException) {
                 out.send(SessionFeedEvent.ListFailed("session.list: unexpected result", wanted.profile))
             }
         }
 
+        /** The history page; a Hermes failure is kept as a problem so the live rows still show. A closed link throws. */
+        private suspend fun storedPage(wanted: ListRequest): Fetched = try {
+            Fetched(wanted, list(SessionFrames.STORED, wanted.storedLimit, wanted.profile), null)
+        } catch (e: RpcException) {
+            if (e.linkClosed) throw e
+            Fetched(wanted, emptyList(), e.message.orEmpty().ifEmpty { "session.list failed" })
+        } catch (_: IllegalArgumentException) {
+            Fetched(wanted, emptyList(), "session.list: unexpected result")
+        }
+
         private suspend fun list(scope: String, limit: Int, profile: String?): List<SessionSummary> =
             HermesJson.decodeFromJsonElement(SessionListResult.serializer(), link.call("session.list", SessionFrames.list(scope, limit, profile))).sessions
 
-        /** `sessions.changed` arrives in bursts; refetch once things settle, and only once a list was delivered. */
+        /**
+         * `sessions.changed` arrives in bursts (every message-count move): one live refetch after the window, which
+         * further events inside it join, so there is at most one per window. Only once a list was delivered.
+         */
         private fun CoroutineScope.scheduleRefresh() {
-            if (!listed) return
-            refresh?.cancel()
+            if (!listed || refresh?.isActive == true) return
             refresh = launch {
-                delay(timings.refreshDebounceMillis)
+                delay(timings.liveRefetchMillis)
                 changes.update { it + 1 }
             }
         }
@@ -174,6 +202,7 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
 
     private companion object {
         const val REVISION_CONFLICT = "revision_conflict"
+        const val PROFILE_MISMATCH = "profile_mismatch"
 
         fun newId(): String = UUID.randomUUID().toString().replace("-", "")
 

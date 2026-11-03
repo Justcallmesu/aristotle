@@ -308,6 +308,21 @@ class SessionWatcherTest {
         assertEquals(emptySet<String>(), resumed.snapshot(1))
     }
 
+    // T14b (T14 review MINOR-4): a profile the PC does not serve is handed back, so the selection can fall back.
+    @Test
+    fun anUnservedProfileIsReportedNotWatchedSilently() {
+        val unserved = CopyOnWriteArrayList<String>()
+        val refusal = RpcException(RpcError(4001, "profile_mismatch", json("""{"reason":"profile_mismatch"}""") as JsonObject), "session.list failed: 4001")
+        val link = FakeLink { throw refusal }
+        runBlocking {
+            val job = launch { SessionWatcher(link, fast, ResumedSessions(), MutableStateFlow<String?>("gone"), onUnserved = { unserved += it }).alerts().collect { } }
+            link.state.value = LinkState.Online(endpoint, 1)
+            withTimeout(5_000) { waitUntil { unserved.isNotEmpty() } }
+            job.cancel()
+        }
+        assertEquals(listOf("gone"), unserved.toList())
+    }
+
     // T14 profile switch on the same socket: the old profile's watched sessions are detached (an open chat keeps
     // its own), only the new profile's sessions are listed, resumed and alert, and alerts carry their profile.
     @Test

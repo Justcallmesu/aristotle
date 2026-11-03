@@ -23,7 +23,7 @@ import org.junit.Test
 
 /** The session list over a fake process-wide link: no network, real coroutines, short timings. */
 class SessionRepositoryTest {
-    private val fast = FeedTimings(refreshDebounceMillis = 50)
+    private val fast = FeedTimings(refreshDebounceMillis = 50, liveRefetchMillis = 50)
     private val endpoint = ServerEndpoint("192.168.1.61", 8760, Network.Lan)
 
     class Call(val method: String, val params: JsonObject) {
@@ -216,10 +216,89 @@ class SessionRepositoryTest {
             seen.until(2)
             repeat(3) { link.sessionsChanged() }
             seen.until(3)
-            delay(fast.refreshDebounceMillis * 4)
+            delay(fast.liveRefetchMillis * 4)
         }
         assertEquals(listOf("first", "second"), events.listings().map { it.live.single().title })
-        assertEquals(4, link.methods.count { it == "session.list" })
+        assertEquals(3, link.methods.count { it == "session.list" }) // live + stored once, then live only
+    }
+
+    // T14b: sessions.changed refetches the live list only; the stored page stays until show / load more / reload.
+    @Test
+    fun sessionsChangedRefetchesOnlyTheLiveList() {
+        val link = FakeLink(lists(listOf(rows("first"), rows("second")), listOf(rows("h"))))
+        val repository = SessionRepository(link, fast)
+        val events = run(link, repository) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            seen.until(2)
+            link.sessionsChanged()
+            seen.until(3)
+            repository.reload()
+            seen.until(4)
+        }
+        assertEquals(listOf("first", "second", "second"), events.listings().map { it.live.single().title })
+        assertEquals(listOf("h"), events.listings()[1].stored.map { it.key }) // the kept page, merged with the new live rows
+        val scopes = link.calls.filter { it.method == "session.list" }.map { it.text("scope") }
+        assertEquals(listOf("live", "stored", "live", "live", "stored"), scopes)
+    }
+
+    // T14b: at most one live refetch per window however many events come in it, and never more events than windows.
+    @Test
+    fun aStreamOfSessionsChangedGivesAtMostOneLiveRefetchPerWindow() {
+        val window = 200L
+        val link = FakeLink(lists(listOf(rows("a"))))
+        val repository = SessionRepository(link, FeedTimings(refreshDebounceMillis = 50, liveRefetchMillis = window))
+        run(link, repository) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            seen.until(2)
+            val start = System.currentTimeMillis()
+            while (System.currentTimeMillis() - start < window * 3 + 50) {
+                link.sessionsChanged()
+                delay(10)
+            }
+            delay(window * 2)
+        }
+        val refetches = link.calls.count { it.method == "session.list" && it.text("scope") == "live" } - 1
+        assertTrue("refetches=$refetches", refetches in 2..4) // a steady stream (~65 events) is still served, but once per window
+    }
+
+    // T14b (T14 review MINOR-2): a failing history call leaves the live rows and says so; Retry (reload) fetches it again.
+    @Test
+    fun aFailedHistoryKeepsTheLiveRowsAndReportsTheProblem() {
+        var storedFails = true
+        val link = FakeLink { call ->
+            when {
+                call.method == "runtime.describe" -> describePm
+                call.text("scope") == "live" -> rows("a", running = true)
+                storedFails -> throw RpcException(RpcError(5006, "storage"), "session.list failed: 5006")
+                else -> rows("h")
+            }
+        }
+        val repository = SessionRepository(link, fast)
+        val events = run(link, repository) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            seen.until(2)
+            storedFails = false
+            repository.reload()
+            seen.until(3)
+        }
+        val (failed, recovered) = events.listings()
+        assertEquals(listOf("a"), failed.live.map { it.key })
+        assertTrue(failed.stored.isEmpty())
+        assertEquals("session.list failed: 5006", failed.historyProblem)
+        assertEquals(listOf("h"), recovered.stored.map { it.key })
+        assertEquals(null, recovered.historyProblem)
+    }
+
+    @Test
+    fun aFailedLiveCallIsStillTheListsFailureAndNamesAnUnservedProfile() {
+        val mismatch = RpcException(RpcError(4001, "profile_mismatch", HermesJson.parseToJsonElement("""{"reason":"profile_mismatch"}""") as JsonObject), "session.list failed: 4001")
+        val link = FakeLink { call -> if (call.method == "session.list") throw mismatch else describePm }
+        val repository = SessionRepository(link, fast).apply { show("gone") }
+        val events = run(link, repository) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            seen.until(2)
+        }
+        assertEquals(SessionFeedEvent.ListFailed("session.list failed: 4001", "gone", unserved = true), events[1])
     }
 
     @Test

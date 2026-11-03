@@ -14,6 +14,10 @@ class ProfileSelection(private val store: KeyValueStore) {
     private var pcId: String? = null
     private val current = MutableStateFlow<String?>(null)
     val selected: StateFlow<String?> = current.asStateFlow()
+    private val unserved = MutableStateFlow<String?>(null)
+
+    /** The remembered profile the PC stopped serving, until the user has been told ([noticeShown]); null otherwise. */
+    val fellBackFrom: StateFlow<String?> = unserved.asStateFlow()
 
     /** The active PC changed (or none is paired): its remembered profile becomes the selection. */
     @Synchronized
@@ -29,6 +33,23 @@ class ProfileSelection(private val store: KeyValueStore) {
         val pc = pcId ?: return
         if (profile == null) store.remove(key(pc)) else store.put(key(pc), profile)
         current.value = profile
+    }
+
+    /**
+     * The PC no longer serves [profile] (`profile_mismatch`): back to the launch profile, forgotten, so the listing and
+     * the background watcher work again. Only if [profile] is still the selection; false when it was not.
+     */
+    @Synchronized
+    fun fallBack(profile: String): Boolean {
+        if (current.value != profile) return false
+        select(null)
+        unserved.value = profile
+        return true
+    }
+
+    /** The user was told about [fellBackFrom]. */
+    fun noticeShown() {
+        unserved.value = null
     }
 
     private fun key(pcId: String) = "profile.$pcId"

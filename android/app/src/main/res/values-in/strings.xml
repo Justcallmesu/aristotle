@@ -55,7 +55,7 @@
         <item quantity="other">%d pesan</item>
     </plurals>
     <string name="sessions_empty_title">Belum ada sesi</string>
-    <string name="sessions_empty_body">Sesi dari Hermes di laptop muncul di sini, yang aktif di atas.</string>
+    <string name="sessions_empty_body">Sesi dari Hermes di PC muncul di sini, yang aktif di atas.</string>
     <string name="sessions_section_pinned">Disematkan di ponsel ini</string>
     <string name="sessions_section_live">Aktif</string>
     <string name="sessions_section_history">Riwayat</string>
@@ -67,6 +67,9 @@
     <string name="sessions_load_more">Muat lagi</string>
     <string name="sessions_loading_more">Memuat sesi lama…</string>
     <string name="sessions_history_capped">Hermes menampilkan 200 terbaru di sini. Sesi yang lebih lama ada di PC.</string>
+    <string name="sessions_history_failed">Riwayat gagal dimuat \u00b7</string>
+    <string name="sessions_history_retry">Coba lagi</string>
+    <string name="sessions_profile_fell_back">PC tidak lagi melayani profil %1$s. Menampilkan profil awal.</string>
     <string name="sessions_new">Sesi baru</string>
     <string name="sessions_new_busy">Membuat…</string>
     <string name="sessions_new_failed">Tidak bisa membuat sesi: %1$s</string>

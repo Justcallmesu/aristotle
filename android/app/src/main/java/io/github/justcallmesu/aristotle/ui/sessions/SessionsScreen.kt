@@ -29,11 +29,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -100,6 +102,8 @@ interface ListActions {
     fun search(query: String)
     fun closeSearch()
     fun loadMore()
+    fun retryHistory()
+    fun refresh()
     fun newSession()
     fun messageShown()
 }
@@ -112,6 +116,8 @@ private class ViewModelListActions(private val vm: SessionsViewModel) : ListActi
     override fun search(query: String) = vm.search(query)
     override fun closeSearch() = vm.closeSearch()
     override fun loadMore() = vm.loadMore()
+    override fun retryHistory() = vm.retryHistory()
+    override fun refresh() = vm.refresh()
     override fun newSession() = vm.newSession()
     override fun messageShown() = vm.messageShown()
 }
@@ -179,13 +185,16 @@ private fun pageFor(state: SessionsUiState): Page? = when (val link = state.link
     else -> null
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ListBody(state: SessionsUiState, address: String, insets: PaddingValues, actions: ListActions) {
     val items = state.items
     when {
         items == null -> if (state.link !is LinkState.Offline) ConnectingBody(address)
         items.isEmpty() -> EmptyBody()
-        else -> SessionList(items, state.staleAt, insets, actions)
+        else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions::refresh, modifier = Modifier.fillMaxSize()) {
+            SessionList(items, state.searching, state.staleAt, insets, actions)
+        }
     }
 }
 
@@ -327,9 +336,9 @@ private fun EmptyBody() {
 
 /** [staleAt]: the list is from that time and the link is not up, so nothing reads as live (design.md §5). */
 @Composable
-private fun SessionList(items: List<SessionListItem>, staleAt: String?, insets: PaddingValues, actions: ListActions) {
+private fun SessionList(items: List<SessionListItem>, searching: Boolean, staleAt: String?, insets: PaddingValues, actions: ListActions) {
     val list = rememberLazyListState()
-    LoadMoreAtTheEnd(list, items, actions::loadMore)
+    LoadMoreAtTheEnd(list, items, searching, actions::loadMore)
     // Room under the last row for the extended FAB (56 dp + its 16 dp margin).
     val padding = PaddingValues(bottom = insets.calculateBottomPadding() + FAB_CLEARANCE)
     LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = padding) {
@@ -337,7 +346,7 @@ private fun SessionList(items: List<SessionListItem>, staleAt: String?, insets: 
             when (item) {
                 is SessionListItem.Header -> SectionHeader(item.section)
                 is SessionListItem.Row -> SessionRowItem(item.row, staleAt, actions)
-                is SessionListItem.Footer -> HistoryFooter(item.end, actions::loadMore)
+                is SessionListItem.Footer -> HistoryFooter(item.end, actions::loadMore, actions::retryHistory)
                 SessionListItem.NoMatch -> QuietLine(stringResource(R.string.sessions_search_none))
             }
         }
@@ -346,8 +355,9 @@ private fun SessionList(items: List<SessionListItem>, staleAt: String?, insets: 
 
 /** History pages in as the end of the list comes into view (protocol §4: the same `session.list`, a larger limit). */
 @Composable
-private fun LoadMoreAtTheEnd(list: LazyListState, items: List<SessionListItem>, loadMore: () -> Unit) {
-    val wantsMore = (items.lastOrNull() as? SessionListItem.Footer)?.end == HistoryEnd.More
+private fun LoadMoreAtTheEnd(list: LazyListState, items: List<SessionListItem>, searching: Boolean, loadMore: () -> Unit) {
+    // Not while searching: a few matches must not page the whole history in (the footer button still can).
+    val wantsMore = !searching && (items.lastOrNull() as? SessionListItem.Footer)?.end == HistoryEnd.More
     LaunchedEffect(list, wantsMore) {
         if (!wantsMore) return@LaunchedEffect
         snapshotFlow { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == list.layoutInfo.totalItemsCount - 1 }
@@ -460,7 +470,7 @@ private fun RowTimeText(time: RowTime, staleAt: String?) {
 
 /** Under the history: "Load more" (the scroll also loads), "Loading…", or where the relay's paging stops. */
 @Composable
-private fun HistoryFooter(end: HistoryEnd, loadMore: () -> Unit) {
+private fun HistoryFooter(end: HistoryEnd, loadMore: () -> Unit, retry: () -> Unit) {
     when (end) {
         HistoryEnd.More -> Box(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.s, vertical = Spacing.s)) {
             TextButton(onClick = loadMore, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
@@ -469,6 +479,20 @@ private fun HistoryFooter(end: HistoryEnd, loadMore: () -> Unit) {
         }
         HistoryEnd.Loading -> QuietLine(stringResource(R.string.sessions_loading_more))
         HistoryEnd.Capped -> QuietLine(stringResource(R.string.sessions_history_capped))
+        HistoryEnd.Failed -> Row(
+            modifier = Modifier.fillMaxWidth().padding(start = Spacing.listGutter, end = Spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.sessions_history_failed),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(vertical = Spacing.l),
+            )
+            TextButton(onClick = retry, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+                Text(stringResource(R.string.sessions_history_retry))
+            }
+        }
         HistoryEnd.All -> Unit
     }
 }
@@ -499,6 +523,7 @@ private fun NewSessionButton(busy: Boolean, onClick: () -> Unit, modifier: Modif
 private fun sessionsMessage(message: SessionsMessage): String = when (message) {
     is SessionsMessage.RenameFailed -> stringResource(R.string.session_rename_failed, message.reason)
     is SessionsMessage.CreateFailed -> stringResource(R.string.sessions_new_failed, message.reason)
+    is SessionsMessage.ProfileFellBack -> stringResource(R.string.sessions_profile_fell_back, message.name)
 }
 
 private val FAB_CLEARANCE = Sizes.minTouchTarget + Spacing.xxl + Spacing.l

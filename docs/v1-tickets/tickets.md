@@ -47,8 +47,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | TODO ⟳ |
 | TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | DONE |
-| T14b | T14 minors: stored-list failure must not hide live sessions; sessions.changed refetch debounced + live-only (stored refreshed on open/pull/load-more); unserved remembered profile falls back to the launch profile so the watcher keeps notifying; NITs from runs/T14/review-report.md | T14 | android | BUILDING |
-| TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | TODO |
+| T14b | T14 minors: stored-list failure must not hide live sessions; sessions.changed refetch debounced + live-only (stored refreshed on open/pull/load-more); unserved remembered profile falls back to the launch profile so the watcher keeps notifying; NITs from runs/T14/review-report.md | T14 | android | DONE |
+| TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | BUILDING |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | T22 | v1 QA on the Poco + release signing | all above | all | TODO |
@@ -110,6 +110,7 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D39 | LinkManager.standDown KDoc still says 'not reconnected on a timer' (now 60 s backstop) and the Offline state has nextAttemptAtMillis=null during the backstop wait (banner can't show a countdown) (T13b) | T08 | DONE |
 | D40 | Google code scanner merges datatransport/CCT (likely ML Kit usage metrics to Google over INTERNET; unconfirmed) — USER DECISION pending: accept+document, or strip with tools:node=remove after a device scan test (T08 review MINOR-1) | T20 | OPEN |
 | D41 | T08 NITs: pairFirst KDoc (read timeout can redeem), §11.4 'exactly this form' vs lenient parser, §11.4 move-on/stop table + tell the user about a different cert on one address, ChatDrafts replaceFirst/unused import, tests for timestamp-less draft and stop() during 4409 wait | T22 | OPEN |
+| D42 | T14b: a failed Load more replaces the history rows with the Retry row (should keep loaded rows + inline retry); SessionRepositoryTest stream test asserts 2-4 refetches (timing-dependent, flake risk) | T22 | OPEN |
 | D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
@@ -282,3 +283,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 T14 dispatched (deep) with D29 + D30.
 - 2026-11-04 T14 built. PM gate GREEN both sides runs/pm-gate-24 (274 Go, 364 Android); PM mutation (pinned row also in Live) fails 1 test. Deep review dispatched (focus: source-only methods, rename revision-0 overwrite, profile routing).
 - 2026-11-04 T14 review PASS-WITH-FINDINGS (all source-only methods match; rename = last writer wins, accepted, documented in protocol §4 by PM). Committed. T14b (std) for the minors that affect notifications/traffic.
+- 2026-11-04 T14b PM gate GREEN runs/pm-gate-25 (worker showed 8 tests red against a scratch copy of the old code). Committed without separate review (minors). TQ1 dispatched (std).
