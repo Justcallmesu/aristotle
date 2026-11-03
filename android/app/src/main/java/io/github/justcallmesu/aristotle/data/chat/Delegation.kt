@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * What a `delegate_task` call says about its children on its own: the goals it dispatched (task order) and, once it
  * answered, how each one finished. This is all a rebuilt transcript has (`apps/desktop/src/components/assistant-ui/tool/
- * delegate-model.ts:200-267`). [answered]: the tool result arrived; [dispatched]: it answered `status: "dispatched"`
+ * delegate-model.ts:35-46,81-103`). [answered]: the tool result arrived; [dispatched]: it answered `status: "dispatched"`
  * (a background delegation whose children outlive the call).
  */
 data class DelegateCall(
@@ -41,12 +41,15 @@ data class DelegateResult(val status: String, val summary: String?, val duration
 
 /**
  * How a child row reads. [Dispatched]: a background delegation's children, seen from a transcript where nothing streams
- * their progress; running, but nothing here watches it, so it must not spin (`delegate-model.ts:190-196`).
+ * their progress; running, but nothing here watches it, so it must not spin (`delegate-model.ts:24-30`).
  */
 enum class DelegateStatus {
     Queued, Running, Dispatched, Completed, Failed, Interrupted;
 
     val live: Boolean get() = this == Queued || this == Running
+
+    /** Only a failure is shown in red (design.md §1); a stopped child reads as done, labelled "Stopped". */
+    val red: Boolean get() = this == Failed
 }
 
 /**
@@ -74,8 +77,11 @@ object Delegation {
     fun callOf(name: String, args: JsonObject?): DelegateCall? {
         if (name != TOOL) return null
         val record = args ?: JsonObject(emptyMap())
-        // `action` = list / steer / stop: a control call on running children, not a fan-out (`tools/delegate_tool.py:848-860`).
-        if (!record.text("action").isNullOrEmpty()) return null
+        // Only `spawn` (the default, also when missing or empty) fans out. `list`/`steer`/`stop` are control calls
+        // (`_CONTROL_ACTIONS`, `tools/delegate_tool_registry.py:198`) and any other value is an error answer
+        // (`tools/delegate_tool.py:565-568`): neither starts children, so neither gets rows.
+        val action = record.text("action").orEmpty().trim().lowercase()
+        if (action.isNotEmpty() && action != "spawn") return null
         val tasks = (record["tasks"] as? JsonArray).orEmpty()
         val goals = if (tasks.isNotEmpty()) {
             tasks.mapIndexed { index, task -> objectOf(task)?.text("goal")?.takeIf { it.isNotBlank() } ?: "Task ${index + 1}" }
@@ -86,7 +92,7 @@ object Delegation {
     }
 
     /**
-     * The rows a call describes by itself (`delegate-model.ts:247-267`): one per goal; before its answer they read
+     * The rows a call describes by itself (`delegate-model.ts:81-103`): one per goal; before its answer they read
      * as running, after a background dispatch as dispatched; a result entry settles its row.
      */
     fun rowsOf(call: DelegateCall, toolId: String): List<DelegateRow> {
@@ -109,7 +115,7 @@ object Delegation {
     }
 
     /**
-     * Live children over the call's rows (`delegate-model.ts:281-322`). Live events carry no tool linkage, but they
+     * Live children over the call's rows (`delegate-model.ts:129-156`). Live events carry no tool linkage, but they
      * carry the goal verbatim, so a child is claimed by goal; failing that, by task order only when both sides count
      * the same children (a second delegation in the turn must not claim the first one's). Live state wins.
      */
@@ -149,7 +155,7 @@ object Delegation {
         )
     }
 
-    /** Anything but a success is a failure: unknown statuses must not hide a timed-out child (`delegate-model.ts:221-227`). */
+    /** Anything but a success is a failure: unknown statuses must not hide a timed-out child (`delegate-model.ts:55-61`). */
     private fun settled(status: String): DelegateStatus =
         if (status.isEmpty() || status == "ok" || status == "completed") DelegateStatus.Completed else DelegateStatus.Failed
 

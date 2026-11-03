@@ -257,7 +257,7 @@ unknown or active status → failed (`:90-112`); `message.start` drops finished 
 (`:332-359`, `use-message-stream/gateway-event/message-stream.ts:167`). Rows sit under the `delegate_task` tool call:
 the call's goals (`args.tasks[].goal` or `args.goal`) and result (`results[{status, summary, duration_seconds, model}]`,
 or `{status:"dispatched", goals}`) give the rows a rebuilt transcript has; live children are claimed by goal, then by
-task order when both sides count the same (`apps/desktop/src/components/assistant-ui/tool/delegate-model.ts:200-322`).
+task order when both sides count the same (`apps/desktop/src/components/assistant-ui/tool/delegate-model.ts:35-46,81-103,129-156`).
 A child's end is **not** a turn end: the Desktop notifies `turnDone` only on `message.complete`
 (`use-message-stream/index.ts:1163-1168`; kinds `store/native-notifications.ts:26-27`), so the phone's
 "Turn finished" stays on `message.complete`.

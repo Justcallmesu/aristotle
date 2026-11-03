@@ -9,9 +9,10 @@ import io.github.justcallmesu.aristotle.data.chat.SubagentFrames
 import io.github.justcallmesu.aristotle.data.chat.SubagentSnapshot
 import io.github.justcallmesu.aristotle.data.chat.SubagentTail
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** A one-off line (snackbar) about a subagent's Stop. */
 sealed interface SubagentMessage {
@@ -40,6 +41,13 @@ data class SubagentPageState(
     val message: SubagentMessage? = null,
 )
 
+/** How often the two read loops run; the defaults are the Desktop's. Tests pass short ones. */
+data class SubagentPacing(
+    val listMs: Long = SubagentLogic.LIST_POLL_MS,
+    val tailMs: Long = SubagentLogic.TAIL_POLL_MS,
+    val tailMaxMs: Long = SubagentLogic.TAIL_BACKOFF_MAX_MS,
+)
+
 /** When to ask Hermes about children, and the tap guard of Stop. Pure. */
 object SubagentLogic {
     /** The same window as every other control that changes meaning under the thumb (T12b, T13). */
@@ -51,8 +59,18 @@ object SubagentLogic {
     /** The Desktop reads an open child's transcript every 2 s (`subagent-transcript.tsx:58-59`). */
     const val TAIL_POLL_MS = 2_000L
 
+    /** A tail read that fails (link down) waits twice as long each time, up to this. */
+    const val TAIL_BACKOFF_MAX_MS = 30_000L
+
     /** After this many failed reads in a row the Desktop stops polling (`use-subagent-snapshot.ts:19-21`, `:44-46`). */
     const val MAX_FAILURES = 3
+
+    /** The wait before the next tail read after [failures] failed ones in a row: 2 s, 4 s, … capped at 30 s. */
+    fun tailDelay(failures: Int, pacing: SubagentPacing = SubagentPacing()): Long {
+        var wait = pacing.tailMs
+        repeat(failures) { if (wait < pacing.tailMaxMs) wait = minOf(wait * 2, pacing.tailMaxMs) }
+        return wait
+    }
 
     /**
      * A roster read is worth it only when children may be running: a live one is known, or the transcript shows a
@@ -101,7 +119,13 @@ class ChatSubagents(
     private val state: () -> ChatUiState,
     private val change: ((ChatUiState) -> ChatUiState) -> Unit,
     private val offer: (SubagentSnapshot) -> Unit,
+    private val pacing: SubagentPacing = SubagentPacing(),
 ) {
+    // Between the activity's ON_STOP and ON_START both read loops sleep (the Desktop polls only while visible):
+    // [resumed] is open while stopped and completes on ON_START; [stopSignal] wakes a loop that is mid-wait on ON_STOP.
+    private val gate = Any()
+    private var resumed: CompletableDeferred<Unit>? = null
+    private var stopSignal = CompletableDeferred<Unit>()
     private var hydratedFor: Long? = null
     private var failures = 0
     private var poll: Job? = null
@@ -123,7 +147,8 @@ class ChatSubagents(
         if (feed.chat.subagents.anyLive && poll?.isActive != true && failures < SubagentLogic.MAX_FAILURES) {
             poll = work.launch {
                 while (state().feed.chat.subagents.anyLive && failures < SubagentLogic.MAX_FAILURES) {
-                    delay(SubagentLogic.LIST_POLL_MS)
+                    pace(pacing.listMs)
+                    if (!state().feed.chat.subagents.anyLive) break
                     fetch()
                 }
             }
@@ -134,6 +159,33 @@ class ChatSubagents(
             tailFor = open
             tailJob = open?.let { id -> work.launch { readTail(id) } }
         }
+    }
+
+    /** The activity left the screen: no reads until it is back. */
+    fun onStop() = synchronized(gate) {
+        if (resumed == null) {
+            resumed = CompletableDeferred()
+            stopSignal.complete(Unit)
+        }
+    }
+
+    /** The activity is back: the loops read once now, then go on at their pace. Nothing happens if it was never stopped. */
+    fun onStart() = synchronized(gate) {
+        resumed?.let {
+            resumed = null
+            stopSignal = CompletableDeferred()
+            it.complete(Unit)
+        }
+    }
+
+    /**
+     * Waits [ms] while visible. When the app is stopped before the time is up, or already is, waits for ON_START
+     * instead and returns then, so the caller's next read is the immediate one on coming back.
+     */
+    private suspend fun pace(ms: Long) {
+        val (stopped, asleep) = synchronized(gate) { stopSignal to resumed }
+        if (asleep == null) withTimeoutOrNull(ms) { stopped.await() }
+        synchronized(gate) { resumed }?.await()
     }
 
     /** A row tap: its page opens (only for a child the roster knows). */
@@ -176,10 +228,12 @@ class ChatSubagents(
     }
 
     /**
-     * Reads the open child's transcript every [SubagentLogic.TAIL_POLL_MS] while it runs, then once more. A read that
-     * finds nothing after the child ended keeps what was shown: Hermes drops the file with the child.
+     * Reads the open child's transcript every [SubagentLogic.TAIL_POLL_MS] while it runs, then once more; a failed read
+     * (link down) backs off to [SubagentLogic.TAIL_BACKOFF_MAX_MS]. A read that finds nothing after the child ended
+     * keeps what was shown: Hermes drops the file with the child.
      */
     private suspend fun readTail(id: String) {
+        var failed = 0
         while (true) {
             val running = state().feed.chat.subagents.byId(id)?.status?.live ?: return
             val call = SubagentFrames.tail(sessionId, id)
@@ -188,6 +242,7 @@ class ChatSubagents(
             } catch (_: RpcException) {
                 null
             }
+            failed = if (tail == null) failed + 1 else 0
             if (tail != null) {
                 change { ui ->
                     val page = ui.subagent
@@ -196,7 +251,7 @@ class ChatSubagents(
                 }
             }
             if (!running) return
-            delay(SubagentLogic.TAIL_POLL_MS)
+            pace(SubagentLogic.tailDelay(failed, pacing))
         }
     }
 }

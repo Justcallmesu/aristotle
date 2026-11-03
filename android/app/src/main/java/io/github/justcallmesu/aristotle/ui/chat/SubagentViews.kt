@@ -129,7 +129,7 @@ private fun MetaLine(row: DelegateRow, live: Boolean, now: Long) {
             style = if (running) AristotleTextStyles.liveStatusSmall else MaterialTheme.typography.bodySmall,
             color = when {
                 running -> MaterialTheme.colorScheme.tertiary
-                row.status == DelegateStatus.Failed -> MaterialTheme.colorScheme.error
+                row.status.red -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
             maxLines = 1,
@@ -156,9 +156,9 @@ private fun StatusGlyph(status: DelegateStatus, live: Boolean) {
                 val label = statusLabel(status)
                 RunningSpinner(modifier = Modifier.semantics { stateDescription = label })
             }
-            DelegateStatus.Failed, DelegateStatus.Interrupted ->
+            DelegateStatus.Failed ->
                 Icon(painter = painterResource(R.drawable.ic_error), contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(Sizes.chipIcon))
-            DelegateStatus.Completed ->
+            DelegateStatus.Completed, DelegateStatus.Interrupted ->
                 Icon(painter = painterResource(R.drawable.ic_check_circle), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(Sizes.chipIcon))
             // Parked, not watched: no spinner would be honest here (delegate.tsx:47-52).
             DelegateStatus.Dispatched ->

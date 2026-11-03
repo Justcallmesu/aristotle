@@ -7,6 +7,7 @@ import io.github.justcallmesu.aristotle.data.MemoryStore
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.ResumedSessions
+import io.github.justcallmesu.aristotle.data.RpcException
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.chat.ChatItem
@@ -76,8 +77,8 @@ class ChatViewModelSubagentTest {
 
     private var now = 0L
 
-    private fun viewModel(link: FakeLink) =
-        ChatViewModel(session, link, ResumedSessions(), ChatDrafts(MemoryStore()), background = Dispatchers.Unconfined, scope = scope, clock = { now }, wallClock = { 5_000 })
+    private fun viewModel(link: FakeLink, pacing: SubagentPacing = SubagentPacing()) =
+        ChatViewModel(session, link, ResumedSessions(), ChatDrafts(MemoryStore()), background = Dispatchers.Unconfined, scope = scope, clock = { now }, wallClock = { 5_000 }, subagentPacing = pacing)
             .also { now = 1_000 }
 
     private fun ChatViewModel.chat() = uiState.value.feed.chat
@@ -183,5 +184,64 @@ class ChatViewModelSubagentTest {
         assertEquals("sa-1", vm.uiState.value.subagent.open)
         link.frames.tryEmit(event("message.start", "{}"))
         assertNull(vm.uiState.value.subagent.open)
+    }
+
+    // ── T17b: reads sleep while the app is stopped, back off with the link down ─────────────────────
+
+    private fun waitFor(what: String, check: () -> Boolean) {
+        val until = System.nanoTime() + 3_000_000_000L
+        while (!check()) {
+            check(System.nanoTime() < until) { "timed out: $what" }
+            Thread.sleep(5)
+        }
+    }
+
+    private val tailAnswer = HermesJson.parseToJsonElement("""{"subagent_id":"sa-1","available":true,"text":"x","truncated":false}""")
+
+    @Test
+    fun theRosterPollSleepsWhileTheAppIsStoppedAndReadsOnceWhenItIsBack() {
+        val link = FakeLink(plain)
+        link.answers["subagent.list"] = { HermesJson.parseToJsonElement(listed) }
+        // The interval is a minute: any read within the test is the immediate one on ON_START.
+        val vm = viewModel(link, SubagentPacing(listMs = 60_000))
+        link.startChild()
+        vm.onStop()
+        Thread.sleep(150)
+        assertTrue(link.sent("subagent.list").isEmpty())
+        vm.onStart()
+        waitFor("one list read on ON_START") { link.sent("subagent.list").size == 1 }
+        Thread.sleep(150)
+        assertEquals(1, link.sent("subagent.list").size)
+    }
+
+    @Test
+    fun theTailPollSleepsWhileTheAppIsStoppedAndReadsOnceWhenItIsBack() {
+        val link = FakeLink(plain)
+        link.answers["subagent.tail"] = { tailAnswer }
+        link.answers["subagent.list"] = { HermesJson.parseToJsonElement(listed) }
+        val vm = viewModel(link, SubagentPacing(tailMs = 20))
+        link.startChild()
+        vm.openSubagent("sa-1")
+        waitFor("a few tail reads") { link.sent("subagent.tail").size >= 3 }
+        vm.onStop()
+        Thread.sleep(100)
+        val asleep = link.sent("subagent.tail").size
+        Thread.sleep(300)
+        assertEquals(asleep, link.sent("subagent.tail").size)
+        vm.onStart()
+        waitFor("reads again") { link.sent("subagent.tail").size > asleep }
+    }
+
+    @Test
+    fun aTailLoopWithTheLinkDownBacksOffInsteadOfRetryingAtThePace() {
+        val link = FakeLink(plain)
+        link.answers["subagent.tail"] = { throw RpcException(null, "link closed", linkClosed = true, written = false) }
+        val vm = viewModel(link, SubagentPacing(tailMs = 20, tailMaxMs = 160))
+        link.startChild()
+        vm.openSubagent("sa-1")
+        Thread.sleep(600)
+        // 20, 40, 80, 160, 160 ms apart: about 6 reads; every 20 ms would be about 30.
+        val reads = link.sent("subagent.tail").size
+        assertTrue("reads=$reads", reads in 3..10)
     }
 }

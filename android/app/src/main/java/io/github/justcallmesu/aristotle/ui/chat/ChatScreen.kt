@@ -92,6 +92,8 @@ import kotlinx.coroutines.launch
 fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit, focusComposer: Boolean = false) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onStart() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onStop() }
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
     val composer = remember(viewModel) { ViewModelComposerActions(viewModel) }
     val models = remember(viewModel) { ViewModelModelActions(viewModel) }

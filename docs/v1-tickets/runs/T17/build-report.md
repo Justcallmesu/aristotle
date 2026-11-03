@@ -7,7 +7,7 @@
 | `subagent.spawn_requested\|start\|thinking\|tool\|progress\|complete` | always `goal, task_count, task_index`; `subagent_id, child_session_id, model, status, summary, duration_seconds, tool_name, tool_preview, output_tail…` when known | `gateway/local_viewer_events.py:109-136`; `tui_gateway/tool_progress.py:460-487`; `tui_gateway/contracts/events.py:635-671`; `tools/delegate_tool_child_run.py:1080-1099` |
 | (`subagent.text` not on the canonical stream) | dropped | `local_viewer_events.py:132-133` |
 | status mapping, roster rules, prune at `message.start` | error/timeout→failed, cancelled→interrupted, unknown on complete→failed | `apps/desktop/src/store/subagents.ts:90-112,332-398`; `gateway-event/message-stream.ts:167` |
-| delegate card rows | args `tasks[].goal`/`goal`; result `results[]` / `dispatched` | `components/assistant-ui/tool/delegate-model.ts:200-322`; `delegate.tsx:67-166` |
+| delegate card rows | args `tasks[].goal`/`goal`; result `results[]` / `dispatched` | `components/assistant-ui/tool/delegate-model.ts:35-46,81-103,129-156`; `delegate.tsx:67-166` |
 | `subagent.list {session_id}` | `{subagents:[…11 keys], delegations:[]}` | `gateway/session_ancillary.py:16-19,226-266`; Desktop `use-subagent-snapshot.ts:16-89` |
 | `subagent.tail {session_id, subagent_id}` | `{subagent_id, available, text, truncated}` (16 KiB) | `session_ancillary.py:576-589`; Desktop `subagent-transcript.tsx:30-60` |
 | `subagent.interrupt {session_id, subagent_id}` | `{found, subagent_id}` | `session_ancillary.py:38-55`; Desktop `subagent-controls.tsx:21-53` |

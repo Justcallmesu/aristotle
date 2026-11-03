@@ -80,6 +80,7 @@ class ChatViewModel(
     attachments: AttachmentSource? = null,
     /** Wall-clock time, for a subagent's elapsed time (T17); [clock] stays the arming clock. */
     wallClock: () -> Long = System::currentTimeMillis,
+    subagentPacing: SubagentPacing = SubagentPacing(),
 ) : ViewModel() {
     private val link: RelayLink = ProfileLink(base, profile)
     private val work: CoroutineScope = scope ?: viewModelScope
@@ -91,7 +92,7 @@ class ChatViewModel(
     private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change, attachments)
     private val models = ChatModelControl(sessionId, link, newId, clock, work, state::value, ::change)
     private val commands = ChatCommands(sessionId, link, newId, clock, work, state::value, ::change, composer)
-    private val subagents = ChatSubagents(sessionId, link, clock, wallClock, work, state::value, ::change, feed::offerSubagents)
+    private val subagents = ChatSubagents(sessionId, link, clock, wallClock, work, state::value, ::change, feed::offerSubagents, subagentPacing)
 
     private var job: Job? = null
     private var arming: Job? = null
@@ -343,6 +344,12 @@ class ChatViewModel(
     // ── subagents (T17) ───────────────────────────────────────────────────────────────────────────
 
     /** A child row of a `delegate_task` card: its page opens, read-only, from the parent's own stream. */
+    /** The app left the screen (ON_STOP): the subagent reads sleep (T17b). */
+    fun onStop() = subagents.onStop()
+
+    /** The app is back (ON_START): the subagent reads resume with one immediate read. */
+    fun onStart() = subagents.onStart()
+
     fun openSubagent(id: String) = subagents.open(id)
 
     fun closeSubagent() = subagents.close()

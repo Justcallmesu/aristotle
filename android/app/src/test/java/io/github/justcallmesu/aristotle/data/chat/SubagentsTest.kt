@@ -2,6 +2,7 @@ package io.github.justcallmesu.aristotle.data.chat
 
 import io.github.justcallmesu.aristotle.data.HermesJson
 import io.github.justcallmesu.aristotle.data.InboundFrame
+import io.github.justcallmesu.aristotle.ui.chat.SubagentLogic
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -16,7 +17,7 @@ import org.junit.Test
  * payloads follow Hermes' own producer: `tui_gateway/tool_progress.py:460-488` (`_subagent_payload`: `goal`,
  * `task_count`, `task_index` always, the identity fields when known), published on the parent's stream by
  * `gateway/local_viewer_events.py:129-136`; the `delegate_task` call and result follow
- * `apps/desktop/src/components/assistant-ui/tool/delegate-model.ts:200-267`.
+ * `apps/desktop/src/components/assistant-ui/tool/delegate-model.ts:35-46,81-103`.
  */
 class SubagentsTest {
     private val session = "s1"
@@ -165,6 +166,30 @@ class SubagentsTest {
         val state = ChatState(session).reduce(frame("tool.start", """{"tool_id":"call_l","name":"delegate_task","args":{"action":"list"}}"""))
         assertNull(state.card().delegate)
         assertEquals(emptyList<DelegateRow>(), state.card().subagents)
+    }
+
+    @Test
+    fun anExplicitSpawnActionIsAFanOutLikeNoAction() {
+        val spawn = """{"action":"spawn","tasks":[{"goal":"Audit the relay"},{"goal":"Read the spec"}]}"""
+        val state = ChatState(session).reduce(frame("tool.start", """{"tool_id":"call_s","name":"delegate_task","args":$spawn}"""))
+        assertEquals(listOf("Audit the relay", "Read the spec"), state.card().subagents.map { it.goal })
+        for (action in listOf("", "Spawn", " spawn ")) {
+            assertEquals(listOf("g"), Delegation.callOf("delegate_task", HermesJson.parseToJsonElement("""{"action":"$action","goal":"g"}""") as JsonObject)?.goals)
+        }
+        // list / steer / stop are control calls, and an unknown action is Hermes' error answer: no children either way.
+        for (action in listOf("list", "steer", "STOP", "dance")) {
+            assertNull(Delegation.callOf("delegate_task", HermesJson.parseToJsonElement("""{"action":"$action","goal":"g"}""") as JsonObject))
+        }
+    }
+
+    @Test
+    fun onlyAFailedChildIsRedAStoppedOneIsNot() {
+        assertEquals(listOf(DelegateStatus.Failed), DelegateStatus.entries.filter { it.red })
+    }
+
+    @Test
+    fun theTailWaitDoublesFromTwoSecondsToAThirtySecondCap() {
+        assertEquals(listOf(2_000L, 4_000L, 8_000L, 16_000L, 30_000L, 30_000L), (0..5).map { SubagentLogic.tailDelay(it) })
     }
 
     @Test
