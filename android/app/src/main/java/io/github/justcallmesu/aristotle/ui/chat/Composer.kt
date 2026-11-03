@@ -50,6 +50,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.chat.AttachmentRules
+import io.github.justcallmesu.aristotle.data.chat.PickKind
 import io.github.justcallmesu.aristotle.data.chat.SlashCommand
 import io.github.justcallmesu.aristotle.data.chat.SlashMenu
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
@@ -69,6 +71,16 @@ interface ComposerActions {
     fun pickCommand(command: SlashCommand)
 
     fun retryCommands()
+
+    /** Items a picker or the camera returned (T16). */
+    fun attach(uris: List<String>, kind: PickKind)
+
+    fun removeAttachment(id: String)
+
+    /** Where the camera writes (a `content://` URI string), null when it cannot. */
+    fun cameraTarget(): String?
+
+    fun cameraUnavailable()
 }
 
 /** The field never grows past this many lines; then it scrolls (T13 brief). */
@@ -95,6 +107,8 @@ fun Composer(
     val online = state.mode != ComposerMode.Offline
     val ready = state.armed && online
     val hasText = state.draft.isNotBlank()
+    // Words or attachments, every attachment prepared (T16).
+    val hasContent = ComposerLogic.hasContent(state)
     val command = SlashMenu.isCommand(state.draft)
     val query = SlashMenu.query(state.draft)
     Surface(
@@ -109,18 +123,21 @@ fun Composer(
         ) {
             if (online) queued.forEachIndexed { index, row -> QueuedLine(index + 1, row, state, ready, actions) }
             if (online && query != null) SlashMenuPanel(slash, query, onPick = actions::pickCommand, onRetry = actions::retryCommands)
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+            if (state.attachments.isNotEmpty()) AttachmentChips(state.attachments, onRemove = actions::removeAttachment)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                AttachButton(enabled = online && state.attachments.size < AttachmentRules.MAX_ATTACHMENTS, actions = actions)
                 ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, modifier = Modifier.weight(1f))
                 if (!running || !online || command) {
                     // A command runs idle or busy, and while a prompt waits (it is not a message to the parked turn).
                     val canSend = if (command) state.mode == ComposerMode.Idle || state.mode == ComposerMode.Busy else state.mode == ComposerMode.Idle && !state.blocked
-                    SendButton(enabled = ready && canSend && hasText, command = command, onClick = actions::send)
+                    SendButton(enabled = ready && canSend && (if (command) hasText else hasContent), command = command, onClick = actions::send)
                 }
             }
             when {
                 !online -> HintLine(stringResource(R.string.composer_offline))
-                running -> BusyActions(state, ready, hasText, command, actions)
+                running -> BusyActions(state, ready, hasText, hasContent, command, actions)
                 state.blocked && !command -> HintLine(stringResource(R.string.composer_blocked_idle_hint))
+                ComposerLogic.hasRefused(state) -> HintLine(stringResource(R.string.attach_refused_hint))
             }
         }
     }
@@ -194,7 +211,7 @@ private fun SendButton(enabled: Boolean, command: Boolean, onClick: () -> Unit) 
 
 /** Busy: Stop left (always there while the turn runs), Queue and Steer right, one line on what they do. */
 @Composable
-private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, command: Boolean, actions: ComposerActions) {
+private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, hasContent: Boolean, command: Boolean, actions: ComposerActions) {
     val busy = ready && state.mode == ComposerMode.Busy
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = Spacing.s),
@@ -213,15 +230,18 @@ private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, 
             Text(stringResource(R.string.composer_stop))
         }
         Spacer(Modifier.weight(1f))
-        FilledTonalButton(onClick = actions::queue, enabled = busy && hasText && !command, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
             Text(stringResource(R.string.composer_queue))
         }
-        Button(onClick = actions::steer, enabled = busy && hasText && !state.blocked && !command, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        // A steer carries words only: with attachments the message is queued (T16).
+        val steerable = hasText && !state.blocked && !command && state.attachments.isEmpty()
+        Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
             Text(stringResource(R.string.composer_steer))
         }
     }
     val hint = when {
         command -> R.string.composer_command_hint
+        ComposerLogic.hasRefused(state) -> R.string.attach_refused_hint
         state.blocked -> R.string.composer_blocked_hint
         else -> R.string.composer_steer_hint
     }
@@ -275,13 +295,22 @@ fun EchoRow(item: Outgoing, onRetry: (String) -> Unit, onDismiss: (String) -> Un
         if (item.kind == OutgoingKind.Steer && item.status is OutgoingStatus.Sent) {
             Text(text = stringResource(R.string.echo_steered), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        UserBubble(item.text)
+        UserBubble(item.text, item.attachments.map { it.toBubble() })
         when (val status = item.status) {
             OutgoingStatus.Sending -> Text(text = stringResource(R.string.composer_sending), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             is OutgoingStatus.Failed -> FailedLine(item, status.failure, onRetry, onDismiss)
             is OutgoingStatus.Sent -> Unit
         }
     }
+}
+
+@Composable
+private fun attachFailure(failure: SendFailure.AttachFailed): String = when (failure.cause) {
+    AttachCause.NotReached -> stringResource(R.string.echo_attach_not_reached, failure.name)
+    AttachCause.Refused -> failure.reason?.let { stringResource(R.string.echo_attach_refused, failure.name, it) }
+        ?: stringResource(R.string.echo_attach_refused_plain, failure.name)
+    AttachCause.Gone -> stringResource(R.string.echo_attach_gone, failure.name)
+    AttachCause.TooLarge -> stringResource(R.string.echo_attach_too_large, failure.name)
 }
 
 @Composable
@@ -292,6 +321,7 @@ private fun FailedLine(item: Outgoing, failure: SendFailure, onRetry: (String) -
         is SendFailure.Refused -> stringResource(R.string.echo_refused, failure.reason)
         SendFailure.TurnEnded -> stringResource(R.string.echo_turn_ended)
         SendFailure.NotTaken -> stringResource(R.string.echo_not_taken)
+        is SendFailure.AttachFailed -> attachFailure(failure)
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text(

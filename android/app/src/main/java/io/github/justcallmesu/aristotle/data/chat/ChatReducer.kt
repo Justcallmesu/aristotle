@@ -111,7 +111,8 @@ object ChatReducer {
         return started.filter { it.flag("steering") != true }.fold(history) { items, admission ->
             val id = admission.text("admission_id") ?: return@fold items
             val text = admission.text("text")?.takeIf { it.isNotBlank() } ?: return@fold items
-            if (lastUser?.text?.trim() == text.trim()) items else items + ChatItem.User("user-$id", text)
+            val prompt = ChatItem.User.of("user-$id", text)
+            if (lastUser?.text?.trim() == prompt.text.trim()) items else items + prompt
         }
     }
 
@@ -235,7 +236,7 @@ object ChatReducer {
         val id = admission.text("admission_id") ?: return state
         if (id in state.shownAdmissions) return state
         val text = admission.text("text").orEmpty()
-        val items = if (text.isBlank()) state.items else state.items + ChatItem.User("user-$id", text)
+        val items = if (text.isBlank()) state.items else state.items + ChatItem.User.of("user-$id", text)
         return state.copy(items = items, shownAdmissions = state.shownAdmissions + id)
     }
 

@@ -329,4 +329,30 @@
     <string name="slash_dismiss">Hapus</string>
     <string name="composer_run">Jalankan perintah</string>
     <string name="composer_command_hint">Perintah berjalan sekarang, di samping giliran yang sedang berjalan.</string>
+    <!-- T16: lampiran -->
+    <string name="attach_open">Lampirkan foto atau file</string>
+    <string name="attach_photo">Foto</string>
+    <string name="attach_camera">Ambil foto</string>
+    <string name="attach_file">File</string>
+    <string name="attach_preparing">Menyiapkan…</string>
+    <string name="attach_too_large">Terlalu besar · maks %1$s</string>
+    <string name="attach_too_large_size">%1$s · terlalu besar, maks %2$s</string>
+    <string name="attach_unreadable">Tidak bisa dibaca</string>
+    <string name="attach_remove">Hapus %1$s</string>
+    <string name="attach_refused_hint">Hapus yang tidak bisa dikirim, lalu kirim.</string>
+    <string name="attach_camera_unavailable">Tidak ada aplikasi kamera yang bisa mengambil foto.</string>
+    <string name="attach_waiting">Menunggu</string>
+    <string name="attach_uploading">Mengunggah</string>
+    <string name="attach_uploaded">Terunggah</string>
+    <string name="attach_upload_failed">Gagal diunggah</string>
+    <string name="attach_image">Gambar %1$s</string>
+    <string name="attach_file_named">File %1$s</string>
+    <string name="echo_attach_not_reached">Tidak bisa mengunggah %1$s: PC tidak menjawab. Belum ada yang terkirim.</string>
+    <string name="echo_attach_refused">Hermes tidak menerima %1$s: %2$s. Belum ada yang terkirim.</string>
+    <string name="echo_attach_refused_plain">Hermes tidak menerima %1$s. Belum ada yang terkirim.</string>
+    <string name="echo_attach_gone">%1$s sudah tidak ada di ponsel ini. Hapus pesannya lalu lampirkan lagi.</string>
+    <string name="echo_attach_too_large">%1$s terlalu besar untuk sambungan ke PC. Belum ada yang terkirim.</string>
+    <plurals name="attach_too_many">
+        <item quantity="other">Satu pesan bisa membawa %1$d lampiran; sisanya tidak dimasukkan.</item>
+    </plurals>
 </resources>

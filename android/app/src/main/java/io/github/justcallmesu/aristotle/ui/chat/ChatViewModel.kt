@@ -8,12 +8,14 @@ import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.RpcException
 import io.github.justcallmesu.aristotle.data.chat.ApprovalChoice
+import io.github.justcallmesu.aristotle.data.chat.AttachmentSource
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.chat.ChatFeed
 import io.github.justcallmesu.aristotle.data.chat.ChatFeedState
 import io.github.justcallmesu.aristotle.data.chat.ChatState
 import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
 import io.github.justcallmesu.aristotle.data.chat.ModelGroup
+import io.github.justcallmesu.aristotle.data.chat.PickKind
 import io.github.justcallmesu.aristotle.data.chat.Prompt
 import io.github.justcallmesu.aristotle.data.chat.PromptAnswer
 import io.github.justcallmesu.aristotle.data.chat.PromptReplies
@@ -72,6 +74,8 @@ class ChatViewModel(
     newId: () -> String = { UUID.randomUUID().toString().replace("-", "") },
     /** The session's Hermes profile (null = the relay's launch profile): every call of this chat goes there (T14). */
     profile: String? = null,
+    /** Reads and prepares picked photos and files (T16); null: attaching is off. */
+    attachments: AttachmentSource? = null,
 ) : ViewModel() {
     private val link: RelayLink = ProfileLink(base, profile)
     private val work: CoroutineScope = scope ?: viewModelScope
@@ -80,7 +84,7 @@ class ChatViewModel(
         ChatUiState(ChatFeedState(ChatState(sessionId)), link.state.value, composer = ComposerState(draft = drafts?.get(sessionId).orEmpty())),
     )
     val uiState: StateFlow<ChatUiState> = state.asStateFlow()
-    private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change)
+    private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change, attachments)
     private val models = ChatModelControl(sessionId, link, newId, clock, work, state::value, ::change)
     private val commands = ChatCommands(sessionId, link, newId, clock, work, state::value, ::change, composer)
 
@@ -286,6 +290,18 @@ class ChatViewModel(
     fun dismissFailed(id: String) = composer.dismiss(id)
 
     fun composerMessageShown() = composer.messageShown()
+
+    // ── attachments (T16) ─────────────────────────────────────────────────────────────────────────
+
+    /** Items the photo picker, the camera or the document picker returned ([uris] as strings). */
+    fun attach(uris: List<String>, kind: PickKind) = composer.attach(uris, kind)
+
+    fun removeAttachment(id: String) = composer.removeAttachment(id)
+
+    /** Where the camera writes its picture (a `content://` URI of this app), null when it cannot. */
+    fun cameraTarget(): String? = composer.cameraTarget()
+
+    fun cameraUnavailable() = composer.cameraUnavailable()
 
     // ── slash commands (T15) ──────────────────────────────────────────────────────────────────────
 

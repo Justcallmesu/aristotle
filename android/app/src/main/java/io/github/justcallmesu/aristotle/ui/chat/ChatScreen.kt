@@ -57,6 +57,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -75,6 +76,7 @@ import io.github.justcallmesu.aristotle.data.chat.ChatItem
 import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
 import io.github.justcallmesu.aristotle.data.chat.ChatState
 import io.github.justcallmesu.aristotle.data.chat.ModelGroup
+import io.github.justcallmesu.aristotle.data.chat.PickKind
 import io.github.justcallmesu.aristotle.data.chat.ReasoningLevels
 import io.github.justcallmesu.aristotle.data.chat.SlashCommand
 import io.github.justcallmesu.aristotle.data.chat.ToolStatus
@@ -132,6 +134,10 @@ private class ViewModelComposerActions(private val vm: ChatViewModel) : Composer
     override fun cancelQueued(admissionId: String) = vm.cancelQueued(admissionId)
     override fun pickCommand(command: SlashCommand) = vm.pickCommand(command)
     override fun retryCommands() = vm.retryCommands()
+    override fun attach(uris: List<String>, kind: PickKind) = vm.attach(uris, kind)
+    override fun removeAttachment(id: String) = vm.removeAttachment(id)
+    override fun cameraTarget(): String? = vm.cameraTarget()
+    override fun cameraUnavailable() = vm.cameraUnavailable()
 }
 
 /** What a sent message's row can do: Retry, remove a failed one, clear the composer's snackbar, remove a command's row. */
@@ -217,7 +223,7 @@ fun ChatContentView(
                 when {
                     feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
                     // The chip only when tapping it opens something: not while this phone's own answer is on its way (T12b).
-                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, outbox = outbox, runs = runs, insets = insets, onOpenSheet = onOpenSheet, echoes = echoes)
+                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, composer = state.composer, runs = runs, insets = insets, onOpenSheet = onOpenSheet, echoes = echoes)
                     feed.problem != null -> LoadFailed(feed.problem, onRetry)
                     else -> QuietLine(stringResource(R.string.chat_loading))
                 }
@@ -264,6 +270,8 @@ private fun composerMessage(message: ComposerMessage): String = when (message) {
     is ComposerMessage.StopFailed -> stringResource(R.string.composer_stop_failed, message.reason)
     ComposerMessage.StopUnavailable -> stringResource(R.string.composer_stop_unavailable)
     is ComposerMessage.CancelFailed -> stringResource(R.string.composer_cancel_failed, message.reason)
+    is ComposerMessage.TooManyAttachments -> pluralStringResource(R.plurals.attach_too_many, message.limit, message.limit)
+    ComposerMessage.CameraUnavailable -> stringResource(R.string.attach_camera_unavailable)
 }
 
 @Composable
@@ -390,12 +398,13 @@ private fun Transcript(
     chat: ChatState,
     live: Boolean,
     waiting: Boolean,
-    outbox: List<Outgoing>,
+    composer: ComposerState,
     runs: List<CommandRun>,
     insets: PaddingValues,
     onOpenSheet: () -> Unit,
     echoes: EchoActions,
 ) {
+    val outbox = composer.outbox
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val follow = remember { mutableStateOf(true) }
@@ -430,7 +439,9 @@ private fun Transcript(
         ) {
             echoItems(anchored[null].orEmpty(), echoes)
             for (chatItem in chat.items) {
-                item(key = chatItem.key, contentType = chatItem::class) { ChatRow(chatItem, folds, lastFailed, live) }
+                item(key = chatItem.key, contentType = chatItem::class) {
+                    ChatRow(chatItem, folds, lastFailed, live, attachmentsOf = { ComposerLogic.userAttachments(it, composer) })
+                }
                 anchored[chatItem.key]?.let { echoItems(it, echoes) }
             }
             echoItems(tail, echoes)

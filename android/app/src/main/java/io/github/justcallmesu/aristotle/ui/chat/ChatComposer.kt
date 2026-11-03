@@ -2,10 +2,19 @@ package io.github.justcallmesu.aristotle.ui.chat
 
 import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.RpcException
+import io.github.justcallmesu.aristotle.data.chat.AttachFrames
+import io.github.justcallmesu.aristotle.data.chat.Attachment
+import io.github.justcallmesu.aristotle.data.chat.AttachmentRules
+import io.github.justcallmesu.aristotle.data.chat.AttachmentSource
+import io.github.justcallmesu.aristotle.data.chat.AttachmentStatus
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.chat.ComposerCall
 import io.github.justcallmesu.aristotle.data.chat.ComposerFrames
+import io.github.justcallmesu.aristotle.data.chat.PickKind
+import io.github.justcallmesu.aristotle.data.chat.Preparation
 import io.github.justcallmesu.aristotle.data.chat.SlashMenu
+import io.github.justcallmesu.aristotle.data.chat.Staged
+import io.github.justcallmesu.aristotle.data.chat.Upload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
@@ -24,6 +33,8 @@ internal class ChatComposer(
     private val work: CoroutineScope,
     private val state: () -> ChatUiState,
     private val change: ((ChatUiState) -> ChatUiState) -> Unit,
+    /** Reads and prepares picked items (T16); null: attaching is off (tests that do not need it). */
+    private val source: AttachmentSource? = null,
 ) {
     fun edit(text: String) {
         updateComposer { it.copy(draft = text) }
@@ -54,11 +65,54 @@ internal class ChatComposer(
     /** Busy: runs after the current turn (and after anything queued before it). Allowed while a prompt waits. */
     fun queue() = submit(ComposerMode.Busy, OutgoingKind.Queue)
 
+    // ── attachments (T16) ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Items picked with [kind]: each shows at once as a chip while it is prepared off the main thread. Past
+     * [AttachmentRules.MAX_ATTACHMENTS] the rest are left out and the user is told.
+     */
+    fun attach(uris: List<String>, kind: PickKind) {
+        val source = source ?: return
+        val free = (AttachmentRules.MAX_ATTACHMENTS - state().composer.attachments.size).coerceAtLeast(0)
+        if (uris.size > free) updateComposer { it.copy(message = ComposerMessage.TooManyAttachments(AttachmentRules.MAX_ATTACHMENTS)) }
+        uris.take(free).forEach { uri ->
+            val item = Attachment(newId(), "", kind)
+            updateComposer { it.copy(attachments = it.attachments + item) }
+            work.launch {
+                val result = source.prepare(uri, kind)
+                var kept = false
+                updateComposer { c ->
+                    kept = c.attachments.any { it.id == item.id }
+                    c.copy(attachments = c.attachments.map { if (it.id == item.id) prepared(it, result) else it })
+                }
+                // Removed while it was being prepared: its bytes are not needed.
+                if (!kept && result is Preparation.Ready) source.discard(result.prepared.handle)
+            }
+        }
+    }
+
+    /** A chip's ✕: the item leaves the composer and its prepared bytes go. */
+    fun removeAttachment(id: String) {
+        val item = state().composer.attachments.firstOrNull { it.id == id } ?: return
+        updateComposer { c -> c.copy(attachments = c.attachments.filter { it.id != id }) }
+        item.prepared?.let { source?.discard(it.handle) }
+    }
+
+    fun cameraTarget(): String? = source?.cameraTarget()
+
+    fun cameraUnavailable() = updateComposer { it.copy(message = ComposerMessage.CameraUnavailable) }
+
+    private fun prepared(item: Attachment, result: Preparation): Attachment = when (result) {
+        is Preparation.Ready -> item.copy(name = result.prepared.name, status = AttachmentStatus.Ready, prepared = result.prepared)
+        is Preparation.Refused -> item.copy(name = result.name, status = AttachmentStatus.Refused(result.problem))
+    }
+
     /** Busy: joins the running turn. Not while a prompt waits: the turn is parked and could not take it. */
     fun steer() {
         val ui = state()
         val composer = ui.composer
-        if (!ComposerLogic.armed(composer, ComposerMode.Busy, clock()) || composer.blocked || SlashMenu.isCommand(composer.draft)) return
+        // A steer carries words only (`session.steer` params, protocol §5): attachments go with Send or Queue.
+        if (!ComposerLogic.armed(composer, ComposerMode.Busy, clock()) || composer.blocked || SlashMenu.isCommand(composer.draft) || composer.attachments.isNotEmpty()) return
         val generation = ui.feed.chat.generation ?: return
         val text = composer.draft.trim().ifEmpty { return }
         val item = Outgoing(newId(), text, OutgoingKind.Steer, OutgoingStatus.Sending)
@@ -109,7 +163,7 @@ internal class ChatComposer(
         val item = composer.outbox.firstOrNull { it.id == id } ?: return
         if (!item.retryable || !ComposerLogic.failureSeen(item, clock()) || !armedOnline(composer)) return
         if (item.kind != OutgoingKind.Steer) {
-            replace(item.copy(status = OutgoingStatus.Sending))
+            replace(item.copy(status = OutgoingStatus.Sending, attachments = item.attachments.map { it.copy(upload = if (it.staged != null) Upload.Sent else Upload.Waiting) }))
             deliverSubmit(item)
             return
         }
@@ -128,15 +182,23 @@ internal class ChatComposer(
         }
     }
 
-    /** Removes a failed echo; its words go back into an empty field so nothing typed is lost. */
+    /**
+     * Removes a failed echo; its words go back into an empty field and its attachments into an empty chip row (with
+     * what Hermes already staged), so nothing picked or typed is lost.
+     */
     fun dismiss(id: String) {
         val item = state().composer.outbox.firstOrNull { it.id == id } ?: return
         if (!ComposerLogic.failureSeen(item, clock())) return
         var restored: String? = null
-        // A submit that may have reached Hermes keeps its id: the same text sent again is then the same admission.
+        // A submit that may have reached Hermes keeps its id: the same message sent again is then the same admission.
         val keep = item.kind != OutgoingKind.Steer && (item.status as? OutgoingStatus.Failed)?.failure == SendFailure.NoAnswer
         updateComposer { c ->
-            val rest = c.copy(outbox = c.outbox.filter { it.id != id }, keptIds = if (keep) c.keptIds + (item.text to item.id) else c.keptIds)
+            val kept = if (keep) c.keptIds + (Outbox.keepKey(item.text, item.attachments) to item.id) else c.keptIds
+            val rest = c.copy(
+                outbox = c.outbox.filter { it.id != id },
+                keptIds = kept,
+                attachments = c.attachments.ifEmpty { item.attachments.map { it.copy(upload = Upload.Waiting) } },
+            )
             if (c.draft.isNotBlank()) rest else rest.copy(draft = item.text, draftEpoch = c.draftEpoch + 1).also { restored = item.text }
         }
         restored?.let { drafts?.put(sessionId, it) }
@@ -152,25 +214,89 @@ internal class ChatComposer(
         if (kind == OutgoingKind.Send && composer.blocked) return
         // A command runs through the ViewModel's slash path, never as a message (T15).
         if (SlashMenu.isCommand(composer.draft)) return
-        val text = composer.draft.trim().ifEmpty { return }
-        val kept = composer.keptIds[text]
-        val item = Outgoing(kept ?: newId(), text, kind, OutgoingStatus.Sending)
+        if (!ComposerLogic.hasContent(composer)) return
+        val text = composer.draft.trim()
+        val attachments = composer.attachments.map { it.copy(upload = if (it.staged != null) Upload.Sent else Upload.Waiting) }
+        val key = Outbox.keepKey(text, composer.attachments)
+        val kept = composer.keptIds[key]
+        val item = Outgoing(kept ?: newId(), text, kind, OutgoingStatus.Sending, attachments = attachments)
         takeDraft(item)
-        if (kept != null) updateComposer { it.copy(keptIds = it.keptIds - text) }
+        if (kept != null) updateComposer { it.copy(keptIds = it.keptIds - key) }
         deliverSubmit(item)
     }
 
+    /**
+     * Stages the attachments not yet staged, one call each and in order (each is one frame, protocol §12), then submits
+     * the prompt with Hermes' answers (T16). An upload that fails stops there: the prompt was not sent, and Retry
+     * goes on from the first attachment not staged, with the same `submission_id`.
+     */
     private fun deliverSubmit(item: Outgoing) {
-        val call = ComposerFrames.submit(sessionId, item.wire ?: item.text, item.id)
         work.launch {
+            val staged = stageAll(item.id) ?: return@launch
+            val current = state().composer.outbox.firstOrNull { it.id == item.id } ?: return@launch
+            val text = AttachFrames.promptText(current.wire ?: current.text, staged)
+            val call = ComposerFrames.submit(sessionId, text, current.id, staged.filterIsInstance<Staged.Image>())
             val outcome = attempt(call)
-            updateItem(item.id) { current, ui ->
+            var admission: String? = null
+            updateItem(item.id) { latest, ui ->
                 when (outcome) {
-                    is Attempt.Answered -> Outbox.submitted(current, outcome.result, ui.feed.chat)
-                    is Attempt.Failed -> Outbox.failed(current, outcome.error, clock())
+                    is Attempt.Answered -> Outbox.submitted(latest, outcome.result, ui.feed.chat).also { admission = (it?.status as? OutgoingStatus.Sent)?.admissionId }
+                    is Attempt.Failed -> Outbox.afterSubmitFailure(Outbox.failed(latest, outcome.error, clock()))
                 }
             }
+            val images = Outbox.sentImages(current)
+            admission?.takeIf { images.isNotEmpty() }?.let { id -> updateComposer { it.copy(sentImages = it.sentImages + (id to images)) } }
         }
+    }
+
+    /** Hermes' answers for every attachment of [id] in order, or null when one did not stage (the echo then says why). */
+    private suspend fun stageAll(id: String): List<Staged>? {
+        val item = state().composer.outbox.firstOrNull { it.id == id } ?: return null
+        val staged = mutableListOf<Staged>()
+        for (attachment in item.attachments) {
+            attachment.staged?.let {
+                staged += it
+                continue
+            }
+            staged += stage(id, attachment) ?: return null
+        }
+        return staged
+    }
+
+    private suspend fun stage(id: String, attachment: Attachment): Staged? {
+        setUpload(id, attachment.id, Upload.Sending)
+        val prepared = attachment.prepared
+        val bytes = prepared?.let { source?.read(it.handle) } ?: return attachFailed(id, attachment, AttachCause.Gone)
+        val call = AttachFrames.stage(sessionId, prepared, bytes)
+        // Checked when it was prepared; a frame the relay would refuse (close 1009) is never written.
+        if (AttachFrames.frameBytes(call) > AttachmentRules.MAX_FRAME_BYTES - PROFILE_RESERVE) return attachFailed(id, attachment, AttachCause.TooLarge)
+        return when (val outcome = attempt(call)) {
+            is Attempt.Answered -> AttachFrames.staged(outcome.result, prepared.image)?.also { staged ->
+                updateAttachment(id, attachment.id) { it.copy(staged = staged, upload = Upload.Sent) }
+            } ?: attachFailed(id, attachment, AttachCause.Refused, AttachFrames.refusal(outcome.result))
+            is Attempt.Failed -> if (outcome.error.error != null) {
+                attachFailed(id, attachment, AttachCause.Refused, reasonOf(outcome.error))
+            } else {
+                attachFailed(id, attachment, AttachCause.NotReached)
+            }
+        }
+    }
+
+    private fun attachFailed(id: String, attachment: Attachment, cause: AttachCause, reason: String? = null): Staged? {
+        val failure = SendFailure.AttachFailed(attachment.name, cause, reason)
+        updateItem(id) { current, _ ->
+            current.copy(
+                status = OutgoingStatus.Failed(failure, clock()),
+                attachments = current.attachments.map { if (it.id == attachment.id) it.copy(upload = Upload.Failed) else it },
+            )
+        }
+        return null
+    }
+
+    private fun setUpload(id: String, attachmentId: String, upload: Upload) = updateAttachment(id, attachmentId) { it.copy(upload = upload) }
+
+    private fun updateAttachment(id: String, attachmentId: String, transform: (Attachment) -> Attachment) = updateItem(id) { current, _ ->
+        current.copy(attachments = current.attachments.map { if (it.id == attachmentId) transform(it) else it })
     }
 
     private fun deliverSteer(item: Outgoing, generation: Long) {
@@ -199,9 +325,9 @@ internal class ChatComposer(
 
     // ── state ─────────────────────────────────────────────────────────────────────────────────────
 
-    /** The words leave the field for the outbox in one step: one tap can never send them twice. */
+    /** The words and attachments leave the composer for the outbox in one step: one tap can never send them twice. */
     private fun takeDraft(item: Outgoing) {
-        updateComposer { it.copy(draft = "", draftEpoch = it.draftEpoch + 1, outbox = it.outbox + item) }
+        updateComposer { it.copy(draft = "", draftEpoch = it.draftEpoch + 1, outbox = it.outbox + item, attachments = emptyList()) }
         drafts?.put(sessionId, "")
     }
 
@@ -224,5 +350,8 @@ internal class ChatComposer(
     private companion object {
         /** `session.interrupt` for a claim that already settled (`gateway/session_controls.py:880-886`). */
         const val STALE_GENERATION = "stale_generation"
+
+        /** Room left in a frame for the `profile` key [io.github.justcallmesu.aristotle.data.ProfileLink] adds. */
+        const val PROFILE_RESERVE = 512
     }
 }

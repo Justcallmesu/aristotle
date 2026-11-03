@@ -186,7 +186,7 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
     }
     RouteScope(chatRoutes, "chat-${target.profile.orEmpty()}-$sessionId") {
         val chatViewModel = viewModel {
-            ChatViewModel(sessionId, container.link, container.resumedSessions, container.drafts, profile = target.profile)
+            ChatViewModel(sessionId, container.link, container.resumedSessions, container.drafts, profile = target.profile, attachments = container.attachments)
         }
         val openRequest by container.openChat.collectAsStateWithLifecycle()
         LaunchedEffect(openRequest) {

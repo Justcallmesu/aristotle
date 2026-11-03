@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.data.chat
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -19,13 +20,24 @@ object ComposerFrames {
      * `f-busy-client2.jsonl:21-22`). [submissionId] is the idempotency key: the same principal, session and id with
      * the same text replays the first admission instead of adding one (`hermes_state_runtime.py:154-161`), so a Retry
      * reuses it and can never run the prompt twice.
+     *
+     * [images]: staged images, sent as `attachments: [{path, mime}]` exactly (`gateway/session_ingress_media.py:140-156`
+     * admits only paths Hermes staged itself; the Desktop sends the same, `use-prompt-actions/submit.ts:1080-1088`). A
+     * retry that stages the same bytes again is still the same admission: Hermes compares the committed bytes'
+     * digests, not the staging names (`:158-181`).
      */
-    fun submit(sessionId: String, text: String, submissionId: String) = ComposerCall(
+    fun submit(sessionId: String, text: String, submissionId: String, images: List<Staged.Image> = emptyList()) = ComposerCall(
         "prompt.submit",
         buildJsonObject {
             put("session_id", sessionId)
             put("text", text)
             put("submission_id", submissionId)
+            if (images.isNotEmpty()) {
+                put(
+                    "attachments",
+                    JsonArray(images.map { buildJsonObject { put("path", it.path); put("mime", it.mime) } }),
+                )
+            }
         },
     )
 

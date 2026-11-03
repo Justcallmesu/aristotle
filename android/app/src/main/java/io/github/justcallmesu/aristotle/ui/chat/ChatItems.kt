@@ -49,6 +49,7 @@ import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.chat.ChatItem
 import io.github.justcallmesu.aristotle.data.chat.NoticeKind
 import io.github.justcallmesu.aristotle.data.chat.ToolStatus
+import io.github.justcallmesu.aristotle.data.chat.UserAttachment
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
 import io.github.justcallmesu.aristotle.ui.components.reducedMotion
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
@@ -72,9 +73,16 @@ interface FoldState {
 
 /** [live]: the cursor and tool spinners show only then ([ChatLive]). */
 @Composable
-fun ChatRow(item: ChatItem, folds: FoldState, lastFailedTool: String?, live: Boolean) {
+fun ChatRow(
+    item: ChatItem,
+    folds: FoldState,
+    lastFailedTool: String?,
+    live: Boolean,
+    /** What a user row shows as attachments (its own, plus the images this phone sent with it, T16). */
+    attachmentsOf: (ChatItem.User) -> List<UserAttachment> = { it.attachments },
+) {
     when (item) {
-        is ChatItem.User -> UserBubble(item.text)
+        is ChatItem.User -> UserBubble(item.text, attachmentsOf(item).map { it.toBubble() })
         is ChatItem.Assistant -> ChatMarkdown(item.text, streaming = item.streaming && live)
         is ChatItem.Reasoning -> ReasoningRow(item, folds)
         is ChatItem.Tool -> ToolCard(item, folds, openByDefault = item.key == lastFailedTool, live = live)
@@ -84,16 +92,22 @@ fun ChatRow(item: ChatItem, folds: FoldState, lastFailedTool: String?, live: Boo
 
 /** The user's own message (design.md §5): right-aligned `secondaryContainer` bubble, at most 82 % wide. */
 @Composable
-internal fun UserBubble(text: String) {
+internal fun UserBubble(text: String, attachments: List<BubbleAttachment> = emptyList()) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        Surface(
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 4.dp, bottomStart = 14.dp),
-            modifier = Modifier.align(Alignment.CenterEnd).widthIn(max = maxWidth * BUBBLE_MAX_FRACTION),
-        ) {
-            SelectionContainer {
-                Text(text = text, style = AristotleTextStyles.chatText, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+        val width = maxWidth * BUBBLE_MAX_FRACTION
+        Column(modifier = Modifier.align(Alignment.CenterEnd).widthIn(max = width), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            // T16: the message's images and files above its words, as on the Desktop.
+            if (attachments.isNotEmpty()) BubbleAttachments(attachments)
+            if (text.isNotBlank() || attachments.isEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 4.dp, bottomStart = 14.dp),
+                ) {
+                    SelectionContainer {
+                        Text(text = text, style = AristotleTextStyles.chatText, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                    }
+                }
             }
         }
     }

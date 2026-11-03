@@ -10,6 +10,7 @@ import io.github.justcallmesu.aristotle.background.BackgroundController
 import io.github.justcallmesu.aristotle.background.Notifier
 import io.github.justcallmesu.aristotle.data.AlertRouter
 import io.github.justcallmesu.aristotle.data.AppSettings
+import io.github.justcallmesu.aristotle.data.AttachmentFiles
 import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
 import io.github.justcallmesu.aristotle.data.DeviceMaker
 import io.github.justcallmesu.aristotle.data.QuoteGate
@@ -84,6 +85,9 @@ class AppContainer(context: Context) {
     )
 
     val settings = AppSettings(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
+
+    /** Picked photos and files, prepared in the app cache until sent (T16). */
+    val attachments = AttachmentFiles(context)
 
     /** Unsent composer text per session (T13): this phone only, written in the background as the user types. */
     val drafts = ChatDrafts(ApplyingPreferencesStore(context.getSharedPreferences(DRAFTS_FILE, Context.MODE_PRIVATE)))

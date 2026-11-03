@@ -1,7 +1,11 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
 import io.github.justcallmesu.aristotle.data.RpcException
+import io.github.justcallmesu.aristotle.data.chat.Attachment
 import io.github.justcallmesu.aristotle.data.chat.ChatState
+import io.github.justcallmesu.aristotle.data.chat.Staged
+import io.github.justcallmesu.aristotle.data.chat.Upload
+import io.github.justcallmesu.aristotle.data.chat.UserAttachment
 import io.github.justcallmesu.aristotle.data.chat.asObject
 import io.github.justcallmesu.aristotle.data.chat.flag
 import io.github.justcallmesu.aristotle.data.chat.text
@@ -26,7 +30,18 @@ sealed interface SendFailure {
 
     /** A steer the turn did not take; it may still have reached it, so it is never sent again by itself. */
     data object NotTaken : SendFailure
+
+    /**
+     * Attachment [name] did not upload, so the prompt was never sent (T16). [reason]: Hermes' words when it refused.
+     */
+    data class AttachFailed(val name: String, val cause: AttachCause, val reason: String? = null) : SendFailure
 }
+
+/**
+ * Why an upload stopped: [NotReached] the PC was not connected or did not answer; [Refused] Hermes did not stage it;
+ * [Gone] the prepared bytes are no longer on the phone; [TooLarge] it would not fit one relay frame.
+ */
+enum class AttachCause { NotReached, Refused, Gone, TooLarge }
 
 sealed interface OutgoingStatus {
     data object Sending : OutgoingStatus
@@ -52,7 +67,12 @@ data class Outgoing(
     val status: OutgoingStatus,
     /** What Hermes is sent when it differs from the bubble [text]: a skill command's expanded message (T15). */
     val wire: String? = null,
+    /** The images and files the message carries (T16); staged ones keep Hermes' answer for Retry. */
+    val attachments: List<Attachment> = emptyList(),
 ) {
+    /** The words, or the attachments' names when there are none (a queued row needs a label). */
+    val label: String get() = text.ifEmpty { attachments.joinToString(", ") { it.name } }
+
     /**
      * Retry is offered when it cannot deliver twice: a submit always (same `submission_id`), a steer only when it
      * surely did not reach the turn (a steer has no idempotency key, `gateway/session_busy_controls.py:176`): Hermes'
@@ -107,6 +127,33 @@ object Outbox {
             else -> SendFailure.NoAnswer
         }
         return item.copy(status = OutgoingStatus.Failed(failure, now))
+    }
+
+    /**
+     * The key a dismissed submit's id is kept under: its words and, when it had any, its attachments (ids, which keep
+     * their staged answers when they go back to the composer), so the same message sent again reuses the id.
+     */
+    fun keepKey(text: String, attachments: List<Attachment>): String =
+        if (attachments.isEmpty()) text else text + "\u0000" + attachments.joinToString("\u0000") { it.id }
+
+    /**
+     * Hermes refused the prompt itself: a staged image may be gone from its staging folder (Hermes prunes it), so a
+     * Retry stages the images again. Safe: Hermes knows a retried admission by the images' bytes, not their staging
+     * names (`gateway/session_ingress_media.py:158-181`). A file's `@file:` text is kept: a new name would change the
+     * prompt and Hermes would refuse the same `submission_id` (`admission_conflict`).
+     */
+    fun afterSubmitFailure(item: Outgoing): Outgoing {
+        val refused = (item.status as? OutgoingStatus.Failed)?.failure is SendFailure.Refused
+        return item.copy(
+            attachments = item.attachments.map { a ->
+                if (refused && a.staged is Staged.Image) a.copy(staged = null, upload = Upload.Waiting) else a
+            },
+        )
+    }
+
+    /** The images of [item] as a bubble shows them: name and the bytes' digest (for the thumbnail). */
+    fun sentImages(item: Outgoing): List<UserAttachment> = item.attachments.mapNotNull { a ->
+        a.prepared?.takeIf { it.image }?.let { UserAttachment(UserAttachment.Kind.Image, it.name, it.name, it.sha256) }
     }
 
     /** Drops every echo whose message Hermes now shows itself; a failed submit Hermes did get counts as sent. */

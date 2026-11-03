@@ -43,7 +43,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | DONE |
 | T15 | Model + reasoning switch; slash commands | T13 | android | DONE |
 | T15b | T15/TQ1 minors: block typed desktop-only slash commands via catalog `desktop` field (/busy would change busy_input_mode, Q10); Switch-anyway dialog closes on remote model change + armed; skill-command submission id created before send; blocked command keeps the draft; quote tile colour from theme (dark mode), radius token, shared reduced-motion helper, design curve, ComposableNaming lint | T15 | android | DONE |
-| T16 | Send pictures and files | T13 | android (+server) | BUILDING |
+| T16 | Send pictures and files | T13 | android (+server) | DONE |
+| T16b | T16 minors: prepare attachments 1-2 at a time + catch OOM (crash); sniff file bytes so a mislabelled JPEG/PNG/WebP picked as a file gets GPS stripped; upload call timeout scales with size; strip GPS/XMP in extra JPEG images (MPF/Ultra-HDR) and extended XMP; clean temp files on send/cancel; GIF XMP | T16 | android | BUILDING |
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | BLOCKED: user decisions Q52-Q55 (red-team done) |
@@ -291,3 +292,5 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 T15 built (427 tests). PM gate GREEN runs/pm-gate-27; mutation (revision may go backwards) fails 1 test. Deep review dispatched, covering TQ1 as well.
 - 2026-11-04 T15 review PASS-WITH-FINDINGS (methods exact; stale token can't switch another model; unknown commands fail safe on Hermes). Committed. T15b (std) because M1 breaks Q10 (/busy). TQ1: quote screen shows only on the first connect, not later reconnects before content — narrower than Q44; asked the user.
 - 2026-11-04 T15b PM gate GREEN runs/pm-gate-28 (437 tests); mutation (drop /busy from the block list) fails 1 test. Committed. PM added design.md §7 exception for the Q46 quote screen. T16 dispatched (deep).
+- 2026-11-04 T16 built (no server change: Desktop's own /api/ws attach methods). PM gate GREEN both sides runs/pm-gate-29 (274 Go, 478 Android); mutation (GPS kept) fails 1 test. Deep review dispatched. Product limit to raise with the user: 765 KiB per file (relay 1 MiB frame).
+- 2026-11-04 T16 review PASS-WITH-FINDINGS (frames exact, phone never names a PC path, size pre-check keeps 1009 impossible). Committed. T16b (std) now: a crash and two location leaks are worth fixing before device QA.

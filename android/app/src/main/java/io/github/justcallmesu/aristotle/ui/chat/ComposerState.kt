@@ -1,7 +1,12 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
 import io.github.justcallmesu.aristotle.data.LinkState
+import io.github.justcallmesu.aristotle.data.chat.Attachment
+import io.github.justcallmesu.aristotle.data.chat.AttachmentRefs
+import io.github.justcallmesu.aristotle.data.chat.AttachmentStatus
 import io.github.justcallmesu.aristotle.data.chat.ChatFeedState
+import io.github.justcallmesu.aristotle.data.chat.ChatItem
+import io.github.justcallmesu.aristotle.data.chat.UserAttachment
 
 /**
  * What the composer offers (design.md §5 composer): [Offline] nothing can be sent (no link, chat not subscribed);
@@ -27,6 +32,12 @@ sealed interface ComposerMessage {
     data object StopUnavailable : ComposerMessage
 
     data class CancelFailed(val reason: String) : ComposerMessage
+
+    /** More picked than a message may carry ([limit], `gateway/session_ingress_media.py:123`); the rest were left out (T16). */
+    data class TooManyAttachments(val limit: Int) : ComposerMessage
+
+    /** No camera app took the capture intent. */
+    data object CameraUnavailable : ComposerMessage
 }
 
 /** One row above the field: a queued admission ([admissionId] null while ours is still on its way). */
@@ -44,8 +55,18 @@ data class ComposerState(
     val stopping: Boolean = false,
     val cancelling: Set<String> = emptySet(),
     val message: ComposerMessage? = null,
-    /** Text -> `submission_id` of a dismissed "No answer" submit: sending the same text again is the same admission (T13 NIT). */
+    /**
+     * [Outbox.keepKey] (text and attachments) -> `submission_id` of a dismissed "No answer" submit: sending the same
+     * again is the same admission (T13 NIT).
+     */
     val keptIds: Map<String, String> = emptyMap(),
+    /** The picked items above the field (T16), removable until sent. */
+    val attachments: List<Attachment> = emptyList(),
+    /**
+     * Admission id -> the images this phone sent with it: Hermes' own row for a turn (its `pending` text) names no
+     * image, so the bubble takes them from here until the stored history shows them (T16).
+     */
+    val sentImages: Map<String, List<UserAttachment>> = emptyMap(),
 ) {
     val mode: ComposerMode get() = shown?.key?.mode ?: ComposerMode.Offline
     val blocked: Boolean get() = shown?.key?.blocked == true
@@ -80,6 +101,28 @@ object ComposerLogic {
         return shown.key.mode == mode && now - shown.at >= ARM_MS
     }
 
+    /** Every picked item is prepared and none was refused, so a message can carry them. */
+    fun attachmentsReady(composer: ComposerState): Boolean = composer.attachments.all { it.ready }
+
+    /** There is something to send: words, or attachments that are all ready. */
+    fun hasContent(composer: ComposerState): Boolean =
+        attachmentsReady(composer) && (composer.draft.isNotBlank() || composer.attachments.isNotEmpty())
+
+    /** A refused item is in the composer: Send stays off until it is removed. */
+    fun hasRefused(composer: ComposerState): Boolean = composer.attachments.any { it.status is AttachmentStatus.Refused }
+
+    /**
+     * What a user row shows: its own attachments, plus, for the row of a turn this phone sent (`user-<admission>`),
+     * the images it sent when the row names none ([ComposerState.sentImages]).
+     */
+    fun userAttachments(item: ChatItem.User, composer: ComposerState): List<UserAttachment> {
+        if (item.attachments.any { it.kind == UserAttachment.Kind.Image }) return item.attachments
+        val sent = composer.sentImages[item.key.removePrefix(USER_ROW)].takeIf { item.key.startsWith(USER_ROW) }.orEmpty()
+        return item.attachments + sent
+    }
+
+    private const val USER_ROW = "user-"
+
     /** The composer is usable (idle or busy, not covered) and has been for [ARM_MS]: slash commands, a queued row's ✕. */
     fun armedOnline(composer: ComposerState, now: Long): Boolean =
         armed(composer, ComposerMode.Idle, now) || armed(composer, ComposerMode.Busy, now)
@@ -97,13 +140,19 @@ object ComposerLogic {
     fun queuedRows(feed: ChatFeedState, outbox: List<Outgoing>): List<QueuedRow> {
         val chat = feed.chat
         val bubbles = outbox.filter { it.kind == OutgoingKind.Send }.mapTo(HashSet()) { it.id }
-        val hermes = chat.queued.filter { it.inputId !in bubbles }.map { QueuedRow(it.admissionId, it.text, it.admissionId) }
+        // A queued prompt's text may start with `@file:` lines (T16): the row shows the words, or the files' names.
+        val hermes = chat.queued.filter { it.inputId !in bubbles }.map { QueuedRow(it.admissionId, rowText(it.text), it.admissionId) }
         val listed = hermes.mapTo(HashSet()) { it.key }
         val ours = outbox.filter { it.kind == OutgoingKind.Queue && it.status !is OutgoingStatus.Failed }.mapNotNull { item ->
             val admission = (item.status as? OutgoingStatus.Sent)?.admissionId
-            if (admission != null && admission in listed) null else QueuedRow(admission ?: "local-${item.id}", item.text, admission)
+            if (admission != null && admission in listed) null else QueuedRow(admission ?: "local-${item.id}", item.label, admission)
         }
         return hermes + ours
+    }
+
+    private fun rowText(text: String): String {
+        val split = AttachmentRefs.split(text)
+        return split.text.ifEmpty { split.attachments.joinToString(", ") { it.label } }
     }
 
     /** Echoes shown at the end of the transcript: everything not yet Hermes' own, except Queue rows and accepted steers. */

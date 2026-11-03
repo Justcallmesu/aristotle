@@ -10,8 +10,24 @@ import kotlinx.serialization.json.contentOrNull
 sealed interface ChatItem {
     val key: String
 
-    /** [steer]: a steer Hermes stored as its own user row mid-turn (`display_kind` steer), not a turn's prompt. */
-    data class User(override val key: String, val text: String, val steer: Boolean = false) : ChatItem
+    /**
+     * [steer]: a steer Hermes stored as its own user row mid-turn (`display_kind` steer), not a turn's prompt.
+     * [attachments]: the images and files the message names, taken out of [text] ([AttachmentRefs], T16).
+     */
+    data class User(
+        override val key: String,
+        val text: String,
+        val steer: Boolean = false,
+        val attachments: List<UserAttachment> = emptyList(),
+    ) : ChatItem {
+        companion object {
+            /** A user row from Hermes' own text (stored row or `pending` admission), its attachments split off. */
+            fun of(key: String, raw: String, steer: Boolean = false): User {
+                val split = AttachmentRefs.split(raw)
+                return User(key, split.text, steer, split.attachments)
+            }
+        }
+    }
 
     /** Assistant text (Markdown). [streaming]: deltas still arrive for it; the cursor shows only then. */
     data class Assistant(override val key: String, val text: String, val streaming: Boolean = false) : ChatItem

@@ -334,4 +334,31 @@
     <string name="slash_dismiss">Remove</string>
     <string name="composer_run">Run command</string>
     <string name="composer_command_hint">A command runs now, beside the running turn.</string>
+    <!-- T16: attachments -->
+    <string name="attach_open">Attach a photo or file</string>
+    <string name="attach_photo">Photo</string>
+    <string name="attach_camera">Take photo</string>
+    <string name="attach_file">File</string>
+    <string name="attach_preparing">Preparing…</string>
+    <string name="attach_too_large">Too large · max %1$s</string>
+    <string name="attach_too_large_size">%1$s · too large, max %2$s</string>
+    <string name="attach_unreadable">Can\'t read this</string>
+    <string name="attach_remove">Remove %1$s</string>
+    <string name="attach_refused_hint">Remove what can\'t be sent, then send.</string>
+    <string name="attach_camera_unavailable">No camera app could take the photo.</string>
+    <string name="attach_waiting">Waiting</string>
+    <string name="attach_uploading">Uploading</string>
+    <string name="attach_uploaded">Uploaded</string>
+    <string name="attach_upload_failed">Upload failed</string>
+    <string name="attach_image">Image %1$s</string>
+    <string name="attach_file_named">File %1$s</string>
+    <string name="echo_attach_not_reached">Couldn\'t upload %1$s: the PC did not answer. Nothing was sent.</string>
+    <string name="echo_attach_refused">Hermes didn\'t take %1$s: %2$s. Nothing was sent.</string>
+    <string name="echo_attach_refused_plain">Hermes didn\'t take %1$s. Nothing was sent.</string>
+    <string name="echo_attach_gone">%1$s is no longer on this phone. Remove the message and attach it again.</string>
+    <string name="echo_attach_too_large">%1$s is too large for the link to the PC. Nothing was sent.</string>
+    <plurals name="attach_too_many">
+        <item quantity="one">A message can carry %1$d attachment; the rest were left out.</item>
+        <item quantity="other">A message can carry %1$d attachments; the rest were left out.</item>
+    </plurals>
 </resources>

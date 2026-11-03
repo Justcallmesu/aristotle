@@ -341,6 +341,35 @@ the running turn.
 `execution_generation`: take it from the latest event's `params.execution_generation` or the snapshot;
 a stale one is refused `stale_generation`.
 
+**Attachments (T16, from source, not exercised).** Stage each item on the session socket, then submit. This is the
+Desktop's path for bytes that are not on the gateway's disk (`apps/desktop/src/app/session/hooks/use-prompt-actions/index.ts:148`,
+`:165-230`); the local Desktop stages images over REST `POST /api/chat/image-upload` instead (`upload-server-image.ts:34-40`,
+when it owns the composer queue), which the relay does not carry and does not need: both write into Hermes' own tree, by Hermes.
+```json
+→ {"method":"image.attach_bytes","params":{"session_id":"…","content_base64":"<b64>","filename":"IMG_1.jpg"}}
+← {"result":{"attached":true,"path":"<home>/cache/images/upload_….jpg","mime":"image/jpeg","name":"…","bytes":N,…}}
+→ {"method":"file.attach","params":{"session_id":"…","name":"report.pdf","data_url":"data:application/pdf;base64,<b64>"}}
+← {"result":{"attached":true,"name":"report.pdf","path":"…","ref_path":"…","ref_text":"@file:<path>","uploaded":true}}
+→ {"method":"prompt.submit","params":{"session_id":"…","submission_id":"…","text":"@file:<path>\n\n<typed text>",
+     "attachments":[{"path":"<home>/cache/images/upload_….jpg","mime":"image/jpeg"}]}}
+```
+- `image.attach_bytes` params closed to `session_id`, `profile`, `content_base64`|`data`, `filename`, `ext`; Hermes trusts
+  the filename's extension first, so it must match the bytes; only PNG/JPEG/GIF/WebP, ≤ 25 MiB (`gateway/session_images.py:8-45`,
+  `tui_gateway/prompt_attachments.py:21`, `:91-99`). `file.attach` params closed to `session_id`, `profile`, `path`, `data_url`,
+  `name`, `staged_upload`; a `path` names a file on the PC, so the phone never sends one (`gateway/session_ancillary.py:137-180`).
+- `prompt.submit attachments`: ≤ 10 entries, each exactly `{path, mime}`, `mime` ∈ png/jpeg/gif/webp, `path` directly in
+  Hermes' image staging dir (`gateway/session_ingress_media.py:122-156`). Files ride in `text` as leading `@file:` lines; text
+  is `[refs, typed].join("\n\n")`, or `What do you see in this image?` for images alone (`submit.ts:289-303`, `:1080-1088`).
+- Retry: same `submission_id` and same text. Hermes recognises a retried admission by the images' sha256, not their staging
+  names (`session_ingress_media.py:158-181`), so images may be staged again; a file's `ref_text` must be reused (staging it
+  again may rename it and change the text).
+- No chunked upload exists: each staging call is one message (the Desktop's "one-shot file.attach", `apps/desktop/src/store/updates.ts:114`).
+  Through the relay that is one ≤ 1 MiB frame (§12).
+- Stored user rows name their attachments in text: native-vision rows end `\n\n[Image attached at: <home>/…/native-inputs/<sha256>/<name>]`
+  per image, then one `[screenshot]` line per image (`agent/image_routing.py:542-563`, `agent/session_persistence.py:122-141`);
+  older rows carry `@image:<path>` lines; files are the leading `@file:` block. The Desktop reads them this way
+  (`apps/desktop/src/lib/chat-messages/hydration.ts:40-50`, `:510-521`). A turn's `pending` text has the `@file:` lines only.
+
 ## 6. Approvals and clarify (EXERCISED — `d-*.jsonl`, `e-*.jsonl`)
 
 Canonical (authority) sockets get approvals and clarify as **events**, answered by methods
@@ -490,6 +519,9 @@ All listeners use the same port (config `port`, default 8760). The server never 
 
 All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"<message>"}`.
 
+There is no upload endpoint (T16): pictures and files go to Hermes as `image.attach_bytes` / `file.attach` frames on the
+relay socket (§5 Attachments, §12 Limits), and Hermes writes them into its own tree. aristotle-server stores no attachment.
+
 **`POST /v1/pair`** request body (JSON object, unknown fields refused, at most 4 KiB, must arrive within 10 s):
 `{"code":"<8 chars>","device_name":"<optional, ≤64 chars>"}`.
 - `code`: the code `aristotle-server pair` printed. Case-insensitive; hyphens and spaces ignored; `O`→`0`, `I`/`L`→`1`.
@@ -619,7 +651,7 @@ gets a normal result. Consequences:
 | `1001` | `going_away` | aristotle-server is stopping (also: a new socket during shutdown) | retry with backoff |
 | `1003` | `text_frames_only` | the phone sent a binary frame | fix the client |
 | `1008` | `desktop_local_refused` | the phone's `client.capabilities` named `desktop_local` (see Capabilities) | fix the client; never send it |
-| `1009` | `read limited at …` | a phone frame over 1 MiB (sent by the WebSocket library) | split/shrink; upload files via REST |
+| `1009` | `read limited at …` | a phone frame over 1 MiB (sent by the WebSocket library) | shrink it; an attachment must fit one frame (see Attachments below) |
 | `1011` | `pong_timeout` | within 15 s of a ping (sent every 25 s), no byte came from the phone and no write that had to wait for it got bytes out (see Keepalive) | reconnect; answer every ping and never block the read thread |
 | `1013` | `try_again` / Hermes' reason | Hermes draining or not ready, at dial (`ErrDraining`) or later (Hermes sent 1013) | retry with backoff |
 | `4401` | `revoked` | the device was revoked (`devices revoke`); every live socket of it closes within 1 s. A phone that has not read the 4401 within 0.5 s (not reading, or still draining buffered data) gets a TCP close instead | re-pair |
@@ -640,6 +672,14 @@ socket; a whole-transcript `session.resume` can be large, and Hermes itself acce
 `hermes_cli/web_server_boundary.py:26`); a larger one ends the relay with `4502 hermes_unavailable: connection lost`.
 Messages over 32 KiB reach the phone as a fragmented WebSocket message (32 KiB frames plus continuation frames;
 OkHttp reassembles them), so pings and close frames are not stuck behind one large frame.
+
+**Attachments and the frame cap (T16).** An attachment is one `image.attach_bytes` / `file.attach` frame (§5; Hermes has no
+chunks), so the phone sends at most 783 360 bytes per item (765 KiB: `(1 MiB − 4 KiB envelope) / 4 × 3`, base64), and at
+most 10 items plus the submit per message, well under 600 frames/min. The limits are not raised for this. Images over the cap,
+HEIC/HEIF/BMP, and PNG/WebP with Exif-GPS or XMP are re-encoded on the phone as JPEG (long edge 1568 px first, Hermes' own embed
+size, `tools/vision_tools.py:358-365`; no metadata); a JPEG that fits is sent as it is with its Exif GPS IFD blanked and XMP
+removed. A GIF over the cap and any other file over the cap are refused on the phone with the limit shown. Unlike the Desktop,
+which sends originals (`use-prompt-actions/utils.ts:515-537`), the phone strips location: phone photos carry GPS.
 
 **Keepalive.** aristotle-server sends the phone a WebSocket ping every 25 s, whatever the traffic (at most 4 unanswered
 pings outstanding). It closes the phone `1011` when, within 15 s of a ping, neither of these happened: a byte arrived

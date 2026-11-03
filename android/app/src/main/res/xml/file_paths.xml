@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- T16: only the camera's capture folder in the app cache is shared (with the camera app, write once). -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+</paths>
