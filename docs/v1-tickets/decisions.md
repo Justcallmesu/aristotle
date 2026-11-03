@@ -8,3 +8,4 @@
 - 2026-11-03 User approved installing Android platform 36 (PM ran sdkmanager). User said "that's all" for now: no new dispatch beyond the running wave-1 reviews until he says go; the T01 Desktop demo waits for him.
 - 2026-11-03 User granted the PM commit and push rights ("hereby i grant you to commit and push"). Rules in PROJECT.md Hard rules; PM SOUL.md updated to allow it only where PROJECT.md grants it.
 - 2026-11-03 User: do T09 before T08 (QR). Tailscale device test 2/3 postponed until T09 stores all PC addresses.
+- 2026-11-03 16:05 User: PAUSE (going home). T09b worker allowed to finish its build (no commit). Nothing new is dispatched until the user says go. Speed-up proposal (a) skip unaffected gate side, (c) minors folded into next ticket, (d) more parallelism: NOT yet approved.

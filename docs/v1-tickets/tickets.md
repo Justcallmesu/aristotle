@@ -220,3 +220,8 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 User reordered: T09 before T08. T09 dispatched (deep).
 - 2026-11-03 T09 built. Device: Wi-Fi off + Tailscale -> session list 'via Tailscale' (user paired over Tailscale at 14:39, /v1/pair 201 on the tailscale TLS listener). PM gates GREEN (runs/pm-gate-11: 234 Go, 111 android). Mutation: endpoint order forced LAN-first -> 4 tests fail. Review dispatched (deep).
 - 2026-11-03 T09 review PASS-WITH-FINDINGS (MAJOR unproven: /v1/addresses replaces the stored list, forgetting the home LAN address). Committed. T09b dispatched (deep).
+- 2026-11-03 16:05 PAUSED by the user. Demo aristotle-server (port 8760) and the mockup http.server (8099) stopped.
+  RESUME POINT: (1) read runs/T09b/build-report.md; run gates (runs/pm-gate-12) + one mutation; deep review; commit.
+  (2) Restart demo server on the T09b build (XDG dirs in pm scratch/demo, keeps the Poco pairing) and run the device test with the user:
+      Wi-Fi -> Wi-Fi off (auto Tailscale) -> Tailscale off (PC offline banner) -> back on (auto reconnect).
+  (3) Ask the user about speed-ups (a)/(c)/(d) before T10. Then T10, T08, T11-T13.
