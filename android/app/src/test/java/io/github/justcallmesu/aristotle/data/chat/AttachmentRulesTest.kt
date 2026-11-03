@@ -47,6 +47,42 @@ class AttachmentRulesTest {
         assertEquals(ImageKind.Heif, AttachmentRules.sniff("\u0000\u0000\u0000\u0018ftypheic".toByteArray(Charsets.ISO_8859_1)))
         assertEquals(ImageKind.Bmp, AttachmentRules.sniff("BM......".toByteArray()))
         assertEquals(ImageKind.Other, AttachmentRules.sniff(ByteArray(0)))
+        
+        // D43: MP4 isom -> Other
+        val mp4Isom = "\u0000\u0000\u0000\u0020ftypiso2\u0000\u0000\u0000\u0000iso2".toByteArray(Charsets.ISO_8859_1)
+        assertEquals(ImageKind.Other, AttachmentRules.sniff(mp4Isom))
+        
+        // D43: M4A 'M4A ' -> Other
+        val m4a = "\u0000\u0000\u0000\u0020ftypM4A \u0000\u0000\u0000\u0000M4A ".toByteArray(Charsets.ISO_8859_1)
+        assertEquals(ImageKind.Other, AttachmentRules.sniff(m4a))
+        
+        // D43: HEIC major brand -> Heif
+        val heic = "\u0000\u0000\u0000\u0018ftypheic".toByteArray(Charsets.ISO_8859_1)
+        assertEquals(ImageKind.Heif, AttachmentRules.sniff(heic))
+        
+        // D43: mif1 with heic compatible brand -> Heif
+        val mif1WithHeic = "\u0000\u0000\u0000\u0020ftypmif1\u0000\u0000\u0000\u0000heic".toByteArray(Charsets.ISO_8859_1)
+        assertEquals(ImageKind.Heif, AttachmentRules.sniff(mif1WithHeic))
+        
+        // D43: Text file starting with 'BM' -> Other
+        val fakeHeader = "BMW\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000test".toByteArray()
+        assertEquals(ImageKind.Other, AttachmentRules.sniff(fakeHeader))
+        
+        // D43: Real BMP header (with valid DIB size 40 (BITMAPINFOHEADER))
+        val realBmp = byteArrayOf(
+            0x42, 0x4D,  // "BM"
+            0x26, 0x04, 0x00, 0x00,  // File size: 1062 bytes
+            0x00, 0x00,  // Reserved 1
+            0x00, 0x00,  // Reserved 2
+            0x36, 0x00, 0x00, 0x00,  // Pixel data offset: 54 bytes
+            0x28, 0x00, 0x00, 0x00,  // DIB header size: 40 (BITMAPINFOHEADER)
+            0x10, 0x00, 0x00, 0x00,  // Width
+            0x10, 0x00, 0x00, 0x00,  // Height
+            0x01, 0x00,  // Planes
+            0x18, 0x00,  // Bits per pixel
+            0x00, 0x00, 0x00, 0x00   // Compression
+        )
+        assertEquals(ImageKind.Bmp, AttachmentRules.sniff(realBmp))
     }
 
     @Test

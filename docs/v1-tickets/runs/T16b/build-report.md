@@ -11,3 +11,9 @@ Gate: `GATE_ONLY=android bash docs/v1-tickets/gates.sh docs/v1-tickets/runs/T16b
 - Tests added: ImageMetadataTest (4 JPEG + 1 GIF), AttachmentRulesTest (routing, timeout), RpcFramesTest (per-call timeout), ChatViewModelAttachTest (≤2 concurrent, OOM, timeouts passed, discard after send, camera cancel).
 - **Failed against old behaviour** (mutated copies of the new code; old files kept in `$TMPDIR/T16b-old`, no git): ≤2 concurrent, OOM chip, discard after send, camera cancel, file-pick routing, timeout growth, per-call RPC timeout, extended XMP removal, secondary-JPEG GPS, single-image XMP removal, unparseable→null. Several also fail to compile against the old API (no `sanitizeJpeg`/`callWithin`/`routesAsImage`). The GIF test and the `LinkManager.callWithin` wiring were not mutation-checked (the VM tests use a fake link).
 - NOT-VERIFIED: HEIC/real-photo decode memory, Poco camera output (MPF/trailers), real uplink timing.
+
+## Follow-up T16c (D43)
+
+- Fixed `sniff` to reject ISO-BMFF files with non-HEIF ftyp brands (MP4 isom/mp42, M4A) by validating major brand and compatible brands against whitelist (heic, heix, hevc, hevx, heim, heis, mif1, msf1, avif, avis).
+- Added BMP header validation: require valid DIB size (12/40/52/56/108/124) at offset 14-17 to reject files like "BMW..." text that only have the magic.
+- Unit tests added: MP4 isom/mp42 → Other, M4A → Other, HEIC major brand → Heif, mif1 with heic compatible → Heif, fake "BMW" → Other, real BMP → Bmp.

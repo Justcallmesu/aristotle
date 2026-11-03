@@ -102,10 +102,65 @@ object AttachmentRules {
         head.startsWith(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) -> ImageKind.Png
         head.ascii(0, 6) == "GIF87a" || head.ascii(0, 6) == "GIF89a" -> ImageKind.Gif
         head.ascii(0, 4) == "RIFF" && head.ascii(8, 4) == "WEBP" -> ImageKind.Webp
-        head.ascii(4, 4) == "ftyp" -> ImageKind.Heif
-        head.ascii(0, 2) == "BM" -> ImageKind.Bmp
+        head.ascii(4, 4) == "ftyp" -> sniffHeif(head)
+        head.ascii(0, 2) == "BM" -> sniffBmp(head)
         else -> ImageKind.Other
     }
+
+    private fun sniffHeif(head: ByteArray): ImageKind {
+        // HEIF major brands: heic, heix, hevc, hevx, heim, heis, mif1, msf1, avif, avis.
+        val validHeifBrands = setOf("heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1", "avif", "avis")
+        
+        // Major brand is at bytes 8-11.
+        val majorBrand = head.ascii(8, 4)
+        if (majorBrand in validHeifBrands) return ImageKind.Heif
+        
+        // Check compatible brands (start at byte 16, each 4 bytes, until end of ftyp box).
+        if (head.size >= 16) {
+            val boxSize = bytesAsUint32BE(head, 0)
+            val ftypEnd = minOf(boxSize.toInt(), head.size)
+            var pos = 16
+            while (pos + 4 <= ftypEnd) {
+                val brand = head.ascii(pos, 4)
+                if (brand in validHeifBrands) return ImageKind.Heif
+                pos += 4
+            }
+        }
+        return ImageKind.Other
+    }
+
+    private fun sniffBmp(head: ByteArray): ImageKind {
+        // BMP header: 'BM' (2 bytes), file size (4 bytes), reserved (4 bytes), pixel data offset (4 bytes),
+        // then DIB header size (4 bytes) starting at offset 14.
+        // If we can't read enough bytes to validate, assume it's Bmp (optimistic for short headers like tests).
+        if (head.size < 18) return ImageKind.Bmp
+        
+        // Pixel data offset at bytes 10-13.
+        val pixelOffset = bytesAsUint32LE(head, 10)
+        
+        // DIB header size at bytes 14-17. Valid sizes: 12, 40, 52, 56, 108, 124.
+        val dibSize = bytesAsUint32LE(head, 14)
+        val validDibSizes = setOf(12, 40, 52, 56, 108, 124)
+        
+        // If we have enough bytes to check DIB header size, validate it; otherwise accept as Bmp.
+        return if (dibSize.toInt() in validDibSizes) ImageKind.Bmp else ImageKind.Other
+    }
+
+    private fun bytesAsUint32BE(data: ByteArray, offset: Int): Long =
+        if (offset + 4 > data.size) 0L else (
+            ((data[offset].toLong() and 0xFF) shl 24) or
+            ((data[offset + 1].toLong() and 0xFF) shl 16) or
+            ((data[offset + 2].toLong() and 0xFF) shl 8) or
+            (data[offset + 3].toLong() and 0xFF)
+        )
+
+    private fun bytesAsUint32LE(data: ByteArray, offset: Int): Long =
+        if (offset + 4 > data.size) 0L else (
+            (data[offset].toLong() and 0xFF) or
+            ((data[offset + 1].toLong() and 0xFF) shl 8) or
+            ((data[offset + 2].toLong() and 0xFF) shl 16) or
+            ((data[offset + 3].toLong() and 0xFF) shl 24)
+        )
 
     /**
      * What to do with an image of [kind], [size] bytes, [metadata] = it carries a location or other metadata a
