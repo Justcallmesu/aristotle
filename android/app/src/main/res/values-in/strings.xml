@@ -45,12 +45,8 @@
     <string name="sessions_via_wifi">%1$s · lewat Wi-Fi</string>
     <string name="sessions_via_tailscale">%1$s · lewat Tailscale</string>
     <string name="sessions_offline_line">%1$s · offline</string>
-    <string name="sessions_profile_label">Profil</string>
     <string name="sessions_profile_description">Profil Hermes: %1$s</string>
     <string name="sessions_connecting">Menghubungkan ke %1$s…</string>
-    <string name="sessions_section_today">Hari ini</string>
-    <string name="sessions_section_yesterday">Kemarin</string>
-    <string name="sessions_section_earlier">Sebelumnya</string>
     <string name="session_running">Berjalan</string>
     <string name="session_was_running">Terakhir berjalan pukul %1$s</string>
     <string name="session_now">baru saja</string>
@@ -58,8 +54,38 @@
     <plurals name="session_messages">
         <item quantity="other">%d pesan</item>
     </plurals>
-    <string name="sessions_empty_title">Tidak ada sesi terbuka</string>
-    <string name="sessions_empty_body">Sesi yang terbuka di Hermes pada laptop muncul di sini.</string>
+    <string name="sessions_empty_title">Belum ada sesi</string>
+    <string name="sessions_empty_body">Sesi dari Hermes di laptop muncul di sini, yang aktif di atas.</string>
+    <string name="sessions_section_pinned">Disematkan di ponsel ini</string>
+    <string name="sessions_section_live">Aktif</string>
+    <string name="sessions_section_history">Riwayat</string>
+    <string name="sessions_search">Cari sesi</string>
+    <string name="sessions_search_close">Tutup pencarian</string>
+    <string name="sessions_search_clear">Hapus pencarian</string>
+    <string name="sessions_search_scope">Mencari judul yang sudah dimuat di ponsel ini. Muat riwayat lagi untuk mencari lebih jauh.</string>
+    <string name="sessions_search_none">Tidak ada sesi termuat dengan judul seperti itu.</string>
+    <string name="sessions_load_more">Muat lagi</string>
+    <string name="sessions_loading_more">Memuat sesi lama…</string>
+    <string name="sessions_history_capped">Hermes menampilkan 200 terbaru di sini. Sesi yang lebih lama ada di PC.</string>
+    <string name="sessions_new">Sesi baru</string>
+    <string name="sessions_new_busy">Membuat…</string>
+    <string name="sessions_new_failed">Tidak bisa membuat sesi: %1$s</string>
+    <string name="sessions_profiles_title">Profil Hermes</string>
+    <string name="sessions_profiles_body">Setiap profil punya sesi, memori, dan skill sendiri.</string>
+    <string name="sessions_profiles_loading">Memuat profil…</string>
+    <string name="sessions_profiles_failed">Tidak bisa memuat profil: %1$s</string>
+    <string name="session_actions">Tindakan sesi</string>
+    <string name="session_pinned">Disematkan</string>
+    <string name="session_pin">Sematkan di ponsel ini</string>
+    <string name="session_unpin">Lepas sematan di ponsel ini</string>
+    <string name="session_pin_scope">Hanya ponsel ini yang menampilkan sematan. Desktop punya sematan sendiri.</string>
+    <string name="session_rename">Ganti nama</string>
+    <string name="session_rename_title">Ganti nama sesi</string>
+    <string name="session_rename_field">Judul</string>
+    <string name="session_rename_save">Ganti nama</string>
+    <string name="session_rename_busy">Mengganti…</string>
+    <string name="session_rename_cancel">Batal</string>
+    <string name="session_rename_failed">Tidak bisa mengganti nama: %1$s</string>
 
     <!-- Connection pages -->
     <string name="conn_details">Detail</string>

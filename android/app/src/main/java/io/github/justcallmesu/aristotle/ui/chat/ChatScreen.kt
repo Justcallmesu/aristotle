@@ -81,7 +81,7 @@ import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit) {
+fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit, focusComposer: Boolean = false) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
@@ -96,6 +96,7 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
         actions = actions,
         composer = composer,
         echoes = EchoActions(onRetry = viewModel::retrySend, onDismiss = viewModel::dismissFailed, onMessageShown = viewModel::composerMessageShown),
+        focusComposer = focusComposer,
     )
 }
 
@@ -138,6 +139,8 @@ fun ChatContentView(
     actions: PromptActions,
     composer: ComposerActions,
     echoes: EchoActions,
+    /** A session just created (T14): the composer takes focus once it shows. */
+    focusComposer: Boolean = false,
 ) {
     val feed = state.feed
     val chat = feed.chat
@@ -179,7 +182,9 @@ fun ChatContentView(
                 }
                 SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
             }
-            if (feed.loaded) Composer(state.composer, running = chat.running, queued = ComposerLogic.queuedRows(feed, state.composer.outbox), actions = composer)
+            if (feed.loaded) {
+                Composer(state.composer, running = chat.running, queued = ComposerLogic.queuedRows(feed, state.composer.outbox), actions = composer, focusOnStart = focusComposer)
+            }
         }
     }
     if (state.sheet.visible(chat)) {

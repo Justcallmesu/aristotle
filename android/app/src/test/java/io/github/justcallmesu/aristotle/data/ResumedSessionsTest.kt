@@ -65,4 +65,32 @@ class ResumedSessionsTest {
         assertTrue(resumed.requestFor(1, "a", profile = "pm"))
         assertFalse(resumed.requestFor(2, "a", profile = "pm")) // a newer socket starts empty
     }
+
+    // T14: leaving a profile forgets its sessions except open chats, and hands back their subscription ids.
+    @Test
+    fun leavingAProfileKeepsOpenChatsAndReturnsSubscriptionIds() {
+        val resumed = ResumedSessions()
+        resumed.claim(1, "a")
+        resumed.subscribed(1, "a", null, "sub-a")
+        resumed.claim(1, "b")
+        resumed.claim(1, "c")
+        resumed.openChat("c")
+        resumed.claim(1, "a", profile = "pm")
+        resumed.subscribed(1, "zzz", null, "never-claimed")
+        assertEquals(setOf("a" to "sub-a", "b" to null), resumed.leave(1, null).toSet())
+        assertEquals(setOf("c"), resumed.snapshot(1))
+        assertEquals(setOf("a"), resumed.snapshot(1, "pm"))
+        assertTrue(resumed.requestFor(1, "a", profile = "pm")) // the launch profile's "a" is gone from this socket
+        assertEquals(emptyList<Pair<String, String?>>(), resumed.leave(0, "pm")) // an older socket changes nothing
+    }
+
+    @Test
+    fun chatsAreCountedPerProfile() {
+        val resumed = ResumedSessions()
+        resumed.openChat("a", profile = "pm")
+        assertTrue(resumed.chatOpen("a", profile = "pm"))
+        assertFalse(resumed.chatOpen("a"))
+        resumed.closeChat("a")
+        assertTrue(resumed.chatOpen("a", profile = "pm"))
+    }
 }

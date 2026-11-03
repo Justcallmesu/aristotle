@@ -156,4 +156,16 @@ class AlertRouterTest {
         assertEquals(listOf(NotifyAction.Cancel("turn:s1"), NotifyAction.Cancel("needs:s1")), router.onOpened("s1"))
         assertEquals(emptyList<NotifyAction>(), router.onAlert(SessionAlert.Settled("s1", "p1"), away))
     }
+
+    // T14: the watcher left the session's profile; its settle can no longer arrive, so its prompt notification goes.
+    @Test
+    fun anUnwatchedSessionLosesItsPromptNotificationAndAlertsKeepTheirProfile() {
+        val router = AlertRouter()
+        val notice = post(router.onAlert(SessionAlert.NeedsYou("s1", "t", "p1", PromptKind.Approval, null, profile = "pm"), away))
+        assertEquals("pm", notice.profile)
+        assertEquals("pm", post(router.onAlert(SessionAlert.TurnFinished("s2", "t", "done", profile = "pm"), away)).profile)
+        assertEquals(listOf(NotifyAction.Cancel("needs:s1")), router.onAlert(SessionAlert.Unwatched("s1"), away))
+        assertEquals(emptyList<NotifyAction>(), router.onAlert(SessionAlert.Unwatched("s1"), away))
+        assertEquals(false, post(router.onAlert(SessionAlert.NeedsYou("s1", "t", "p1", PromptKind.Approval, null), away)).repeat)
+    }
 }

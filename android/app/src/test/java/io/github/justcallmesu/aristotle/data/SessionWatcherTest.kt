@@ -58,10 +58,11 @@ class SessionWatcherTest {
     private fun run(
         link: FakeLink,
         resumed: ResumedSessions = ResumedSessions(),
+        profile: StateFlow<String?> = MutableStateFlow(null),
         script: suspend (StateFlow<List<SessionAlert>>) -> Unit,
     ): List<SessionAlert> = runBlocking {
         val seen = MutableStateFlow<List<SessionAlert>>(emptyList())
-        val job = launch { SessionWatcher(link, fast, resumed).alerts().collect { seen.value = seen.value + it } }
+        val job = launch { SessionWatcher(link, fast, resumed, profile).alerts().collect { seen.value = seen.value + it } }
         withTimeout(10_000) { script(seen) }
         job.cancel()
         seen.value
@@ -305,5 +306,50 @@ class SessionWatcherTest {
             delay(50)
         }
         assertEquals(emptySet<String>(), resumed.snapshot(1))
+    }
+
+    // T14 profile switch on the same socket: the old profile's watched sessions are detached (an open chat keeps
+    // its own), only the new profile's sessions are listed, resumed and alert, and alerts carry their profile.
+    @Test
+    fun aProfileSwitchDetachesTheOldProfileAndWatchesTheNewOne() {
+        val profile = MutableStateFlow<String?>(null)
+        val resumed = ResumedSessions()
+        val link = FakeLink { call ->
+            val pm = call.params["profile"]?.jsonPrimitive?.content == "pm"
+            when (call.method) {
+                "session.list" -> if (pm) list("b" to true) else list("a" to true, "c" to true)
+                "session.resume" -> {
+                    val id = call.params["session_id"]!!.jsonPrimitive.content
+                    json("""{"session_id":"$id","running":true,"prompts":[],"info":{},"subscription_id":"sub-$id"}""")
+                }
+                else -> json("""{"detached":true}""")
+            }
+        }
+        val alerts = run(link, resumed, profile) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            waitUntil { link.resumed() == listOf("a", "c") }
+            resumed.openChat("c") // a chat of the launch profile is on screen
+            link.event("message.complete", "a", """{"text":"done a","outcome":"completed"}""")
+            seen.first { it.any { a -> a is SessionAlert.TurnFinished } }
+            profile.value = "pm"
+            waitUntil { link.resumed() == listOf("a", "c", "b") }
+            link.event("message.complete", "a", """{"text":"old profile","outcome":"completed"}""")
+            link.event("message.complete", "c", """{"text":"open chat, old profile","outcome":"completed"}""")
+            link.event("message.complete", "b", """{"text":"done b","outcome":"completed"}""")
+            seen.first { it.count { a -> a is SessionAlert.TurnFinished } == 2 }
+            delay(100)
+        }
+        val detach = link.calls.single { it.method == "session.detach" }
+        assertEquals(json("""{"session_id":"a","subscription_id":"sub-a"}"""), detach.params)
+        val pmCalls = link.calls.filter { it.method == "session.list" || it.method == "session.resume" }.drop(3)
+        assertTrue(pmCalls.all { it.params["profile"]?.jsonPrimitive?.content == "pm" })
+        assertEquals(
+            listOf(SessionAlert.TurnFinished("a", "Title a", "done a"), SessionAlert.TurnFinished("b", "Title b", "done b", profile = "pm")),
+            alerts.filterIsInstance<SessionAlert.TurnFinished>(),
+        )
+        assertTrue(SessionAlert.Unwatched("a") in alerts)
+        assertTrue(SessionAlert.Unwatched("c") !in alerts)
+        assertEquals(setOf("c"), resumed.snapshot(1))
+        assertEquals(setOf("b"), resumed.snapshot(1, "pm"))
     }
 }

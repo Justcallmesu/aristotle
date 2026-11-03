@@ -25,6 +25,9 @@ import io.github.justcallmesu.aristotle.data.HttpLinkDialer
 import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
 import io.github.justcallmesu.aristotle.data.LinkManager
 import io.github.justcallmesu.aristotle.data.LinkState
+import io.github.justcallmesu.aristotle.data.ProfileSelection
+import io.github.justcallmesu.aristotle.data.SessionPins
+import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -47,8 +50,11 @@ enum class PairNotice {
     PairAgain,
 }
 
-/** A notification asked to show [sessionId]'s chat; [showPrompt]: with the prompt sheet up (T12). */
-data class OpenChat(val sessionId: String, val title: String?, val showPrompt: Boolean)
+/**
+ * A notification asked to show [sessionId]'s chat; [showPrompt]: with the prompt sheet up (T12). [profile]: the
+ * session's Hermes profile (null = the relay's launch profile, T14).
+ */
+data class OpenChat(val sessionId: String, val title: String?, val showPrompt: Boolean, val profile: String? = null)
 
 /** The app's long-lived objects, built once per process. No DI framework. */
 class AppContainer(context: Context) {
@@ -79,6 +85,12 @@ class AppContainer(context: Context) {
 
     /** Unsent composer text per session (T13): this phone only, written in the background as the user types. */
     val drafts = ChatDrafts(ApplyingPreferencesStore(context.getSharedPreferences(DRAFTS_FILE, Context.MODE_PRIVATE)))
+
+    /** The Hermes profile the list shows and the watcher follows (Q25, T14), remembered per PC. */
+    val profileSelection = ProfileSelection(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
+
+    /** Session pins on this phone only (T14; Hermes' own pin is not readable over the relay). */
+    val pins = SessionPins(ApplyingPreferencesStore(context.getSharedPreferences(PINS_FILE, Context.MODE_PRIVATE)))
     val notifier = Notifier(context)
     val background = BackgroundController(context, link, credentials.state, settings, scope)
 
@@ -106,6 +118,7 @@ class AppContainer(context: Context) {
         reloadCredentials()
         link.start()
         scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
+        scope.launch { credentials.state.collect { profileSelection.follow((it as? CredentialState.Paired)?.credentials?.pcId) } }
         notifier.createChannels()
         watchSessions()
     }
@@ -113,7 +126,7 @@ class AppContainer(context: Context) {
     /** Notifications from the watched sessions (T10); router and notifier run on the main thread. */
     private fun watchSessions() {
         scope.launch {
-            SessionWatcher(link, resumed = resumedSessions).alerts().flowOn(Dispatchers.Default).collect { alert ->
+            SessionWatcher(link, resumed = resumedSessions, profile = profileSelection.selected).alerts().flowOn(Dispatchers.Default).collect { alert ->
                 alerts.onAlert(alert, ScreenFocus(background.appVisible.value, openSession.value)).forEach(notifier::apply)
             }
         }
@@ -143,6 +156,7 @@ class AppContainer(context: Context) {
         const val CREDENTIALS_FILE = "credentials"
         const val SETTINGS_FILE = "settings"
         const val DRAFTS_FILE = "drafts"
+        const val PINS_FILE = "pins"
         const val TAG = "Aristotle"
     }
 }

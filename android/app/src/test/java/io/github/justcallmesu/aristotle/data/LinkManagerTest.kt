@@ -51,7 +51,8 @@ class LinkManagerTest {
 
     private fun stopLinks() = scope.coroutineContext[Job]!!.children.forEach { it.cancel() }
 
-    private class FakeSocket : RelayChannel {
+    /** [onCollect]: runs when the link starts reading the socket (before any frame is handed over). */
+    private class FakeSocket(private val onCollect: () -> Unit = {}) : RelayChannel {
         private val incoming = Channel<RelayEvent>(Channel.UNLIMITED)
         val sent = CopyOnWriteArrayList<String>()
 
@@ -67,7 +68,10 @@ class LinkManagerTest {
         var active = false
 
         override fun events(): Flow<RelayEvent> = incoming.receiveAsFlow()
-            .onStart { active = true }
+            .onStart {
+                active = true
+                onCollect()
+            }
             .onCompletion {
                 active = false
                 closedByPhone = true
@@ -417,6 +421,35 @@ class LinkManagerTest {
         assertTrue(dialer.sockets.first().closedByPhone)
         assertEquals(0, dialer.mostActiveAtOpen)
         assertEquals(listOf(lan, tailnet), dialer.opened)
+    }
+
+    // D29: a network change raised while the connect was in flight but taken after `gateway.ready` won the race is
+    // about the network this relay came up on: it is cleared, so it does not end the relay at once (one wasted
+    // reconnect after every Wi-Fi move). Unconfined makes the order exact: the change is raised as the link starts
+    // reading the socket, and its wake lands after the start wait chose `gateway.ready`, before the relay is online.
+    @Test
+    fun aNetworkChangeRaisedDuringTheConnectDoesNotEndTheRelayThatCameUp() {
+        val network = FakeNetwork(lan = true)
+        val exact = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> uncaught += e })
+        val dialer = FakeDialer { _, n -> FakeSocket(onCollect = { if (n == 0) network.changes.tryEmit(Unit) }).ready() }
+        try {
+            val manager = LinkManager(
+                scope = exact,
+                credentials = credentials,
+                dialer = dialer,
+                network = network,
+                memory = { _, _, _ -> },
+                timings = LinkTimings(readyTimeoutMillis = 2_000, rpcTimeoutMillis = 2_000, backoff = Backoff(baseMillis = 40, capMillis = 200, random = { 1.0 })),
+            ).also { it.start() }
+            val online = manager.await("online") { it is LinkState.Online } as LinkState.Online
+            waitFor("the change was seen") { dialer.networkChanges == 1 }
+            runBlocking { delay(200) }
+            assertEquals(online, manager.state.value)
+            assertEquals(listOf(lan), dialer.opened)
+        } finally {
+            exact.cancel()
+        }
+        assertTrue(uncaught.isEmpty())
     }
 
     // T09b: a socket that ends the usual way (the server closed it) is not cancelled on top.

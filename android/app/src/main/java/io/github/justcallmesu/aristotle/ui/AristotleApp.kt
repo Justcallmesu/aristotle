@@ -79,26 +79,35 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
     }
     var chatId by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var chatTitle by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
+    // The chat's Hermes profile (null = the relay's launch profile): it keeps it whatever the list shows later (T14).
+    var chatProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
+    var focusComposer by rememberSaveable(pc.pcId) { mutableStateOf(false) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
     // A notification tap: that session's chat (ChatRoute raises the prompt sheet and takes the request).
     val openRequest by container.openChat.collectAsStateWithLifecycle()
     LaunchedEffect(openRequest) {
         val request = openRequest ?: return@LaunchedEffect
-        if (chatId != request.sessionId) chatTitle = request.title
+        if (chatId != request.sessionId || chatProfile != request.profile) chatTitle = request.title
         chatId = request.sessionId
+        chatProfile = request.profile
+        focusComposer = false
         page = PairedPage.Chat
     }
     BackHandler(enabled = page != PairedPage.Sessions) { page = page.back }
     when (page) {
         PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
-            val sessionsViewModel = viewModel { SessionsViewModel(pc, container.link, container.drafts) }
+            val sessionsViewModel = viewModel {
+                SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins)
+            }
             SessionsScreen(
                 sessionsViewModel,
                 onPairAgain = { container.forgetPc(reason = null) },
                 onSettings = { page = PairedPage.Settings },
-                onOpen = { row ->
-                    chatId = row.key
-                    chatTitle = row.title
+                onOpen = { request ->
+                    chatId = request.sessionId
+                    chatTitle = request.title
+                    chatProfile = request.profile
+                    focusComposer = request.focusComposer
                     page = PairedPage.Chat
                 },
             )
@@ -114,17 +123,25 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
         PairedPage.Chat -> {
             val id = chatId
-            if (id != null) ChatRoute(container, chatRoutes, id, chatTitle, onBack = { page = page.back }) else LaunchedEffect(Unit) { page = PairedPage.Sessions }
+            if (id != null) {
+                ChatRoute(container, chatRoutes, ChatTarget(id, chatTitle, chatProfile, focusComposer), onBack = { page = page.back })
+            } else {
+                LaunchedEffect(Unit) { page = PairedPage.Sessions }
+            }
         }
     }
 }
+
+/** The chat to show: its session, a title until Hermes sends one, its profile, and whether to focus the composer. */
+private data class ChatTarget(val sessionId: String, val title: String?, val profile: String?, val focusComposer: Boolean)
 
 /**
  * One session's chat. While it is on screen it is [AppContainer.openSession] (no notifications for it, T10);
  * leaving it clears its ViewModel, which ends its subscription work. A rotation keeps both.
  */
 @Composable
-private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, sessionId: String, title: String?, onBack: () -> Unit) {
+private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: ChatTarget, onBack: () -> Unit) {
+    val sessionId = target.sessionId
     val activity = LocalActivity.current
     DisposableEffect(sessionId) {
         container.openSession.value = sessionId
@@ -133,15 +150,17 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, sessionI
             if (activity?.isChangingConfigurations != true) chatRoutes.clear()
         }
     }
-    RouteScope(chatRoutes, "chat-$sessionId") {
-        val chatViewModel = viewModel { ChatViewModel(sessionId, container.link, container.resumedSessions, container.drafts) }
+    RouteScope(chatRoutes, "chat-${target.profile.orEmpty()}-$sessionId") {
+        val chatViewModel = viewModel {
+            ChatViewModel(sessionId, container.link, container.resumedSessions, container.drafts, profile = target.profile)
+        }
         val openRequest by container.openChat.collectAsStateWithLifecycle()
         LaunchedEffect(openRequest) {
             val request = openRequest?.takeIf { it.sessionId == sessionId } ?: return@LaunchedEffect
             if (request.showPrompt) chatViewModel.openSheet()
             container.openChat.compareAndSet(request, null)
         }
-        ChatScreen(chatViewModel, fallbackTitle = title, onBack = onBack)
+        ChatScreen(chatViewModel, fallbackTitle = target.title, onBack = onBack, focusComposer = target.focusComposer)
     }
 }
 

@@ -40,13 +40,14 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | DONE |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | DONE |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | DONE |
-| T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
+| T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | DONE |
 | T15 | Model + reasoning switch; slash commands | T13 | android | TODO ⟳ |
 | T16 | Send pictures and files | T13 | android (+server) | TODO ⟳ |
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | TODO ⟳ |
 | TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | DONE |
+| T14b | T14 minors: stored-list failure must not hide live sessions; sessions.changed refetch debounced + live-only (stored refreshed on open/pull/load-more); unserved remembered profile falls back to the launch profile so the watcher keeps notifying; NITs from runs/T14/review-report.md | T14 | android | BUILDING |
 | TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | TODO |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
@@ -278,3 +279,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 T13b + T13c (draft prune by 30-day age, not list membership: session.list caps at 50) PM gate GREEN runs/pm-gate-22 (318 tests); mutation (no 4409 backstop) fails 2 tests. Committed; review folded into T08's review.
 - 2026-11-04 T08 built. PM gate GREEN both sides runs/pm-gate-23 (271 Go, 333 Android). PM mutations: fp regex relaxed survives (Fingerprint.parse also checks length — equivalent mutant), address validator skipped fails 2 tests. PM fixed design.md pairing paragraph (stale since Q49). Deep review dispatched.
 - 2026-11-04 T08 review PASS-WITH-FINDINGS (trust: each attempt pinned to the QR fp, code never sent to a wrong cert, 403/conn error do not burn the code). Committed. D40 needs the user's decision.
+- 2026-11-04 T14 dispatched (deep) with D29 + D30.
+- 2026-11-04 T14 built. PM gate GREEN both sides runs/pm-gate-24 (274 Go, 364 Android); PM mutation (pinned row also in Live) fails 1 test. Deep review dispatched (focus: source-only methods, rename revision-0 overwrite, profile routing).
+- 2026-11-04 T14 review PASS-WITH-FINDINGS (all source-only methods match; rename = last writer wins, accepted, documented in protocol §4 by PM). Committed. T14b (std) for the minors that affect notifications/traffic.

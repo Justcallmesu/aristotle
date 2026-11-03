@@ -21,7 +21,10 @@ val HermesJson: Json = Json {
     explicitNulls = false
 }
 
-data class RpcError(val code: Int, val message: String)
+/** A JSON-RPC error; [data] is Hermes' `error.data` (`reason`, and fresh fences on a CAS refusal, protocol §4). */
+data class RpcError(val code: Int, val message: String, val data: JsonObject? = null) {
+    val reason: String? get() = (data?.get("reason") as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+}
 
 /** One JSON-RPC 2.0 text frame from the relay, classified (docs/protocol.md §1.3, §2). */
 sealed interface InboundFrame {
@@ -107,7 +110,7 @@ object RpcFrames {
 
     private fun response(id: Long, obj: JsonObject): InboundFrame {
         val error = (obj["error"] as? JsonObject)?.let {
-            RpcError(it["code"]?.jsonPrimitive?.intOrNull ?: 0, it.stringOrNull("message").orEmpty())
+            RpcError(it["code"]?.jsonPrimitive?.intOrNull ?: 0, it.stringOrNull("message").orEmpty(), it["data"] as? JsonObject)
         }
         return InboundFrame.Response(id, obj["result"], error)
     }
@@ -125,10 +128,15 @@ data class SessionSummary(
     @SerialName("last_active") val lastActive: Double? = null,
     @SerialName("message_count") val messageCount: Int = 0,
     val running: Boolean = false,
+    /** Stored rows: the physical (compression tip) id the row resumes (`gateway/session_listing.py:21-24`). */
+    @SerialName("resolved_id") val resolvedId: String? = null,
 ) {
     /** Seconds since the epoch of the latest known activity; `session.list` only carries `started_at` today. */
     val lastActivitySeconds: Double? get() = lastActive ?: startedAt
     val key: String get() = sessionId.ifEmpty { id }
+
+    /** Every id this row answers to; a live row and a stored row that share one are the same conversation. */
+    val ids: Set<String> get() = setOfNotNull(sessionId.ifEmpty { null }, id.ifEmpty { null }, resolvedId?.ifEmpty { null })
 }
 
 @Serializable

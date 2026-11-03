@@ -147,7 +147,7 @@ class Notifier(private val context: Context) {
     private fun openSession(notice: AlertNotice): PendingIntent = PendingIntent.getActivity(
         context,
         notice.tag.hashCode(),
-        MainActivity.openIntent(context, notice.sessionId, notice.title, showPrompt = notice.channel == AlertChannel.NeedsYou),
+        MainActivity.openIntent(context, notice.sessionId, notice.title, showPrompt = notice.channel == AlertChannel.NeedsYou, profile = notice.profile),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 

@@ -36,6 +36,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -71,7 +74,14 @@ private const val FIELD_MAX_LINES = 6
  * thing for [ComposerLogic.ARM_MS] ([ComposerState.armed]); the ViewModel drops an earlier tap anyway.
  */
 @Composable
-fun Composer(state: ComposerState, running: Boolean, queued: List<QueuedRow>, actions: ComposerActions, modifier: Modifier = Modifier) {
+fun Composer(
+    state: ComposerState,
+    running: Boolean,
+    queued: List<QueuedRow>,
+    actions: ComposerActions,
+    modifier: Modifier = Modifier,
+    focusOnStart: Boolean = false,
+) {
     val online = state.mode != ComposerMode.Offline
     val ready = state.armed && online
     val hasText = state.draft.isNotBlank()
@@ -87,7 +97,7 @@ fun Composer(state: ComposerState, running: Boolean, queued: List<QueuedRow>, ac
         ) {
             if (online) queued.forEachIndexed { index, row -> QueuedLine(index + 1, row, state, ready, actions) }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                ComposerField(state, enabled = online, onEdit = actions::edit, modifier = Modifier.weight(1f))
+                ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, modifier = Modifier.weight(1f))
                 if (!running || !online) {
                     SendButton(enabled = ready && state.mode == ComposerMode.Idle && !state.blocked && hasText, onClick = actions::send)
                 }
@@ -106,8 +116,17 @@ fun Composer(state: ComposerState, running: Boolean, queued: List<QueuedRow>, ac
  * changes the draft itself (sent, put back), and only then is the field reset, so a late state never undoes typing.
  */
 @Composable
-private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (String) -> Unit, focusOnStart: Boolean, modifier: Modifier = Modifier) {
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(state.draft, TextRange(state.draft.length))) }
+    // Focused once (a new session, T14); not again after a rotation, which would pop the keyboard back up.
+    val focus = remember { FocusRequester() }
+    var focused by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(focusOnStart, enabled) {
+        if (focusOnStart && enabled && !focused) {
+            focus.requestFocus()
+            focused = true
+        }
+    }
     LaunchedEffect(state.draftEpoch) {
         if (field.text != state.draft) field = TextFieldValue(state.draft, TextRange(state.draft.length))
     }
@@ -124,7 +143,7 @@ private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (Strin
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = if (enabled) colors.onSurface else colors.onSurfaceVariant),
         cursorBrush = SolidColor(colors.primary),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modifier = modifier.heightIn(min = Sizes.minTouchTarget).semantics { contentDescription = description },
+        modifier = modifier.heightIn(min = Sizes.minTouchTarget).focusRequester(focus).semantics { contentDescription = description },
         decorationBox = { inner ->
             Box(
                 modifier = Modifier

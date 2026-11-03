@@ -42,14 +42,16 @@ data class ChatFeedState(
  *   `truncated`, no `snapshot_required`), then `session.resume {omit_messages}` only if nobody resumed it on the
  *   new socket yet; otherwise the full resume above.
  * Frames are queued the moment they arrive (they keep flowing during a call) and reduced where the flow is
- * collected; the caller runs it on a background dispatcher (protocol §12). The session is the launch profile's
- * (calls without `profile`; [ResumedSessions] entries with profile null).
+ * collected; the caller runs it on a background dispatcher (protocol §12). The session is [profile]'s (null = the
+ * launch profile): [link] is expected to route the calls there ([io.github.justcallmesu.aristotle.data.ProfileLink]),
+ * and the [ResumedSessions] entries are (profile, session id) pairs (T14).
  */
 class ChatFeed(
     private val link: RelayLink,
     private val resumed: ResumedSessions,
     private val sessionId: String,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val profile: String? = null,
 ) {
     /**
      * [from]: the state a retry starts from. A chat already loaded keeps its transcript and catches up, instead
@@ -57,14 +59,14 @@ class ChatFeed(
      */
     fun states(from: ChatFeedState? = null): Flow<ChatFeedState> = channelFlow {
         val feed = Feed(channel, from ?: ChatFeedState(ChatState(sessionId)))
-        resumed.openChat(sessionId)
+        resumed.openChat(sessionId, profile)
         try {
             link.state
                 .map { (it as? LinkState.Online)?.generation }
                 .distinctUntilChanged()
                 .collectLatest { generation -> if (generation != null) feed.connection(generation) }
         } finally {
-            resumed.closeChat(sessionId)
+            resumed.closeChat(sessionId, profile)
         }
     }
 
@@ -77,7 +79,7 @@ class ChatFeed(
                     when {
                         frame is InboundFrame.Event && frame.sessionId.isNotEmpty() -> inbox.send(Inbound.Event(ChatFrame(frame, clock())))
                         // Matched by profile and session id: ids repeat across profiles on the host-scoped socket.
-                        frame is InboundFrame.ServerRequest && frame.sessionId == sessionId && resumed.requestFor(generation, sessionId) ->
+                        frame is InboundFrame.ServerRequest && frame.sessionId == sessionId && resumed.requestFor(generation, sessionId, profile) ->
                             inbox.send(Inbound.Request(frame))
                     }
                 }
@@ -106,8 +108,8 @@ class ChatFeed(
 
         /** True once the session is subscribed on this socket; false when the link closed or Hermes refused. */
         private suspend fun subscribe(generation: Long, rebuild: Boolean): Boolean {
-            if (rebuild) resumed.release(generation, sessionId)
-            val fresh = resumed.claim(generation, sessionId)
+            if (rebuild) resumed.release(generation, sessionId, profile)
+            val fresh = resumed.claim(generation, sessionId, profile)
             val caughtUp = if (rebuild || !current.loaded) null else catchUp(current.chat)
             if (caughtUp != null && !fresh) {
                 publish(current.copy(chat = caughtUp, problem = null, confirmedGeneration = generation)) // the watcher holds the subscription already
@@ -120,7 +122,7 @@ class ChatFeed(
             val snapshot = try {
                 link.call("session.resume", params) as? JsonObject ?: throw RpcException(null, "session.resume: unexpected result")
             } catch (e: RpcException) {
-                if (fresh && (e.linkClosed || e.error != null)) resumed.release(generation, sessionId)
+                if (fresh && (e.linkClosed || e.error != null)) resumed.release(generation, sessionId, profile)
                 if (!e.linkClosed) publish(current.copy(problem = e.message.orEmpty()))
                 return false
             }
@@ -128,6 +130,7 @@ class ChatFeed(
                 // Hermes restarted its event log between the catch-up and the resume: only a full snapshot can tell.
                 return subscribe(generation, rebuild = true)
             }
+            resumed.subscribed(generation, sessionId, profile, snapshot.text("subscription_id"))
             publish(ChatFeedState(ChatReducer.fromSnapshot(sessionId, snapshot, caughtUp ?: current.chat), loaded = true, confirmedGeneration = generation))
             return true
         }

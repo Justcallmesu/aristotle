@@ -91,7 +91,11 @@ class CredentialStore(
         if (linked.text != stored) storage.put(key, linked.text)
         current.update { state ->
             val paired = (state as? CredentialState.Paired)?.credentials
-            if (paired?.pcId == pcId) CredentialState.Paired(paired.copy(addresses = linked.addresses, lastGood = lastGood)) else state
+            if (paired?.pcId == pcId) {
+                CredentialState.Paired(paired.copy(addresses = linked.addresses, lastGood = lastGood, typed = linked.typed, lastGoodByKind = linked.lastGoodByKind))
+            } else {
+                state
+            }
         }
     }
 

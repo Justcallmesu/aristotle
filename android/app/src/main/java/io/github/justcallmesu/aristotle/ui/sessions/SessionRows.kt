@@ -7,7 +7,8 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class DaySection { Today, Yesterday, Earlier }
+/** The list's sections, top to bottom (Q48, mockup screen 2): pinned on this phone, live in Hermes, stored history. */
+enum class ListSection { Pinned, Live, History }
 
 /** Trailing text of a session row: "now" while running, else the last-activity time. */
 sealed interface RowTime {
@@ -22,39 +23,65 @@ data class SessionRow(
     val running: Boolean,
     val messageCount: Int,
     val time: RowTime?,
+    /** Pinned on this phone (T14; Hermes' own pin is not readable over the relay). */
+    val pinned: Boolean = false,
+    /** From the stored history: opening it resumes it, as the Desktop does (`session.resume`). */
+    val stored: Boolean = false,
 )
 
+/** How the history ends: more pages to load, Hermes' paging limit reached, or nothing more. */
+enum class HistoryEnd { More, Loading, Capped, All }
+
 sealed interface SessionListItem {
-    data class Header(val section: DaySection) : SessionListItem
+    data class Header(val section: ListSection) : SessionListItem
     data class Row(val row: SessionRow) : SessionListItem
+
+    /** Under the history: load more, loading, or the limit of what the relay can page to. */
+    data class Footer(val end: HistoryEnd) : SessionListItem
+
+    /** A search matched nothing in the rows loaded so far. */
+    data object NoMatch : SessionListItem
 }
+
+/** What the list shows: the merged rows of one listing and the phone's own state over them. */
+data class ListInput(
+    val live: List<SessionSummary>,
+    val stored: List<SessionSummary>,
+    val pins: Set<String> = emptySet(),
+    /** Search text; blank = no search. Matches titles of the loaded rows only (no search over the relay). */
+    val query: String = "",
+    val end: HistoryEnd = HistoryEnd.All,
+)
 
 /**
- * Groups `session.list` rows into Today / Yesterday / Earlier by last activity in [now]'s zone.
- * Running sessions count as active now. Within a section: running first, then newest first.
+ * Pinned rows first (in list order), then live sessions (running first, then newest started), then stored history in
+ * Hermes' order (newest activity first, `gateway/session_listing.py:42-43`). A pinned row shows only under Pinned.
+ * Empty sections have no header. A search keeps the rows whose title contains the text (case-insensitive; an untitled
+ * row never matches) and drops the history footer unless more can be loaded.
  */
-fun sessionListItems(sessions: List<SessionSummary>, now: ZonedDateTime, locale: Locale): List<SessionListItem> {
+fun sessionListItems(input: ListInput, now: ZonedDateTime, locale: Locale): List<SessionListItem> {
     val today = now.toLocalDate()
-    return sessions
-        .map { it to sectionOf(it, now) }
-        .sortedWith(compareBy<Pair<SessionSummary, DaySection>> { it.second }
-            .thenByDescending { it.first.running }
-            .thenByDescending { it.first.lastActivitySeconds ?: Double.NEGATIVE_INFINITY })
-        .groupBy({ it.second }, { it.first })
-        .flatMap { (section, rows) ->
-            listOf(SessionListItem.Header(section)) + rows.map { SessionListItem.Row(sessionRow(it, now, today, locale)) }
-        }
-}
-
-fun sectionOf(session: SessionSummary, now: ZonedDateTime): DaySection {
-    if (session.running) return DaySection.Today
-    val date = localDate(session, now) ?: return DaySection.Earlier
-    val today = now.toLocalDate()
-    return when (date) {
-        today -> DaySection.Today
-        today.minusDays(1) -> DaySection.Yesterday
-        else -> DaySection.Earlier
+    val search = input.query.trim()
+    fun matches(s: SessionSummary) = search.isEmpty() || s.title.contains(search, ignoreCase = true)
+    val live = input.live
+        .sortedWith(compareByDescending<SessionSummary> { it.running }.thenByDescending { it.lastActivitySeconds ?: Double.NEGATIVE_INFINITY })
+        .filter(::matches)
+        .map { sessionRow(it, now, today, locale).copy(pinned = it.key in input.pins) }
+    val stored = input.stored.filter(::matches).map { sessionRow(it, now, today, locale).copy(pinned = it.key in input.pins, stored = true) }
+    val pinned = (live + stored).filter { it.pinned }
+    val items = mutableListOf<SessionListItem>()
+    fun section(section: ListSection, rows: List<SessionRow>) {
+        if (rows.isEmpty()) return
+        items += SessionListItem.Header(section)
+        rows.mapTo(items) { SessionListItem.Row(it) }
     }
+    section(ListSection.Pinned, pinned)
+    section(ListSection.Live, live.filterNot { it.pinned })
+    section(ListSection.History, stored.filterNot { it.pinned })
+    if (search.isNotEmpty() && items.isEmpty()) items += SessionListItem.NoMatch
+    val footer = input.end != HistoryEnd.All && (search.isEmpty() || input.end == HistoryEnd.More || input.end == HistoryEnd.Loading)
+    if (footer) items += SessionListItem.Footer(input.end)
+    return items
 }
 
 fun sessionRow(session: SessionSummary, now: ZonedDateTime, today: LocalDate, locale: Locale): SessionRow = SessionRow(
@@ -76,8 +103,6 @@ private fun rowTime(session: SessionSummary, now: ZonedDateTime, today: LocalDat
     }
     return RowTime.At(at.format(DateTimeFormatter.ofPattern(pattern, locale)))
 }
-
-private fun localDate(session: SessionSummary, now: ZonedDateTime): LocalDate? = zoned(session, now)?.toLocalDate()
 
 private fun zoned(session: SessionSummary, now: ZonedDateTime): ZonedDateTime? {
     val seconds = session.lastActivitySeconds ?: return null

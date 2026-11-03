@@ -156,7 +156,7 @@ func (m *Manager) newServer(e Endpoint) *http.Server {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    64 << 10,
-		ErrorLog:          slog.NewLogLogger(m.Log.Handler(), slog.LevelDebug),
+		ErrorLog:          ErrorLog(m.Log),
 	}
 	// One copy per server: ServeTLS sets up HTTP/2 by writing to
 	// srv.TLSConfig, which races when servers share a config.

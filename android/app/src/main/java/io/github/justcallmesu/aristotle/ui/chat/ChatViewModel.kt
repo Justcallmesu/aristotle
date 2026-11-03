@@ -3,6 +3,7 @@ package io.github.justcallmesu.aristotle.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.LinkState
+import io.github.justcallmesu.aristotle.data.ProfileLink
 import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.RpcException
@@ -55,16 +56,19 @@ data class ChatUiState(
  */
 class ChatViewModel(
     private val sessionId: String,
-    private val link: RelayLink,
+    base: RelayLink,
     resumed: ResumedSessions,
     drafts: ChatDrafts? = null,
     private val background: CoroutineDispatcher = Dispatchers.Default,
     scope: CoroutineScope? = null,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
     newId: () -> String = { UUID.randomUUID().toString().replace("-", "") },
+    /** The session's Hermes profile (null = the relay's launch profile): every call of this chat goes there (T14). */
+    profile: String? = null,
 ) : ViewModel() {
+    private val link: RelayLink = ProfileLink(base, profile)
     private val work: CoroutineScope = scope ?: viewModelScope
-    private val feed = ChatFeed(link, resumed, sessionId)
+    private val feed = ChatFeed(link, resumed, sessionId, profile = profile)
     private val state = MutableStateFlow(
         ChatUiState(ChatFeedState(ChatState(sessionId)), link.state.value, composer = ComposerState(draft = drafts?.get(sessionId).orEmpty())),
     )

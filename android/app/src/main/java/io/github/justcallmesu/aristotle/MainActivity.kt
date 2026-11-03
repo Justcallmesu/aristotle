@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
             title = intent.getStringExtra(OpenSession.EXTRA_TITLE),
             prompt = intent.getBooleanExtra(OpenSession.EXTRA_PROMPT, false),
             flags = intent.flags,
+            profile = intent.getStringExtra(OpenSession.EXTRA_PROFILE),
         ) ?: return
         (application as AristotleApplication).container.openChat.value = request
     }
@@ -60,13 +61,14 @@ class MainActivity : ComponentActivity() {
          * Brings the running app forward (no second copy) and delivers this to [onNewIntent], or starts it. Targets
          * [OpenSession.ALIAS], so only the app's own PendingIntents carry it.
          */
-        fun openIntent(context: Context, sessionId: String, title: String?, showPrompt: Boolean): Intent =
+        fun openIntent(context: Context, sessionId: String, title: String?, showPrompt: Boolean, profile: String? = null): Intent =
             Intent()
                 .setClassName(context, OpenSession.ALIAS)
                 .setAction(OpenSession.ACTION)
                 .putExtra(OpenSession.EXTRA_SESSION, sessionId)
                 .putExtra(OpenSession.EXTRA_TITLE, title)
                 .putExtra(OpenSession.EXTRA_PROMPT, showPrompt)
+                .apply { if (profile != null) putExtra(OpenSession.EXTRA_PROFILE, profile) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 }

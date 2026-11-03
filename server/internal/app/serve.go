@@ -162,8 +162,7 @@ func (s *server) closeRelays() {
 }
 
 func serveListener(ctx context.Context, ln net.Listener, h http.Handler, log *slog.Logger) error {
-	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second,
-		ErrorLog: slog.NewLogLogger(log.Handler(), slog.LevelWarn)}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, ErrorLog: listen.ErrorLog(log)}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	select {

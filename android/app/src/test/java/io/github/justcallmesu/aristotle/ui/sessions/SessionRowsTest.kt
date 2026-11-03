@@ -18,30 +18,58 @@ class SessionRowsTest {
     private fun session(id: String, started: Double?, running: Boolean = false, title: String = id, messages: Int = 3) =
         SessionSummary(sessionId = id, id = id, title = title, startedAt = started, messageCount = messages, running = running)
 
-    @Test
-    fun rowsAreGroupedByDayWithRunningSessionsInToday() {
-        val items = sessionListItems(
-            listOf(
-                session("today", at(2026, 11, 3, 21, 40)),
-                session("old-running", at(2026, 10, 1, 9, 0), running = true),
-                session("yesterday", at(2026, 11, 2, 23, 5)),
-                session("earlier", at(2026, 10, 1, 9, 0)),
-                session("last-year", at(2025, 12, 31, 10, 0)),
-                session("no-time", null),
-            ),
-            now,
-            Locale.ENGLISH,
-        )
-        val shape = items.map {
-            when (it) {
-                is SessionListItem.Header -> "#${it.section}"
-                is SessionListItem.Row -> it.row.key
-            }
+    private fun shape(items: List<SessionListItem>): List<String> = items.map {
+        when (it) {
+            is SessionListItem.Header -> "#${it.section}"
+            is SessionListItem.Row -> it.row.key + if (it.row.stored) "(stored)" else ""
+            is SessionListItem.Footer -> "footer:${it.end}"
+            SessionListItem.NoMatch -> "no-match"
         }
-        assertEquals(
-            listOf("#Today", "old-running", "today", "#Yesterday", "yesterday", "#Earlier", "earlier", "last-year", "no-time"),
-            shape,
+    }
+
+    // Q48: live sessions on top (running first, then newest), stored history below in Hermes' order.
+    @Test
+    fun liveOnTopThenHistoryInHermesOrder() {
+        val live = listOf(
+            session("idle-new", at(2026, 11, 3, 21, 40)),
+            session("old-running", at(2026, 10, 1, 9, 0), running = true),
+            session("idle-old", at(2026, 11, 2, 23, 5)),
         )
+        val stored = listOf(session("h2", at(2026, 10, 1, 9, 0)), session("h1", at(2026, 11, 1, 9, 0)))
+        val items = sessionListItems(ListInput(live, stored, end = HistoryEnd.More), now, Locale.ENGLISH)
+        assertEquals(
+            listOf("#Live", "old-running", "idle-new", "idle-old", "#History", "h2(stored)", "h1(stored)", "footer:More"),
+            shape(items),
+        )
+    }
+
+    @Test
+    fun pinnedRowsLeadAndShowOnlyThere() {
+        val live = listOf(session("a", at(2026, 11, 3, 21, 0)), session("b", at(2026, 11, 3, 20, 0)))
+        val stored = listOf(session("h", at(2026, 10, 1, 9, 0)))
+        val items = sessionListItems(ListInput(live, stored, pins = setOf("h", "b")), now, Locale.ENGLISH)
+        assertEquals(listOf("#Pinned", "b", "h(stored)", "#Live", "a"), shape(items))
+        assertEquals(listOf(true, true, false), items.rows().map { it.pinned })
+    }
+
+    // T14: search is over the titles of the rows loaded on the phone (the relay has no session search).
+    @Test
+    fun searchFiltersLoadedTitlesCaseInsensitively() {
+        val live = listOf(session("a", null, title = "Fix flaky relay test"), session("b", null, title = "IDX calendar"))
+        val stored = listOf(session("c", null, title = "Review RELAY listener"), session("d", null, title = " "))
+        val hit = sessionListItems(ListInput(live, stored, query = " relay ", end = HistoryEnd.More), now, Locale.ENGLISH)
+        assertEquals(listOf("#Live", "a", "#History", "c(stored)", "footer:More"), shape(hit))
+        val miss = sessionListItems(ListInput(live, stored, query = "untitled", end = HistoryEnd.Capped), now, Locale.ENGLISH)
+        assertEquals(listOf("no-match"), shape(miss))
+    }
+
+    @Test
+    fun historyEndsSayWhyThereIsNoMore() {
+        val stored = listOf(session("h", null))
+        assertEquals("footer:Capped", shape(sessionListItems(ListInput(emptyList(), stored, end = HistoryEnd.Capped), now, Locale.ENGLISH)).last())
+        assertEquals("footer:Loading", shape(sessionListItems(ListInput(emptyList(), stored, end = HistoryEnd.Loading), now, Locale.ENGLISH)).last())
+        assertEquals(listOf("#History", "h(stored)"), shape(sessionListItems(ListInput(emptyList(), stored), now, Locale.ENGLISH)))
+        assertEquals(emptyList<String>(), shape(sessionListItems(ListInput(emptyList(), emptyList()), now, Locale.ENGLISH)))
     }
 
     @Test
@@ -66,6 +94,6 @@ class SessionRowsTest {
     @Test
     fun lastActiveWinsOverStartedAtWhenPresent() {
         val s = SessionSummary(sessionId = "a", startedAt = at(2026, 10, 1, 9, 0), lastActive = at(2026, 11, 3, 20, 0))
-        assertEquals(DaySection.Today, sectionOf(s, now))
+        assertEquals(RowTime.At("20:00"), sessionRow(s, now, now.toLocalDate(), Locale.ENGLISH).time)
     }
 }

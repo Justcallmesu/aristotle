@@ -21,6 +21,14 @@ class OpenSessionTest {
         assertNull(OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "x".repeat(257), null, prompt = false))
     }
 
+    // T14: a notification opens the chat in the session's profile.
+    @Test
+    fun theProfileTravelsWithTheIntent() {
+        assertEquals(OpenChat("s1", "T", false, "pm"), OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "s1", "T", prompt = false, profile = "pm"))
+        assertNull(OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "s1", "T", prompt = false, profile = ""))
+        assertNull(OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "s1", "T", prompt = false, profile = "p".repeat(257)))
+    }
+
     // D38: a recents relaunch re-delivers the notification's intent; it must not reopen the chat.
     @Test
     fun anIntentRedeliveredFromRecentsIsIgnored() {

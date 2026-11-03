@@ -212,7 +212,8 @@ class CredentialStoreTest {
         val store = store(storage, noKeystore).also { it.load() }
         val wifi = ServerEndpoint("192.168.1.61", 8760, Network.Lan)
         store.remember(creds.pcId, listOf(wifi, tailnet), wifi)
-        val expected = creds.copy(addresses = listOf(wifi, tailnet, lan), lastGood = wifi)
+        // D29: the last good address of each kind is kept too (tailnet from before, wifi now).
+        val expected = creds.copy(addresses = listOf(wifi, tailnet, lan), lastGood = wifi, lastGoodByKind = mapOf(Network.Lan to wifi, Network.Tailscale to tailnet))
         assertEquals(CredentialState.Paired(expected), store.state.value)
         assertEquals(sealedBefore, entryOf(storage)["token_sealed"])
         assertEquals(CredentialState.Paired(expected), loaded(storage))
@@ -228,7 +229,27 @@ class CredentialStoreTest {
         val seen = (1..PcAddresses.MAX_STORED).map { ServerEndpoint("10.0.0.$it", 8760, Network.Lan) }
         for (address in seen) store.remember(creds.pcId, listOf(address), address)
         val stored = (store.state.value as CredentialState.Paired).credentials
-        assertEquals(seen.reversed().take(PcAddresses.MAX_STORED - 1) + lan, stored.addresses)
+        // The typed address and the last good one of each kind (D29: the tailnet one from before) stay; the LAN
+        // addresses unseen longest went.
+        assertEquals(seen.reversed().take(PcAddresses.MAX_STORED - 2) + lan + tailnet, stored.addresses)
+        assertEquals(CredentialState.Paired(stored), loaded(storage))
+    }
+
+    // D29: a pairing from a T09 build has no typed address; its first last-good address stands in for it, so it is
+    // still kept after the link moved on to other addresses and the list hit the cap.
+    @Test
+    fun aT09PairingKeepsItsFirstLastGoodAddressProtected() = runBlocking {
+        val t09 = creds.copy(addresses = listOf(lan), lastGood = lan, typed = null)
+        val storage = MemoryStore()
+        store(storage).save(t09)
+        val store = store(storage).also { it.load() }
+        val seen = (1..PcAddresses.MAX_STORED + 2).map { ServerEndpoint("10.0.0.$it", 8760, Network.Lan) }
+        for (address in seen) store.remember(creds.pcId, listOf(address), address)
+        val stored = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(lan, stored.typed)
+        assertTrue(lan in stored.addresses)
+        assertTrue(seen.last() in stored.addresses)
+        assertEquals(PcAddresses.MAX_STORED, stored.addresses.size)
         assertEquals(CredentialState.Paired(stored), loaded(storage))
     }
 

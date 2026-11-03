@@ -78,6 +78,19 @@ aristotle-server asks the root home's gateway (`~/.hermes/gateway.sock`), as Her
 `docs/v1-tickets/runs/T07b/build-report.md`), and uses it only if `served_profiles` lists that profile. The launch profile is
 then that profile, not `default`. A systemd-started server has no `HERMES_HOME` and uses the root home.
 
+**Profiles from the phone (T14, from source, not exercised).** The relay needs no profile selection of its own: its
+socket is host-scoped on the launch profile (§12), so the phone reaches any served profile the Desktop way, a
+`"profile":"<name>"` key in the params (§3; `gateway/session_controls.py:305-318`). The roster comes from Hermes over the
+same socket: `profiles.list {include_sessions:true}` → `{profiles:[{name, path, display_name, …}], …}`, the launch
+profile's own row first (`gateway/session_group_controls.py:45`, `:390-460`; the Desktop asks it too,
+`apps/desktop/src/components/assistant-ui/thread/user-message.tsx:146`). Hermes also lists profiles it only found on
+disk (parked, not served); a call naming one is refused `4001 profile_mismatch` (`session_controls.py:173-198`). Only the
+own row and the siblings this socket routes to carry session fields (`last_session`, `session_group_controls.py:316-370`,
+`:424-430`), so the phone offers exactly those. `ErrUnknownProfile` (aristotle-server's `resolveProfile`) is not on this
+path; it applies only to REST calls the server makes itself. Names (D11/D25): on the wire `profile` is Hermes' name,
+resolved by `profile_matches_home`, so `default` is always the root `~/.hermes`; the phone's "launch profile" is a call
+**without** `profile` (the roster's first row), never the string `default`.
+
 ### 1.2 WebSocket upgrade
 ```
 GET /api/ws HTTP/1.1
@@ -238,6 +251,40 @@ A events per turn correspond to admission, run start and settle.
 | `session.info` | `{session_id}` only; any other key → `invalid_params` (`session_controls.py:554-559`) | the full inventory object itself (34 keys, incl. `system_prompt`, `credential_hint`; §2.1) | EXERCISED (`f-busy-client2.jsonl:85`) |
 | `session.mutate` | `{session_id, request_id, expected_revision, operation, payload, expected_generation?}`; operations `rename {title}`, `archive {archived}`, `sidebar {title?,archived?,hidden?,pinned?,unread?}`, `model`, `reasoning {effort}`, `workspace {cwd}`, `branch`, `compress`, `rewind`, `delete`, … (`gateway/session_mutations.py:18-20`) | receipt `{session_id, operation, revision, …}`; conflicts `revision_conflict`/`stale_generation` carry fresh fences in `error.data` | from source, not exercised |
 | `runtime.describe` | `{}` | `{instance_id, profile_id, authority_epoch, capabilities, session_create, skin}` | EXERCISED |
+
+**Session list, the phone's use (T14, from source unless noted).**
+- `scope:"live"` (the default) = sessions with a runtime now (running or idle), newest started first, internal
+  sources and closed ones left out; `scope:"stored"` = resumable history (closed local sessions, legacy local rows,
+  this profile's messaging conversations), newest activity first (`session_controls.py:561-607`,
+  `gateway/session_listing.py:27-86`). A stored row may carry `id` (lineage root) ≠ `session_id` = `resolved_id`
+  (compression tip, `session_listing.py:21-24`); resume it by `session_id`, as the Desktop does. The stored feed is empty
+  unless the socket holds a native ticket of that profile (`session_listing.py:35-37`); the relay's does, and host-scoped
+  sibling connections get the same identity (`session_controls.py:136-158`, `:173-192`). The phone merges the two: a
+  stored row sharing any id with a live row is dropped (a closed session resumed elsewhere moves feeds).
+- **Paging:** there is no offset or cursor. `limit` is 1..200 and anything else is `invalid_params`
+  (`session_controls.py:565`). The phone lists live with `limit:200` and history in pages of 50: "load more" sends the
+  same call with `limit` 50 larger (50 → 100 → 150 → 200). At 200 it stops and says older sessions are on the PC. The
+  Desktop pages with REST `/api/sessions?limit&offset` (`apps/desktop/src/api/sessions.ts:103-121`), which the relay
+  does not carry (§8, §12). The `title` param is an exact title lookup, not a search (`:573-590`); there is no WS
+  search, so the phone searches the titles it has loaded.
+- **Rename:** the Desktop's canonical `session.title` becomes `session.mutate {…, operation:"rename",
+  payload:{title}}` with the session's `expected_revision` (`apps/desktop/src/api/canonical-protocol.ts:328-347`,
+  `:440-442`). The phone holds no revision for a session it has not opened, so it sends `expected_revision:0`; a
+  `revision_conflict` refusal carries the current `revision` in `error.data` and is retried once at it
+  (`session_controls.py:845-849`, `_refusal_data` `:22-35`). This is **last writer wins**, unlike the Desktop, which
+  never renames without a known revision and does not auto-retry: a Desktop rename made while the phone's dialog is open
+  is overwritten (title only; accepted, T14 review). No subscription is needed
+  (`gateway/session_mutations.py:39-70`).
+- **Pin:** Hermes stores one (`session.mutate sidebar {pinned}`, REST `PATCH pinned`), but `session.list` rows carry no
+  `pinned` (`tui_gateway/contracts/canonical_sessions.py:171-181`) and the Desktop keeps its pins locally, mirrored over
+  REST (`apps/desktop/src/store/session-pin-sync.ts:1-21`). The phone's pins are its own and are labelled so.
+- **New session:** `session.create {request_id, source:"gui", profile?}` (EXERCISED `c-create.jsonl`), no `title`.
+- **Leaving a profile:** `session.detach {session_id, subscription_id, profile?}` without `end_reason` is a viewer leaving,
+  not a close (`session_controls.py:714-737`); `subscription_id` comes from the resume answer.
+
+| Method | Params | Result | Status |
+|---|---|---|---|
+| `profiles.list` | `{include_sessions?, profile?}` (any other key → `invalid_params`) | `{profiles:[{name, path, is_default, display_name, …, last_session?}], bot_mode_protocol, install_id}` | from source, not exercised |
 
 - **A connection must `session.resume` a session before it may submit/control/answer there**:
   `prompt.submit` checks `session_id in self.subscriptions` (`session_controls.py:813-816`) and
@@ -504,6 +551,12 @@ courtesy and can be stale.
 The phone's live Hermes session socket, through aristotle-server (T06; code in `server/internal/relay`). One phone
 socket = one fresh Hermes `/api/ws` socket (own ticket, `scope:"host"`, launch profile; §1, §3). Frames pass through
 unchanged both ways, except §10's redaction on the way to the phone. No method allowlist (spec Q7d).
+
+**Profiles (T14).** The relay has no profile selection and needs none: because its ticket is host-scoped, a phone frame
+whose params name `"profile":"<name>"` is routed by Hermes to that served profile (§1 "Profiles from the phone", §3), and
+`profiles.list` lists them. A phone frame without `profile` acts on the launch profile. Response frames to `srq-`
+requests name no profile; Hermes settles them as whichever sibling connection attached the session
+(`gateway/session_controls.py:909-919`). REST (§8: search, offset paging, the pin flag) is not carried by the relay.
 
 **Upgrade.** `GET /v1/ws` as `wss://` on the LAN and Tailscale listeners alike (pinned cert §11.3; there is no
 `ws://`), HTTP/1.1 upgrade (ALPN `http/1.1`; OkHttp does this). Header `Authorization: Bearer <device token>`, as for every

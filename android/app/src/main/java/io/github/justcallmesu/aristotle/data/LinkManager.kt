@@ -181,7 +181,7 @@ class LinkManager(
         private suspend fun nextRound(): RoundEnd = try {
             drainWakes()
             val pc = latest()
-            round(pc, EndpointChoice.order(pc.addresses, pc.lastGood, network.prefersLan()))
+            round(pc, EndpointChoice.order(pc, network.prefersLan()))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -235,7 +235,12 @@ class LinkManager(
                 started
             } ?: Start.TimedOut(opened.get())
             val result = when (start) {
-                Start.Ready -> Attempt.Ended(online(pc, endpoint, rpc, ended))
+                Start.Ready -> {
+                    // D29: a network change raised while this connect was in flight and not taken by the select
+                    // above (it lost the race to `gateway.ready`) is about the network this relay just came up on.
+                    drainWakes()
+                    Attempt.Ended(online(pc, endpoint, rpc, ended))
+                }
                 Start.Switched -> Attempt.Ended(RoundEnd.Switch)
                 is Start.Ended -> notReady(endpoint, start.end)
                 is Start.TimedOut -> timedOut(endpoint, start.opened)

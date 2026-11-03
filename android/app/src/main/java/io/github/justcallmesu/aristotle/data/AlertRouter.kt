@@ -32,6 +32,8 @@ data class AlertNotice(
     val promptId: String? = null,
     /** A prompt shown before (a reconnect sends it again): no heads-up, no sound. */
     val repeat: Boolean = false,
+    /** The session's Hermes profile (null = the relay's launch profile): a tap opens the chat there (T14). */
+    val profile: String? = null,
 )
 
 sealed interface NotifyAction {
@@ -100,6 +102,11 @@ class AlertRouter {
             forget(alert.promptId)
             clearShown(alert.sessionId, alert.promptId)
         }
+        // The watcher left the session's profile (T14): its settle would never arrive, so its prompt goes now.
+        is SessionAlert.Unwatched -> shownPrompts[alert.sessionId]?.let { shown ->
+            forget(shown)
+            clearShown(alert.sessionId, shown)
+        }.orEmpty()
         is SessionAlert.PromptsOpen -> {
             val shown = shownPrompts[alert.sessionId]
             if (shown != null && shown !in alert.promptIds) {
@@ -138,7 +145,7 @@ class AlertRouter {
     private fun turnNotice(alert: SessionAlert.TurnFinished): AlertNotice {
         val line = NotificationText.firstLine(alert.text)
         val body = if (line.isEmpty()) AlertBody.TurnFinishedNoText else AlertBody.Text(line)
-        return AlertNotice(AlertChannel.TurnFinished, NotificationText.turnTag(alert.sessionId), alert.sessionId, alert.title, body)
+        return AlertNotice(AlertChannel.TurnFinished, NotificationText.turnTag(alert.sessionId), alert.sessionId, alert.title, body, profile = alert.profile)
     }
 
     private fun needsNotice(alert: SessionAlert.NeedsYou, repeat: Boolean): AlertNotice {
@@ -148,6 +155,6 @@ class AlertRouter {
             PromptKind.Secret -> AlertBody.Secret
             PromptKind.OnPc -> AlertBody.OnPc
         }
-        return AlertNotice(AlertChannel.NeedsYou, NotificationText.needsTag(alert.sessionId), alert.sessionId, alert.title, body, alert.promptId, repeat)
+        return AlertNotice(AlertChannel.NeedsYou, NotificationText.needsTag(alert.sessionId), alert.sessionId, alert.title, body, alert.promptId, repeat, alert.profile)
     }
 }

@@ -48,12 +48,8 @@
     <string name="sessions_via_wifi">%1$s · via Wi-Fi</string>
     <string name="sessions_via_tailscale">%1$s · via Tailscale</string>
     <string name="sessions_offline_line">%1$s · offline</string>
-    <string name="sessions_profile_label">Profile</string>
     <string name="sessions_profile_description">Hermes profile: %1$s</string>
     <string name="sessions_connecting">Connecting to %1$s…</string>
-    <string name="sessions_section_today">Today</string>
-    <string name="sessions_section_yesterday">Yesterday</string>
-    <string name="sessions_section_earlier">Earlier</string>
     <string name="session_running">Running</string>
     <string name="session_was_running">Was running at %1$s</string>
     <string name="session_now">now</string>
@@ -62,8 +58,38 @@
         <item quantity="one">%d message</item>
         <item quantity="other">%d messages</item>
     </plurals>
-    <string name="sessions_empty_title">No open sessions</string>
-    <string name="sessions_empty_body">Sessions open in Hermes on the laptop show up here.</string>
+    <string name="sessions_empty_title">No sessions yet</string>
+    <string name="sessions_empty_body">Sessions from Hermes on the laptop show up here, live ones first.</string>
+    <string name="sessions_section_pinned">Pinned on this phone</string>
+    <string name="sessions_section_live">Live</string>
+    <string name="sessions_section_history">History</string>
+    <string name="sessions_search">Search sessions</string>
+    <string name="sessions_search_close">Close search</string>
+    <string name="sessions_search_clear">Clear search</string>
+    <string name="sessions_search_scope">Searches the titles loaded on this phone. Load more history to search further back.</string>
+    <string name="sessions_search_none">No loaded session has that in its title.</string>
+    <string name="sessions_load_more">Load more</string>
+    <string name="sessions_loading_more">Loading older sessions…</string>
+    <string name="sessions_history_capped">Hermes lists the newest 200 here. Older sessions are on the PC.</string>
+    <string name="sessions_new">New session</string>
+    <string name="sessions_new_busy">Creating…</string>
+    <string name="sessions_new_failed">Couldn\'t create a session: %1$s</string>
+    <string name="sessions_profiles_title">Hermes profile</string>
+    <string name="sessions_profiles_body">Each profile has its own sessions, memory and skills.</string>
+    <string name="sessions_profiles_loading">Loading profiles…</string>
+    <string name="sessions_profiles_failed">Couldn\'t load the profiles: %1$s</string>
+    <string name="session_actions">Session actions</string>
+    <string name="session_pinned">Pinned</string>
+    <string name="session_pin">Pin on this phone</string>
+    <string name="session_unpin">Unpin on this phone</string>
+    <string name="session_pin_scope">Only this phone shows the pin. The Desktop keeps its own.</string>
+    <string name="session_rename">Rename</string>
+    <string name="session_rename_title">Rename session</string>
+    <string name="session_rename_field">Title</string>
+    <string name="session_rename_save">Rename</string>
+    <string name="session_rename_busy">Renaming…</string>
+    <string name="session_rename_cancel">Cancel</string>
+    <string name="session_rename_failed">Couldn\'t rename: %1$s</string>
 
     <!-- Connection pages -->
     <string name="conn_details">Details</string>

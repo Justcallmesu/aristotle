@@ -18,6 +18,8 @@ private data class StoredPc(
     @SerialName("last_good") val lastGood: String? = null,
     /** T09b: the address typed at pairing; never dropped from [addresses]. */
     val typed: String? = null,
+    /** D29: the last address that worked per kind (`lan`, `tailscale`). */
+    @SerialName("last_good_kinds") val lastGoodKinds: Map<String, String> = emptyMap(),
     val fingerprint: String? = null,
     @SerialName("token_sealed") val tokenSealed: String,
 )
@@ -35,8 +37,13 @@ sealed interface DecodeResult {
     data object Unavailable : DecodeResult
 }
 
-/** An entry after [CredentialCodec.withLink]: its new text and the address list it now holds. */
-class LinkedEntry(val text: String, val addresses: List<ServerEndpoint>)
+/** An entry after [CredentialCodec.withLink]: its new text, and the addresses and records it now holds. */
+class LinkedEntry(
+    val text: String,
+    val addresses: List<ServerEndpoint>,
+    val typed: ServerEndpoint? = null,
+    val lastGoodByKind: Map<Network, ServerEndpoint> = emptyMap(),
+)
 
 /** Serialises [PcCredentials] with the token sealed by [cipher] (AAD = pc id + device id). */
 class CredentialCodec(private val cipher: TokenCipher) {
@@ -50,6 +57,7 @@ class CredentialCodec(private val cipher: TokenCipher) {
             addresses = credentials.addresses.map(PcAddresses::wireOf),
             lastGood = credentials.lastGood?.baseUrl,
             typed = credentials.typed?.baseUrl,
+            lastGoodKinds = credentials.lastGoodByKind.entries.associate { (kind, endpoint) -> kind.wire to endpoint.baseUrl },
             fingerprint = credentials.fingerprint,
             tokenSealed = Base64.getEncoder().encodeToString(sealed),
         )
@@ -67,7 +75,8 @@ class CredentialCodec(private val cipher: TokenCipher) {
             val token = cipher.decrypt(sealed, aad(stored.pcId, stored.deviceId)).toString(Charsets.UTF_8)
             val lastGood = addresses.firstOrNull { it.baseUrl == stored.lastGood }
             val typed = addresses.firstOrNull { it.baseUrl == stored.typed }
-            DecodeResult.Ok(PcCredentials(stored.pcId, stored.deviceId, addresses, pin, DeviceToken(token), lastGood, typed))
+            val byKind = stored.lastGoodKinds.mapNotNull { (kind, url) -> addresses.firstOrNull { it.baseUrl == url && it.network.wire == kind }?.let { it.network to it } }.toMap()
+            DecodeResult.Ok(PcCredentials(stored.pcId, stored.deviceId, addresses, pin, DeviceToken(token), lastGood, typed, byKind))
         }
     } catch (e: Exception) {
         if (KeystoreFailures.isPermanent(e)) DecodeResult.Unreadable else DecodeResult.Unavailable
@@ -89,17 +98,25 @@ class CredentialCodec(private val cipher: TokenCipher) {
 
     /**
      * The entry with what the link learnt: [fresh] (the PC's addresses now; empty when unknown) merged into
-     * the stored list ([PcAddresses.merge], keeping the typed and the [lastGood] address) and [lastGood].
-     * The token stays sealed as it was. Null when the entry does not parse.
+     * the stored list ([PcAddresses.merge], keeping the typed and every last-good address) and [lastGood], also
+     * recorded as its kind's last good one (D29). A pairing from a T09 build has no typed address; the first
+     * last-good address it records stands in for it, so that address stays protected after [lastGood] moves on
+     * (D29). The token stays sealed as it was. Null when the entry does not parse.
      */
     fun withLink(text: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint?): LinkedEntry? {
         val stored = parse(text) ?: return null
         val known = PcAddresses.endpointsOf(stored.addresses)
-        val typed = known.firstOrNull { it.baseUrl == stored.typed }
-        val addresses = PcAddresses.merge(fresh, known, keep = listOf(typed, lastGood))
+        val typedUrl = stored.typed ?: stored.lastGood ?: lastGood?.baseUrl
+        val typed = (known + listOfNotNull(lastGood)).firstOrNull { it.baseUrl == typedUrl }
+        // An entry from before D29 knows only its last good address: that one is its kind's last good one.
+        val previous = known.firstOrNull { it.baseUrl == stored.lastGood }?.let { mapOf(it.network.wire to it.baseUrl) }.orEmpty()
+        val kinds = previous + stored.lastGoodKinds + listOfNotNull(lastGood).associate { it.network.wire to it.baseUrl }
+        val kindGood = (known + listOfNotNull(lastGood)).filter { it.baseUrl in kinds.values }
+        val addresses = PcAddresses.merge(fresh, known, keep = listOf(typed, lastGood) + kindGood)
         val wire = addresses.map(PcAddresses::wireOf)
-        val updated = stored.copy(baseUrls = emptyList(), addresses = wire, lastGood = lastGood?.baseUrl)
-        return LinkedEntry(encodeStored(updated), addresses)
+        val updated = stored.copy(baseUrls = emptyList(), addresses = wire, lastGood = lastGood?.baseUrl, typed = typed?.baseUrl, lastGoodKinds = kinds)
+        val byKind = addresses.filter { kinds[it.network.wire] == it.baseUrl }.associateBy { it.network }
+        return LinkedEntry(encodeStored(updated), addresses, typed, byKind)
     }
 
     private fun parse(text: String): StoredPc? = runCatching { json.decodeFromString(StoredPc.serializer(), text) }.getOrNull()
