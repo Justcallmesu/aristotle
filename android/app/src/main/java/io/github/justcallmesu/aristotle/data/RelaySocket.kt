@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.data
 
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -25,11 +26,14 @@ sealed interface RelayEvent {
 
 /** A relay socket as the session feed sees it; [RelaySocket] in the app, a fake in tests. */
 interface RelayChannel {
-    /** Opens on collect; cancelling the collector closes the socket. */
+    /** Opens on collect; cancelling the collector closes an open socket and drops one still connecting. */
     fun events(): Flow<RelayEvent>
 
     /** False when the socket is not open (or already closing). */
     fun send(text: String): Boolean
+
+    /** Drops the socket at once, without the close handshake: the network it runs on is gone. */
+    fun cancel()
 }
 
 /**
@@ -42,11 +46,17 @@ class RelaySocket(private val client: OkHttpClient, baseUrl: String, private val
     @Volatile
     private var socket: WebSocket? = null
 
-    /** Opens on collect; cancelling the collector closes the socket with 1000. */
+    /**
+     * Opens on collect. Cancelling the collector closes an open socket with 1000, and drops one still
+     * connecting ([WebSocket.cancel]): a close would keep OkHttp connecting and then waiting up to 60 s for
+     * the server's reply (T09 review 3).
+     */
     override fun events(): Flow<RelayEvent> = callbackFlow {
         val request = Request.Builder().url(url).header("Authorization", "Bearer ${token.value}").build()
+        val open = AtomicBoolean(false)
         val ws = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                open.set(true)
                 trySend(RelayEvent.Opened)
             }
 
@@ -68,11 +78,15 @@ class RelaySocket(private val client: OkHttpClient, baseUrl: String, private val
         socket = ws
         awaitClose {
             socket = null
-            ws.close(NORMAL_CLOSURE, null)
+            if (open.get()) ws.close(NORMAL_CLOSURE, null) else ws.cancel()
         }
     }.buffer(Channel.UNLIMITED)
 
     override fun send(text: String): Boolean = socket?.send(text) ?: false
+
+    override fun cancel() {
+        socket?.cancel()
+    }
 
     private companion object {
         const val NORMAL_CLOSURE = 1000

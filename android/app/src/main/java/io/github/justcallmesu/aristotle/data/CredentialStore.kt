@@ -76,16 +76,18 @@ class CredentialStore(
     private suspend fun <T> locked(block: () -> T): T = withContext(io) { mutex.withLock { block() } }
 
     /**
-     * Stores what the link learnt (T09): the PC's current addresses and the one that worked. No Keystore
-     * call; the sealed token is kept. Ignored when [pcId] is no longer stored.
+     * Stores what the link learnt (T09): [fresh] merged into the stored addresses (T09b,
+     * [CredentialCodec.withLink]) and the one that worked. No Keystore call; the sealed token is kept. Written
+     * only when something changed; ignored when [pcId] is no longer stored.
      */
-    override suspend fun remember(pcId: String, addresses: List<ServerEndpoint>, lastGood: ServerEndpoint) = locked {
+    override suspend fun remember(pcId: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint) = locked {
         val key = entryKey(pcId)
-        val updated = storage.get(key)?.let { codec.withLink(it, addresses, lastGood) } ?: return@locked
-        storage.put(key, updated)
+        val stored = storage.get(key) ?: return@locked
+        val linked = codec.withLink(stored, fresh, lastGood) ?: return@locked
+        if (linked.text != stored) storage.put(key, linked.text)
         current.update { state ->
             val paired = (state as? CredentialState.Paired)?.credentials
-            if (paired?.pcId == pcId) CredentialState.Paired(paired.copy(addresses = addresses, lastGood = lastGood)) else state
+            if (paired?.pcId == pcId) CredentialState.Paired(paired.copy(addresses = linked.addresses, lastGood = lastGood)) else state
         }
     }
 

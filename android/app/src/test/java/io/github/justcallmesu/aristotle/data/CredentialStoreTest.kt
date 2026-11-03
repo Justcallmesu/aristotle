@@ -68,6 +68,7 @@ class CredentialStoreTest {
         fingerprint = "7E54 D87B 19C0 A4F2 5B3E 0D96 C1A8 72FE 3E09 B6D4 8A15 F0C3 62D9 4E7A BCA7 EAA7",
         token = DeviceToken("very-secret-token-value"),
         lastGood = tailnet,
+        typed = lan,
     )
 
     private fun store(storage: KeyValueStore, codec: CredentialCodec = this.codec) =
@@ -149,7 +150,7 @@ class CredentialStoreTest {
         val storage = savedStorage()
         val entry = entryOf(storage)
         val legacy = JsonObject(
-            entry.filterKeys { it !in setOf("fingerprint", "addresses", "last_good") } +
+            entry.filterKeys { it !in setOf("fingerprint", "addresses", "last_good", "typed") } +
                 ("base_urls" to JsonArray(listOf(JsonPrimitive(baseUrl)))) +
                 (fingerprint?.let { mapOf("fingerprint" to JsonPrimitive(it)) } ?: emptyMap()),
         )
@@ -176,7 +177,7 @@ class CredentialStoreTest {
     @Test
     fun aStoredHttpUrlIsMigratedToHttpsAndKeepsThePin() {
         val storage = legacyStorage("http://100.101.102.103:8760", creds.fingerprint)
-        val expected = creds.copy(addresses = listOf(tailnet), lastGood = null)
+        val expected = creds.copy(addresses = listOf(tailnet), lastGood = null, typed = tailnet)
         assertEquals(CredentialState.Paired(expected), loaded(storage))
         assertEquals("""[{"url":"https://100.101.102.103:8760","kind":"tailscale"}]""", entryOf(storage)["addresses"].toString())
     }
@@ -202,20 +203,33 @@ class CredentialStoreTest {
     }
 
     // T09: what the link learnt is stored without a Keystore call; the token stays sealed as it was.
+    // T09b: the PC's current list goes first; addresses it does not serve right now stay behind it.
     @Test
-    fun rememberStoresTheAddressesAndTheLastGoodOne() = runBlocking {
+    fun rememberMergesTheAddressesAndStoresTheLastGoodOne() = runBlocking {
         val storage = savedStorage()
         val sealedBefore = entryOf(storage)["token_sealed"]
         val noKeystore = CredentialCodec(AesGcmTokenCipher({ error("encrypt") }, { key }))
         val store = store(storage, noKeystore).also { it.load() }
         val wifi = ServerEndpoint("192.168.1.61", 8760, Network.Lan)
         store.remember(creds.pcId, listOf(wifi, tailnet), wifi)
-        val expected = creds.copy(addresses = listOf(wifi, tailnet), lastGood = wifi)
+        val expected = creds.copy(addresses = listOf(wifi, tailnet, lan), lastGood = wifi)
         assertEquals(CredentialState.Paired(expected), store.state.value)
         assertEquals(sealedBefore, entryOf(storage)["token_sealed"])
         assertEquals(CredentialState.Paired(expected), loaded(storage))
         store.remember("dev_other", listOf(wifi), wifi) // not stored: ignored
         assertEquals(CredentialState.Paired(expected), store.state.value)
+    }
+
+    // T09b: past the cap the address unseen longest goes first; the typed one stays even then.
+    @Test
+    fun theStoredListIsCappedButKeepsTheTypedAddress() = runBlocking {
+        val storage = savedStorage()
+        val store = store(storage).also { it.load() }
+        val seen = (1..PcAddresses.MAX_STORED).map { ServerEndpoint("10.0.0.$it", 8760, Network.Lan) }
+        for (address in seen) store.remember(creds.pcId, listOf(address), address)
+        val stored = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(seen.reversed().take(PcAddresses.MAX_STORED - 1) + lan, stored.addresses)
+        assertEquals(CredentialState.Paired(stored), loaded(storage))
     }
 
     @Test

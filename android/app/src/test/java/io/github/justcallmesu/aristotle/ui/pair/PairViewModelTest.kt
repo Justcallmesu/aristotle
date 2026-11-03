@@ -78,6 +78,7 @@ class PairViewModelTest {
             saved.addresses.map { it.baseUrl },
         )
         assertEquals("https://192.168.1.23:8760", saved.lastGood?.baseUrl)
+        assertEquals("https://192.168.1.23:8760", saved.typed?.baseUrl)
     }
 
     @Test

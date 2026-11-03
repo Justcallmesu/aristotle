@@ -2,8 +2,16 @@ package io.github.justcallmesu.aristotle.data
 
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.net.SocketAddress
+import kotlin.concurrent.thread
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
@@ -11,6 +19,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RelaySocketTest {
@@ -75,6 +84,49 @@ class RelaySocketTest {
             assertEquals(RelayEvent.Opened, events.first())
             assertEquals(listOf<SocketAddress?>(InetSocketAddress(tailnet.inetAddress, 8760)), sockets.dialed)
             assertEquals("Bearer secret", server.takeRequest().headers["Authorization"])
+        }
+    }
+
+    // T09 review 3: a socket still connecting is dropped when its collector goes, not closed with a handshake
+    // that keeps OkHttp connecting; the PC sees the connection end at once.
+    @Test
+    fun aSocketStillConnectingIsDroppedAtOnce() = runBlocking {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { silent ->
+            val accepted = CompletableDeferred<Socket>()
+            thread(isDaemon = true) { runCatching { accepted.complete(silent.accept()) } }
+            val relay = RelaySocket(testClients().pinnedTo(pinOf(held), Network.Lan), "https://127.0.0.1:${silent.localPort}", DeviceToken("t"))
+            val collector = launch(Dispatchers.Default) { relay.events().collect {} }
+            withTimeout(5_000) { accepted.await() }.use { peer ->
+                awaitClientHello(peer)
+                collector.cancelAndJoin()
+                assertTrue("the phone kept connecting", endsWithin(peer, millis = 3_000))
+            }
+        }
+    }
+
+    // T09 review 3: cancel() drops an open socket without a close frame (its network is gone).
+    @Test
+    fun cancelDropsAnOpenSocketWithoutACloseFrame() = runBlocking {
+        startServer(held).use { server ->
+            val serverSide = CompletableDeferred<String>()
+            server.enqueue(
+                MockResponse.Builder().webSocketUpgrade(object : WebSocketListener() {
+                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                        serverSide.complete("close frame $code")
+                    }
+
+                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        serverSide.complete("dropped")
+                    }
+                }).build(),
+            )
+            val relay = relay(server)
+            val events = Channel<RelayEvent>(Channel.UNLIMITED)
+            val collector = launch(Dispatchers.Default) { relay.events().collect { events.send(it) } }
+            assertEquals(RelayEvent.Opened, withTimeout(10_000) { events.receive() })
+            relay.cancel()
+            assertEquals("dropped", withTimeout(10_000) { serverSide.await() })
+            collector.cancelAndJoin()
         }
     }
 

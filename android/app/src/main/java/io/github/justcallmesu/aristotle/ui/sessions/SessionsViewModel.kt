@@ -30,7 +30,13 @@ data class SessionsUiState(
     val listedAt: String? = null,
     /** `session.list` failed although the link is up. */
     val listProblem: String? = null,
-)
+) {
+    /**
+     * When the list is from while it is not live (the link is not Online: offline, or connecting again after
+     * a network switch): running rows read "Was running at …" then, never a live spinner (design.md §5).
+     */
+    val staleAt: String? get() = listedAt.takeIf { link !is LinkState.Online }
+}
 
 /** UI state for the session list. The connection is the process-wide [RelayLink]; this only lists. */
 class SessionsViewModel(

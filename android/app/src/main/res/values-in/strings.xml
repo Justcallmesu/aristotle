@@ -52,7 +52,7 @@
     <string name="sessions_section_yesterday">Kemarin</string>
     <string name="sessions_section_earlier">Sebelumnya</string>
     <string name="session_running">Berjalan</string>
-    <string name="session_was_running">Sedang berjalan pukul %1$s</string>
+    <string name="session_was_running">Terakhir berjalan pukul %1$s</string>
     <string name="session_now">baru saja</string>
     <string name="session_untitled">Sesi tanpa judul</string>
     <plurals name="session_messages">
@@ -80,11 +80,10 @@
     <string name="offline_cause_unreachable">Laptop di %1$s tidak menjawab lewat Wi-Fi maupun Tailscale. Pastikan laptop menyala dan aristotle-server berjalan.</string>
     <string name="offline_cause_tailscale">Tailscale mungkin mati di ponsel ini. Di luar Wi-Fi Anda, Aristotle hanya bisa menjangkau laptop lewat Tailscale.</string>
     <string name="offline_cause_lost">Laptop di %1$s menjawab, lalu koneksinya terputus.</string>
+    <string name="offline_cause_app_error">Aristotle mengalami galat tak terduga saat menyambung ke %1$s. Aristotle akan mencoba lagi sendiri.</string>
     <string name="offline_list_from">Daftar ini dari pukul %1$s.</string>
-    <string name="offline_trying">Mencoba lagi…</string>
-    <plurals name="offline_next_try">
-        <item quantity="other">Percobaan %1$d gagal · lagi dalam %2$d detik</item>
-    </plurals>
+    <string name="offline_reconnecting">Menyambung ulang… percobaan %1$d</string>
+    <string name="offline_reconnecting_next">Menyambung ulang… percobaan %1$d, berikutnya dalam %2$d detik</string>
 
     <!-- Stored pairing unreadable for now -->
     <string name="creds_unavailable_title">Penyandingan tidak bisa dibuka</string>

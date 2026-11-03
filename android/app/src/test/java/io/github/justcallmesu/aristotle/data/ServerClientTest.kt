@@ -1,7 +1,15 @@
 package io.github.justcallmesu.aristotle.data
 
+import java.net.InetAddress
 import java.net.ServerSocket
+import java.net.Socket
+import kotlin.concurrent.thread
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -97,6 +105,25 @@ class ServerClientTest {
         assertNull(client.addresses(DeviceToken("revoked")))
         respond(200, "not json")
         assertNull(client.addresses(DeviceToken("t")))
+    }
+
+    // T09 review 2: cancelling the caller cancels the HTTP call at once; the PC sees the connection end.
+    @Test
+    fun cancellingTheCallerAbandonsTheRequestAtOnce() = runBlocking {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { silent ->
+            val accepted = CompletableDeferred<Socket>()
+            thread(isDaemon = true) { runCatching { accepted.complete(silent.accept()) } }
+            val client = ServerClient(testClients().pinnedTo(pinOf(held), Network.Lan), "https://127.0.0.1:${silent.localPort}")
+            val call = async(Dispatchers.Default) { client.addresses(DeviceToken("t")) }
+            withTimeout(5_000) { accepted.await() }.use { peer ->
+                awaitClientHello(peer)
+                val started = System.nanoTime()
+                call.cancelAndJoin()
+                val millis = (System.nanoTime() - started) / 1_000_000
+                assertTrue("cancel took $millis ms", millis < 1_000)
+                assertTrue("the phone kept the connection open", endsWithin(peer, millis = 3_000))
+            }
+        }
     }
 
     @Test

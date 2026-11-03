@@ -2,12 +2,15 @@ package io.github.justcallmesu.aristotle.data
 
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -104,13 +107,29 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
     private fun <T> decode(response: Response, serializer: kotlinx.serialization.KSerializer<T>): T? =
         runCatching { HermesJson.decodeFromString(serializer, response.body.string()) }.getOrNull()
 
+    /**
+     * Runs the call on OkHttp's threads. Cancelling the caller cancels the call at once (T09 review 2): a
+     * blocking `execute()` would hold the caller for up to the connect and read timeouts.
+     */
     private suspend fun <T> execute(request: Request, onFailure: (ConnectionProblem) -> T, handle: (Response) -> T): T =
-        withContext(Dispatchers.IO) {
-            try {
-                client.newCall(request).execute().use(handle)
-            } catch (e: IOException) {
-                onFailure(connectionProblemOf(e))
-            }
+        suspendCancellableCoroutine { continuation ->
+            val call = client.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    continuation.resume(onFailure(connectionProblemOf(e)))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        continuation.resume(response.use(handle))
+                    } catch (e: IOException) {
+                        continuation.resume(onFailure(connectionProblemOf(e)))
+                    } catch (e: RuntimeException) {
+                        continuation.resumeWithException(e)
+                    }
+                }
+            })
         }
 
     private companion object {

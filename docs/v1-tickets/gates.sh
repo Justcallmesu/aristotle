@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Project gates. Usage: gates.sh <run-dir>. Never modifies source files.
+# Project gates. Usage: [GATE_ONLY=server|android] gates.sh <run-dir>. Never modifies source files.
+# GATE_ONLY skips the other side (recorded as SKIP) for tickets that do not touch it.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -11,6 +12,11 @@ RUN_DIR="$(mkdir -p "$1" && cd "$1" && pwd)"
 SUMMARY="$RUN_DIR/gate-summary.txt"
 : > "$SUMMARY"
 FAILED=0
+ONLY="${GATE_ONLY:-}"
+if [[ -n "$ONLY" && "$ONLY" != server && "$ONLY" != android ]]; then
+  echo "GATE_ONLY must be server or android" >&2
+  exit 2
+fi
 
 record() { # status step code
   echo "$1 $2 ($3)" >> "$SUMMARY"
@@ -32,7 +38,9 @@ server_fmt() {
   echo "gofmt: clean"
 }
 
-if [[ -d "$ROOT/server" ]]; then
+if [[ "$ONLY" == android ]]; then
+  record SKIP server 0
+elif [[ -d "$ROOT/server" ]]; then
   cd "$ROOT/server"
   run_step server-gofmt "$RUN_DIR/gate-server-gofmt.log" server_fmt
   run_step server-vet "$RUN_DIR/gate-server-vet.log" go vet ./...
@@ -48,7 +56,9 @@ else
   record SKIP server 0
 fi
 
-if [[ -f "$ROOT/android/gradlew" ]]; then
+if [[ "$ONLY" == server ]]; then
+  record SKIP android 0
+elif [[ -f "$ROOT/android/gradlew" ]]; then
   cd "$ROOT/android"
   # Not executable -> the run fails (FAIL), never a silent skip.
   run_step android "$RUN_DIR/gate-android.log" ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug

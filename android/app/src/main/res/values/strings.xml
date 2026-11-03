@@ -84,12 +84,10 @@
     <string name="offline_cause_unreachable">The laptop at %1$s doesn\'t answer on Wi-Fi or Tailscale. Check that it\'s awake and that aristotle-server is running.</string>
     <string name="offline_cause_tailscale">Tailscale may be off on this phone. Away from your Wi-Fi, Aristotle reaches the laptop only through Tailscale.</string>
     <string name="offline_cause_lost">The laptop at %1$s answered, then the connection ended.</string>
+    <string name="offline_cause_app_error">Aristotle hit an unexpected error while connecting to %1$s. It tries again by itself.</string>
     <string name="offline_list_from">This list is from %1$s.</string>
-    <string name="offline_trying">Trying again…</string>
-    <plurals name="offline_next_try">
-        <item quantity="one">Try %1$d failed · next in %2$d second</item>
-        <item quantity="other">Try %1$d failed · next in %2$d seconds</item>
-    </plurals>
+    <string name="offline_reconnecting">Reconnecting… try %1$d</string>
+    <string name="offline_reconnecting_next">Reconnecting… try %1$d, next in %2$d s</string>
 
     <!-- Stored pairing unreadable for now -->
     <string name="creds_unavailable_title">Can\'t open the pairing</string>

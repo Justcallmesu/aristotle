@@ -22,6 +22,27 @@ fun startServer(held: HeldCertificate? = null): MockWebServer = MockWebServer().
     start(InetAddress.getByName("127.0.0.1"), 0)
 }
 
+/** Waits until the phone's TLS ClientHello arrives on [peer]: the handshake is under way. */
+fun awaitClientHello(peer: Socket) {
+    peer.soTimeout = 5_000
+    check(peer.getInputStream().read() >= 0) { "no ClientHello" }
+}
+
+/** True when [peer] reads end of stream (the other side closed or dropped it) within [millis]. */
+fun endsWithin(peer: Socket, millis: Int): Boolean {
+    peer.soTimeout = millis
+    val input = peer.getInputStream()
+    val buffer = ByteArray(4096)
+    return try {
+        while (input.read(buffer) >= 0) Unit
+        true
+    } catch (_: java.net.SocketTimeoutException) {
+        false
+    } catch (_: java.net.SocketException) {
+        true // reset by the phone
+    }
+}
+
 /** Endpoint for a local test server. */
 fun localEndpoint(server: MockWebServer): ServerEndpoint = ServerEndpoint("127.0.0.1", server.port, Network.Lan)
 

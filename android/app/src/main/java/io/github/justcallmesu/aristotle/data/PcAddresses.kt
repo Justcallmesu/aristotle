@@ -23,5 +23,31 @@ object PcAddresses {
         return endpoint.takeIf { it.network.wire == address.kind }
     }
 
+    /** At most this many addresses are stored per PC. */
+    const val MAX_STORED = 8
+
+    /**
+     * The stored list after a refresh (T09b): [fresh] (what the PC serves now) first, then every [known]
+     * address it did not report, in their stored order, one entry per URL (the fresh entry wins). An address
+     * is never dropped because the PC does not serve it right now: the laptop moves between home and office.
+     * Past [cap] the last entries go first, which are the ones unseen longest; [keep] (the typed and the
+     * last good address) always stay.
+     */
+    fun merge(
+        fresh: List<ServerEndpoint>,
+        known: List<ServerEndpoint>,
+        keep: Collection<ServerEndpoint?>,
+        cap: Int = MAX_STORED,
+    ): List<ServerEndpoint> {
+        val merged = (fresh + known).distinctBy { it.baseUrl }.toMutableList()
+        val kept = keep.mapNotNullTo(HashSet()) { it?.baseUrl }
+        while (merged.size > cap) {
+            val last = merged.indexOfLast { it.baseUrl !in kept }
+            if (last < 0) break
+            merged.removeAt(last)
+        }
+        return merged
+    }
+
     private const val HTTPS = "https://"
 }

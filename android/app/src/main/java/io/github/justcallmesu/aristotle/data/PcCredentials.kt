@@ -10,8 +10,10 @@ class DeviceToken(val value: String) {
 /**
  * What the phone keeps per PC (spec Q25: keyed per PC; v1 holds one). [pcId] is the device id this PC
  * issued, which is unique per PC and pairing. [addresses] are every listener the PC reported (LAN and
- * Tailscale, T09), never empty; [lastGood] is the one the last relay used. [fingerprint] is the PC's one
- * pinned key, used for every address alike (spec Q49).
+ * Tailscale, T09), never empty, the ones it reported last first ([PcAddresses.merge]); [lastGood] is the one
+ * the last relay used; [typed] is the one the user typed at pairing (null for pairings from T09 builds),
+ * which the stored list never drops. [fingerprint] is the PC's one pinned key, used for every address alike
+ * (spec Q49).
  */
 data class PcCredentials(
     val pcId: String,
@@ -20,6 +22,7 @@ data class PcCredentials(
     val fingerprint: String,
     val token: DeviceToken,
     val lastGood: ServerEndpoint? = null,
+    val typed: ServerEndpoint? = null,
 ) {
     /** The pin as bytes; [fingerprint] is checked when the entry is read or paired. */
     val pin: ByteArray get() = requireNotNull(Fingerprint.parse(fingerprint)) { "stored fingerprint is not a pin" }

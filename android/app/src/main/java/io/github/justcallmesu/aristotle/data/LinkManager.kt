@@ -1,6 +1,7 @@
 package io.github.justcallmesu.aristotle.data
 
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -47,9 +48,12 @@ interface LinkDialer {
     fun networkChanged() {}
 }
 
-/** Stores what the link learnt about a PC: its current addresses and the one that worked. */
+/**
+ * Stores what the link learnt about a PC: [fresh], the addresses it serves now (empty when unknown), merged
+ * into the stored ones (never replacing them, T09b), and [lastGood], the one that worked.
+ */
 fun interface LinkMemory {
-    suspend fun remember(pcId: String, addresses: List<ServerEndpoint>, lastGood: ServerEndpoint)
+    suspend fun remember(pcId: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint)
 }
 
 data class LinkTimings(
@@ -65,6 +69,7 @@ data class LinkTimings(
  * relay delivers `gateway.ready`), and at once when the phone's network changes, the app returns to the
  * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s.
  * Frames are handed off OkHttp's reader thread at once ([RelaySocket]) and parsed here (protocol §12).
+ * An unexpected error in a round shows as [OfflineCause.AppError] and the next round runs: the link never dies.
  */
 class LinkManager(
     private val scope: CoroutineScope,
@@ -93,8 +98,8 @@ class LinkManager(
     fun start(): Job = scope.launch {
         launch {
             network.changes.collect {
-                dialer.networkChanged()
                 wakes.trySend(Wake.Network)
+                unlessCancelled { dialer.networkChanged() }
             }
         }
         credentials
@@ -122,10 +127,7 @@ class LinkManager(
         suspend fun run() {
             current.value = LinkState.Connecting
             while (true) {
-                drainWakes()
-                val pc = latest()
-                val order = EndpointChoice.order(pc.addresses, pc.lastGood, network.prefersLan())
-                when (val end = round(pc, order)) {
+                when (val end = nextRound()) {
                     RoundEnd.Revoked -> {
                         current.value = LinkState.Revoked
                         return
@@ -146,6 +148,17 @@ class LinkManager(
             }
         }
 
+        /** One round over the PC's addresses, best first; an unexpected error ends it like a loss. */
+        private suspend fun nextRound(): RoundEnd = try {
+            drainWakes()
+            val pc = latest()
+            round(pc, EndpointChoice.order(pc.addresses, pc.lastGood, network.prefersLan()))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LinkEnds.unexpected(e)
+        }
+
         /** The stored entry as it is now (the link itself updates its addresses); [paired] if it is gone. */
         private fun latest(): PcCredentials =
             (credentials.value as? CredentialState.Paired)?.credentials?.takeIf { it.pcId == paired.pcId } ?: paired
@@ -159,7 +172,7 @@ class LinkManager(
                 }
             }
             val pcHasLan = pc.addresses.any { it.network == Network.Lan }
-            return LinkEnds.offline(misses, pcHasLan, network.prefersLan())
+            return LinkEnds.offline(misses, pcHasLan, network.prefersLan(), network.vpnUp())
         }
 
         /** One address: open the relay, wait for `gateway.ready`, then stay online until the relay ends. */
@@ -188,7 +201,8 @@ class LinkManager(
                 is Start.Ended -> notReady(endpoint, start.end)
                 is Start.TimedOut -> timedOut(endpoint, start.opened)
             }
-            pump.cancel() // closes the socket (1000) if it is still open
+            if ((result as? Attempt.Ended)?.end == RoundEnd.Switch) socket.cancel() // its network is gone: no handshake
+            pump.cancel() // closes the socket (1000) if it is open, drops it if it is still connecting
             result
         }
 
@@ -228,23 +242,21 @@ class LinkManager(
             ended: CompletableDeferred<SocketEnd>,
         ): RoundEnd {
             reached()
-            failures = 0
             live = rpc
             current.value = LinkState.Online(endpoint, ++generation)
+            // Not joined: the link moves on the moment the relay ends, whatever the refresh is doing.
+            val refresh = scope.launch { refreshAddresses(pc, endpoint) }
             try {
-                return coroutineScope {
-                    val refresh = launch { refreshAddresses(pc, endpoint) }
-                    var end: RoundEnd? = null
-                    while (end == null) {
-                        end = select<RoundEnd?> {
-                            ended.onAwait { socketEnd -> endOf(socketEnd, endpoint) }
-                            wakes.onReceive { wake -> if (wake == Wake.Network) RoundEnd.Switch else null }
-                        }
+                var end: RoundEnd? = null
+                while (end == null) {
+                    end = select<RoundEnd?> {
+                        ended.onAwait { socketEnd -> endOf(socketEnd, endpoint) }
+                        wakes.onReceive { wake -> if (wake == Wake.Network) RoundEnd.Switch else null }
                     }
-                    refresh.cancel()
-                    end
                 }
+                return end
             } finally {
+                refresh.cancel()
                 live = null
                 rpc.failAll("relay closed")
             }
@@ -255,11 +267,13 @@ class LinkManager(
             is SocketEnd.Failed -> LinkEnds.ofFailure(end.httpStatus, end.problem, endpoint)
         }
 
-        /** Remembers the address that worked and the PC's current list (a DHCP change, Tailscale added). */
-        private suspend fun refreshAddresses(pc: PcCredentials, endpoint: ServerEndpoint) {
-            val fresh = runCatching { dialer.addresses(pc, endpoint) }.getOrNull()?.takeIf { it.isNotEmpty() }
-            val addresses = fresh ?: pc.addresses
-            if (addresses != pc.addresses || endpoint != pc.lastGood) memory.remember(pc.pcId, addresses, endpoint)
+        /**
+         * Remembers the address that worked and merges in the PC's current list (a DHCP change, Tailscale
+         * added). Best effort: when it fails the stored list stays, and the working relay is not ended for it.
+         */
+        private suspend fun refreshAddresses(pc: PcCredentials, endpoint: ServerEndpoint) = unlessCancelled {
+            val fresh = dialer.addresses(pc, endpoint).orEmpty()
+            if (fresh.isNotEmpty() || endpoint != pc.lastGood) memory.remember(pc.pcId, fresh, endpoint)
         }
 
         private suspend fun backOff(end: RoundEnd.Lost) {
@@ -271,9 +285,10 @@ class LinkManager(
             current.update { if (it is LinkState.Offline) it.copy(nextAttemptAtMillis = null) else it }
         }
 
-        /** The PC answered: it is not offline (whatever Hermes said). */
+        /** The PC answered: it is not offline (whatever Hermes said), and a later loss backs off from the start. */
         private fun reached() {
             offlineSince = null
+            failures = 0
         }
 
         /** Waits [millis], or less when the network changes, the app comes back or the user asks. */
@@ -311,5 +326,16 @@ class LinkManager(
         const val ABNORMAL_CLOSURE = 1006
 
         fun seconds(millis: Long): String = if (millis % 1000 == 0L) "${millis / 1000} s" else "$millis ms"
+
+        /** Runs [block] for its side effect; an error other than cancellation is dropped (best-effort work). */
+        suspend fun unlessCancelled(block: suspend () -> Unit) {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best effort by design; the caller's state stays as it was.
+            }
+        }
     }
 }

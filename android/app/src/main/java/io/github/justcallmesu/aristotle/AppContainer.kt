@@ -2,6 +2,7 @@ package io.github.justcallmesu.aristotle
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
 import io.github.justcallmesu.aristotle.data.CertificateProbe
 import io.github.justcallmesu.aristotle.data.CredentialCodec
@@ -13,6 +14,7 @@ import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
 import io.github.justcallmesu.aristotle.data.LinkManager
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,9 +44,13 @@ class AppContainer(context: Context) {
     val httpClients = HttpClients()
     val certificateProbe = CertificateProbe()
 
-    /** The one link to the paired PC (T09), for every screen; it runs off the main thread. */
+    /**
+     * The one link to the paired PC (T09), for every screen; it runs off the main thread. The link turns
+     * its own errors into an offline round; the handler is the last guard, so nothing it starts can crash
+     * the app (only the error's type is logged, never a message that could hold a token).
+     */
     val link = LinkManager(
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.w(TAG, "link: ${e.javaClass.name}") }),
         credentials = credentials.state,
         dialer = HttpLinkDialer(httpClients),
         network = AndroidNetworkWatch(context),
@@ -82,6 +88,7 @@ class AppContainer(context: Context) {
 
     private companion object {
         const val CREDENTIALS_FILE = "credentials"
+        const val TAG = "Aristotle"
     }
 }
 

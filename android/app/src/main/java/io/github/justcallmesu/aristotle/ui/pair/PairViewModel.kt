@@ -155,6 +155,7 @@ class PairViewModel(
                     fingerprint = Fingerprint.format(step.fingerprint),
                     token = result.token,
                     lastGood = step.endpoint,
+                    typed = step.endpoint,
                 ),
             )
             PairResult.InvalidCode -> state.update { it.copy(busy = false, codeError = CodeFieldError.Invalid) }

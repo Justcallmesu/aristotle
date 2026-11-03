@@ -1,6 +1,8 @@
 package io.github.justcallmesu.aristotle.data
 
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -39,7 +42,8 @@ class LinkManagerTest {
         fingerprint = "7E54 D87B 19C0 A4F2 5B3E 0D96 C1A8 72FE 3E09 B6D4 8A15 F0C3 62D9 4E7A BCA7 EAA7",
         token = DeviceToken("t"),
     )
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val uncaught = CopyOnWriteArrayList<Throwable>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> uncaught += e })
 
     @After
     fun stop() = scope.cancel()
@@ -53,7 +57,15 @@ class LinkManagerTest {
         @Volatile
         var closedByPhone = false
 
+        /** Dropped without a close handshake ([RelayChannel.cancel]). */
+        @Volatile
+        var cancelled = false
+
         override fun events(): Flow<RelayEvent> = incoming.receiveAsFlow().onCompletion { closedByPhone = true }
+
+        override fun cancel() {
+            cancelled = true
+        }
 
         override fun send(text: String): Boolean {
             sent += text
@@ -89,19 +101,29 @@ class LinkManagerTest {
         @Volatile
         var networkChanges = 0
 
-        override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
-            synchronized(this) { script(endpoint, opened.size).also { opened += endpoint; sockets += it } }
+        /** How long `GET /v1/addresses` blocks its thread, like a call that ignores cancellation. */
+        @Volatile
+        var refreshBlocksMillis = 0L
 
-        override suspend fun addresses(pc: PcCredentials, endpoint: ServerEndpoint): List<ServerEndpoint>? = list
+        override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel = synchronized(this) {
+            opened += endpoint
+            script(endpoint, opened.size - 1).also { sockets += it }
+        }
+
+        override suspend fun addresses(pc: PcCredentials, endpoint: ServerEndpoint): List<ServerEndpoint>? {
+            if (refreshBlocksMillis > 0) Thread.sleep(refreshBlocksMillis)
+            return list
+        }
 
         override fun networkChanged() {
             networkChanges++
         }
     }
 
-    private class FakeNetwork(@Volatile var lan: Boolean) : NetworkWatch {
+    private class FakeNetwork(@Volatile var lan: Boolean, @Volatile var vpn: Boolean = false) : NetworkWatch {
         override val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
         override fun prefersLan() = lan
+        override fun vpnUp() = vpn
         fun change(preferLan: Boolean) {
             lan = preferLan
             changes.tryEmit(Unit)
@@ -117,12 +139,14 @@ class LinkManagerTest {
         dialer: FakeDialer,
         network: FakeNetwork = FakeNetwork(lan = true),
         backoff: Backoff = Backoff(baseMillis = 40, capMillis = 200, random = { 1.0 }),
+        credentials: StateFlow<CredentialState> = this.credentials,
+        memory: LinkMemory = LinkMemory { _, addresses, lastGood -> remembered += Remembered(addresses, lastGood) },
     ): LinkManager = LinkManager(
         scope = scope,
         credentials = credentials,
         dialer = dialer,
         network = network,
-        memory = { _, addresses, lastGood -> remembered += Remembered(addresses, lastGood) },
+        memory = memory,
         timings = LinkTimings(readyTimeoutMillis = 2_000, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff),
     ).also { it.start() }
 
@@ -289,6 +313,115 @@ class LinkManagerTest {
         val onTailnet = manager.await("on tailnet") { it is LinkState.Online && it.endpoint == tailnet }
         assertTrue(onTailnet is LinkState.Online)
         waitFor("old socket closed") { dialer.sockets.first().closedByPhone }
+        assertTrue("the old network's socket is dropped, not closed with a handshake", dialer.sockets.first().cancelled)
+    }
+
+    // T09b: a socket that ends the usual way (the server closed it) is not cancelled on top.
+    @Test
+    fun aRelayTheServerClosedIsNotCancelled() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val manager = link(dialer)
+        manager.await("online") { it is LinkState.Online }
+        dialer.sockets.single().close(1001, "going_away")
+        manager.await("offline") { it is LinkState.Offline }
+        assertFalse(dialer.sockets.single().cancelled)
+    }
+
+    // T09 review 1: the office/home scenario. At the office the phone reaches the laptop over Tailscale and the
+    // PC serves the office LAN and the tailnet; the home address the user typed must stay, so back home on
+    // Wi-Fi with Tailscale off the phone still finds the laptop.
+    @Test
+    fun anAddressThePcDoesNotServeRightNowIsKeptForLater() {
+        val home = lan
+        val office = ServerEndpoint("10.20.0.15", 8760, Network.Lan)
+        val key = softwareKey()
+        val store = CredentialStore(MemoryStore(), CredentialCodec(AesGcmTokenCipher { key }), Dispatchers.Unconfined)
+        runBlocking { store.save(pc.copy(addresses = listOf(home, tailnet), typed = home, lastGood = home)) }
+
+        val atHome = AtomicBoolean(false)
+        val dialer = FakeDialer { endpoint, _ ->
+            val reachable = if (atHome.get()) endpoint == home else endpoint == tailnet
+            if (reachable) FakeSocket().ready() else FakeSocket().fail(null)
+        }
+        dialer.list = listOf(office, tailnet)
+        val network = FakeNetwork(lan = false, vpn = true) // at the office: cellular, Tailscale on
+        val manager = link(dialer, network, credentials = store.state, memory = store)
+        manager.await("online at the office") { it is LinkState.Online && it.endpoint == tailnet }
+        fun stored() = (store.state.value as CredentialState.Paired).credentials
+        waitFor("office list merged") { office in stored().addresses }
+        assertEquals(listOf(office, tailnet, home), stored().addresses)
+
+        atHome.set(true) // home Wi-Fi, Tailscale off; the laptop is on the home LAN again
+        dialer.list = listOf(home, tailnet)
+        network.vpn = false
+        network.change(preferLan = true)
+        manager.await("online at home") { it is LinkState.Online && it.endpoint == home }
+        waitFor("home list merged") { stored().addresses.first() == home }
+        assertEquals(listOf(home, tailnet, office), stored().addresses)
+    }
+
+    // T09 review 2: `GET /v1/addresses` never holds the link Online after the relay ended.
+    @Test
+    fun aSlowAddressRefreshDoesNotDelayTheLoss() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        dialer.refreshBlocksMillis = 4_000
+        val manager = link(dialer)
+        manager.await("online") { it is LinkState.Online }
+        val closedAt = System.nanoTime()
+        dialer.sockets.single().close(1001, "going_away")
+        manager.await("offline") { it is LinkState.Offline }
+        val millis = (System.nanoTime() - closedAt) / 1_000_000
+        assertTrue("offline after $millis ms", millis < 1_000)
+        val error = runBlocking { runCatching { manager.call("session.list") }.exceptionOrNull() }
+        assertTrue(error is RpcException && error.linkClosed)
+    }
+
+    // T09 review 4: a store that throws neither crashes the app nor stops the link; the relay stays up.
+    @Test
+    fun aFailingStoreNeitherCrashesNorEndsTheLink() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        dialer.list = listOf(lan, tailnet, ServerEndpoint("10.0.0.2", 8760, Network.Lan))
+        val manager = link(dialer, memory = { _, _, _ -> throw IllegalStateException("disk full") })
+        val first = manager.await("online") { it is LinkState.Online } as LinkState.Online
+        runBlocking { delay(200) }
+        assertEquals(first, manager.state.value)
+        dialer.sockets.single().close(1001, "going_away")
+        manager.await("back") { it is LinkState.Online && it.generation != first.generation }
+        assertEquals(emptyList<Throwable>(), uncaught)
+    }
+
+    // T09 review 4: an unexpected error in a round shows as offline with its reason and the next round runs.
+    @Test
+    fun anUnexpectedErrorGoesOfflineAndTheNextRoundRuns() {
+        credentials.value = CredentialState.Paired(pc.copy(addresses = listOf(lan)))
+        val dialer = FakeDialer { _, n -> if (n == 0) throw IllegalStateException("bug") else FakeSocket().ready() }
+        val manager = link(dialer)
+        val offline = manager.await("offline") { it is LinkState.Offline } as LinkState.Offline
+        assertEquals(OfflineCause.AppError, offline.cause)
+        assertEquals("unexpected IllegalStateException", offline.details)
+        manager.await("online") { it is LinkState.Online }
+        assertEquals(emptyList<Throwable>(), uncaught)
+    }
+
+    // T09 review 11: once the PC answered (4503 here), a later loss starts the backoff from the first step.
+    @Test
+    fun hermesDownInBetweenResetsTheFailureCount() {
+        credentials.value = CredentialState.Paired(pc.copy(addresses = listOf(lan)))
+        val dialer = FakeDialer { _, n ->
+            when (n) {
+                0 -> FakeSocket().ready()
+                2 -> FakeSocket().close(4503, "hermes_not_running")
+                1, 3 -> FakeSocket().fail(null)
+                else -> FakeSocket().ready()
+            }
+        }
+        val manager = link(dialer)
+        manager.await("online") { it is LinkState.Online }
+        dialer.sockets.single().close(1001, "going_away")
+        manager.await("second failure") { it is LinkState.Offline && it.attempt == 2 }
+        manager.await("down") { it is LinkState.HermesDown }
+        val offline = manager.await("offline again") { it is LinkState.Offline } as LinkState.Offline
+        assertEquals(1, offline.attempt)
     }
 
     @Test
@@ -296,6 +429,15 @@ class LinkManagerTest {
         val dialer = FakeDialer { _, _ -> FakeSocket().fail(null) }
         val offline = link(dialer, FakeNetwork(lan = false)).await("offline") { it is LinkState.Offline } as LinkState.Offline
         assertEquals(OfflineCause.TailscaleMayBeOff, offline.cause)
+    }
+
+    // T09 review 7: with a VPN up, Tailscale is not the likely cause; the laptop itself does not answer.
+    @Test
+    fun withAVpnUpTheTailnetMissIsJustUnreachable() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().fail(null) }
+        val network = FakeNetwork(lan = false, vpn = true)
+        val offline = link(dialer, network).await("offline") { it is LinkState.Offline } as LinkState.Offline
+        assertEquals(OfflineCause.Unreachable, offline.cause)
     }
 
     @Test

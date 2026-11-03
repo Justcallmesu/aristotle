@@ -57,11 +57,18 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
         }
 
         private suspend fun loadAll() {
-            val profile = runCatching {
-                HermesJson.decodeFromJsonElement(RuntimeDescription.serializer(), link.call("runtime.describe"))
-            }.getOrNull()?.profileId?.let(Profiles::nameOf)
+            val profile = describeRuntime()?.profileId?.let(Profiles::nameOf)
             out.send(SessionFeedEvent.Profile(profile))
             loadSessions()
+        }
+
+        /** `runtime.describe`, or null when it failed (the profile label is optional); cancellation passes. */
+        private suspend fun describeRuntime(): RuntimeDescription? = try {
+            HermesJson.decodeFromJsonElement(RuntimeDescription.serializer(), link.call("runtime.describe"))
+        } catch (_: RpcException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null // SerializationException: an answer of another shape
         }
 
         private suspend fun loadSessions() {

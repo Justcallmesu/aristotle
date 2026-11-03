@@ -49,6 +49,9 @@ enum class OfflineCause {
 
     /** The PC answered, then the relay ended (a close code, or no `gateway.ready`). */
     ConnectionLost,
+
+    /** Something in the app failed unexpectedly (a bug, a store that throws); the link tries again. */
+    AppError,
 }
 
 /** How one round over a PC's addresses ended. */
@@ -104,21 +107,26 @@ object LinkEnds {
 
     /**
      * The round ended without reaching the PC on any address. A certificate mismatch wins (the user must
-     * decide); "Tailscale may be off" when only tailnet addresses could help and none answered.
+     * decide); "Tailscale may be off" when only tailnet addresses could help, none answered and no VPN is up
+     * on the phone (with one up, Tailscale is most likely on and the laptop itself does not answer).
      */
-    fun offline(misses: List<Miss>, pcHasLan: Boolean, preferLan: Boolean): RoundEnd.Lost {
+    fun offline(misses: List<Miss>, pcHasLan: Boolean, preferLan: Boolean, vpnUp: Boolean): RoundEnd.Lost {
         val certificate = misses.firstOrNull { it.kind == MissKind.CertificateChanged }
         val tailnet = misses.filter { it.endpoint.network == Network.Tailscale }
         val onlyTailnetCouldHelp = !pcHasLan || !preferLan
         val cause = when {
             certificate != null -> OfflineCause.CertificateChanged
-            onlyTailnetCouldHelp && tailnet.isNotEmpty() && tailnet.all { it.kind == MissKind.Unreachable } ->
+            !vpnUp && onlyTailnetCouldHelp && tailnet.isNotEmpty() && tailnet.all { it.kind == MissKind.Unreachable } ->
                 OfflineCause.TailscaleMayBeOff
             else -> OfflineCause.Unreachable
         }
         val details = misses.joinToString("\n") { "${it.endpoint.displayAddress} ${it.details}" }.ifEmpty { "no stored address" }
         return RoundEnd.Lost(cause, details, certificate?.endpoint ?: misses.firstOrNull()?.endpoint)
     }
+
+    /** A round failed with an error nobody expected; only its type goes into the details (no message text). */
+    fun unexpected(error: Exception): RoundEnd.Lost =
+        RoundEnd.Lost(OfflineCause.AppError, "unexpected ${error.javaClass.simpleName}", address = null)
 
     fun closeDetails(code: Int, reason: String): String = if (reason.isEmpty()) "close $code" else "close $code $reason"
 

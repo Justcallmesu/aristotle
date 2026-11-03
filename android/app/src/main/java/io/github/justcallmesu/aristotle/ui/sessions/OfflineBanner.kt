@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -38,8 +37,8 @@ import kotlinx.coroutines.delay
 
 /**
  * design.md §5 offline banner, under the top bar: "PC offline since HH:MM", the cause, when the list is
- * from, and Retry now. The verdigris progress line shows only while a round is running (live work);
- * between rounds the banner counts down to the next one and nothing moves.
+ * from, "Reconnecting… try N, next in S s" and Retry now. The verdigris progress line shows only while a
+ * round is running (live work); between rounds the banner counts down to the next one and nothing moves.
  */
 @Composable
 fun OfflineBanner(
@@ -69,7 +68,7 @@ fun OfflineBanner(
                 ) {
                     Text(
                         text = stringResource(R.string.offline_title, timeText(offline.sinceMillis)),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = AristotleTextStyles.tabular(MaterialTheme.typography.titleSmall),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
@@ -90,6 +89,7 @@ private fun causeText(cause: OfflineCause, address: String): String = when (caus
     OfflineCause.TailscaleMayBeOff -> stringResource(R.string.offline_cause_tailscale)
     OfflineCause.ConnectionLost -> stringResource(R.string.offline_cause_lost, address)
     OfflineCause.Unreachable, OfflineCause.CertificateChanged -> stringResource(R.string.offline_cause_unreachable, address)
+    OfflineCause.AppError -> stringResource(R.string.offline_cause_app_error, address)
 }
 
 @Composable
@@ -97,12 +97,16 @@ private fun BodyLine(text: String) {
     Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** "Trying again…" during a round, else a countdown to the next one (whole seconds, tabular). */
+/**
+ * "Reconnecting… try N" during a round, else "Reconnecting… try N, next in S s" counting down (whole
+ * seconds, tabular). N is the try that runs or runs next: [LinkState.Offline.attempt] tries have failed.
+ */
 @Composable
 private fun RetryStatus(offline: LinkState.Offline) {
     val next = offline.nextAttemptAtMillis
+    val tryNumber = offline.attempt + 1
     val text = if (next == null) {
-        stringResource(R.string.offline_trying)
+        stringResource(R.string.offline_reconnecting, tryNumber)
     } else {
         val left by produceState(secondsUntil(next), next) {
             while (value > 0) {
@@ -110,7 +114,7 @@ private fun RetryStatus(offline: LinkState.Offline) {
                 value = secondsUntil(next)
             }
         }
-        pluralStringResource(R.plurals.offline_next_try, left, offline.attempt, left)
+        stringResource(R.string.offline_reconnecting_next, tryNumber, left)
     }
     Text(
         text = text,

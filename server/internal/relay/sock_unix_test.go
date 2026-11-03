@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -104,7 +105,7 @@ func TestTrackedConnCopyAndWritevGoThroughDrainTracking(t *testing.T) {
 			const big = 4 << 20 // far beyond both 128 KiB buffers: the write must wait for the peer
 			wrote := make(chan error, 1)
 			go func() { wrote <- write(tc, make([]byte, big)) }()
-			time.Sleep(200 * time.Millisecond) // both buffers fill and a write waits (EAGAIN) before the peer reads
+			waitUntilAWriteWaits(t) // both buffers are full and the write waits (EAGAIN) before the peer reads
 			if _, err := io.CopyN(io.Discard, peer, big); err != nil {
 				t.Fatal(err)
 			}
@@ -160,6 +161,31 @@ func trackedPair(t *testing.T) (*trackedConn, net.Conn) {
 	return tc, peer
 }
 
+// waitUntilAWriteWaits returns once a goroutine in trackedConn.Write is parked in the runtime poller
+// waiting for room: the kernel refused bytes (EAGAIN), so the write has to wait for the peer. It reads
+// the goroutine stacks instead of sleeping, so a loaded machine only makes it take longer.
+func waitUntilAWriteWaits(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	buf := make([]byte, 1<<20)
+	for {
+		n := runtime.Stack(buf, true)
+		if n == len(buf) {
+			buf = make([]byte, 2*len(buf))
+			continue
+		}
+		for _, g := range strings.Split(string(buf[:n]), "\n\n") {
+			if strings.Contains(g, "(*trackedConn).Write") && strings.Contains(g, "(*pollDesc).waitWrite") {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no write waited for the peer within 10 s")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 // onlyReader hides bytes.Reader's WriteTo, so io.Copy asks the destination for ReadFrom.
 type onlyReader struct{ io.Reader }
 
@@ -201,7 +227,7 @@ func TestTrackedConnWriteEndsOnDeadlineAndClose(t *testing.T) {
 	_ = c.SetWriteDeadline(time.Time{})
 	done := make(chan error, 1)
 	go func() { _, err := c.Write(make([]byte, 64<<20)); done <- err }()
-	time.Sleep(50 * time.Millisecond)
+	waitUntilAWriteWaits(t)
 	_ = c.Close()
 	select {
 	case err := <-done:

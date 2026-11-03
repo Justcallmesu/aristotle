@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -61,7 +60,7 @@ fun SessionsContentView(state: SessionsUiState, timeText: (Long) -> String, onRe
             } else {
                 val offline = state.link as? LinkState.Offline
                 offline?.let { OfflineBanner(it, address, state.listedAt, timeText, onRetry) }
-                ListBody(state, address, offlineAt = state.listedAt.takeIf { offline != null })
+                ListBody(state, address)
             }
         }
     }
@@ -79,12 +78,12 @@ private fun pageFor(state: SessionsUiState): Page? = when (val link = state.link
 }
 
 @Composable
-private fun ListBody(state: SessionsUiState, address: String, offlineAt: String?) {
+private fun ListBody(state: SessionsUiState, address: String) {
     val items = state.items
     when {
         items == null -> if (state.link !is LinkState.Offline) ConnectingBody(address)
         items.isEmpty() -> EmptyBody()
-        else -> SessionList(items, offlineAt)
+        else -> SessionList(items, state.staleAt)
     }
 }
 
@@ -174,14 +173,14 @@ private fun EmptyBody() {
     }
 }
 
-/** [offlineAt]: the list is from that time and the PC is offline, so nothing reads as live (design.md §5). */
+/** [staleAt]: the list is from that time and the link is not up, so nothing reads as live (design.md §5). */
 @Composable
-private fun SessionList(items: List<SessionListItem>, offlineAt: String?) {
+private fun SessionList(items: List<SessionListItem>, staleAt: String?) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(items, key = ::itemKey) { item ->
             when (item) {
                 is SessionListItem.Header -> SectionHeader(item.section)
-                is SessionListItem.Row -> SessionRowItem(item.row, offlineAt)
+                is SessionListItem.Row -> SessionRowItem(item.row, staleAt)
             }
         }
     }
@@ -212,7 +211,7 @@ private fun SectionHeader(section: DaySection) {
 
 /** design.md §5 session row: 72 dp, title + one status line, trailing time. */
 @Composable
-private fun SessionRowItem(row: SessionRow, offlineAt: String?) {
+private fun SessionRowItem(row: SessionRow, staleAt: String?) {
     ListItem(
         modifier = Modifier.heightIn(min = Sizes.sessionRowHeight),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
@@ -224,16 +223,16 @@ private fun SessionRowItem(row: SessionRow, offlineAt: String?) {
                 overflow = TextOverflow.Ellipsis,
             )
         },
-        supportingContent = { RowStatus(row, offlineAt) },
-        trailingContent = row.time?.let { time -> { RowTimeText(time, offlineAt) } },
+        supportingContent = { RowStatus(row, staleAt) },
+        trailingContent = row.time?.let { time -> { RowTimeText(time, staleAt) } },
     )
 }
 
 @Composable
-private fun RowStatus(row: SessionRow, offlineAt: String?) {
-    if (row.running && offlineAt != null) {
+private fun RowStatus(row: SessionRow, staleAt: String?) {
+    if (row.running && staleAt != null) {
         Text(
-            text = stringResource(R.string.session_was_running, offlineAt),
+            text = stringResource(R.string.session_was_running, staleAt),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -259,10 +258,10 @@ private fun RowStatus(row: SessionRow, offlineAt: String?) {
 }
 
 @Composable
-private fun RowTimeText(time: RowTime, offlineAt: String?) {
+private fun RowTimeText(time: RowTime, staleAt: String?) {
     Text(
         text = when (time) {
-            RowTime.Now -> offlineAt ?: stringResource(R.string.session_now)
+            RowTime.Now -> staleAt ?: stringResource(R.string.session_now)
             is RowTime.At -> time.text
         },
         style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),

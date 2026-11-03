@@ -45,17 +45,21 @@ class LinkEndsTest {
     @Test
     fun offlineCauseAfterARoundWithoutAnAnswer() {
         val bothUnreachable = listOf(Miss(lan, MissKind.Unreachable, "unreachable"), Miss(tailnet, MissKind.Unreachable, "unreachable"))
-        assertEquals(OfflineCause.Unreachable, LinkEnds.offline(bothUnreachable, pcHasLan = true, preferLan = true).cause)
-        assertEquals(OfflineCause.TailscaleMayBeOff, LinkEnds.offline(bothUnreachable, pcHasLan = true, preferLan = false).cause)
+        assertEquals(OfflineCause.Unreachable, LinkEnds.offline(bothUnreachable, pcHasLan = true, preferLan = true, vpnUp = false).cause)
+        assertEquals(OfflineCause.TailscaleMayBeOff, LinkEnds.offline(bothUnreachable, pcHasLan = true, preferLan = false, vpnUp = false).cause)
         val tailnetOnly = listOf(Miss(tailnet, MissKind.Unreachable, "unreachable"))
-        assertEquals(OfflineCause.TailscaleMayBeOff, LinkEnds.offline(tailnetOnly, pcHasLan = false, preferLan = true).cause)
+        assertEquals(OfflineCause.TailscaleMayBeOff, LinkEnds.offline(tailnetOnly, pcHasLan = false, preferLan = true, vpnUp = false).cause)
         val refused = listOf(Miss(tailnet, MissKind.Refused, "/v1/ws HTTP 403"))
-        assertEquals(OfflineCause.Unreachable, LinkEnds.offline(refused, pcHasLan = false, preferLan = false).cause)
+        assertEquals(OfflineCause.Unreachable, LinkEnds.offline(refused, pcHasLan = false, preferLan = false, vpnUp = false).cause)
+        // T09 review 7: a VPN is up, so Tailscale is probably on; the laptop does not answer.
+        assertEquals(OfflineCause.Unreachable, LinkEnds.offline(bothUnreachable, pcHasLan = true, preferLan = false, vpnUp = true).cause)
+        assertEquals(OfflineCause.Unreachable, LinkEnds.offline(tailnetOnly, pcHasLan = false, preferLan = true, vpnUp = true).cause)
 
         val certificate = LinkEnds.offline(
             listOf(Miss(lan, MissKind.CertificateChanged, LinkEnds.CERT_DETAILS), Miss(tailnet, MissKind.Unreachable, "unreachable")),
             pcHasLan = true,
             preferLan = false,
+            vpnUp = false,
         )
         assertEquals(OfflineCause.CertificateChanged, certificate.cause)
         assertEquals(lan, certificate.address)
