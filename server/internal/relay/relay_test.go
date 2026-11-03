@@ -629,3 +629,81 @@ func TestCloseMappings(t *testing.T) {
 		t.Errorf("unknown dial error -> %+v", got)
 	}
 }
+
+// lanServer is a second listener ("lan") of the same hub, as the real server runs one router per listener.
+func (h *harness) lanServer(t *testing.T) *harness {
+	t.Helper()
+	router := httpapi.NewRemoteRouter("t", slog.New(slog.NewTextHandler(h.logs, nil)), httpapi.Deps{Codes: &pairing.Codes{}, Devices: h.store, Relay: h.hub, Listener: "lan"})
+	srv := httptest.NewUnstartedServer(router)
+	srv.Listener = WrapListener(srv.Listener)
+	srv.Start()
+	t.Cleanup(srv.Close)
+	lan := *h
+	lan.srv = srv
+	return &lan
+}
+
+func TestRelaySupersededByOtherListener(t *testing.T) {
+	h := newHarness(t, nil) // "tailscale"
+	lan := h.lanServer(t)
+	old := lan.phone(t, h.token)
+	other := lan.phone(t, h.token) // same listener: both stay
+	if got := h.hub.Count(h.dev.ID); got != 2 {
+		t.Fatalf("count = %d, want 2", got)
+	}
+	_, tok2, _ := h.store.Add("tablet")
+	bystander := lan.phone(t, tok2)
+
+	fresh := h.phone(t, h.token)
+	for _, pc := range []*websocket.Conn{old, other} {
+		ce := wantClose(t, pc, CodeSuperseded, 5*time.Second)
+		if ce.Reason != "superseded by a newer connection" {
+			t.Errorf("reason = %q", ce.Reason)
+		}
+	}
+	waitFor(t, "only the new socket counted", func() bool { return h.hub.Count(h.dev.ID) == 1 })
+	if !strings.Contains(h.logs.String(), "relay superseded") || !strings.Contains(h.logs.String(), "old_listener=lan") || !strings.Contains(h.logs.String(), "new_listener=tailscale") {
+		t.Fatalf("log:\n%s", h.logs.String())
+	}
+	write(t, bystander, `{"jsonrpc":"2.0","id":1,"method":"ping"}`) // another device untouched
+	write(t, fresh, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+	if got := h.hub.Count(tok2Dev(t, h, "tablet")); got != 1 {
+		t.Fatalf("other device count = %d", got)
+	}
+}
+
+func tok2Dev(t *testing.T, h *harness, name string) string {
+	t.Helper()
+	for _, d := range h.store.List() {
+		if d.Name == name {
+			return d.ID
+		}
+	}
+	t.Fatal("no device " + name)
+	return ""
+}
+
+func TestRelaySameListenerTwiceKeepsBoth(t *testing.T) {
+	h := newHarness(t, nil)
+	a, b := h.phone(t, h.token), h.phone(t, h.token)
+	write(t, a, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+	write(t, b, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+	if got := h.hub.Count(h.dev.ID); got != 2 {
+		t.Fatalf("count = %d", got)
+	}
+}
+
+func TestRelaySwitchAtCapIsAdmitted(t *testing.T) {
+	h := newHarness(t, nil)
+	lan := h.lanServer(t)
+	var olds []*websocket.Conn
+	for i := 0; i < DefaultMaxPerDevice; i++ {
+		olds = append(olds, lan.phone(t, h.token))
+	}
+	fresh := h.phone(t, h.token) // not 4430
+	for _, pc := range olds {
+		wantClose(t, pc, CodeSuperseded, 5*time.Second)
+	}
+	waitFor(t, "one left", func() bool { return h.hub.Count(h.dev.ID) == 1 })
+	write(t, fresh, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+}

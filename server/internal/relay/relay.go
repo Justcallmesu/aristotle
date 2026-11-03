@@ -128,6 +128,19 @@ func (h *Hub) register(s *session) (closeReason, bool) {
 		return closeReason{CodeGoingAway, "going_away"}, false
 	}
 	set := h.byDev[s.dev]
+	// A newer socket on the other listener retires the device's older ones there (the phone changed
+	// network; the old socket cannot say so). They leave the set now so the cap never counts them.
+	for old := range set {
+		if old.listener == s.listener {
+			continue
+		}
+		if _, by := old.closeState(); by != "" {
+			continue // already closing (revoke, shutdown, its own end)
+		}
+		old.requestClose(closeReason{CodeSuperseded, "superseded by a newer connection"})
+		delete(set, old)
+		h.opts.Log.Info("relay superseded", "device_id", s.dev, "old_listener", old.listener, "new_listener", s.listener)
+	}
 	if len(set) >= h.opts.MaxPerDevice {
 		return closeReason{CodeTooMany, "too_many_connections"}, false
 	}

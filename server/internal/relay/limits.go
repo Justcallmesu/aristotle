@@ -23,6 +23,7 @@ const (
 	CodePongTimeout         websocket.StatusCode = 1011 // no pong within PongTimeout
 	CodeTryAgain            websocket.StatusCode = 1013 // Hermes is draining or not ready (its own 1013)
 	CodeRevoked             websocket.StatusCode = 4401 // the device was revoked
+	CodeSuperseded          websocket.StatusCode = 4409 // the device opened a newer relay on the other listener
 	CodeRateLimited         websocket.StatusCode = 4429 // more than MaxFramesPerMinute phone frames
 	CodeTooMany             websocket.StatusCode = 4430 // the device already has MaxPerDevice relays
 	CodeHermesUnavailable   websocket.StatusCode = 4502 // any other Hermes failure, or Hermes refused (4403)
