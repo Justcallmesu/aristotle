@@ -17,7 +17,8 @@ Labels: **EXERCISED** = sent by the spike and the answer captured (frame file na
 - Peer check: the server reads the peer UID (SO_PEERCRED) and only a same-UID peer gets a `peer_subject`
   (`uid:<n>`); `session-ticket` refuses without it (`control_socket.py:369-371`, `:399-411`).
 
-`identify` (no params):
+`identify` (no params; VERIFIED `control_socket.py:224`, `:347-351`: the handler is `build_identify_payload()`, which
+takes no arguments, so any `params` sent are ignored; `protocol` is not checked for non-private verbs, send `1` anyway):
 ```json
 → {"protocol":1,"id":1,"verb":"identify"}
 ← {"ok":true,"protocol":1,"id":1,"result":{
@@ -42,8 +43,28 @@ dynamic: re-read it on every connect. Client must refuse `runtime_protocol != 1`
 ← {"ok":true,"protocol":1,"id":1,"result":{"ticket":"<43 chars>","expires_in_seconds":30,
      "instance_id":"…","profile_id":"/home/justcallmesu/.hermes","runtime_protocol":1}}
 ```
-- Envelope keys exactly `protocol, verb, id, params`; params keys ⊆ `profile_id, instance_id, purpose,
-  scope, subject, restart_wait` (`control_socket.py:369-397`). Extra keys → `PermissionError`.
+- Envelope keys ⊆ `protocol, verb, id, params`, and `protocol` must equal `1`. `params` must be an object.
+  **Required**: `profile_id`, `instance_id`, `purpose`. **Optional**: `scope` (`profile` default | `host`),
+  `subject`, `restart_wait` (if present it must equal `"refuse"`; presence makes the ticket refused while a
+  Hermes restart wait is open, `control_socket.py:375-378`, `:394` → `runtime_bootstrap.py:40-41`). Any other
+  key is refused. VERIFIED `control_socket.py:369-397`. Aristotle sends only the three required keys + `scope`.
+- `subject`: omit it. If sent it must be a structured login subject (`auth:v1:[provider, issuer, user]`),
+  else `invalid bootstrap subject` (`control_socket.py:387-391`). VERIFIED source; not exercised.
+- Errors: every refusal is `{"ok":false,"error":"PermissionError: <message>","protocol":1,"id":…}`
+  (`control_socket.py:352-353`; the server then closes the connection). VERIFIED messages (source):
+
+  | `error` message | Cause | Cite |
+  |---|---|---|
+  | `authenticated runtime bootstrap unavailable` | peer is not the same UID (no `peer_subject`) or no ticket store | `control_socket.py:370-371` |
+  | `invalid bootstrap envelope` | extra envelope key, or `protocol != 1` | `:372-373` |
+  | `invalid bootstrap parameters` | `params` not an object, a required key missing, an unknown key, or `restart_wait != "refuse"` | `:373-378` |
+  | `stale runtime instance` | `instance_id` ≠ the store's (Hermes restarted) | `:379-380` (EXERCISED, `a-probes.jsonl`) |
+  | `invalid bootstrap subject` | bad/oversized/non-structured `subject` | `:387-391` |
+  | `bootstrap binding rejected` | `profile_id` not served, unknown `purpose`, bad `scope`, or `scope:"host"` without `purpose:"interactive"` | `runtime_bootstrap.py:42-44` (unknown `profile_id` EXERCISED, `a-probes.jsonl`) |
+  | `bootstrap capacity exhausted` | too many unredeemed tickets | `runtime_bootstrap.py:48-49` |
+
+  Non-JSON, non-object, or an oversized request line (> 64 KiB) → `{"ok":false,"error":"…"}` or the connection closes
+  with no answer (`control_socket.py:36`, `:418-419`, `:327-329`, `:352-353`).
 - Purposes (`gateway/runtime_bootstrap.py:9-20`): `interactive` (the `/api/ws` socket), `native-http`
   (REST, header), `native-profile-create`, `native-profile-registry`, others not for us.
 - `scope`: `profile` (default) or `host`; `host` only with `interactive` (`runtime_bootstrap.py:22`, `:42-44`).
@@ -62,9 +83,16 @@ Sec-WebSocket-Protocol: hermes-gateway-v1, hermes-gateway-ticket.<ticket>
 → 101, Sec-WebSocket-Protocol: hermes-gateway-v1
 ```
 - Exactly one `hermes-gateway-ticket.*` entry plus `hermes-gateway-v1` (`hermes_cli/web_server_boundary.py:156-171`).
-- Peer must be 127.0.0.1/::1; any Origin header, bad Host, or bad ticket → refused
-  (`gateway/run_api.py:428-447`). Observed: reused ticket, Origin header, garbage ticket, ticket after 31 s
-  all → HTTP 403 at upgrade (`a-probes.jsonl`). `1013` close = gateway draining/not ready (`run_api.py:389-398`).
+- Peer must be 127.0.0.1/::1; a bad Host, a missing/ill-formed subprotocol, or non-loopback peer is closed
+  `4403` before accept (`gateway/run_api.py:442-447`; seen by an HTTP client as 403). The two cases the spike
+  observed take a different path (VERIFIED by reading source; the 403 status itself is EXERCISED, `a-probes.jsonl`):
+  - **Origin header present** → `run_api.py:429-441` hands the request on to the web app (`self.app`) unredeemed.
+  - **Well-formed but unredeemable ticket** (reused, expired, garbage): both `redeem` calls raise `PermissionError`
+    (`run_api.py:450-454`; `runtime_bootstrap.py:61-74`: `invalid bootstrap ticket`, `expired bootstrap
+    ticket`, `bootstrap binding rejected`) → `return await self.app(...)` (`run_api.py:455-460`).
+  In both cases the web app's own auth gate then returns the HTTP 403. ASSUMED: that gate's body/reason text
+  (not captured). Observed: reused ticket, Origin header, garbage ticket, ticket after 31 s all → HTTP 403 at
+  upgrade (`a-probes.jsonl`). `1013` close = gateway draining/not ready (`run_api.py:389-398`).
 - The ticket's profile picks the session authority; `scope:"host"` lets the socket address sibling profiles
   (§3) (`run_api.py:472-488`, `gateway/session_controls.py:167-199`).
 - No compression extension is needed (spike offered none).
@@ -95,8 +123,7 @@ Session event frame (`gateway/session_events.py:48-64`):
 - Process-wide broadcasts carry `session_id:""` and `payload:{}`: `sessions.changed`, `platforms.changed`,
   `projects.changed` (seen every few seconds). Treat as "refetch list" hints.
 
-Seen in captures, per turn: `session.info` (pending queue, revision, running, and a ~21 KB
-`system_prompt` — see risks), `message.start`, `agent.step {iteration}`, `thinking.delta {text}`,
+Seen in captures, per turn: `session.info` (**two payload shapes, see §2.1**; 4 events per turn), `message.start`, `agent.step {iteration}`, `thinking.delta {text}`,
 `message.delta {text, turn_id, segment, offset}`, `tool.generating {name}`, `tool.start {tool_id, name,
 context, tool_call_id, tool_name, args}`, `tool.complete {… is_error, result, duration_s, inline_diff}`,
 `session.usage {usage}`, `message.complete {text, content, admission_id, outcome, status, usage}`
@@ -111,6 +138,61 @@ request), `todo.updated`, `subagent.start|text|tool|thinking|complete|roster`, `
 
 Token-type events (`message.delta`, `reasoning.delta`, `thinking.delta`) are coalesced ~33 ms server-side
 (`ws.py:129-130`).
+
+### 2.1 `session.info`: two payload shapes (+ two snapshot forms)
+
+`session.info` is the one event type whose `payload` is NOT a fixed set of keys. Hermes publishes it from several
+places with different key sets, and the contract model defaults every missing field to `""`/`false`/`{}`
+(`tui_gateway/contracts/common.py:73-106`, `SessionLiveInfo`; VERIFIED source). **Client rule (reducer):
+MERGE only the keys present in the payload into the session's state. Never replace the state with the payload,
+and never apply the contract defaults for absent keys**; replacing would blank model, tools, title and cwd on every
+partial update.
+
+**Shape A — partial state update (7 keys, always these 7; all 47 shape-A frames captured have exactly this set).** Published by `_publish_pending`
+(`gateway/session_authority.py:442-457`; VERIFIED source). Keys: `stored_session_id`, `pending` (list of queued
+admissions), `authority_epoch`, `desktop_protocol`, `running`, `execution_generation`, `revision`. It is the only
+place a viewer learns the CAS `revision` for `session.mutate` (comment at `session_authority.py:448-450`) and the
+current `running`/`execution_generation`. Carries NO `system_prompt` and NO `credential_hint`. EXERCISED:
+`c-client1.jsonl:15,17,29` (and every `session.info` event with `seq` 1, 3, 12 there). Event envelope also has
+`replay_epoch, seq, session_id, type`; shape A frames at `:15` have no `authority_epoch`/`execution_generation`
+in the envelope (they are inside `payload`), later ones (`:17`) carry them in both.
+
+**Shape B — full inventory (23 keys in the captured end-of-turn event).** Published once at the end of a turn by
+`publish_settled_info` = `agent_inventory(agent)` ∪ `local_session_info(...)`
+(`gateway/session_local_inventory.py:225-270`; `:209-223`; `gateway/session_local.py:447-487`; VERIFIED source).
+Keys seen (`c-client1.jsonl:26`): `provider, tools{group:[names]}, system_prompt, context_length, source, model,
+lazy, profile_id, desktop_protocol, profile_name, cwd, reasoning_effort, reasoning_effort_wire, service_tier, fast,
+launch_request, title, started_at, last_active_at, yolo, api_mode, tool_count, credential_hint`. EXERCISED. It does
+NOT carry `pending`, `revision`, `running`, `execution_generation`, `authority_epoch`, `stored_session_id` (those
+come only from shape A), nor `skills`, `usage`, `version`, `mcp_servers`, `enabled_toolsets` (those are in the RPC
+result form below). **Carries `system_prompt` (~21 KB; 21682 chars in the spike) and `credential_hint`.**
+
+**Shape B′ — policy repaint (from source, not exercised).** `local_session_info(authority, ref)` alone, with no
+`system_prompt` and no `tools`/`context_length`, published after `session.mutate` of `model|reasoning|workspace|
+edit_policy` (`gateway/session_mutations.py:353-359`), a policy refresh (`session_policy_refresh.py:294-296`), a
+messaging pick (`session_messaging_picks.py:102`) and an auto-title (`run_turn_progress.py:959`). Same merge rule.
+It still includes `credential_hint` (`session_local.py:487`, `_classic_cli_fields` `:491-520`). Not in the frames.
+(Another source-only variant, `{stored_session_id, pending_submissions}`, is the TUI owner-forward path,
+`tui_gateway/owner_forward.py:184`; not on the `/api/ws` canonical path.)
+
+**RPC / snapshot form (full, merge it the same way).** The `session.info {session_id}` result and the `info`
+field of `session.create` / `session.resume` results are `snapshot_info` = inventory ∪ `local_session_info` ∪
+`usage` (`gateway/session_local_inventory.py:192-206`; `session_controls.py:554-559`, `:609-704`). 34 keys in
+`f-busy-client2.jsonl:85` (`result` is the info object itself, not wrapped): shape B's keys plus `skills{group:[names]}`,
+`enabled_toolsets, mcp_servers, tool_availability, branch, project, usage, version, release_date, update_behind,
+update_command`. `system_prompt` and a non-null `credential_hint` exist only once an agent is built: a lazy
+(never-run) session's resume `info` has neither key populated (`c-client1.jsonl:7`: no `system_prompt`,
+`credential_hint: null`); the same session after its first turn has both (`c-send.jsonl:8`). EXERCISED.
+
+**Frequency (corrects the earlier "about twice per turn").** EXERCISED, counted per `seq`:
+per one-prompt turn each viewer got **3 shape-A events + 1 shape-B event** (4 `session.info`), e.g.
+`d-client1.jsonl` turn 1: A at seq 25, 27, 52; B at seq 50; turn 2: A at 53, 55, 98; B at 96
+(`d-client1.jsonl:13,15,43,45` and `:59,61,110,112`; same in `d-client2`, `e-*`, `f-busy-*`). So the full
+`system_prompt`-bearing shape B is **once per turn** (per viewer). Beyond the turn cycle it also appears: once in
+each `session.resume`/`session.create` snapshot `info` (after the first turn), and once per explicit
+`session.info` call (`f-busy-client2.jsonl:85`). Shape A repeats more often when the queue changes (an extra A at
+seq 132 in `f-busy-client1.jsonl:23` during the queue/steer test). ASSUMED (not isolated in frames): the three
+A events per turn correspond to admission, run start and settle.
 
 ## 3. Profiles (EXERCISED — `b-sessions.jsonl`)
 - The default gateway multiplexes every profile (`gateway.multiplex_profiles: true` in config;
@@ -133,7 +215,7 @@ Token-type events (`message.delta`, `reasoning.delta`, `thinking.delta`) are coa
 | `session.resume` | `{session_id, omit_messages?, display_projection?, profile?}` | snapshot `{session_id, stored_session_id, messages, message_count, running, authority_epoch, replay_epoch, last_sequence, subscription_id, revision, execution_generation, pending, prompts, info, open_requests, todo_state, pending_connection}` | EXERCISED |
 | `session.detach` | `{session_id, subscription_id, end_reason?}` | `{detached}` | from source, not exercised (socket close detaches too) |
 | `session.events.since` | `{session_id, last_sequence, replay_epoch?}` | `{events, latest_seq, replay_epoch, truncated, snapshot_required, open_requests}` | EXERCISED (`f-busy-client2.jsonl`) |
-| `session.info` | `{session_id}` | inventory (model, provider, tools, skills, cwd, usage, …) | EXERCISED |
+| `session.info` | `{session_id}` only; any other key → `invalid_params` (`session_controls.py:554-559`) | the full inventory object itself (34 keys, incl. `system_prompt`, `credential_hint`; §2.1) | EXERCISED (`f-busy-client2.jsonl:85`) |
 | `session.mutate` | `{session_id, request_id, expected_revision, operation, payload, expected_generation?}`; operations `rename {title}`, `archive {archived}`, `sidebar {title?,archived?,hidden?,pinned?,unread?}`, `model`, `reasoning {effort}`, `workspace {cwd}`, `branch`, `compress`, `rewind`, `delete`, … (`gateway/session_mutations.py:18-20`) | receipt `{session_id, operation, revision, …}`; conflicts `revision_conflict`/`stale_generation` carry fresh fences in `error.data` | from source, not exercised |
 | `runtime.describe` | `{}` | `{instance_id, profile_id, authority_epoch, capabilities, session_create, skin}` | EXERCISED |
 
@@ -242,3 +324,30 @@ and drives it over Electron IPC `hermes:terminal:start|attach|write|resize|cwd|d
 The gateway only offers `shell.exec` (one-shot), the `terminal.read` server request (agent reads the
 Desktop pane), and the dashboard's `/api/pty` (a TUI chat PTY, `hermes_cli/web_routers/chat_ws.py:475`).
 → aristotle-server must host its own PTY for the v1 terminal feature.
+
+## 10. Relay redaction (spec Q34)
+aristotle-server passes Hermes frames to the phone unchanged except these two fields (spec §2, Q34). VERIFIED
+that the fields exist in these places (scan of every frame in `docs/spikes/frames/`; source cites in §2.1):
+
+| Field | Where it appears (path in the JSON-RPC frame) | Seen in frames | Replacement |
+|---|---|---|---|
+| `system_prompt` | event `session.info` shape B: `params.payload.system_prompt` | `c-client1.jsonl:26` (16 events) | remove the key, add `params.payload.system_prompt_chars` = length of the string (characters) |
+| `system_prompt` | result of `session.info`: `result.system_prompt` | `f-busy-client2.jsonl:85` | same, `result.system_prompt_chars` |
+| `system_prompt` | result of `session.create` / `session.resume` / `session.activate`: `result.info.system_prompt` | `c-send.jsonl:8` (5 frames) | same, `result.info.system_prompt_chars` |
+| `credential_hint` | event `session.info` shapes B and B′: `params.payload.credential_hint` | `c-client1.jsonl:26` (16 events) | remove the key |
+| `credential_hint` | result of `session.info`: `result.credential_hint` | `f-busy-client2.jsonl:85` | remove the key |
+| `credential_hint` | result of create/resume/activate: `result.info.credential_hint` (value `null` for a lazy session, `c-client1.jsonl:7`) | 8 frames | remove the key |
+
+- `system_prompt` -> `system_prompt_chars` (integer; 0 if the original was empty or `null`).
+  `credential_hint` -> key removed, no replacement. Shape A (`session.info` with 7 keys) carries neither field and
+  passes unchanged.
+- The redaction applies by field name at those paths only; it does not touch message text, tool output or other
+  fields. `info.skills` / `info.tools` (names only) are NOT redacted (see `docs/spikes/v0-attach.md`).
+- ASSUMED, not in frames: `session.events.since` returns replayed events, so a replayed shape-B `session.info`
+  would sit at `result.events[].params.payload.{system_prompt,credential_hint}`. The relay should apply the same
+  event rule to every element of `events[]`. Not captured: the only `session.events.since` frame returned
+  `events: []` with `truncated: true, snapshot_required: true` (`f-busy-client2.jsonl:83`).
+- ASSUMED: Hermes' own `credential_hint` value is `mask_secret(api_key)` (`gateway/session_local.py:511-514`), i.e.
+  partial key characters, so it must not reach the phone or logs. The committed frames show the literal string
+  `"[REDACTED]"` (the spike client already replaced it), so the real masked shape is not in the repo.
+- The phone gets `system_prompt_chars` only so a UI can show that a prompt exists; nothing else about it.

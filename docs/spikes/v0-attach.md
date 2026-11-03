@@ -21,7 +21,11 @@ No password, config change or restart was needed.
 | extra | REST with a native-http ticket | PASS (read-only). See Q5. | `q5-rest.jsonl` |
 
 Frames are redacted: no tickets ever written; `system_prompt` values (user memories/skills, ~21 KB) and the
-`commands.catalog` values replaced by `<redacted …>`. Only spike-session content remains. `e-*` files are the
+`commands.catalog` values replaced by `<redacted …>`; `credential_hint` stored as `"[REDACTED]"`. Only
+spike-session content remains. **Left in on purpose:** the skill and tool NAME lists in `info.skills` /
+`info.tools` (e.g. `c-client1.jsonl:7`, `:26`) were not scrubbed even though `commands.catalog` values were. The
+repo is private and these are names only (no prompt text, no memories), so they stay; frames are not rewritten.
+This is an inconsistency, not a leak of secrets. The relay does not redact them either (`docs/protocol.md` §10). `e-*` files are the
 tail of the same client run as `d-*` (split at 02:50:40Z), so they start without `gateway.ready`.
 
 ## Spike questions (spec §5)
@@ -34,7 +38,7 @@ served_profiles[{profile_id, home}], parked_profiles, capabilities}`. Ticket req
 `{"protocol":1,"id":1,"verb":"session-ticket","params":{"profile_id","instance_id","purpose":"interactive","scope":"host"}}`
 → `{ticket, expires_in_seconds:30, instance_id, profile_id, runtime_protocol:1}`. WS subprotocols
 `hermes-gateway-v1, hermes-gateway-ticket.<ticket>`, server echoes `hermes-gateway-v1`; no Origin header.
-Full shapes in `docs/protocol.md` §1.
+Full shapes in `docs/protocol.md` §1 (`session-ticket` requires `profile_id, instance_id, purpose`; optional `scope, subject, restart_wait`; error table there).
 
 **Q2 — List, resume, live events; methods needed.** VERIFIED for independent clients (captured `b`, `c`,
 `f`); ASSUMED for co-viewing with the Desktop window itself (not tested with the Desktop attached).
@@ -54,7 +58,8 @@ is the withdrawal signal when the Desktop (or any other viewer) answers first; a
 `already_resolved`. The `client.capabilities {server_requests:true}` call is still sent (Desktop does) and
 governs `srq-` server requests (sudo, secret, batch clarify, window bridges) withdrawn by `request.cancel`
 (`tui_gateway/server_requests.py:1-35`) — from source. ASSUMED: approval/clarify events arrive even
-without the capability call (they are published to the event stream unconditionally), not tested.
+without the capability call (they are published to the event stream unconditionally, VERIFIED in source
+`gateway/session_pending_controls.py:38`, `:51`: `events.publish(...)` with no capability check), not tested.
 
 **Q4 — Profiles.** VERIFIED (captured `b-sessions.jsonl`; source `gateway/session_controls.py:167-199`,
 `:305-318`, `gateway/runtime_bootstrap.py:21-44`). Yes: the default gateway serves all profiles
@@ -94,8 +99,13 @@ chat PTY). aristotle-server must provide its own PTY channel.
    sidecar path). The brief's "approvals are withdrawn without `client.capabilities`" applies to `srq-` only.
 2. Smart approvals auto-approve ordinary dangerous commands (`rm -r` in /tmp). Approval cards on the phone
    will be rarer than expected; protected-file writes and smart-escalated commands still ask.
-3. Every `session.info` event and resume snapshot carries the full `system_prompt` (~21 KB, includes the
-   user's memories and skill list). It goes to every viewer on every turn.
+3. `session.info` has two payload shapes (`docs/protocol.md` §2.1). Only the full one carries the
+   `system_prompt` (~21 KB, includes the user's memories and skill list) and `credential_hint`: **once per turn per
+   viewer** (end-of-turn event, e.g. `d-client1.jsonl:43` seq 50 and `:110` seq 96 for two turns), once in each
+   resume/create snapshot `info` after the first turn (`c-send.jsonl:8`) and once per explicit `session.info`
+   call (`f-busy-client2.jsonl:85`). The other three `session.info` events per turn are a 7-key state update
+   (`pending, revision, running, execution_generation, authority_epoch, stored_session_id, desktop_protocol`;
+   `c-client1.jsonl:15,17,29`) with no prompt. A client must merge present keys, never replace state.
 4. `session.create` with a `title` is create-if-missing: the same title returns the existing session.
 5. REST `/api/*` is not open on loopback: it needs its own one-use `native-http` ticket per request.
 6. Process-wide `sessions.changed` / `platforms.changed` / `projects.changed` events arrive every few
@@ -106,9 +116,11 @@ chat PTY). aristotle-server must provide its own PTY channel.
 - Internal protocol (instance_id, epochs, canonical method set) can change on a Hermes update; keep the
   fail-closed check on `runtime_protocol`, `state:"ready"` and `session-authority-v1`, and re-identify on
   every connect (port and instance_id change on restart).
-- Relaying frames "unchanged" forwards `system_prompt` (memories) to the phone ~twice per turn: bandwidth
-  on mobile and private text on the device. Decide in v1 whether the server strips it (spec §2 says frames
-  pass unchanged — needs a decision).
+- Relaying frames "unchanged" forwards `system_prompt` (memories) to the phone once per turn per viewer, plus
+  once per resume and per explicit `session.info` (not "twice per turn": 1 full + 3 small `session.info` per
+  turn, `docs/protocol.md` §2.1): bandwidth on mobile and private text on the device. Decided: the server strips
+  `system_prompt` and `credential_hint` (spec Q34; exact fields in `docs/protocol.md` §10). Note spec Q34's
+  rationale text still says "~21 KB twice per turn"; the frames show once per turn (spec updated by the PM 2026-11-03).
 - Logs: frames contain prompt text and memories; the server must never log frame bodies (PROJECT.md rule).
 - One ticket per WS connection and per REST request; the relay must mint just-in-time (30 s TTL) and handle
   `1013` (draining) and 403 by re-identifying.
