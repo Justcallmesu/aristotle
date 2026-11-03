@@ -37,7 +37,7 @@ type pairResponse struct {
 // pairHandler redeems the one-time code from the body (never the URL) and
 // returns a new device token. The name given on the laptop (pair --name)
 // wins over the phone's device_name.
-func pairHandler(d Deps, log *slog.Logger, rejects *rejectLog) http.Handler {
+func pairHandler(d Deps, log *slog.Logger, rejects *RejectLog) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Unsupported only on writers without a connection (tests); ignore.
 		_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(pairReadTimeout))

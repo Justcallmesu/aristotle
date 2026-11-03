@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -193,13 +193,17 @@ func TestCLIWithoutServer(t *testing.T) {
 
 func TestSecondServerRefused(t *testing.T) {
 	srv, _ := startTestServer(t)
-	other, err := newServer(srv.cfg, srv.stateDir, "t", slog.New(slog.NewTextHandler(io.Discard, nil)),
+	logs := &lockedBuffer{}
+	other, err := newServer(srv.cfg, srv.stateDir, "t", slog.New(slog.NewTextHandler(logs, nil)),
 		func() ([]listen.Iface, error) { return nil, nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := other.run(context.Background()); err == nil || !strings.Contains(err.Error(), "already running") {
+	if err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("err = %v", err)
+	}
+	if other != nil {
+		t.Fatal("second server was built")
+	}
+	if strings.Contains(logs.String(), "tls certificate") {
+		t.Fatal("second server loaded the certificate before taking the lock")
 	}
 }
 
@@ -215,7 +219,7 @@ func TestPrintPairing(t *testing.T) {
 		},
 	}, now)
 	out := buf.String()
-	for _, want := range []string{"ABCD2345", "10:05:00", "5m0s", "AAAA BBBB"} {
+	for _, want := range []string{"ABCD2345", "10:05:00", "5m0s", "AAAA BBBB", fmt.Sprintf("%d wrong tries", pairing.MaxAttemptsPerPeer)} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strings"
+	"slices"
 )
 
 // Do sends req to Hermes REST as the given profile. profile is a served profile's name (the last
@@ -15,8 +15,8 @@ import (
 // exactly this profile.
 //
 // Do re-identifies, rewrites the request to api_origin, mints a single-use native-http ticket and sets
-// the ticket header. Origin, Authorization, Cookie, Proxy-Authorization and every X-Hermes-* header the
-// caller set are dropped. Redirects are not followed: the 3xx response is returned. The caller closes
+// the ticket header. Only Accept, Accept-Encoding, Content-Type, Content-Length and User-Agent are
+// forwarded; every other header (credentials, X-Forwarded-*, X-Hermes-*, ...) is dropped. Redirects are not followed: the 3xx response is returned. The caller closes
 // the response body; req.Body is closed on every path.
 func (c *Connector) Do(ctx context.Context, profile string, req *http.Request) (*http.Response, error) {
 	resp, err := c.do(ctx, profile, req)
@@ -51,13 +51,20 @@ func (c *Connector) do(ctx context.Context, profile string, req *http.Request) (
 	if out.Header == nil {
 		out.Header = http.Header{}
 	}
-	for name := range out.Header {
-		switch lower := strings.ToLower(name); {
-		case lower == "origin", lower == "authorization", lower == "cookie",
-			lower == "proxy-authorization", strings.HasPrefix(lower, "x-hermes-"):
-			out.Header.Del(name)
-		}
-	}
+	dropUnlisted(out.Header)
 	out.Header.Set(ticketHTTPHeader, ticket)
 	return c.client.Do(out)
+}
+
+// forwardedHeaders are the only request headers that reach Hermes (canonical names).
+var forwardedHeaders = []string{"Accept", "Accept-Encoding", "Content-Type", "Content-Length", "User-Agent"}
+
+// dropUnlisted deletes every header not in forwardedHeaders. It deletes by the exact map key, so a key
+// set without canonicalisation ("authorization") is removed too.
+func dropUnlisted(h http.Header) {
+	for name := range h {
+		if !slices.Contains(forwardedHeaders, http.CanonicalHeaderKey(name)) {
+			delete(h, name)
+		}
+	}
 }

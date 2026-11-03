@@ -365,10 +365,12 @@ All listeners use the same port (config `port`, default 8760). The server never 
 
 | Listener | Bound on | Scheme | Peers admitted (else `403`, text body `forbidden`) |
 |---|---|---|---|
-| LAN | each RFC1918 IPv4 address of a physical interface (`/sys/class/net/<if>/device` exists), or only the interfaces named in config `lan_interfaces` | HTTPS, self-signed cert, pinned | RFC1918 peers inside that interface's own subnet (on-link) |
+| LAN | each RFC1918 IPv4 address of an up and running (carrier) physical interface (`/sys/class/net/<if>/device` exists), or only the interfaces named in config `lan_interfaces` | HTTPS, self-signed cert, pinned | RFC1918 peers inside that interface's own subnet (on-link) |
 | Tailscale | each 100.64.0.0/10 or fd7a:115c:a1e0::/48 address of a TUN interface named `tailscale*` | plain HTTP (WireGuard encrypts) | tailnet peers (same two ranges) |
 | Loopback | config `host` (127.0.0.1 or ::1) | HTTP | local only; serves `/healthz` only |
 
+- Each listener is also pinned to its interface (`SO_BINDTODEVICE`), so a packet arriving on another interface never reaches it.
+- A LAN interface must be up and running (has carrier) to get a listener; the same holds for Tailscale.
 - The same address ranges on any other interface (a hotel or carrier CGNAT handing out 100.x) get no listener.
 - `aristotle-server pair` prints every listener URL with its interface: the default-route LAN interface first,
   other LAN interfaces next, Tailscale last. Interfaces are re-scanned every 10 s.
@@ -387,8 +389,8 @@ All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"
 `{"code":"<8 chars>","device_name":"<optional, ≤64 chars>"}`.
 - `code`: the code `aristotle-server pair` printed. Case-insensitive; hyphens and spaces ignored; `O`→`0`, `I`/`L`→`1`.
   Never put it in the URL or query.
-- `device_name`: control (Cc), format (Cf: bidi overrides/isolates, zero-width) and line/paragraph separator
-  characters are stripped, then spaces trimmed; more than 64 characters left -> `400`. A name given on the laptop
+- `device_name`: invalid UTF-8 bytes, control (Cc), format (Cf: bidi overrides/isolates, zero-width) and line/paragraph
+  separator characters are stripped, then spaces trimmed; more than 64 characters left -> `400`. A name given on the laptop
   (`pair --name`) wins; with neither, the name is `device`.
 - `400`: body not that JSON object, `code` missing, name too long, body over 4 KiB or too slow. A `400` does not
   count as a wrong attempt.

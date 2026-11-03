@@ -312,8 +312,61 @@ func TestDoStripsCallerCredentialHeaders(t *testing.T) {
 	if h.Get(ticketHTTPHeader) == "forged" || h.Get(ticketHTTPHeader) == "" {
 		t.Errorf("ticket header = %q, want the minted ticket", h.Get(ticketHTTPHeader))
 	}
-	if h.Get("X-Keep") != "yes" {
-		t.Error("harmless header was dropped")
+	if h.Get("X-Keep") != "" {
+		t.Error("header outside the allowlist was forwarded")
+	}
+}
+
+// Keys set straight in the map, not through Header.Set, are not canonical; they must still go.
+func TestDoStripsNonCanonicalCredentialKeys(t *testing.T) {
+	f := newFakeHermes(t)
+	c := f.connector()
+	ctx := testCtx(t)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://placeholder.invalid/api/echo", nil)
+	req.Header["authorization"] = []string{"Bearer phone"}
+	req.Header["x-hermes-gateway-ticket"] = []string{"forged"}
+	req.Header["cookie"] = []string{"s=1"}
+	resp, err := c.Do(ctx, "", req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.restSeen) != 1 {
+		t.Fatalf("requests seen: %d (status %d)", len(f.restSeen), resp.StatusCode)
+	}
+	h := f.restSeen[0]
+	if h.Get("Authorization") != "" || h.Get("Cookie") != "" {
+		t.Errorf("credential header reached Hermes: %v", h)
+	}
+	if got := h.Values(ticketHTTPHeader); len(got) != 1 || got[0] == "forged" {
+		t.Errorf("ticket header = %v, want exactly the minted ticket", got)
+	}
+}
+
+func TestDoForwardsOnlyAllowlistedHeaders(t *testing.T) {
+	f := newFakeHermes(t)
+	doGet(t, f.connector(), "", "/api/echo", map[string]string{
+		"X-Forwarded-For": "1.2.3.4", "X-Forwarded-Proto": "https", "X-Forwarded-Prefix": "/x", "Forwarded": "for=1.2.3.4",
+		"X-Real-Ip": "1.2.3.4", "X-Keep": "no",
+		"Accept": "application/json", "Accept-Encoding": "gzip", "Content-Type": "application/json", "User-Agent": "aristotle/1",
+	})
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.restSeen) != 1 {
+		t.Fatalf("requests seen: %d", len(f.restSeen))
+	}
+	h := f.restSeen[0]
+	for _, k := range []string{"X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Prefix", "Forwarded", "X-Real-Ip", "X-Keep"} {
+		if h.Get(k) != "" {
+			t.Errorf("header %s reached Hermes", k)
+		}
+	}
+	for k, want := range map[string]string{"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "aristotle/1"} {
+		if h.Get(k) != want {
+			t.Errorf("header %s = %q, want %q", k, h.Get(k), want)
+		}
 	}
 }
 
@@ -373,6 +426,32 @@ func TestCloseCodesSurface(t *testing.T) {
 	}
 	if _, ok := CloseCode(errors.New("plain")); ok {
 		t.Fatal("CloseCode reported a code for a plain error")
+	}
+}
+
+func TestCloseCodesSurfaceOnReadAfterDial(t *testing.T) {
+	for _, tc := range []struct {
+		code websocket.StatusCode
+		want error
+	}{{1013, ErrDraining}, {4403, ErrForbidden}} {
+		f := newFakeHermes(t)
+		f.closeAfterAck = tc.code
+		ctx := testCtx(t)
+		conn, err := f.connector().Dial(ctx)
+		if err != nil {
+			t.Fatalf("close %d: Dial: %v", tc.code, err)
+		}
+		if _, err := conn.Read(ctx); err != nil { // the buffered gateway.ready
+			t.Fatalf("close %d: first Read: %v", tc.code, err)
+		}
+		_, err = conn.Read(ctx)
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("close %d: Read err = %v, want %v", tc.code, err, tc.want)
+		}
+		if code, ok := CloseCode(err); !ok || code != int(tc.code) {
+			t.Fatalf("CloseCode = %d,%v want %d", code, ok, tc.code)
+		}
+		conn.Close()
 	}
 }
 

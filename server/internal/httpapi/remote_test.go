@@ -289,7 +289,7 @@ func TestPairGlobalCapAndLogThrottle(t *testing.T) {
 func TestRejectLogOneLinePerInterval(t *testing.T) {
 	var buf bytes.Buffer
 	now := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
-	l := newRejectLog(slog.New(slog.NewTextHandler(&buf, nil)))
+	l := NewRejectLog(slog.New(slog.NewTextHandler(&buf, nil)))
 	l.now = func() time.Time { return now }
 	for range 50 {
 		l.note()
@@ -339,5 +339,25 @@ func TestPairSlowBodyCutOff(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("normal pair over a real server = %d", res.StatusCode)
+	}
+}
+
+// Every listener's router is built with the same RejectLog, so three listeners log one line, not three.
+func TestSharedRejectLogLimitsAcrossRouters(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, nil))
+	store, err := devices.Open(t.TempDir(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps := Deps{Codes: &pairing.Codes{}, Devices: store, Rejects: NewRejectLog(log)}
+	for range 3 {
+		h := NewRemoteRouter("t", log, deps)
+		req := httptest.NewRequest(http.MethodPost, "/v1/pair", strings.NewReader(`{"code":"AAAAAAAA"}`))
+		req.RemoteAddr = "192.168.1.20:40000"
+		h.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	if n := strings.Count(buf.String(), "pairing attempts rejected"); n != 1 {
+		t.Fatalf("%d reject lines from 3 routers, want 1:\n%s", n, buf.String())
 	}
 }

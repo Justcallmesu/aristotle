@@ -60,13 +60,14 @@ type Server struct {
 // errLockHeld means another server holds the control lock.
 var errLockHeld = errors.New("held by another process")
 
-// Listen creates the socket (0600). It first takes an exclusive lock on
-// control.lock next to the socket and holds it until Serve returns, so two
-// servers starting at once cannot both judge the socket stale and remove
-// each other's. Under the lock, a stale socket file left by a crashed server
-// is replaced; a live one (a server that answers) is an error, and so is any
-// non-socket file at the path.
-func (s *Server) Listen() error {
+// Lock takes the exclusive lock on control.lock next to the socket (a no-op
+// when already held). The lock is held until Serve returns or Unlock is
+// called, so two servers starting at once cannot both judge the socket stale
+// and remove each other's, nor both write the state dir's first-run files.
+func (s *Server) Lock() error {
+	if s.lock != nil {
+		return nil
+	}
 	lockPath := filepath.Join(filepath.Dir(s.Path), LockName)
 	lock, err := lockFile(lockPath)
 	if errors.Is(err, errLockHeld) {
@@ -75,11 +76,30 @@ func (s *Server) Listen() error {
 	if err != nil {
 		return err
 	}
-	if err := s.listenLocked(); err != nil {
-		lock.Close()
+	s.lock = lock
+	return nil
+}
+
+// Unlock releases the lock; safe to call when it is not held.
+func (s *Server) Unlock() {
+	if s.lock != nil {
+		s.lock.Close()
+		s.lock = nil
+	}
+}
+
+// Listen creates the socket (0600) under the lock (taken here unless Lock
+// already took it). Under the lock, a stale socket file left by a crashed
+// server is replaced; a live one (a server that answers) is an error, and so
+// is any non-socket file at the path. On error the lock is released.
+func (s *Server) Listen() error {
+	if err := s.Lock(); err != nil {
 		return err
 	}
-	s.lock = lock
+	if err := s.listenLocked(); err != nil {
+		s.Unlock()
+		return err
+	}
 	return nil
 }
 
@@ -139,7 +159,7 @@ func (s *Server) Serve(ctx context.Context) {
 		}()
 	}
 	s.wg.Wait()
-	s.lock.Close()
+	s.Unlock()
 }
 
 func (s *Server) handle(conn *net.UnixConn) {

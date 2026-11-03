@@ -206,13 +206,15 @@ func (m *Manager) Active() []Endpoint {
 	return out
 }
 
-// BindTCP listens on addr:port. Wildcard, loopback and addresses outside the
+// BindTCP listens on addr:port, pinned to the endpoint's interface
+// (SO_BINDTODEVICE on Linux). Wildcard, loopback and addresses outside the
 // endpoint's network are refused, whatever the caller passes.
 func BindTCP(e Endpoint, port int) (net.Listener, error) {
 	if err := checkBindable(e); err != nil {
 		return nil, err
 	}
-	return net.Listen("tcp", netip.AddrPortFrom(e.Addr, uint16(port)).String())
+	lc := listenConfig(e.Iface)
+	return lc.Listen(context.Background(), "tcp", netip.AddrPortFrom(e.Addr, uint16(port)).String())
 }
 
 func checkBindable(e Endpoint) error {

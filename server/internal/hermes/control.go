@@ -187,7 +187,7 @@ func (c *Connector) control(ctx context.Context, request map[string]any) (json.R
 	if len(answer) == 0 {
 		return nil, ctxOr(ctx, fmt.Errorf("read control answer: %w", orEOF(err)))
 	}
-	return decodeEnvelope(answer, true)
+	return decodeEnvelope(answer)
 }
 
 // ctxOr prefers the context's error when the context caused the failure.
@@ -227,10 +227,7 @@ func checkPeer(conn net.Conn) error {
 	return nil
 }
 
-func decodeEnvelope(answer []byte, sizeOK bool) (json.RawMessage, error) {
-	if !sizeOK {
-		return nil, errors.New("control answer too large")
-	}
+func decodeEnvelope(answer []byte) (json.RawMessage, error) {
 	var env controlEnvelope
 	if err := json.Unmarshal(answer, &env); err != nil {
 		return nil, fmt.Errorf("decode control answer: %w", err)

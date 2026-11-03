@@ -54,6 +54,7 @@ type server struct {
 	devices  *devices.Store
 	listen   *listen.Manager
 	control  *control.Server
+	rejects  *httpapi.RejectLog // one limiter for every listener
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -62,20 +63,29 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 	if scan == nil {
 		scan = listen.SystemInterfaces
 	}
+	// The control lock comes first: a second server must be refused before it
+	// loads or creates the certificate or touches the device store.
+	ctl := &control.Server{Path: control.SocketPath(stateDir), Log: log}
+	if err := ctl.Lock(); err != nil {
+		return nil, err
+	}
 	store, err := devices.Open(stateDir, nil, log)
 	if err != nil {
+		ctl.Unlock()
 		return nil, err
 	}
 	cert, err := loadCert(cfg, stateDir, scan, log)
 	if err != nil {
+		ctl.Unlock()
 		return nil, err
 	}
-	s := &server{cfg: cfg, stateDir: stateDir, version: version, log: log, cert: cert, codes: &pairing.Codes{}, devices: store}
+	s := &server{cfg: cfg, stateDir: stateDir, version: version, log: log, cert: cert, codes: &pairing.Codes{}, devices: store,
+		rejects: httpapi.NewRejectLog(log), control: ctl}
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
 	}
-	s.control = &control.Server{Path: control.SocketPath(stateDir), Handlers: s.controlHandlers(), Log: log}
+	ctl.Handlers = s.controlHandlers()
 	return s, nil
 }
 
@@ -99,7 +109,7 @@ func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, e
 }
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
-	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices}
+	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 

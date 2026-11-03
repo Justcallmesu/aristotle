@@ -23,6 +23,8 @@ type errorResponse struct {
 type Deps struct {
 	Codes   *pairing.Codes
 	Devices *devices.Store
+	// Rejects limits the "pairing attempts rejected" log line; share one across listeners.
+	Rejects *RejectLog
 }
 
 // NewRouter returns the loopback handler: health only.
@@ -34,7 +36,10 @@ func NewRouter(version string, log *slog.Logger) http.Handler {
 // Every /v1/* route needs a device token except POST /v1/pair.
 func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 	mux := newMux(version)
-	mux.Handle("POST /v1/pair", pairHandler(d, log, newRejectLog(log)))
+	if d.Rejects == nil {
+		d.Rejects = NewRejectLog(log)
+	}
+	mux.Handle("POST /v1/pair", pairHandler(d, log, d.Rejects))
 	mux.Handle("GET /v1/me", requireDevice(d.Devices, http.HandlerFunc(meHandler)))
 	mux.Handle("/v1/", requireDevice(d.Devices, http.NotFoundHandler()))
 	return logRequests(log, mux)

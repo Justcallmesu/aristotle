@@ -35,9 +35,10 @@ type fakeHermes struct {
 	originSeen    bool
 	firstFrames   []string
 	restHeaders   []string
-	restSeen      []http.Header // all headers of each accepted REST request
-	preAck        int           // frames sent before the ack (default 1: gateway.ready)
-	closeCode     websocket.StatusCode
+	restSeen      []http.Header        // all headers of each accepted REST request
+	preAck        int                  // frames sent before the ack (default 1: gateway.ready)
+	closeCode     websocket.StatusCode // close instead of acking (during Dial)
+	closeAfterAck websocket.StatusCode // close right after the ack (an established Conn)
 	noAck         bool
 }
 
@@ -213,7 +214,7 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 	defer ws.CloseNow()
 	ctx := r.Context()
 	f.mu.Lock()
-	preAck, closeCode, noAck := f.preAck, f.closeCode, f.noAck
+	preAck, closeCode, noAck, closeAfterAck := f.preAck, f.closeCode, f.noAck, f.closeAfterAck
 	f.mu.Unlock()
 	if closeCode != 0 {
 		_ = ws.Close(closeCode, "test close")
@@ -244,6 +245,10 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 			reply = []byte(`{"jsonrpc":"2.0","id":1,"result":{"declines_not_shown":true}}`)
 		}
 		if ws.Write(ctx, websocket.MessageText, reply) != nil {
+			return
+		}
+		if first && closeAfterAck != 0 {
+			_ = ws.Close(closeAfterAck, "test close")
 			return
 		}
 	}

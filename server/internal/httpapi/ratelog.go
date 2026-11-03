@@ -10,11 +10,11 @@ import (
 // log lines.
 const rejectInterval = time.Minute
 
-// rejectLog turns a flood of rejected pairing attempts into at most one
+// RejectLog turns a flood of rejected pairing attempts into at most one
 // summary line per interval. Each line carries the number of rejections
 // since the previous line (rejections after the last line are reported with
 // the next one).
-type rejectLog struct {
+type RejectLog struct {
 	log      *slog.Logger
 	now      func() time.Time
 	interval time.Duration
@@ -24,11 +24,12 @@ type rejectLog struct {
 	last    time.Time
 }
 
-func newRejectLog(log *slog.Logger) *rejectLog {
-	return &rejectLog{log: log, now: time.Now, interval: rejectInterval}
+// NewRejectLog returns a limiter; share one across all listeners.
+func NewRejectLog(log *slog.Logger) *RejectLog {
+	return &RejectLog{log: log, now: time.Now, interval: rejectInterval}
 }
 
-func (l *rejectLog) note() {
+func (l *RejectLog) note() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.pending++

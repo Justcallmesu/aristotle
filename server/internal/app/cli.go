@@ -3,6 +3,7 @@ package app
 import (
 	"flag"
 	"fmt"
+	"github.com/justcallmesu/aristotle/server/internal/pairing"
 	"io"
 	"strings"
 	"text/tabwriter"
@@ -46,8 +47,8 @@ func runPair(args []string, stdout, stderr io.Writer) int {
 func printPairing(w io.Writer, res pairStartResult, now time.Time) {
 	left := res.ExpiresAt.Sub(now).Round(time.Second)
 	fmt.Fprintf(w, "Pairing code:  %s\n", res.Code)
-	fmt.Fprintf(w, "Expires:       %s (in %s); single use; 5 wrong tries lock out that address\n\n",
-		res.ExpiresAt.Local().Format("15:04:05"), left)
+	fmt.Fprintf(w, "Expires:       %s (in %s); single use; %d wrong tries lock out that address\n\n",
+		res.ExpiresAt.Local().Format("15:04:05"), left, pairing.MaxAttemptsPerPeer)
 	fmt.Fprintln(w, "Addresses (enter one in the app):")
 	printAddrs(w, res.Addresses)
 	fmt.Fprintln(w, "\nCertificate fingerprint (the app shows it on Wi-Fi/LAN; they must match):")
