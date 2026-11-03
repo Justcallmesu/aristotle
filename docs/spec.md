@@ -112,6 +112,7 @@ Rules that hold everywhere:
 | Q45 | Quote language: English (public-domain translation) with the original Greek in small type and a source citation (work + Bekker number). Not localised. | User 2026-11-03. Only quotes traceable to Aristotle's works; misattributions (e.g. Durant's "We are what we repeatedly do") excluded. |
 | Q46 | Animation: calm line-by-line fade-in with a thin verdigris progress line, plus the app icon (static) above the quote. | User "A, and an icon too" 2026-11-03; PM reads it as the static icon, not a stroke-drawing animation. Icon = T20 result; placeholder until then. |
 | Q47 | Loading-screen quotes: all 24 in `docs/quotes.json` approved as they are (period translations kept verbatim). | User 2026-11-03. |
+| Q48 | Session list shows live sessions on top and stored history below (`session.list` scope live + stored), matching the Desktop sidebar. | User 2026-11-03. Built in T14. |
 
 ## 4. Risks
 
