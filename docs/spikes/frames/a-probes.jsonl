@@ -1,0 +1,8 @@
+{"envelope": {"id": 1, "ok": true, "protocol": 1, "result": {"expires_in_seconds": 30, "instance_id": "f3ed47fb477c446ea98b5c84763203a1", "profile_id": "/home/justcallmesu/.hermes", "runtime_protocol": 1, "ticket": "<redacted 43 chars>"}}, "probe": "ticket answer shape"}
+{"outcome": "upgraded, first frame: {\"jsonrpc\": \"2.0\", \"method\": \"event\", \"params\": {\"type\": \"gateway.ready\", \"paylo…", "probe": "fresh ticket"}
+{"outcome": "upgrade failed: upgrade refused: HTTP 403 (HTTP 403)", "probe": "same ticket again (single use)"}
+{"outcome": "upgrade failed: upgrade refused: HTTP 403 (HTTP 403)", "probe": "fresh ticket + Origin header"}
+{"outcome": "upgrade failed: upgrade refused: HTTP 403 (HTTP 403)", "probe": "garbage ticket"}
+{"outcome": "control socket refused: PermissionError: bootstrap binding rejected", "probe": "ticket for unserved profile_id"}
+{"outcome": "control socket refused: PermissionError: stale runtime instance", "probe": "ticket with stale instance_id"}
+{"outcome": "upgrade failed: upgrade refused: HTTP 403 (HTTP 403)", "probe": "ticket used after 31 s"}

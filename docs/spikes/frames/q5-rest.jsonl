@@ -1,0 +1,9 @@
+{"path": "/api/sessions?limit=5", "shape": {"detail": "Unauthorized"}, "status": 401, "ticket": false}
+{"path": "/api/sessions?limit=5", "shape": {"limit": "number", "offset": "number", "sessions": {"len": 6, "row": "object"}, "storage": {}, "total": "number"}, "status": 200, "ticket": true}
+{"path": "/api/sessions/local-42f9aa95e63c6e33e15cfea13561b1c74191c70798ba168a87af20657a0994d2/messages?limit=2", "shape": {"messages": {"len": 2, "row": "object"}, "pagination": {"limit": "number", "offset": "number", "order": "string", "returned": "number"}, "profile": "string", "session_id": "string"}, "status": 200, "ticket": true}
+{"path": "/api/cron/jobs", "shape": {"detail": "profile_scope_mismatch"}, "status": 403, "ticket": true}
+{"path": "/api/cron/jobs?profile=default", "shape": {"len": 0, "row": null}, "status": 200, "ticket": true}
+{"path": "/api/cron/jobs?profile=pm", "shape": {"len": 0, "row": null}, "status": 200, "ticket": true}
+{"path": "/api/cron/jobs?profile=default", "shape": {"detail": "profile_scope_mismatch"}, "status": 403, "ticket": true}
+{"path": "/api/profiles", "shape": {"profiles": {"len": 6, "row": "object"}}, "status": 200, "ticket": true}
+{"path": "/api/profiles", "shape": {"detail": "Unauthorized"}, "status": 401, "ticket": false}

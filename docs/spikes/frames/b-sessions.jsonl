@@ -1,0 +1,14 @@
+{"case": "host ticket (default), live"}
+{"by_source": {"desktop": 2, "gui": 1}, "count": 3, "fields": ["id", "message_count", "model", "running", "session_id", "source", "started_at", "title"], "params": {"limit": 200, "scope": "live"}, "running": 0, "scope": "live", "step": "session.list"}
+{"case": "host ticket (default), stored"}
+{"by_source": {"desktop": 28}, "count": 28, "fields": ["id", "message_count", "model", "resolved_id", "running", "session_id", "source", "started_at", "title"], "params": {"limit": 200, "scope": "stored"}, "running": 0, "scope": "stored", "step": "session.list"}
+{"case": "host ticket (default) + params.profile=pm, live"}
+{"by_source": {"local": 1}, "count": 1, "fields": ["id", "message_count", "model", "running", "session_id", "source", "started_at", "title"], "params": {"limit": 200, "profile": "pm", "scope": "live"}, "running": 0, "scope": "live", "step": "session.list"}
+{"case": "host ticket (default) + params.profile=pm, stored"}
+{"by_source": {"desktop": 2}, "count": 2, "fields": ["id", "message_count", "model", "resolved_id", "running", "session_id", "source", "started_at", "title"], "params": {"limit": 200, "profile": "pm", "scope": "stored"}, "running": 0, "scope": "stored", "step": "session.list"}
+{"case": "profile-scoped ticket bound to pm (minted on default socket), stored"}
+{"by_source": {"desktop": 2}, "count": 2, "fields": ["id", "message_count", "model", "resolved_id", "running", "session_id", "source", "started_at", "title"], "params": {"limit": 200, "scope": "stored"}, "running": 0, "scope": "stored", "step": "session.list"}
+{"case": "profile-scoped ticket (default) + params.profile=pm"}
+{"error": "rpc error 4001 profile_mismatch {\"reason\": \"profile_mismatch\"}", "params": {"limit": 200, "profile": "pm", "scope": "stored"}, "step": "session.list"}
+{"case": "host ticket bound to pm + params.profile=default"}
+{"by_source": {"desktop": 28}, "count": 28, "fields": ["id", "message_count", "model", "resolved_id", "running", "session_id", "source", "started_at", "title"], "params": {"limit": 200, "profile": "default", "scope": "stored"}, "running": 0, "scope": "stored", "step": "session.list"}
