@@ -356,4 +356,25 @@
     <plurals name="attach_too_many">
         <item quantity="other">Satu pesan bisa membawa %1$d lampiran; sisanya tidak dimasukkan.</item>
     </plurals>
+
+    <!-- T17: subagent -->
+    <string name="subagent_status_queued">Antre</string>
+    <string name="subagent_status_running">Berjalan</string>
+    <string name="subagent_status_dispatched">Berjalan di latar belakang</string>
+    <string name="subagent_status_completed">Selesai</string>
+    <string name="subagent_status_failed">Gagal</string>
+    <string name="subagent_status_interrupted">Dihentikan</string>
+    <string name="subagent_seconds">%1$d dtk</string>
+    <string name="subagent_minutes">%1$d mnt %2$02d dtk</string>
+    <string name="subagent_open">Buka subagent</string>
+    <string name="subagent_waiting">Menunggu aktivitas</string>
+    <string name="subagent_read_only">Hanya baca. Mengikuti subagent selama berjalan.</string>
+    <string name="subagent_activity">Aktivitas</string>
+    <string name="subagent_transcript">Transkrip langsung</string>
+    <string name="subagent_transcript_truncated">Menampilkan 16 KiB terakhir</string>
+    <string name="subagent_transcript_unavailable">Transkrip langsung tidak tersedia</string>
+    <string name="subagent_stop">Hentikan subagent</string>
+    <string name="subagent_stop_requested">Permintaan berhenti dikirim</string>
+    <string name="subagent_stop_rejected">Subagent tidak menerima permintaan ini</string>
+    <string name="subagent_stop_not_sent">Tidak terkirim. Sambungan ke PC terputus.</string>
 </resources>

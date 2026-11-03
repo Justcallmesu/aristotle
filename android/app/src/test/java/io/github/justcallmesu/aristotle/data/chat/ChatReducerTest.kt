@@ -184,7 +184,8 @@ class ChatReducerTest {
     @Test
     fun unknownEventsAndOtherSessionsLeaveTheStateAlone() {
         val state = CapturedFrames.replay("c-client1.jsonl")
-        assertSame(state, ChatReducer.reduce(state, event("subagent.start", """{"id":"s"}""")))
+        // `subagent.*` is no longer unknown (T17, SubagentsTest); `cron.changed` still is to the chat.
+        assertSame(state, ChatReducer.reduce(state, event("cron.changed", """{"id":"s"}""")))
         assertSame(state, ChatReducer.reduce(state, event("message.delta", """{"text":"x"}""", session = "other")))
         assertSame(state, ChatReducer.reduce(state, ChatFrame(InboundFrame.Event("message.delta", SESSION, null), 0)))
     }

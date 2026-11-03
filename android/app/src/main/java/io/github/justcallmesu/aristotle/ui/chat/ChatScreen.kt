@@ -61,6 +61,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -94,6 +95,7 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
     val composer = remember(viewModel) { ViewModelComposerActions(viewModel) }
     val models = remember(viewModel) { ViewModelModelActions(viewModel) }
+    val subagents = remember(viewModel) { ViewModelSubagentActions(viewModel) }
     ChatContentView(
         state = state,
         fallbackTitle = fallbackTitle,
@@ -111,7 +113,15 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
         ),
         models = models,
         focusComposer = focusComposer,
+        subagents = subagents,
+        onOpenSubagent = viewModel::openSubagent,
     )
+}
+
+private class ViewModelSubagentActions(private val vm: ChatViewModel) : SubagentActions {
+    override fun close() = vm.closeSubagent()
+    override fun stop(id: String) = vm.stopSubagent(id)
+    override fun messageShown() = vm.subagentMessageShown()
 }
 
 private class ViewModelModelActions(private val vm: ChatViewModel) : ModelActions {
@@ -180,6 +190,10 @@ fun ChatContentView(
     models: ModelActions,
     /** A session just created (T14): the composer takes focus once it shows. */
     focusComposer: Boolean = false,
+    /** The opened subagent's page (T17); null: no page. */
+    subagents: SubagentActions? = null,
+    /** A `delegate_task` child row was tapped (T17); null: rows do not open. */
+    onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     val feed = state.feed
     val chat = feed.chat
@@ -209,7 +223,11 @@ fun ChatContentView(
             models.messageShown()
         }
     }
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+    // T17: an opened child covers the chat, which stays composed underneath (its scroll position survives) but is
+    // hidden from accessibility services while covered.
+    val child = state.subagent.open?.let { chat.subagents.byId(it) }?.takeIf { subagents != null }
+    val covered = if (child != null) Modifier.clearAndSetSemantics {} else Modifier
+    Surface(modifier = Modifier.fillMaxSize().then(covered), color = MaterialTheme.colorScheme.surface) {
         // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
@@ -224,7 +242,17 @@ fun ChatContentView(
                 when {
                     feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
                     // The chip only when tapping it opens something: not while this phone's own answer is on its way (T12b).
-                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, composer = state.composer, runs = runs, insets = insets, onOpenSheet = onOpenSheet, echoes = echoes)
+                    feed.loaded -> Transcript(
+                        chat,
+                        live = live,
+                        waiting = state.sheet.current(chat) != null,
+                        composer = state.composer,
+                        runs = runs,
+                        insets = insets,
+                        onOpenSheet = onOpenSheet,
+                        echoes = echoes,
+                        onOpenSubagent = onOpenSubagent,
+                    )
                     feed.problem != null -> LoadFailed(feed.problem, onRetry)
                     else -> QuietLine(stringResource(R.string.chat_loading))
                 }
@@ -242,6 +270,7 @@ fun ChatContentView(
             }
         }
     }
+    if (child != null && subagents != null) SubagentPage(child, state.subagent, live, subagents)
     if (state.sheet.visible(chat)) {
         val context = listOfNotNull(chat.title ?: fallbackTitle, chat.profileName).joinToString(" · ")
         val prompt = state.sheet.current(chat).takeIf { state.sheet.open }
@@ -404,6 +433,7 @@ private fun Transcript(
     insets: PaddingValues,
     onOpenSheet: () -> Unit,
     echoes: EchoActions,
+    onOpenSubagent: ((String) -> Unit)?,
 ) {
     val outbox = composer.outbox
     val listState = rememberLazyListState()
@@ -441,7 +471,7 @@ private fun Transcript(
             echoItems(anchored[null].orEmpty(), echoes)
             for (chatItem in chat.items) {
                 item(key = chatItem.key, contentType = chatItem::class) {
-                    ChatRow(chatItem, folds, lastFailed, live, attachmentsOf = { ComposerLogic.userAttachments(it, composer) })
+                    ChatRow(chatItem, folds, lastFailed, live, attachmentsOf = { ComposerLogic.userAttachments(it, composer) }, onOpenSubagent = onOpenSubagent)
                 }
                 anchored[chatItem.key]?.let { echoItems(it, echoes) }
             }
@@ -491,7 +521,7 @@ private suspend fun LazyListState.scrollToEnd() {
 private const val END_SCROLL_PX = 1_000_000f
 
 @Composable
-private fun rememberFolds(): FoldState {
+internal fun rememberFolds(): FoldState {
     val opened = rememberSaveable(saver = foldSaver) { mutableStateMapOf() }
     return remember(opened) {
         object : FoldState {

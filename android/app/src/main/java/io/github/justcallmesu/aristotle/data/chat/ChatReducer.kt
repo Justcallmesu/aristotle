@@ -96,7 +96,8 @@ object ChatReducer {
         val prompts = (snapshot["prompts"] as? JsonArray).orEmpty().mapNotNull { it.asObject()?.let { p -> Prompts.fromEvent(p, at = null) } } +
             requestPrompts(snapshot["open_requests"] as? JsonArray)
         val withPrompts = replacePrompts(merged, prompts)
-        return if (behind) withPrompts.copy(running = base.running) else withPrompts
+        // The children known so far stay; the rebuilt delegate cards take them again (T17).
+        return refreshDelegates(if (behind) withPrompts.copy(running = base.running) else withPrompts)
     }
 
     /**
@@ -168,7 +169,35 @@ object ChatReducer {
         "request.cancel" -> payload.text("id")?.let { settlePrompt(state, it, payload.text("reason")) } ?: state
         "error" -> notice(state, NoticeKind.Error, payload.text("message").orEmpty())
         "notice" -> payload.text("message")?.takeIf { it.isNotBlank() }?.let { notice(state, NoticeKind.Info, it) } ?: state
+        in Subagents.EVENT_TYPES -> withRoster(state, Subagents.onEvent(state.subagents, event.type, payload, at))
         else -> state
+    }
+
+    // ── subagents (T17, protocol §2.2) ────────────────────────────────────────────────────────────
+
+    /**
+     * A `subagent.list` answer the chat asked for (protocol §7): merged as the Desktop does, unless live events moved the
+     * roster while the call was out ([SubagentSnapshot.baseVersion]).
+     */
+    fun subagentSnapshot(state: ChatState, snapshot: SubagentSnapshot): ChatState = withRoster(state, Subagents.reconcile(state.subagents, snapshot))
+
+    private fun withRoster(state: ChatState, roster: SubagentRoster): ChatState =
+        if (roster === state.subagents) state else refreshDelegates(state.copy(subagents = roster))
+
+    /** Every `delegate_task` card's rows again from its call and the roster; a card whose rows did not change keeps its instance. */
+    private fun refreshDelegates(state: ChatState): ChatState {
+        var changed = false
+        val items = state.items.map { item ->
+            val call = (item as? ChatItem.Tool)?.delegate ?: return@map item
+            val rows = Delegation.rows(call, item.toolId, state.subagents)
+            if (rows == item.subagents) {
+                item
+            } else {
+                changed = true
+                item.copy(subagents = rows)
+            }
+        }
+        return if (changed) state.copy(items = items) else state
     }
 
     // ── position in the event stream ──────────────────────────────────────────────────────────────
@@ -246,7 +275,7 @@ object ChatReducer {
         var next = settled(state, at).copy(running = true, step = null, thinking = false, turn = TurnCursor(turnId = payload.text("turn_id")))
         val admission = admissionId ?: payload.text("admission_id")
         pendingEntries(next.info["pending"]).firstOrNull { it.text("admission_id") == admission }?.let { next = showUser(next, it) }
-        return next
+        return withRoster(next, Subagents.pruneFinished(next.subagents))
     }
 
     private fun messageDelta(state: ChatState, payload: JsonObject, at: Long): ChatState {
@@ -422,17 +451,26 @@ object ChatReducer {
     private fun toolStart(state: ChatState, payload: JsonObject, at: Long): ChatState {
         val toolId = toolIdOf(payload) ?: return state
         val next = endReasoning(closeText(state), at)
+        val args = ToolText.argsOf(payload["args"])
+        val name = toolNameOf(payload)
         val card = ChatItem.Tool(
             key = toolKey(toolId),
             toolId = toolId,
-            name = toolNameOf(payload),
-            summary = ToolText.summary(payload.text("context") ?: payload.text("preview"), payload["args"].asObject()),
+            name = name,
+            summary = ToolText.summary(payload.text("context") ?: payload.text("preview"), args),
             status = ToolStatus.Running,
+            delegate = Delegation.callOf(name, args),
         )
-        if (next.items.any { it.key == card.key }) {
-            return next.copy(items = next.items.updateKey(card.key) { (it as? ChatItem.Tool)?.copy(name = card.name, summary = card.summary) ?: it })
+        val placed = if (next.items.any { it.key == card.key }) {
+            next.copy(
+                items = next.items.updateKey(card.key) {
+                    (it as? ChatItem.Tool)?.let { old -> old.copy(name = card.name, summary = card.summary, delegate = old.delegate ?: card.delegate) } ?: it
+                },
+            )
+        } else {
+            next.copy(items = next.items + card)
         }
-        return next.copy(items = next.items + card)
+        return if (card.delegate != null) refreshDelegates(placed) else placed
     }
 
     private fun toolProgress(state: ChatState, payload: JsonObject): ChatState {
@@ -448,15 +486,21 @@ object ChatReducer {
         val status = if (payload.flag("is_error") == true) ToolStatus.Failed else ToolStatus.Done
         val output = ToolText.output(payload["result"], payload.text("result_text"), payload.text("inline_diff"))
         val duration = payload.number("duration_s")
-        if (next.items.none { it.key == key }) {
-            val summary = ToolText.summary(payload.text("context"), payload["args"].asObject())
-            return next.copy(items = next.items + ChatItem.Tool(key, toolId, toolNameOf(payload), summary, status, output, duration))
+        val args = ToolText.argsOf(payload["args"])
+        val existing = next.items.lastOrNull { it.key == key } as? ChatItem.Tool
+        val name = existing?.name ?: toolNameOf(payload)
+        val delegate = (existing?.delegate ?: Delegation.callOf(name, args))?.withResult(payload["result"])
+        val placed = if (next.items.none { it.key == key }) {
+            val summary = ToolText.summary(payload.text("context"), args)
+            next.copy(items = next.items + ChatItem.Tool(key, toolId, name, summary, status, output, duration, delegate = delegate))
+        } else {
+            next.copy(
+                items = next.items.updateKey(key) {
+                    (it as? ChatItem.Tool)?.copy(status = status, output = output, durationSeconds = duration, progress = null, delegate = delegate) ?: it
+                },
+            )
         }
-        return next.copy(
-            items = next.items.updateKey(key) {
-                (it as? ChatItem.Tool)?.copy(status = status, output = output, durationSeconds = duration, progress = null) ?: it
-            },
-        )
+        return if (delegate != null) refreshDelegates(placed) else placed
     }
 
     private fun toolIdOf(payload: JsonObject): String? = (payload.text("tool_id") ?: payload.text("tool_call_id"))?.takeIf { it.isNotEmpty() }

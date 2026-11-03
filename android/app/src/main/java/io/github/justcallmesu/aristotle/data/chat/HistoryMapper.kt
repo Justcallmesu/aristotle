@@ -38,12 +38,17 @@ object HistoryMapper {
             val call = element.asObject() ?: return@forEach
             val id = call.text("id")?.takeIf { it.isNotEmpty() } ?: return@forEach
             val function = call["function"].asObject()
+            val name = function?.text("name") ?: "tool"
+            val args = ToolText.argsOf(function?.get("arguments"))
+            val delegate = Delegation.callOf(name, args)
             val card = ChatItem.Tool(
                 key = ChatReducer.toolKey(id),
                 toolId = id,
-                name = function?.text("name") ?: "tool",
-                summary = ToolText.summary(null, ToolText.argsOf(function?.get("arguments"))),
+                name = name,
+                summary = ToolText.summary(null, args),
                 status = ToolStatus.Done,
+                delegate = delegate,
+                subagents = delegate?.let { Delegation.rowsOf(it, id) }.orEmpty(),
             )
             cards[id] = items.size
             // Keys must stay unique for the list; a provider may reuse a call id in another turn.
@@ -59,7 +64,9 @@ object HistoryMapper {
         val index = cards[id]
         val card = index?.let { items[it] as? ChatItem.Tool }
         if (index != null && card != null) {
-            items[index] = card.copy(output = output, status = status)
+            // A `delegate_task` result settles its children's rows (T17): the same rows the live card ended with.
+            val delegate = card.delegate?.withResult(content)
+            items[index] = card.copy(output = output, status = status, delegate = delegate, subagents = delegate?.let { Delegation.rowsOf(it, card.toolId) }.orEmpty())
         } else {
             val name = row.text("tool_name") ?: row.text("name") ?: "tool"
             // A result without its call (an older build's row): its own card, keyed by the row.

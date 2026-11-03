@@ -155,7 +155,7 @@ context, tool_call_id, tool_name, args}`, `tool.complete {… is_error, result, 
 From source, not exercised: `reasoning.delta`, `tool.progress`, `status.update`, `notice`, `error`,
 `session.title`, `session.updated` (another viewer's mutation receipt), `session.replay_gap`
 (the viewer's backlog overflowed: re-resume), `request.cancel {id, method, reason}` (withdrawn `srq-`
-request), `todo.updated`, `subagent.start|text|tool|thinking|complete|roster`, `cron.changed`,
+request), `todo.updated`, `subagent.spawn_requested|start|thinking|tool|progress|complete` (§2.2), `cron.changed`,
 `notification.show|clear` (`tui_gateway/contracts/events.py`, `gateway/*.py`).
 
 Token-type events (`message.delta`, `reasoning.delta`, `thinking.delta`) are coalesced ~33 ms server-side
@@ -226,6 +226,51 @@ each `session.resume`/`session.create` snapshot `info` (after the first turn), a
 `session.info` call (`f-busy-client2.jsonl:85`). Shape A repeats more often when the queue changes (an extra A at
 seq 132 in `f-busy-client1.jsonl:23` during the queue/steer test). ASSUMED (not isolated in frames): the three
 A events per turn correspond to admission, run start and settle.
+
+### 2.2 Subagent events (T17, from source, not exercised; no capture holds a delegation)
+
+A delegated child's activity reaches the canonical owner's viewers only as `subagent.*` events **on the parent
+session's stream** (same envelope and `seq` as §2): `gateway/local_viewer_events.py:129-136` (`publish_progress`)
+builds the payload with `tui_gateway/tool_progress.py:471-487` (`_subagent_payload`) and publishes it in the running
+turn, or, for a background child that outlived its turn, without an execution identity (`local_viewer_events.py:109-126`).
+`subagent.text` (the child's reply tokens) is dropped there (`:132-133`). Producer: `tools/delegate_tool_progress.py:318-412`.
+
+| Event | When |
+|---|---|
+| `subagent.spawn_requested` | `delegate_task` accepted a goal (before the child starts) |
+| `subagent.start` | the child started; `text` = its goal |
+| `subagent.thinking` | a reasoning chunk; `text` removed when the session hides reasoning (`tool_progress.py:480-483`) |
+| `subagent.tool` | the child called a tool: `tool_name`, `tool_preview` (= `text`), `tool_count` |
+| `subagent.progress` | batched tool names, `text` like `🔀 read_file, search_files` |
+| `subagent.complete` | the child ended: `status`, `summary` (≤ 500 chars), `duration_seconds`, tokens, `files_read/written`, `output_tail[{tool, preview, is_error}]` (`tools/delegate_tool_child_run.py:1080-1099`) |
+
+Payload (`tui_gateway/contracts/events.py:635-671`): always `goal`, `task_count`, `task_index`; when known `subagent_id`,
+`parent_id`, `child_session_id`, `delegation_id`, `depth`, `model`, `tool_count`, `toolsets`, token counts, `api_calls`,
+`files_read`, `files_written`, `output_tail`, `tool_name`, `text`, `status`, `summary`, `duration_seconds`,
+`tool_preview` (`tool_progress.py:460-468`). `status` ∈ `queued, running, completed, failed, error, timeout,
+interrupted`; the last five are terminal (`tui_gateway/contracts/common.py:189-205`).
+
+**The phone, as the Desktop.** One roster per chat (`apps/desktop/src/store/subagents.ts`): id = `subagent_id`
+(else `parent:task_index:goal`, `:149-150`); only `spawn_requested`/`start` create a child, events of an unknown or
+ended child are dropped (`:378-398`); `error`/`timeout` → failed, `cancelled` → interrupted, and a `complete` with an
+unknown or active status → failed (`:90-112`); `message.start` drops finished children and keeps running ones
+(`:332-359`, `use-message-stream/gateway-event/message-stream.ts:167`). Rows sit under the `delegate_task` tool call:
+the call's goals (`args.tasks[].goal` or `args.goal`) and result (`results[{status, summary, duration_seconds, model}]`,
+or `{status:"dispatched", goals}`) give the rows a rebuilt transcript has; live children are claimed by goal, then by
+task order when both sides count the same (`apps/desktop/src/components/assistant-ui/tool/delegate-model.ts:200-322`).
+A child's end is **not** a turn end: the Desktop notifies `turnDone` only on `message.complete`
+(`use-message-stream/index.ts:1163-1168`; kinds `store/native-notifications.ts:26-27`), so the phone's
+"Turn finished" stays on `message.complete`.
+
+**Opening a child.** The Desktop's delegate card opens `child_session_id` in a watch window (`delegate.tsx:88`,
+`store/windows.ts:239-275`), a `session.resume` with the transcript (`resume-owner.ts:118-131`,
+`canonical-protocol.ts:409-414`). On the canonical owner that resume is a read-only history mount
+(`gateway/session_authority.py:196-213`, `gateway/session_history_mount.py:1-11`), and no live event reaches it: the
+child-session mirror that turns `subagent.*` into native events on the child's id exists only in the sidecar
+(`tui_gateway/agent_callbacks.py:15-95`). The phone therefore projects the parent's `subagent.*` events the way that
+mirror does (start/thinking as text, each tool a card closed by the next, the summary at the end) and reads the
+child's live transcript with `subagent.tail` every 2 s while open, as the Desktop's composer detail does
+(`apps/desktop/src/app/chat/composer/status-stack/subagent-transcript.tsx:30-60`). No second subscription.
 
 ## 3. Profiles (EXERCISED — `b-sessions.jsonl`)
 - The default gateway multiplexes every profile (`gateway.multiplex_profiles: true` in config;
@@ -337,6 +382,20 @@ the running turn.
 | `prompt.background` | `{session_id, text}` | `{task_id}` | from source, not exercised |
 | `slash.exec` | `{session_id, command, profile?}` (`command` = the line without its slash, as the Desktop sends it; any other key → `invalid_params`, `gateway/session_commands.py:148-155`) | `{type:"exec", output}`, or `{type:"skill"\|"send", message, display, notice?}` = a turn the CLIENT submits with its own `submission_id` (`:418-529`); a command a shared-gateway session cannot run → `unsupported_command` with `error.data.detail` hint (`:118-126`, `:456-458`) | from source, not exercised (T15) |
 | `commands.catalog` | `{session_id?, profile?}` only (`gateway/session_discovery.py:8-35`) | `{pairs:[[cmd, desc]], canon{alias→cmd}, commands{cmd:{argument_mode, desktop, desktop_subcommands?}}, categories, skills{cmd:{usage, origin}}, skill_count, sub, warning, plugin_discovery_error, plugin_commands}`; `desktop` null = offered, `"hidden"`, or the reason the Desktop has no surface (`tui_gateway/command_discovery.py:137-149`, `:206-250`) | EXERCISED keys (`f-busy-client2.jsonl:80-81`, values redacted) |
+
+**Subagent controls (T17, from source, not exercised).** Owner handlers `gateway/session_ancillary.py:24-35`; params
+are closed sets (`profile` allowed), any other key → `invalid_params`; the session must be live in this authority
+(`not_found`), cold adoption is never done by these reads (`:226-240`).
+
+| Method | Params | Result | Desktop use |
+|---|---|---|---|
+| `subagent.list` | `{session_id}` | `{subagents:[{subagent_id, parent_id, depth, goal, delegation_id, model, started_at, status, tool_count, last_tool, accepting_steer}], delegations:[]}` (`:16-19`, `:263-266`; the owner always answers `delegations: []`) | hydrate on mount, then every 5 s while shown; 3 failures in a row stop it (`status-stack/use-subagent-snapshot.ts:16-89`); an answer is dropped when live events changed the store meanwhile (`:39-55`) |
+| `subagent.tail` | `{session_id, subagent_id}` | `{subagent_id, available, text, truncated}`: the last 16 KiB of the child's live transcript file (`HH:MM:SS role \| text` lines, `tools/delegation_live_log.py:120-128`; `:576-589`) | every 2 s while the child is open (`subagent-transcript.tsx:30-60`) |
+| `subagent.interrupt` | `{session_id, subagent_id}` | `{found, subagent_id}`; `found:false` = already finished or not this session's child (`:38-55`) | per-child Stop, no confirmation; `found` false → "The subagent did not accept the request" (`subagent-controls.tsx:21-53`) |
+| `subagent.steer` | `{session_id, subagent_id, text}` | `{status:"queued"\|"rejected", subagent_id, text}` (`:56-61`) | per-child Steer (not on the phone in v1) |
+
+There is no "stop all subagents" in the Desktop: Stop on the composer interrupts the parent's turn, which does not
+end background children (`apps/desktop/src/store/subagents.ts:339-342`).
 
 `execution_generation`: take it from the latest event's `params.execution_generation` or the snapshot;
 a stale one is refused `stale_generation`.

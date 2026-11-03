@@ -204,6 +204,24 @@ class SessionWatcherTest {
     }
 
     @Test
+    fun aSubagentFinishingIsNoTurnEndAndNotifiesNothing() {
+        // T17: the Desktop notifies only turnDone/turnError and prompts (`apps/desktop/src/store/native-notifications.ts:26-27`,
+        // turnDone at `use-message-stream/index.ts:1163-1168`); a child's end is a `subagent.complete` on the parent stream.
+        val link = FakeLink { call -> if (call.method == "session.list") list("s1" to true) else emptySnapshot }
+        val alerts = run(link) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            waitUntil { link.resumed().isNotEmpty() }
+            link.event("subagent.start", "s1", """{"goal":"Audit","task_count":1,"task_index":0,"subagent_id":"sa-1"}""")
+            link.event("subagent.complete", "s1", """{"goal":"Audit","task_count":1,"task_index":0,"subagent_id":"sa-1","status":"completed","summary":"done"}""")
+            link.event("subagent.complete", "s1", """{"goal":"Audit","task_count":1,"task_index":0,"subagent_id":"sa-2","status":"failed","summary":"boom"}""")
+            link.event("message.complete", "s1", """{"text":"Both done.","outcome":"completed","status":"complete"}""")
+            seen.first { it.size >= 2 }
+            delay(100)
+        }
+        assertEquals(listOf(SessionAlert.PromptsOpen("s1", emptySet()), SessionAlert.TurnFinished("s1", "Title s1", "Both done.")), alerts)
+    }
+
+    @Test
     fun thePromptsOpenAtResumeAreReportedWithTheListTitle() {
         val snapshot = json(
             """{"session_id":"s1","running":true,"info":{},"prompts":[{"kind":"approval","prompt_id":"p1","execution_generation":3,"command":"x"},{"kind":"sudo"},"junk"]}""",

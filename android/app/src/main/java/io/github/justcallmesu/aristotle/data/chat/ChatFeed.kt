@@ -12,6 +12,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -53,6 +54,14 @@ class ChatFeed(
     private val clock: () -> Long = System::currentTimeMillis,
     private val profile: String? = null,
 ) {
+    /** `subagent.list` answers the chat asked for (T17); reduced in order with the session's frames. */
+    private val snapshots = MutableSharedFlow<SubagentSnapshot>(extraBufferCapacity = SNAPSHOT_BUFFER)
+
+    /** Hands a `subagent.list` answer to the open feed; dropped when no socket is subscribed (the next poll asks again). */
+    fun offerSubagents(snapshot: SubagentSnapshot) {
+        snapshots.tryEmit(snapshot)
+    }
+
     /**
      * [from]: the state a retry starts from. A chat already loaded keeps its transcript and catches up, instead
      * of going back to "Loading".
@@ -84,12 +93,14 @@ class ChatFeed(
                     }
                 }
             }
+            val local = launch(start = CoroutineStart.UNDISPATCHED) { snapshots.collect { inbox.send(Inbound.Roster(it)) } }
             var rebuild = false
             while (subscribe(generation, rebuild)) {
                 applyUntilGap(inbox)
                 rebuild = true
             }
             collector.cancel()
+            local.cancel()
         }
 
         /** Applies queued and live frames until Hermes ends this session's subscription (a replay gap). */
@@ -101,6 +112,7 @@ class ChatFeed(
                         ChatReducer.reduce(current.chat, item.frame)
                     }
                     is Inbound.Request -> ChatReducer.request(current.chat, item.request)
+                    is Inbound.Roster -> ChatReducer.subagentSnapshot(current.chat, item.snapshot)
                 }
                 if (next !== current.chat) publish(current.copy(chat = next))
             }
@@ -166,9 +178,11 @@ class ChatFeed(
     private sealed interface Inbound {
         data class Event(val frame: ChatFrame) : Inbound
         data class Request(val request: InboundFrame.ServerRequest) : Inbound
+        data class Roster(val snapshot: SubagentSnapshot) : Inbound
     }
 
     private companion object {
         const val REPLAY_GAP = "session.replay_gap"
+        const val SNAPSHOT_BUFFER = 4
     }
 }

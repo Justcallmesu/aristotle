@@ -80,12 +80,19 @@ fun ChatRow(
     live: Boolean,
     /** What a user row shows as attachments (its own, plus the images this phone sent with it, T16). */
     attachmentsOf: (ChatItem.User) -> List<UserAttachment> = { it.attachments },
+    /** A child row of a `delegate_task` card was tapped (T17); null: the rows do not open. */
+    onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     when (item) {
         is ChatItem.User -> UserBubble(item.text, attachmentsOf(item).map { it.toBubble() })
         is ChatItem.Assistant -> ChatMarkdown(item.text, streaming = item.streaming && live)
         is ChatItem.Reasoning -> ReasoningRow(item, folds)
-        is ChatItem.Tool -> ToolCard(item, folds, openByDefault = item.key == lastFailedTool, live = live)
+        // A delegation reads as its children, not as a blob of JSON (the Desktop's delegate card, T17).
+        is ChatItem.Tool -> if (item.subagents.isNotEmpty()) {
+            DelegateCard(item, live, onOpenSubagent)
+        } else {
+            ToolCard(item, folds, openByDefault = item.key == lastFailedTool, live = live)
+        }
         is ChatItem.Notice -> NoticeRow(item)
     }
 }

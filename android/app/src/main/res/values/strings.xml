@@ -362,4 +362,25 @@
         <item quantity="one">A message can carry %1$d attachment; the rest were left out.</item>
         <item quantity="other">A message can carry %1$d attachments; the rest were left out.</item>
     </plurals>
+
+    <!-- T17: subagents -->
+    <string name="subagent_status_queued">Queued</string>
+    <string name="subagent_status_running">Running</string>
+    <string name="subagent_status_dispatched">Running in the background</string>
+    <string name="subagent_status_completed">Done</string>
+    <string name="subagent_status_failed">Failed</string>
+    <string name="subagent_status_interrupted">Stopped</string>
+    <string name="subagent_seconds">%1$d s</string>
+    <string name="subagent_minutes">%1$d m %2$02d s</string>
+    <string name="subagent_open">Open subagent</string>
+    <string name="subagent_waiting">Waiting for activity</string>
+    <string name="subagent_read_only">Read-only. Follows the subagent while it runs.</string>
+    <string name="subagent_activity">Activity</string>
+    <string name="subagent_transcript">Live transcript</string>
+    <string name="subagent_transcript_truncated">Showing the latest 16 KiB</string>
+    <string name="subagent_transcript_unavailable">Live transcript unavailable</string>
+    <string name="subagent_stop">Stop subagent</string>
+    <string name="subagent_stop_requested">Stop requested</string>
+    <string name="subagent_stop_rejected">The subagent did not accept the request</string>
+    <string name="subagent_stop_not_sent">Not sent. The link to the PC is down.</string>
 </resources>

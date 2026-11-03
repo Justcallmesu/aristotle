@@ -41,7 +41,11 @@ sealed interface ChatItem {
         val durationMillis: Long? = null,
     ) : ChatItem
 
-    /** A tool call card. [summary] is the one-line argument summary, [output] the text shown in the body. */
+    /**
+     * A tool call card. [summary] is the one-line argument summary, [output] the text shown in the body. A
+     * `delegate_task` call also carries [delegate] (what the call itself says) and [subagents], its children as rows,
+     * joined with the live ones (T17, [Delegation]).
+     */
     data class Tool(
         override val key: String,
         val toolId: String,
@@ -51,6 +55,8 @@ sealed interface ChatItem {
         val output: String = "",
         val durationSeconds: Double? = null,
         val progress: String? = null,
+        val delegate: DelegateCall? = null,
+        val subagents: List<DelegateRow> = emptyList(),
     ) : ChatItem
 
     /** A line about the session itself: a stopped turn, a failure, an informational notice. */
@@ -117,6 +123,8 @@ data class ChatState(
     val inputs: Map<String, String> = emptyMap(),
     /** How many snapshots built this state: after one, the stored history is the truth for what came before. */
     val snapshots: Int = 0,
+    /** The session's delegated children, from its `subagent.*` events and `subagent.list` (T17). */
+    val subagents: SubagentRoster = SubagentRoster(),
     val nextKey: Long = 0,
 ) {
     val title: String? get() = infoText("title")

@@ -48,6 +48,8 @@ data class ChatUiState(
     val model: ModelSheetState = ModelSheetState(),
     /** The `/` menu and the commands run from this chat (T15). */
     val slash: SlashState = SlashState(),
+    /** The opened subagent's page (T17). */
+    val subagent: SubagentPageState = SubagentPageState(),
 ) {
     /**
      * A sudo/secret answer is a bare response that Hermes may have resolved elsewhere meanwhile, and re-sending it
@@ -76,6 +78,8 @@ class ChatViewModel(
     profile: String? = null,
     /** Reads and prepares picked photos and files (T16); null: attaching is off. */
     attachments: AttachmentSource? = null,
+    /** Wall-clock time, for a subagent's elapsed time (T17); [clock] stays the arming clock. */
+    wallClock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val link: RelayLink = ProfileLink(base, profile)
     private val work: CoroutineScope = scope ?: viewModelScope
@@ -87,12 +91,15 @@ class ChatViewModel(
     private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change, attachments)
     private val models = ChatModelControl(sessionId, link, newId, clock, work, state::value, ::change)
     private val commands = ChatCommands(sessionId, link, newId, clock, work, state::value, ::change, composer)
+    private val subagents = ChatSubagents(sessionId, link, clock, wallClock, work, state::value, ::change, feed::offerSubagents)
 
     private var job: Job? = null
     private var arming: Job? = null
     private var armingFor: Shown? = null
     private var composerArming: Job? = null
     private var composerArmingFor: ComposerShown? = null
+    private var subagentArming: Job? = null
+    private var subagentArmingFor: SubagentShown? = null
 
     init {
         work.launch {
@@ -197,11 +204,13 @@ class ChatViewModel(
             ui.copy(
                 sheet = ui.sheet.copy(shown = ui.sheet.shown?.copy(at = now, armed = false)),
                 composer = ui.composer.copy(shown = ui.composer.shown?.copy(at = now, armed = false)),
+                subagent = ui.subagent.copy(shown = ui.subagent.shown?.copy(at = now, armed = false)),
             )
         }
         val next = state.value
         armSheet(next.sheet.shown)
         armComposer(next.composer.shown)
+        armSubagent(next.subagent.shown)
     }
 
     private fun send(key: String, answer: PromptAnswer) {
@@ -331,6 +340,18 @@ class ChatViewModel(
 
     fun modelMessageShown() = models.messageShown()
 
+    // ── subagents (T17) ───────────────────────────────────────────────────────────────────────────
+
+    /** A child row of a `delegate_task` card: its page opens, read-only, from the parent's own stream. */
+    fun openSubagent(id: String) = subagents.open(id)
+
+    fun closeSubagent() = subagents.close()
+
+    /** Stop on the child's page; only an armed tap counts (no confirmation, as on the Desktop). */
+    fun stopSubagent(id: String) = subagents.stop(id)
+
+    fun subagentMessageShown() = subagents.messageShown()
+
     private fun updateSheet(transform: (PromptSheetState) -> PromptSheetState) = change { it.copy(sheet = transform(it.sheet)) }
 
     /**
@@ -345,10 +366,27 @@ class ChatViewModel(
             val sheet = PromptSheetLogic.track(changed.sheet, changed.feed.chat, now)
             val outbox = Outbox.reconcile(changed.composer.outbox, changed.feed.chat)
             val key = ComposerLogic.key(changed.link, changed.feed, sheet, outbox)
-            changed.copy(model = ModelLogic.dropStale(changed.model, changed.feed.chat), sheet = sheet, composer = ComposerLogic.track(changed.composer.copy(outbox = outbox), key, now))
+            changed.copy(
+                model = ModelLogic.dropStale(changed.model, changed.feed.chat),
+                sheet = sheet,
+                composer = ComposerLogic.track(changed.composer.copy(outbox = outbox), key, now),
+                subagent = SubagentLogic.track(changed.subagent, changed.feed.chat, now),
+            )
         }
         armSheet(next.sheet.shown)
         armComposer(next.composer.shown)
+        armSubagent(next.subagent.shown)
+        subagents.onState(next)
+    }
+
+    private fun armSubagent(shown: SubagentShown?) {
+        if (shown == null || shown.armed || shown == subagentArmingFor) return
+        subagentArmingFor = shown
+        subagentArming?.cancel()
+        subagentArming = work.launch {
+            delay(SubagentLogic.ARM_MS)
+            state.update { ui -> if (ui.subagent.shown == shown) ui.copy(subagent = ui.subagent.copy(shown = shown.copy(armed = true))) else ui }
+        }
     }
 
     private fun armSheet(shown: Shown?) {
