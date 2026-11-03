@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -372,5 +373,32 @@ func TestShutdownClosesRelays(t *testing.T) {
 	}
 	if !strings.Contains(ts.logs.String(), "close_code=1001") {
 		t.Fatalf("no close line with 1001:\n%s", ts.logs.String())
+	}
+}
+
+// Review T06c #1: the LAN and Tailscale listeners hand the relay connections whose writes it can watch.
+func TestRemoteListenersAreWrappedForTheRelay(t *testing.T) {
+	srv, _ := startTestServer(t)
+	if srv.listen.Wrap == nil {
+		t.Fatal("remote listeners are not wrapped")
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wl := srv.listen.Wrap(ln)
+	defer wl.Close()
+	c, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	got, err := wl.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer got.Close()
+	if _, plain := got.(*net.TCPConn); plain && runtime.GOOS == "linux" {
+		t.Fatalf("accepted %T, want the relay's wrapper", got)
 	}
 }

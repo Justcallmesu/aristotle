@@ -94,6 +94,7 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
+		Wrap: relay.WrapListener, // the relay sees exactly when a write to a phone waits for it
 	}
 	ctl.Handlers = s.controlHandlers()
 	return s, nil

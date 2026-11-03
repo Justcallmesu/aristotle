@@ -13,14 +13,12 @@ import (
 // Liveness of the phone socket (docs/protocol.md §12): fragmented writes, a fixed ping cadence and a
 // progress rule that counts only what the phone itself did.
 
-// drainWait is how long one write to the phone's connection must have waited before its completion
-// counts as the phone draining. Go's net.Conn does not say whether a write blocked, so the wait is
-// measured. A write the kernel takes into free send-buffer space returns in microseconds and proves
-// nothing: the phone may be gone. A write that found the buffer full returns only after the phone's
-// TCP took a large part of that buffer (the kernel wakes a blocked writer only then), which on a phone
-// slow enough for its pong to be late takes far longer than this (~0.14 s per wake at 2 MiB/s through
-// a 128 KiB buffer in TestRelaySlowPhoneKeptByDrainWhilePongsAreLate). A scheduling stall that makes a
-// free write look slow costs at most one extra ping round for a dead phone.
+// drainWait is the fallback for a phone connection the relay cannot watch exactly (non-Unix, or a
+// listener not passed through WrapListener): a write to it that waited at least this long counts as
+// the phone draining when it completes. A write the kernel takes into free send-buffer space returns
+// in microseconds and proves nothing; but a scheduling stall can make such a write look slow, which
+// costs a dead phone one extra ping round. Watched connections (sock_unix.go) need no threshold: they
+// count a write only when the kernel refused bytes (EAGAIN) and later took them.
 const drainWait = 10 * time.Millisecond
 
 // maxPings bounds the pings waiting for a pong. Pongs go unread while a phone frame waits for Hermes
@@ -49,7 +47,7 @@ func (s *session) writePhone(msg []byte) error {
 
 // keepalive sends a ping every PingInterval, whatever the traffic, and closes the phone 1011 when,
 // within PongTimeout of the ping, the phone sent no byte (pong or frame) and no write to it that had
-// to wait for it completed (drainWait). A slow phone downloading a large message keeps its socket
+// to wait for it got bytes out (sock_unix.go; drainWait where that cannot be seen). A slow phone downloading a large message keeps its socket
 // while those writes keep completing, even when its pong waits behind the data. Once the last bytes
 // are in the kernel nothing waits any more: the phone must then read what is buffered for it and
 // answer a ping within PongTimeout. While a phone frame waits for Hermes the phone is not read, so a
@@ -127,7 +125,14 @@ func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if tc, ok := c.(*tls.Conn); ok {
 		w.s.raw = tc.NetConn() // closing under TLS does not wait to send close_notify to a stalled phone
 	}
-	pc := &progressConn{Conn: c, s: w.s}
+	setNotSentLowat(w.s.raw)
+	pc := &progressConn{Conn: c, s: w.s, timed: true}
+	// Under TLS the records reach the TCP connection through tls.Conn, below pc: only the listener's
+	// own wrapper (WrapListener) sees whether those writes waited.
+	if d, ok := w.s.raw.(drainNotifier); ok {
+		d.notifyDrain(w.s.drained)
+		pc.timed = false
+	}
 	// coder/websocket reads through pc (accept.go resets brw.Reader onto it) but writes through
 	// brw.Writer, which net/http points at c itself. It is empty here (net/http flushed the 101).
 	if err := brw.Writer.Flush(); err != nil {
@@ -138,12 +143,16 @@ func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return pc, brw, nil
 }
 
+// drained records that a write which had to wait for the phone got bytes out.
+func (s *session) drained() { s.lastDrain.Store(s.now()) }
+
 // progressConn is the phone's connection. Bytes read move lastRead: a phone slowly uploading a large
-// frame (its pong waiting behind it) still shows progress. A write that waited at least drainWait
-// moves lastDrain when it completes.
+// frame (its pong waiting behind it) still shows progress. When timed (the connection underneath
+// cannot report waits), a write that took at least drainWait moves lastDrain when it completes.
 type progressConn struct {
 	net.Conn
-	s *session
+	s     *session
+	timed bool
 }
 
 func (c *progressConn) Read(p []byte) (int, error) {
@@ -155,10 +164,13 @@ func (c *progressConn) Read(p []byte) (int, error) {
 }
 
 func (c *progressConn) Write(p []byte) (int, error) {
+	if !c.timed {
+		return c.Conn.Write(p)
+	}
 	start := time.Now()
 	n, err := c.Conn.Write(p)
 	if n > 0 && time.Since(start) >= drainWait {
-		c.s.lastDrain.Store(c.s.now())
+		c.s.drained()
 	}
 	return n, err
 }

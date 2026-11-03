@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -131,7 +132,7 @@ func (l smallSendListener) Accept() (net.Conn, error) {
 func (h *harness) slowPhone(t *testing.T, rate, ahead int) *websocket.Conn {
 	t.Helper()
 	srv := httptest.NewUnstartedServer(h.srv.Config.Handler)
-	srv.Listener = smallSendListener{srv.Listener}
+	srv.Listener = WrapListener(smallSendListener{srv.Listener})
 	srv.Start()
 	t.Cleanup(srv.Close)
 	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -404,6 +405,74 @@ func TestRelayKeepaliveClosesDeadPhoneUnderFastStreamSmallBuffers(t *testing.T) 
 	})
 	pc := h.slowPhone(t, 64<<20, 0) // 128 KiB buffers both ends; reads gateway.ready, then nothing
 	wantDeadPhoneClosed(t, h, pc, time.Now(), liveBound)
+}
+
+// sessionOf returns the one live relay of h's device.
+func sessionOf(t *testing.T, h *harness) *session {
+	t.Helper()
+	h.hub.mu.Lock()
+	defer h.hub.mu.Unlock()
+	for s := range h.hub.byDev[h.dev.ID] {
+		return s
+	}
+	t.Fatal("no live relay")
+	return nil
+}
+
+// loadCPUAndGC keeps every CPU busy with goroutines that allocate garbage, plus one that forces
+// collections, until the test ends: a loaded host on which a write into free buffer space can take
+// many milliseconds (descheduled, or stopped for GC).
+func loadCPUAndGC(t *testing.T) {
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for range 2 * runtime.GOMAXPROCS(0) {
+		wg.Go(func() {
+			var sink [][]byte
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				sink = append(sink, make([]byte, 64<<10))
+				if len(sink) > 64 {
+					sink = sink[:0]
+				}
+			}
+		})
+	}
+	wg.Go(func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(time.Millisecond):
+				runtime.GC()
+			}
+		}
+	})
+	t.Cleanup(func() { close(done); wg.Wait() })
+}
+
+// Review T06c #1: on a loaded host a dead phone is still closed at the first ping + pong. Under this
+// load the old 10 ms write-duration rule counted some free writes as the phone draining (one more
+// round each); a watched connection counts a write only after the kernel refused bytes (EAGAIN).
+func TestRelayKeepaliveClosesDeadPhoneUnderCPUAndGCLoad(t *testing.T) {
+	if !exactDrain {
+		t.Skip("blocked writes are timed on this system")
+	}
+	h := newHarness(t, func(o *Options) {
+		o.PingInterval, o.PongTimeout, o.wrapHermes = livePing, livePong, streamEvents(time.Millisecond)
+	})
+	pc := h.slowPhone(t, 64<<20, 0) // reads gateway.ready, then nothing
+	s := sessionOf(t, h)
+	loadCPUAndGC(t)
+	start := time.Now()
+	waitFor(t, "the close decision", func() bool { _, ok := requestedClose(h.hub, h.dev.ID); return ok })
+	if s.lastDrain.Load() != 0 {
+		t.Fatal("a write into free buffer space counted as the dead phone draining")
+	}
+	wantDeadPhoneClosed(t, h, pc, start, liveBound)
 }
 
 // stuckHermes is a Hermes that never takes a frame from the relay.

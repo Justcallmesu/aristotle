@@ -76,7 +76,9 @@ func newHarnessWith(t *testing.T, fake *hermestest.Fake, d Dialer, tune func(*Op
 	}
 	hub := New(opts)
 	router := httpapi.NewRemoteRouter("t", log, httpapi.Deps{Codes: &pairing.Codes{}, Devices: store, Relay: hub, Listener: "tailscale"})
-	srv := httptest.NewServer(router)
+	srv := httptest.NewUnstartedServer(router)
+	srv.Listener = WrapListener(srv.Listener) // as the remote listeners are (listen.Manager.Wrap)
+	srv.Start()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -240,6 +242,7 @@ func TestRelayOverTLSWithHTTP2Enabled(t *testing.T) {
 	h := newHarness(t, nil)
 	tlsSrv := httptest.NewUnstartedServer(h.srv.Config.Handler)
 	tlsSrv.EnableHTTP2 = true
+	tlsSrv.Listener = WrapListener(tlsSrv.Listener)
 	tlsSrv.StartTLS()
 	defer tlsSrv.Close()
 	client := tlsSrv.Client() // trusts the test cert; offers only http/1.1 for the upgrade
@@ -251,6 +254,11 @@ func TestRelayOverTLSWithHTTP2Enabled(t *testing.T) {
 	defer pc.CloseNow()
 	if got := read(t, pc); !strings.Contains(got, "gateway.ready") {
 		t.Fatalf("first frame over TLS = %s", got)
+	}
+	// Review T06c #1: under TLS the relay still reaches the listener's wrapper (tls.Conn.NetConn).
+	s := sessionOf(t, h)
+	if _, watched := s.raw.(drainNotifier); watched != exactDrain {
+		t.Fatalf("phone connection under TLS is %T: watched %v, want %v", s.raw, watched, exactDrain)
 	}
 }
 

@@ -28,6 +28,7 @@ type Manager struct {
 	Handler  func(Kind) http.Handler                   // wrapped in PeerGate
 	Scan     func() ([]Iface, error)                   // default SystemInterfaces
 	Bind     func(Endpoint, int) (net.Listener, error) // default BindTCP
+	Wrap     func(net.Listener) net.Listener           // applied to each bound listener; nil: none
 	Interval time.Duration
 	Log      *slog.Logger
 
@@ -119,6 +120,9 @@ func (m *Manager) add(e Endpoint) {
 		return
 	}
 	delete(m.bindFailed, e)
+	if m.Wrap != nil {
+		ln = m.Wrap(ln) // below TLS: ServeTLS wraps what it is given
+	}
 	srv := m.newServer(e)
 	if m.active == nil {
 		m.active = map[Endpoint]*http.Server{}

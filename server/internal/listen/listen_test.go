@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -517,4 +518,52 @@ func TestManagerTwoLANListenersStartCleanly(t *testing.T) {
 	}
 	time.Sleep(50 * time.Millisecond) // let the ServeTLS goroutines start
 	m.Close()
+}
+
+// countingListener counts the connections accepted through it.
+type countingListener struct {
+	net.Listener
+	n *atomic.Int32
+}
+
+func (l countingListener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err == nil {
+		l.n.Add(1)
+	}
+	return c, err
+}
+
+// Wrap sits under every server, the TLS (LAN) ones included: connections are accepted through it.
+func TestManagerServesThroughWrap(t *testing.T) {
+	f := &fakeNet{}
+	m := newTestManager(t, f, io.Discard)
+	var accepted atomic.Int32
+	var mu sync.Mutex
+	var addrs []string
+	m.Wrap = func(ln net.Listener) net.Listener {
+		mu.Lock()
+		addrs = append(addrs, ln.Addr().String())
+		mu.Unlock()
+		return countingListener{ln, &accepted}
+	}
+	f.set([]Iface{wifiIface, tsIface}, nil)
+	m.Reconcile()
+	mu.Lock()
+	defer mu.Unlock()
+	if len(addrs) != len(m.Active()) || len(addrs) != 3 {
+		t.Fatalf("wrapped %d listeners, active %d", len(addrs), len(m.Active()))
+	}
+	for _, a := range addrs {
+		c, err := net.Dial("tcp", a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+	}
+	for deadline := time.Now().Add(5 * time.Second); accepted.Load() < 3; time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("accepted %d of 3 through Wrap", accepted.Load())
+		}
+	}
 }

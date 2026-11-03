@@ -23,7 +23,7 @@ type session struct {
 	listener string
 	log      *slog.Logger
 
-	raw      net.Conn // the phone's TCP connection, set at hijack (liveness.go)
+	raw      net.Conn // the phone's TCP connection (a trackedConn behind WrapListener), set at hijack (liveness.go)
 	ioCtx    context.Context
 	cancelIO context.CancelFunc
 	stopCtx  context.Context
@@ -39,7 +39,7 @@ type session struct {
 
 	// Liveness (liveness.go). Clocks are unix nanoseconds of opts.Now, read by keepalive. lastRead moves
 	// whenever bytes arrive from the phone (frames, pongs); lastDrain when a write to the phone that had
-	// to wait for it completes. forwarding is set while a phone frame waits for Hermes to take it (the
+	// to wait for it gets bytes out. forwarding is set while a phone frame waits for Hermes to take it (the
 	// phone is not read then, so its pongs are not seen); lastForwarded is when the last such wait ended.
 	pings         sync.WaitGroup // ping goroutines (liveness.go), waited for after the sockets are cut
 	pingsOut      atomic.Int32   // pings waiting for their pong
