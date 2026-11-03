@@ -1,0 +1,241 @@
+?   	github.com/justcallmesu/aristotle/server/cmd/aristotle-server	[no test files]
+=== RUN   TestRunDispatch
+=== RUN   TestRunDispatch/no_args
+=== RUN   TestRunDispatch/unknown
+=== RUN   TestRunDispatch/version
+=== RUN   TestRunDispatch/help
+--- PASS: TestRunDispatch (0.00s)
+    --- PASS: TestRunDispatch/no_args (0.00s)
+    --- PASS: TestRunDispatch/unknown (0.00s)
+    --- PASS: TestRunDispatch/version (0.00s)
+    --- PASS: TestRunDispatch/help (0.00s)
+=== RUN   TestServeListenerGracefulShutdown
+--- PASS: TestServeListenerGracefulShutdown (0.01s)
+=== RUN   TestPairDevicesRevokeEndToEnd
+--- PASS: TestPairDevicesRevokeEndToEnd (0.04s)
+=== RUN   TestPairRejectsBadName
+--- PASS: TestPairRejectsBadName (0.03s)
+=== RUN   TestCLIWithoutServer
+--- PASS: TestCLIWithoutServer (0.00s)
+=== RUN   TestSecondServerRefused
+--- PASS: TestSecondServerRefused (0.02s)
+=== RUN   TestPrintPairing
+--- PASS: TestPrintPairing (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/app	0.115s
+=== RUN   TestDefaults
+--- PASS: TestDefaults (0.00s)
+=== RUN   TestParseListenerToggles
+--- PASS: TestParseListenerToggles (0.00s)
+=== RUN   TestParse
+=== RUN   TestParse/port_override
+=== RUN   TestParse/ipv6_loopback
+=== RUN   TestParse/invalid_json
+=== RUN   TestParse/unknown_key
+=== RUN   TestParse/trailing_data
+=== RUN   TestParse/wildcard_refused
+=== RUN   TestParse/empty_host_refused
+=== RUN   TestParse/lan_host_refused
+=== RUN   TestParse/upper-case_key
+=== RUN   TestParse/mixed-case_key
+=== RUN   TestParse/duplicate_key
+=== RUN   TestParse/empty_file
+=== RUN   TestParse/bad_port
+=== RUN   TestParse/null_file
+=== RUN   TestParse/array_file
+=== RUN   TestParse/null_value
+=== RUN   TestParse/mixed-case_toggle
+=== RUN   TestParse/toggle_wrong_type
+--- PASS: TestParse (0.00s)
+    --- PASS: TestParse/port_override (0.00s)
+    --- PASS: TestParse/ipv6_loopback (0.00s)
+    --- PASS: TestParse/invalid_json (0.00s)
+    --- PASS: TestParse/unknown_key (0.00s)
+    --- PASS: TestParse/trailing_data (0.00s)
+    --- PASS: TestParse/wildcard_refused (0.00s)
+    --- PASS: TestParse/empty_host_refused (0.00s)
+    --- PASS: TestParse/lan_host_refused (0.00s)
+    --- PASS: TestParse/upper-case_key (0.00s)
+    --- PASS: TestParse/mixed-case_key (0.00s)
+    --- PASS: TestParse/duplicate_key (0.00s)
+    --- PASS: TestParse/empty_file (0.00s)
+    --- PASS: TestParse/bad_port (0.00s)
+    --- PASS: TestParse/null_file (0.00s)
+    --- PASS: TestParse/array_file (0.00s)
+    --- PASS: TestParse/null_value (0.00s)
+    --- PASS: TestParse/mixed-case_toggle (0.00s)
+    --- PASS: TestParse/toggle_wrong_type (0.00s)
+=== RUN   TestLoadInvalidFileNamesPath
+--- PASS: TestLoadInvalidFileNamesPath (0.00s)
+=== RUN   TestPathsHonourXDG
+--- PASS: TestPathsHonourXDG (0.00s)
+=== RUN   TestEnsureDirNewIs0700
+--- PASS: TestEnsureDirNewIs0700 (0.00s)
+=== RUN   TestEnsureDirTightensExisting
+--- PASS: TestEnsureDirTightensExisting (0.00s)
+=== RUN   TestEnsureDirRefusesSymlink
+--- PASS: TestEnsureDirRefusesSymlink (0.00s)
+=== RUN   TestEnsureDirRefusesFileInPlace
+--- PASS: TestEnsureDirRefusesFileInPlace (0.00s)
+=== RUN   TestCheckDirSafe
+=== RUN   TestCheckDirSafe/own_dir
+=== RUN   TestCheckDirSafe/other_owner
+=== RUN   TestCheckDirSafe/symlink
+=== RUN   TestCheckDirSafe/regular_file
+--- PASS: TestCheckDirSafe (0.00s)
+    --- PASS: TestCheckDirSafe/own_dir (0.00s)
+    --- PASS: TestCheckDirSafe/other_owner (0.00s)
+    --- PASS: TestCheckDirSafe/symlink (0.00s)
+    --- PASS: TestCheckDirSafe/regular_file (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/config	0.010s
+=== RUN   TestCallRoundTripAndSocketMode
+--- PASS: TestCallRoundTripAndSocketMode (0.00s)
+=== RUN   TestOtherUIDRefused
+--- PASS: TestOtherUIDRefused (0.00s)
+=== RUN   TestRealPeerUIDIsOwnUID
+--- PASS: TestRealPeerUIDIsOwnUID (0.00s)
+=== RUN   TestListenStaleLiveAndNonSocket
+--- PASS: TestListenStaleLiveAndNonSocket (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/control	0.005s
+=== RUN   TestAddAuthenticateRevoke
+--- PASS: TestAddAuthenticateRevoke (0.01s)
+=== RUN   TestFileHasOnlyHashAndIs0600
+--- PASS: TestFileHasOnlyHashAndIs0600 (0.01s)
+=== RUN   TestReloadKeepsDevicesAndRevocation
+--- PASS: TestReloadKeepsDevicesAndRevocation (0.03s)
+=== RUN   TestLastSeenWrittenAtMostOncePerMinute
+--- PASS: TestLastSeenWrittenAtMostOncePerMinute (0.01s)
+=== RUN   TestOpenRefusesLooseFile
+--- PASS: TestOpenRefusesLooseFile (0.00s)
+=== RUN   TestOpenRefusesUnknownFields
+--- PASS: TestOpenRefusesUnknownFields (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/devices	0.057s
+=== RUN   TestIdentifyAndDialHappyPath
+--- PASS: TestIdentifyAndDialHappyPath (0.00s)
+=== RUN   TestTicketIsSingleUse
+--- PASS: TestTicketIsSingleUse (0.00s)
+=== RUN   TestDialNeverSendsOrigin
+--- PASS: TestDialNeverSendsOrigin (0.00s)
+=== RUN   TestUnsupportedProtocolFailsClosed
+--- PASS: TestUnsupportedProtocolFailsClosed (0.00s)
+=== RUN   TestSocketMissingIsNotRunning
+--- PASS: TestSocketMissingIsNotRunning (0.00s)
+=== RUN   TestStaleSocketFileIsNotRunning
+--- PASS: TestStaleSocketFileIsNotRunning (0.00s)
+=== RUN   TestSocketPathFileIsHonoured
+--- PASS: TestSocketPathFileIsHonoured (0.00s)
+=== RUN   TestRestartRedialsNewOrigin
+--- PASS: TestRestartRedialsNewOrigin (0.00s)
+=== RUN   TestDoMintsFreshTicketPerRequest
+--- PASS: TestDoMintsFreshTicketPerRequest (0.00s)
+=== RUN   TestBackoffMonotonicAndCapped
+--- PASS: TestBackoffMonotonicAndCapped (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/hermes	0.028s
+=== RUN   TestHealthz
+--- PASS: TestHealthz (0.00s)
+=== RUN   TestMethodAndUnknownPath
+--- PASS: TestMethodAndUnknownPath (0.00s)
+=== RUN   TestLogsOmitBodyAndAuth
+--- PASS: TestLogsOmitBodyAndAuth (0.00s)
+=== RUN   TestLogUsesRouteWithoutQuery
+--- PASS: TestLogUsesRouteWithoutQuery (0.00s)
+=== RUN   TestPairThenMe
+--- PASS: TestPairThenMe (0.00s)
+=== RUN   TestPairNamePrecedence
+--- PASS: TestPairNamePrecedence (0.01s)
+=== RUN   TestPairRejects
+--- PASS: TestPairRejects (0.00s)
+=== RUN   TestAuth
+--- PASS: TestAuth (0.00s)
+=== RUN   TestRevokeTakesEffectOnNextRequest
+--- PASS: TestRevokeTakesEffectOnNextRequest (0.01s)
+=== RUN   TestLogsNeverHoldSecrets
+--- PASS: TestLogsNeverHoldSecrets (0.00s)
+=== RUN   TestUnmatchedRouteLogsConstant
+--- PASS: TestUnmatchedRouteLogsConstant (0.00s)
+=== RUN   TestLoopbackRouterHasNoV1
+--- PASS: TestLoopbackRouterHasNoV1 (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/httpapi	0.039s
+=== RUN   TestClassify
+--- PASS: TestClassify (0.00s)
+=== RUN   TestSelect
+=== RUN   TestSelect/both
+=== RUN   TestSelect/lan_only
+=== RUN   TestSelect/tailscale_only
+=== RUN   TestSelect/none
+--- PASS: TestSelect (0.00s)
+    --- PASS: TestSelect/both (0.00s)
+    --- PASS: TestSelect/lan_only (0.00s)
+    --- PASS: TestSelect/tailscale_only (0.00s)
+    --- PASS: TestSelect/none (0.00s)
+=== RUN   TestEndpointURL
+--- PASS: TestEndpointURL (0.00s)
+=== RUN   TestBindTCPRefuses
+--- PASS: TestBindTCPRefuses (0.00s)
+=== RUN   TestPeerGate
+--- PASS: TestPeerGate (0.00s)
+=== RUN   TestManagerAddsAndRemovesOnChange
+--- PASS: TestManagerAddsAndRemovesOnChange (0.01s)
+=== RUN   TestManagerLogsBindFailureOnceAndRetries
+--- PASS: TestManagerLogsBindFailureOnceAndRetries (0.01s)
+=== RUN   TestManagerScanErrorKeepsListeners
+--- PASS: TestManagerScanErrorKeepsListeners (0.01s)
+=== RUN   TestManagerServesWithPeerGateAndStops
+--- PASS: TestManagerServesWithPeerGateAndStops (0.01s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/listen	0.040s
+=== RUN   TestCodeAlphabetAndLength
+--- PASS: TestCodeAlphabetAndLength (0.00s)
+=== RUN   TestRedeem
+=== RUN   TestRedeem/exact
+=== RUN   TestRedeem/lower_case_with_hyphen
+=== RUN   TestRedeem/just_before_expiry
+=== RUN   TestRedeem/at_expiry
+=== RUN   TestRedeem/wrong
+=== RUN   TestRedeem/empty
+--- PASS: TestRedeem (0.00s)
+    --- PASS: TestRedeem/exact (0.00s)
+    --- PASS: TestRedeem/lower_case_with_hyphen (0.00s)
+    --- PASS: TestRedeem/just_before_expiry (0.00s)
+    --- PASS: TestRedeem/at_expiry (0.00s)
+    --- PASS: TestRedeem/wrong (0.00s)
+    --- PASS: TestRedeem/empty (0.00s)
+=== RUN   TestNormalizeCrockfordAliases
+--- PASS: TestNormalizeCrockfordAliases (0.00s)
+=== RUN   TestSingleUse
+--- PASS: TestSingleUse (0.00s)
+=== RUN   TestLockoutAfterFiveWrong
+--- PASS: TestLockoutAfterFiveWrong (0.00s)
+=== RUN   TestNewCodeReplacesOld
+--- PASS: TestNewCodeReplacesOld (0.00s)
+=== RUN   TestConcurrentRedeemSucceedsOnce
+--- PASS: TestConcurrentRedeemSucceedsOnce (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/pairing	0.004s
+=== RUN   TestWriteAtomicReplacesWith0600
+--- PASS: TestWriteAtomicReplacesWith0600 (0.01s)
+=== RUN   TestWriteAtomicFailureLeavesNoTempAndOtherFilesIntact
+--- PASS: TestWriteAtomicFailureLeavesNoTempAndOtherFilesIntact (0.00s)
+=== RUN   TestWriteAtomicReplacesSymlinkWithoutFollowing
+--- PASS: TestWriteAtomicReplacesSymlinkWithoutFollowing (0.00s)
+=== RUN   TestReadRefuses
+--- PASS: TestReadRefuses (0.00s)
+=== RUN   TestCheckPrivateOtherOwner
+--- PASS: TestCheckPrivateOtherOwner (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/statefile	0.021s
+=== RUN   TestCreatedOnceThenReused
+--- PASS: TestCreatedOnceThenReused (0.00s)
+=== RUN   TestFingerprintFormat
+--- PASS: TestFingerprintFormat (0.00s)
+=== RUN   TestHalfPairRefused
+--- PASS: TestHalfPairRefused (0.00s)
+=== RUN   TestLooseKeyRefused
+--- PASS: TestLooseKeyRefused (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/tlscert	0.019s

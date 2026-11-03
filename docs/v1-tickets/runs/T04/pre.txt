@@ -1,0 +1,3 @@
+?? docs/v1-tickets/runs/T04/
+?? docs/v1-tickets/runs/T05/
+4d8207a docs: board after wave 2, spec Q34 wording

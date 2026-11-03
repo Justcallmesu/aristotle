@@ -83,9 +83,13 @@ Sec-WebSocket-Protocol: hermes-gateway-v1, hermes-gateway-ticket.<ticket>
 → 101, Sec-WebSocket-Protocol: hermes-gateway-v1
 ```
 - Exactly one `hermes-gateway-ticket.*` entry plus `hermes-gateway-v1` (`hermes_cli/web_server_boundary.py:156-171`).
-- Peer must be 127.0.0.1/::1; a bad Host, a missing/ill-formed subprotocol, or non-loopback peer is closed
-  `4403` before accept (`gateway/run_api.py:442-447`; seen by an HTTP client as 403). The two cases the spike
+- Peer must be 127.0.0.1/::1; a bad Host, an **ill-formed** ticket subprotocol (no `hermes-gateway-v1`, more than
+  one `hermes-gateway-ticket.*` entry, or an empty ticket), or a non-loopback peer is closed `4403` before accept
+  (`gateway/run_api.py:442-447`; `hermes_cli/web_server_boundary.py:160-171`; seen by an HTTP client as 403).
+  A **missing** ticket subprotocol (no `hermes-gateway-ticket.*` entry at all, `reason == 'none'`) is NOT closed
+  4403: it falls through to the web app like the cases below (`run_api.py:428-441`; D6). The cases the spike
   observed take a different path (VERIFIED by reading source; the 403 status itself is EXERCISED, `a-probes.jsonl`):
+  - **Missing ticket subprotocol** → `run_api.py:429` (`reason == 'none'`) hands the request on to the web app.
   - **Origin header present** → `run_api.py:429-441` hands the request on to the web app (`self.app`) unredeemed.
   - **Well-formed but unredeemable ticket** (reused, expired, garbage): both `redeem` calls raise `PermissionError`
     (`run_api.py:450-454`; `runtime_bootstrap.py:61-74`: `invalid bootstrap ticket`, `expired bootstrap
