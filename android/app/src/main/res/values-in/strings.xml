@@ -34,10 +34,12 @@
     <string name="address_error_unreachable">Alamat ini tidak bisa dijangkau. Periksa alamatnya, dan pastikan aristotle-server berjalan di laptop.</string>
     <string name="address_error_not_allowed">Laptop tidak menerima ponsel ini di alamat itu (jaringan berbeda). Pakai alamat lain yang ditampilkan pair.</string>
     <string name="address_error_no_certificate">Ada yang menjawab di sini, tetapi tanpa sertifikat. Di Wi-Fi, pakai alamat Wi-Fi yang ditampilkan pair.</string>
+    <string name="address_error_tailscale_off">Tailscale mati di ponsel ini. Nyalakan, lalu coba lagi. Aristotle tidak pernah mengirim ke alamat 100.x di luar Tailscale.</string>
 
     <string name="pair_message_fp_rejected">Tidak disandingkan. Mungkin perangkat lain yang menjawab di alamat ini. Pastikan ponsel ada di Wi-Fi Anda sendiri dan alamatnya sama dengan yang ditampilkan pair.</string>
     <string name="pair_message_cert_changed">Sertifikat berubah setelah Anda mencocokkannya. Tidak disandingkan; mulai lagi.</string>
     <string name="pair_message_server_error">Laptop tidak bisa menyimpan ponsel ini. Jalankan %1$s lagi.</string>
+    <string name="pair_message_store_failed">Laptop sudah menyandingkan ponsel ini, tetapi ponsel tidak bisa mengunci penyandingan di penyimpanan kuncinya. Jalankan %1$s lagi di laptop, lalu sandingkan lagi.</string>
     <string name="pair_message_rejected">Laptop menolak permintaan ini (HTTP %1$d).</string>
 
     <!-- Sessions screen -->
@@ -71,4 +73,10 @@
     <string name="conn_generic_body">Koneksi ke aristotle-server di %1$s terputus atau tidak bisa dimulai. Pastikan laptop menyala dan ada di jaringan yang sama, lalu coba lagi.</string>
     <string name="conn_cert_title">Sertifikat laptop berubah</string>
     <string name="conn_cert_body">Aristotle menolak tersambung: %1$s menjawab dengan sertifikat yang berbeda dari yang Anda cocokkan saat penyandingan. Jika kunci aristotle-server dihapus, sandingkan lagi. Jika tidak, mungkin perangkat lain yang menjawab di alamat ini.</string>
+    <string name="conn_tailscale_title">Tailscale mati</string>
+    <string name="conn_tailscale_body">Laptop ini disandingkan lewat Tailscale (%1$s), tetapi Tailscale mati di ponsel ini, jadi Aristotle tidak mengirim apa pun. Nyalakan Tailscale, lalu coba lagi.</string>
+
+    <!-- Stored pairing unreadable for now -->
+    <string name="creds_unavailable_title">Penyandingan tidak bisa dibuka</string>
+    <string name="creds_unavailable_body">Penyimpanan kunci Android tidak membuka penyandingan ponsel ini dengan laptop. Biasanya ini hanya sebentar, tepat setelah ponsel menyala. Coba lagi; jika terus gagal, sandingkan lagi.</string>
 </resources>

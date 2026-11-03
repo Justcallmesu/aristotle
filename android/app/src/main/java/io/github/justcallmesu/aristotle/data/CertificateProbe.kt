@@ -1,8 +1,8 @@
 package io.github.justcallmesu.aristotle.data
 
 import java.io.IOException
-import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.Socket
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -26,17 +26,22 @@ sealed interface ProbeResult {
     data object NoCertificate : ProbeResult
 }
 
+/** Where the pair screen gets the certificate to compare; [CertificateProbe] in the app. */
+fun interface CertificateSource {
+    suspend fun fetch(endpoint: ServerEndpoint): ProbeResult
+}
+
 /**
  * Reads the server certificate for the user to compare, without trusting it: the handshake is
  * always aborted after the certificate is captured, so no request is ever sent on this socket.
  */
-class CertificateProbe(private val timeoutMillis: Int = 5_000) {
+class CertificateProbe(private val timeoutMillis: Int = 5_000) : CertificateSource {
 
-    suspend fun fetch(endpoint: ServerEndpoint): ProbeResult = withContext(Dispatchers.IO) {
+    override suspend fun fetch(endpoint: ServerEndpoint): ProbeResult = withContext(Dispatchers.IO) {
         val capture = CapturingTrustManager()
-        val raw = Socket()
+        val raw = Socket(Proxy.NO_PROXY)
         try {
-            raw.connect(InetSocketAddress(InetAddress.getByName(endpoint.host), endpoint.port), timeoutMillis)
+            raw.connect(InetSocketAddress(endpoint.inetAddress, endpoint.port), timeoutMillis)
             raw.soTimeout = timeoutMillis
         } catch (_: IOException) {
             raw.close()

@@ -19,3 +19,8 @@ fun startServer(held: HeldCertificate? = null): MockWebServer = MockWebServer().
 
 /** Endpoint for a local test server; the network label decides HTTPS (Lan) vs HTTP (Tailscale). */
 fun localEndpoint(server: MockWebServer, network: Network): ServerEndpoint = ServerEndpoint("127.0.0.1", server.port, network)
+
+/** Tailscale off: no VPN network routes anything. */
+val NoVpn = VpnRoutes { null }
+
+fun testClients(vpn: VpnRoutes = NoVpn): HttpClients = HttpClients(vpn)

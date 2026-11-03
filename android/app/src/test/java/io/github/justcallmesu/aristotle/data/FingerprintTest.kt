@@ -28,6 +28,9 @@ class FingerprintTest {
         assertArrayEquals(digest, Fingerprint.parse(Fingerprint.format(digest).lowercase().replace(" ", "")))
         assertNull(Fingerprint.parse("7E54 D87B"))
         assertNull(Fingerprint.parse("Z".repeat(64)))
+        // Arabic-Indic and fullwidth digits pass isDigit() and toInt(16), but are not hex.
+        assertNull(Fingerprint.parse("\u0663".repeat(64)))
+        assertNull(Fingerprint.parse("\uFF11".repeat(64)))
     }
 
     @Test

@@ -1,17 +1,17 @@
 package io.github.justcallmesu.aristotle.data
 
+import java.security.KeyStoreException
+import java.security.ProviderException
+import java.security.UnrecoverableKeyException
 import javax.crypto.AEADBadTagException
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
-
-private fun softwareKey(): SecretKey = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
 
 class TokenCipherTest {
     private val key = softwareKey()
@@ -41,20 +41,16 @@ class TokenCipherTest {
         val other = softwareKey()
         assertThrows(AEADBadTagException::class.java) { AesGcmTokenCipher { other }.decrypt(sealed, aad) }
     }
+
+    @Test
+    fun decryptUsesItsOwnKeyProvider() {
+        val sealed = cipher.encrypt("t0k3n".toByteArray(), aad)
+        val decryptOnly = AesGcmTokenCipher(encryptKey = { error("encrypt key asked while decrypting") }, decryptKey = { key })
+        assertArrayEquals("t0k3n".toByteArray(), decryptOnly.decrypt(sealed, aad))
+    }
 }
 
 class CredentialStoreTest {
-    private class MemoryStore : KeyValueStore {
-        val map = mutableMapOf<String, String>()
-        override fun get(key: String) = map[key]
-        override fun put(key: String, value: String) {
-            map[key] = value
-        }
-        override fun remove(key: String) {
-            map.remove(key)
-        }
-    }
-
     private val key = softwareKey()
     private val codec = CredentialCodec(AesGcmTokenCipher { key })
     private val creds = PcCredentials(
@@ -65,31 +61,75 @@ class CredentialStoreTest {
         token = DeviceToken("very-secret-token-value"),
     )
 
+    private fun store(storage: KeyValueStore, codec: CredentialCodec = this.codec) =
+        CredentialStore(storage, codec, io = Dispatchers.Unconfined)
+
+    private fun loaded(storage: KeyValueStore, codec: CredentialCodec = this.codec): CredentialState =
+        store(storage, codec).also { runBlocking { it.load() } }.state.value
+
+    /** A key provider whose decrypt side fails the way [failure] says. */
+    private fun codecFailingWith(failure: () -> Exception) = CredentialCodec(AesGcmTokenCipher({ key }, { throw failure() }))
+
+    private fun savedStorage() = MemoryStore().also { runBlocking { store(it).save(creds) } }
+
     @Test
-    fun savedCredentialsSurviveARestartAndTheTokenIsNotStoredInClear() {
-        val storage = MemoryStore()
-        CredentialStore(storage, codec).save(creds)
-        assertFalse(storage.map.values.any { "very-secret-token-value" in it })
-        assertEquals(creds, CredentialStore(storage, codec).active.value)
+    fun stateIsLoadingUntilTheFirstLoad() {
+        assertEquals(CredentialState.Loading, store(MemoryStore()).state.value)
+        assertEquals(CredentialState.Unpaired, loaded(MemoryStore()))
     }
 
     @Test
-    fun wipeActiveForgetsThePc() {
-        val storage = MemoryStore()
-        val store = CredentialStore(storage, codec)
-        store.save(creds)
+    fun savedCredentialsSurviveARestartAndTheTokenIsNotStoredInClear() {
+        val storage = savedStorage()
+        assertFalse(storage.map.values.any { "very-secret-token-value" in it })
+        assertEquals(CredentialState.Paired(creds), loaded(storage))
+    }
+
+    @Test
+    fun wipeActiveForgetsThePc() = runBlocking {
+        val storage = savedStorage()
+        val store = store(storage)
         store.wipeActive()
-        assertNull(store.active.value)
+        assertEquals(CredentialState.Unpaired, store.state.value)
         assertEquals(emptyMap<String, String>(), storage.map)
     }
 
     @Test
-    fun anUnreadableEntryCountsAsNotPairedAndIsRemoved() {
-        val storage = MemoryStore()
-        CredentialStore(storage, codec).save(creds)
+    fun aLostKeyCountsAsNotPairedAndTheEntryIsRemoved() {
+        val storage = savedStorage()
         val lostKey = softwareKey()
-        val reopened = CredentialStore(storage, CredentialCodec(AesGcmTokenCipher { lostKey }))
-        assertNull(reopened.active.value)
+        assertEquals(CredentialState.Unpaired, loaded(storage, CredentialCodec(AesGcmTokenCipher { lostKey })))
+        assertEquals(emptyMap<String, String>(), storage.map)
+    }
+
+    @Test
+    fun aMissingKeyOrACorruptEntryIsRemoved() {
+        val missing = savedStorage()
+        assertEquals(CredentialState.Unpaired, loaded(missing, codecFailingWith { TokenKeyMissingException() }))
+        assertEquals(emptyMap<String, String>(), missing.map)
+
+        val corrupt = savedStorage().apply { map["pc.dev_0123456789ab"] = "{not json" }
+        assertEquals(CredentialState.Unpaired, loaded(corrupt))
+        assertEquals(emptyMap<String, String>(), corrupt.map)
+    }
+
+    // D22: a Keystore that is busy right after boot must not cost the user the pairing.
+    @Test
+    fun aTransientKeystoreFailureKeepsThePairingForARetry() = runBlocking {
+        val storage = savedStorage()
+        val before = storage.map.toMap()
+        for (failure in listOf<() -> Exception>({ KeyStoreException("busy") }, { ProviderException("keystore2 down") })) {
+            assertEquals(CredentialState.Unavailable, loaded(storage, codecFailingWith(failure)))
+            assertEquals(before, storage.map)
+        }
+        assertEquals(CredentialState.Paired(creds), loaded(storage))
+    }
+
+    @Test
+    fun aFailedSaveStoresNothing() {
+        val storage = MemoryStore()
+        val failing = CredentialCodec(AesGcmTokenCipher { throw ProviderException("keystore2 down") })
+        assertThrows(ProviderException::class.java) { runBlocking { store(storage, failing).save(creds) } }
         assertEquals(emptyMap<String, String>(), storage.map)
     }
 
@@ -97,6 +137,25 @@ class CredentialStoreTest {
     fun tokenNeverAppearsInToString() {
         assertFalse("very-secret-token-value" in creds.toString())
         assertFalse("very-secret-token-value" in creds.token.toString())
-        assertNotNull(codec.decode(codec.encode(creds)))
+        assertTrue(codec.decode(codec.encode(creds)) is DecodeResult.Ok)
+    }
+}
+
+// The Keystore daemon case (UnrecoverableKeyException caused by android.security.KeyStoreException) needs
+// the real class, which the JVM test android.jar cannot construct; it is covered only by reading the code.
+class KeystoreFailuresTest {
+    @Test
+    fun permanentFailures() {
+        assertTrue(KeystoreFailures.isPermanent(AEADBadTagException()))
+        assertTrue(KeystoreFailures.isPermanent(TokenKeyMissingException()))
+        assertTrue(KeystoreFailures.isPermanent(IllegalArgumentException("malformed ciphertext")))
+        assertTrue(KeystoreFailures.isPermanent(UnrecoverableKeyException("key permanently invalidated")))
+    }
+
+    @Test
+    fun transientFailures() {
+        assertFalse(KeystoreFailures.isPermanent(KeyStoreException("busy")))
+        assertFalse(KeystoreFailures.isPermanent(ProviderException("keystore2 down")))
+        assertFalse(KeystoreFailures.isPermanent(IllegalStateException("not initialised")))
     }
 }

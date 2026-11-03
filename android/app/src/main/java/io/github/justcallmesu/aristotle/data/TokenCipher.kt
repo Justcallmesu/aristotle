@@ -13,14 +13,19 @@ interface TokenCipher {
 
 /**
  * AES-256-GCM; blob = 1-byte IV length, IV, ciphertext+tag. The cipher picks the IV (an Android
- * Keystore key refuses caller-chosen IVs). [key] is called per operation so the Keystore lookup
- * stays lazy.
+ * Keystore key refuses caller-chosen IVs). The key providers are called per operation so the Keystore
+ * lookup stays lazy; [decryptKey] may differ so that decrypting never creates a key.
  */
-class AesGcmTokenCipher(private val key: () -> SecretKey) : TokenCipher {
+class AesGcmTokenCipher(
+    private val encryptKey: () -> SecretKey,
+    private val decryptKey: () -> SecretKey,
+) : TokenCipher {
+
+    constructor(key: () -> SecretKey) : this(key, key)
 
     override fun encrypt(plain: ByteArray, aad: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, key())
+        cipher.init(Cipher.ENCRYPT_MODE, encryptKey())
         cipher.updateAAD(aad)
         val sealed = cipher.doFinal(plain)
         val iv = cipher.iv
@@ -32,7 +37,7 @@ class AesGcmTokenCipher(private val key: () -> SecretKey) : TokenCipher {
         val ivLength = blob[0].toInt() and 0xFF
         require(ivLength in 12..16 && blob.size > 1 + ivLength) { "malformed ciphertext" }
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, blob, 1, ivLength))
+        cipher.init(Cipher.DECRYPT_MODE, decryptKey(), GCMParameterSpec(TAG_BITS, blob, 1, ivLength))
         cipher.updateAAD(aad)
         return cipher.doFinal(blob, 1 + ivLength, blob.size - 1 - ivLength)
     }

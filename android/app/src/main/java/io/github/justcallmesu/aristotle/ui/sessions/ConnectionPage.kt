@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.ConnectionIssue
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
@@ -30,6 +31,7 @@ private fun copyOf(issue: ConnectionIssue): PageCopy = when (issue) {
     is ConnectionIssue.HermesNotRunning -> PageCopy(R.string.conn_4503_title, R.string.conn_4503_body, PageAction.RetryNow)
     is ConnectionIssue.HermesUpdated -> PageCopy(R.string.conn_4505_title, R.string.conn_4505_body, PageAction.CheckAgain)
     is ConnectionIssue.CertificateChanged -> PageCopy(R.string.conn_cert_title, R.string.conn_cert_body, PageAction.PairAgain)
+    is ConnectionIssue.TailscaleOff -> PageCopy(R.string.conn_tailscale_title, R.string.conn_tailscale_body, PageAction.RetryNow)
     is ConnectionIssue.Generic -> PageCopy(R.string.conn_generic_title, R.string.conn_generic_body, PageAction.RetryNow)
 }
 
@@ -63,7 +65,8 @@ fun ConnectionPage(issue: ConnectionIssue, address: String, onRetry: () -> Unit,
 private fun DetailsBlock(details: String) {
     Surface(
         shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        // design.md §4: code blocks sit on surfaceContainerHighest.
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier.fillMaxWidth().padding(top = Spacing.s),
     ) {
         Column(modifier = Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m)) {

@@ -36,6 +36,12 @@ type Identity struct {
 	HermesHome      string          `json:"hermes_home"`
 	ServedProfiles  []ServedProfile `json:"served_profiles"`
 	Capabilities    []string        `json:"capabilities"`
+
+	// controlPath is the socket that answered identify; tickets for this identity are minted there.
+	controlPath string
+	// profileHome is the served home the launch profile binds to when the gateway was reached through
+	// the profile's root (discover.go); "" means the gateway's own HermesHome.
+	profileHome string
 }
 
 // ControlError is a refusal from the control socket ({"ok":false,"error":...}).
@@ -51,8 +57,19 @@ type controlEnvelope struct {
 }
 
 // Identify asks Hermes who it is and fails closed on an unknown protocol or a gateway that is not ready.
+// A named profile home without a gateway of its own is answered by its root's gateway (discover.go).
 func (c *Connector) Identify(ctx context.Context) (Identity, error) {
-	raw, err := c.control(ctx, map[string]any{"protocol": 1, "id": 1, "verb": "identify"})
+	id, err := c.identifyAt(ctx, c.home)
+	if errors.Is(err, ErrHermesNotRunning) && c.root != "" {
+		return c.identifyServedProfile(ctx, err)
+	}
+	return id, err
+}
+
+// identifyAt runs identify on the control socket of home.
+func (c *Connector) identifyAt(ctx context.Context, home string) (Identity, error) {
+	path := socketPathIn(home)
+	raw, err := c.control(ctx, path, map[string]any{"protocol": 1, "id": 1, "verb": "identify"})
 	if err != nil {
 		return Identity{}, err
 	}
@@ -63,6 +80,7 @@ func (c *Connector) Identify(ctx context.Context) (Identity, error) {
 	if err := id.check(); err != nil {
 		return Identity{}, err
 	}
+	id.controlPath = path
 	return id, nil
 }
 
@@ -94,9 +112,18 @@ func (id Identity) checkOrigin() error {
 	return nil
 }
 
-// launchProfileID is the served profile bound to the gateway's own home; a host-scoped
-// ticket for it reaches every served profile (docs/protocol.md §3).
+// launchProfileID is the served profile bound to the gateway's own home, or to the configured
+// profile home when the root's gateway answered for it; a host-scoped ticket for it reaches every
+// served profile (docs/protocol.md §3).
 func (id Identity) launchProfileID() (string, error) {
+	if id.profileHome != "" {
+		for _, p := range id.ServedProfiles {
+			if sameHome(p.Home, id.profileHome) {
+				return p.ProfileID, nil
+			}
+		}
+		return "", fmt.Errorf("hermes identify: launch profile %q is not in served_profiles", id.profileHome)
+	}
 	want := filepath.Clean(id.HermesHome)
 	for _, p := range id.ServedProfiles {
 		if filepath.Clean(p.Home) == want {
@@ -130,7 +157,7 @@ func (c *Connector) mintTicket(ctx context.Context, id Identity, profileID, purp
 	if scope != "" {
 		params["scope"] = scope
 	}
-	raw, err := c.control(ctx, map[string]any{"protocol": 1, "id": 1, "verb": "session-ticket", "params": params})
+	raw, err := c.control(ctx, id.controlPath, map[string]any{"protocol": 1, "id": 1, "verb": "session-ticket", "params": params})
 	if err != nil {
 		return "", err
 	}
@@ -152,12 +179,9 @@ func (c *Connector) mintTicket(ctx context.Context, id Identity, profileID, purp
 	return result.Ticket, nil
 }
 
-// control performs one request/answer exchange (one JSON line each way, then Hermes closes).
-func (c *Connector) control(ctx context.Context, request map[string]any) (json.RawMessage, error) {
-	path, err := c.socketPath()
-	if err != nil {
-		return nil, err
-	}
+// control performs one request/answer exchange on the socket at path (one JSON line each way, then
+// Hermes closes).
+func (c *Connector) control(ctx context.Context, path string, request map[string]any) (json.RawMessage, error) {
 	dialer := net.Dialer{Timeout: controlTimeout}
 	conn, err := dialer.DialContext(ctx, "unix", path)
 	if err != nil {
@@ -241,23 +265,23 @@ func decodeEnvelope(answer []byte) (json.RawMessage, error) {
 	return env.Result, nil
 }
 
-// socketPath mirrors Hermes' resolve_client_socket_path (gateway/control_socket.py:122-133): the
-// direct $HOME/gateway.sock when it exists, else the gateway.sock.path target when that exists.
+// socketPathIn mirrors Hermes' resolve_client_socket_path (gateway/control_socket.py:122-133): the
+// direct <home>/gateway.sock when it exists, else the gateway.sock.path target when that exists.
 // With neither present it returns the direct path, so the dial reports "not running".
-func (c *Connector) socketPath() (string, error) {
-	direct := filepath.Join(c.home, controlSocketName)
+func socketPathIn(home string) string {
+	direct := filepath.Join(home, controlSocketName)
 	if _, err := os.Stat(direct); err == nil {
-		return direct, nil
+		return direct
 	}
 	if named, err := os.ReadFile(direct + ".path"); err == nil {
 		target := strings.TrimSpace(strings.TrimPrefix(string(named), "\ufeff"))
 		if target != "" {
 			if _, err := os.Stat(target); err == nil {
-				return target, nil
+				return target
 			}
 		}
 	}
-	return direct, nil
+	return direct
 }
 
 func isNotRunning(err error) bool {

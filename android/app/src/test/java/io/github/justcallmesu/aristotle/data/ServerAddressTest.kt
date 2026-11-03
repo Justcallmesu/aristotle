@@ -71,6 +71,33 @@ class ServerAddressTest {
         assertEquals(AddressError.NotAnIpAddress, refused("fe80::1%wlan0"))
     }
 
+    // D22: the IPv6 path is a pure parser. On Android, InetAddress.getByName resolves any string it cannot
+    // parse, so each of these hostname-like inputs would have been a DNS query before.
+    @Test
+    fun hostnameLikeColonInputIsRefusedByPureParsing() {
+        for (input in listOf(
+            "1:2", "[cafe:babe]", "dead:beef:cafe", "192.168.1.5:8760:", "a:b:c:d:e:f:1:2:3", "1::2::3", ":::",
+            ":1:2:3:4:5:6:7", "1:2:3:4:5:6:7:8::", "12345::1", "fd7a::115c::1", "fd7a:115c:a1e0::1.2.3", "100.64.0.1::1",
+        )) {
+            assertEquals(input, AddressError.NotAnIpAddress, refused(input))
+        }
+    }
+
+    @Test
+    fun ipv6LiteralsParseToTheirBytes() {
+        val expected = ByteArray(16).also {
+            it[0] = 0xFD.toByte(); it[1] = 0x7A; it[2] = 0x11; it[3] = 0x5C; it[4] = 0xA1.toByte(); it[5] = 0xE0.toByte(); it[15] = 1
+        }
+        assertTrue(expected.contentEquals(ServerAddress.parseIpLiteral("fd7a:115c:a1e0::1")))
+        assertTrue(expected.contentEquals(ServerAddress.parseIpLiteral("FD7A:115C:A1E0:0:0:0:0:1")))
+        assertTrue(expected.contentEquals(ServerAddress.parseIpLiteral("fd7a:115c:a1e0::0.0.0.1")))
+        assertEquals(16, ServerAddress.parseIpLiteral("::")?.size)
+        assertEquals(Network.Tailscale, ok("fd7a:115c:a1e0:1:2:3:4:5").network)
+        // IPv4-mapped and compatible forms are not RFC1918 or tailnet addresses.
+        assertEquals(AddressError.NotPrivate, refused("[::ffff:192.168.1.5]:8760"))
+        assertEquals(AddressError.NotPrivate, refused("::100.64.0.1"))
+    }
+
     @Test
     fun badPortsAreRefused() {
         assertEquals(AddressError.BadPort, refused("192.168.1.23:"))

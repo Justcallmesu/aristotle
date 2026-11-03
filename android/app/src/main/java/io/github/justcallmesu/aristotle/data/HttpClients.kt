@@ -1,6 +1,7 @@
 package io.github.justcallmesu.aristotle.data
 
 import java.io.IOException
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLPeerUnverifiedException
@@ -13,7 +14,8 @@ class CleartextRefusedException(host: String) : IOException("plain HTTP is only 
 
 /**
  * The network security config permits cleartext (it cannot express the tailnet CIDRs), so this
- * interceptor is the real rule: `http://` only to 100.64.0.0/10 or fd7a:115c:a1e0::/48.
+ * interceptor is the address rule: `http://` only to 100.64.0.0/10 or fd7a:115c:a1e0::/48.
+ * [TailnetSocketFactory] adds the network rule: those connections only go over the VPN.
  */
 object CleartextGuard : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -24,31 +26,42 @@ object CleartextGuard : Interceptor {
 }
 
 /** Why a request to the PC failed below HTTP. */
-enum class ConnectionProblem { Unreachable, CertificateChanged, CleartextRefused }
+enum class ConnectionProblem { Unreachable, CertificateChanged, CleartextRefused, TailscaleOff }
 
-fun connectionProblemOf(error: Throwable): ConnectionProblem {
-    var cause: Throwable? = error
-    while (cause != null) {
-        when (cause) {
-            is PinMismatchException, is SSLPeerUnverifiedException -> return ConnectionProblem.CertificateChanged
-            is CleartextRefusedException -> return ConnectionProblem.CleartextRefused
-        }
-        cause = cause.cause
+fun connectionProblemOf(error: Throwable): ConnectionProblem = problemIn(error, depth = 0) ?: ConnectionProblem.Unreachable
+
+/** Searches the cause chain and the suppressed exceptions (OkHttp attaches failed connect attempts there). */
+private fun problemIn(error: Throwable, depth: Int): ConnectionProblem? {
+    if (depth > MAX_CAUSE_DEPTH) return null
+    when (error) {
+        is PinMismatchException, is SSLPeerUnverifiedException -> return ConnectionProblem.CertificateChanged
+        is CleartextRefusedException -> return ConnectionProblem.CleartextRefused
+        is TailscaleOffException -> return ConnectionProblem.TailscaleOff
     }
-    return ConnectionProblem.Unreachable
+    val related = listOfNotNull(error.cause?.takeIf { it !== error }) + error.suppressed
+    return related.firstNotNullOfOrNull { problemIn(it, depth + 1) }
 }
 
-/** Builds the OkHttp client for one PC endpoint: pinned TLS on the LAN, guarded cleartext on the tailnet. */
-class HttpClients(private val base: OkHttpClient = defaultBase()) {
+private const val MAX_CAUSE_DEPTH = 8
+
+/**
+ * Builds the OkHttp client for one PC endpoint: pinned TLS on the LAN, guarded cleartext over the VPN
+ * on the tailnet. No client uses a proxy: a system or Wi-Fi proxy would see the Bearer token.
+ */
+class HttpClients(private val vpn: VpnRoutes, private val base: OkHttpClient = defaultBase()) {
 
     fun forEndpoint(endpoint: ServerEndpoint, pin: ByteArray?): OkHttpClient {
         val builder = base.newBuilder()
+            .proxy(Proxy.NO_PROXY)
             .followRedirects(false)
             .followSslRedirects(false)
             .addInterceptor(CleartextGuard)
-        if (endpoint.network == Network.Lan) {
-            requireNotNull(pin) { "a LAN endpoint needs a pinned fingerprint" }
-            pinTo(builder, pin)
+        when (endpoint.network) {
+            Network.Lan -> {
+                builder.socketFactory(DirectSocketFactory())
+                pinTo(builder, requireNotNull(pin) { "a LAN endpoint needs a pinned fingerprint" })
+            }
+            Network.Tailscale -> builder.socketFactory(TailnetSocketFactory(vpn, endpoint.inetAddress))
         }
         return builder.build()
     }
@@ -64,6 +77,7 @@ class HttpClients(private val base: OkHttpClient = defaultBase()) {
         private const val TIMEOUT_SECONDS = 10L
 
         fun defaultBase(): OkHttpClient = OkHttpClient.Builder()
+            .proxy(Proxy.NO_PROXY)
             .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)

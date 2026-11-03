@@ -15,7 +15,7 @@ class RelaySocketTest {
 
     private fun relay(server: mockwebserver3.MockWebServer, token: String = "tok"): RelaySocket {
         val endpoint = localEndpoint(server, Network.Lan)
-        return RelaySocket(HttpClients().forEndpoint(endpoint, pinOf(held)), endpoint.baseUrl, DeviceToken(token))
+        return RelaySocket(testClients().forEndpoint(endpoint, pinOf(held)), endpoint.baseUrl, DeviceToken(token))
     }
 
     @Test
@@ -38,6 +38,32 @@ class RelaySocketTest {
             assertEquals("/v1/ws", upgrade.url.encodedPath)
             assertEquals("Bearer secret", upgrade.headers["Authorization"])
             assertEquals(null, upgrade.headers["Origin"])
+        }
+    }
+
+    // T07 review: the upgrade itself is pinned. A server with another key gets no request, so no Bearer token.
+    @Test
+    fun wssUpgradeToAnotherKeyIsRefusedBeforeAnyRequest() = runBlocking {
+        startServer(held).use { server ->
+            server.enqueue(MockResponse.Builder().code(101).build())
+            val endpoint = localEndpoint(server, Network.Lan)
+            val relay = RelaySocket(testClients().forEndpoint(endpoint, pinOf(lanCertificate())), endpoint.baseUrl, DeviceToken("secret"))
+            val events = withTimeout(10_000) { relay.events().toList() }
+            assertEquals(listOf(RelayEvent.Failed(null, ConnectionProblem.CertificateChanged)), events)
+            assertEquals(0, server.requestCount)
+        }
+    }
+
+    @Test
+    fun wsUpgradeToANonTailnetHostIsRefusedByTheCleartextGuard() = runBlocking {
+        startServer().use { server ->
+            server.enqueue(MockResponse.Builder().code(101).build())
+            val endpoint = localEndpoint(server, Network.Tailscale)
+            assertEquals("http://127.0.0.1:${server.port}", endpoint.baseUrl)
+            val relay = RelaySocket(testClients().forEndpoint(endpoint, null), endpoint.baseUrl, DeviceToken("secret"))
+            val events = withTimeout(10_000) { relay.events().toList() }
+            assertEquals(listOf(RelayEvent.Failed(null, ConnectionProblem.CleartextRefused)), events)
+            assertEquals(0, server.requestCount)
         }
     }
 

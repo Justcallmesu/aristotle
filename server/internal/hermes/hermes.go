@@ -62,7 +62,9 @@ const (
 
 // Options configures a Connector. The zero value is usable.
 type Options struct {
-	// Home is the Hermes home. Default: $HERMES_HOME, else ~/.hermes.
+	// Home is the Hermes home of the profile to serve. Default: $HERMES_HOME, else ~/.hermes. A named
+	// profile home (<root>/profiles/<name>) without a gateway of its own is reached through its root's
+	// gateway when that lists it in served_profiles, as Hermes' own clients do (discover.go).
 	Home string
 	// Logger receives connection-level events only; tickets are never logged.
 	Logger *slog.Logger
@@ -75,6 +77,7 @@ type Options struct {
 // Connector reaches one Hermes gateway. It holds no connection state, so it is safe for concurrent use.
 type Connector struct {
 	home       string
+	root       string // multiplexer root when home is a named profile home, else ""
 	log        *slog.Logger
 	client     *http.Client
 	ackTimeout time.Duration
@@ -101,7 +104,7 @@ func New(opts Options) (*Connector, error) {
 	if ack <= 0 {
 		ack = defaultAckTimeout
 	}
-	return &Connector{home: home, log: log, client: &noRedirect, ackTimeout: ack}, nil
+	return &Connector{home: home, root: multiplexerRootFor(home), log: log, client: &noRedirect, ackTimeout: ack}, nil
 }
 
 func resolveHome(configured string) (string, error) {

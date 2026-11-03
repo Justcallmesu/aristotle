@@ -4,19 +4,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.AddressCheck
 import io.github.justcallmesu.aristotle.data.AddressError
-import io.github.justcallmesu.aristotle.data.CertificateProbe
+import io.github.justcallmesu.aristotle.data.CertificateSource
 import io.github.justcallmesu.aristotle.data.ConnectionProblem
 import io.github.justcallmesu.aristotle.data.CredentialStore
 import io.github.justcallmesu.aristotle.data.Fingerprint
-import io.github.justcallmesu.aristotle.data.HttpClients
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.PairResult
+import io.github.justcallmesu.aristotle.data.PairingApi
 import io.github.justcallmesu.aristotle.data.PairingCode
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.data.ProbeResult
 import io.github.justcallmesu.aristotle.data.ServerAddress
-import io.github.justcallmesu.aristotle.data.ServerClient
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +27,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Errors shown on the address field. */
-enum class AddressFieldError { Empty, NotAnIpAddress, BadPort, NotPrivate, Unreachable, NotAllowed, NoCertificate }
+enum class AddressFieldError { Empty, NotAnIpAddress, BadPort, NotPrivate, Unreachable, NotAllowed, NoCertificate, TailscaleOff }
 
 enum class CodeFieldError { Incomplete, Invalid }
 
@@ -33,6 +36,9 @@ sealed interface PairMessage {
     data object FingerprintRejected : PairMessage
     data object CertificateChanged : PairMessage
     data object ServerError : PairMessage
+
+    /** Paired on the laptop, but the Keystore could not seal the token; the code is spent. */
+    data object StoreFailed : PairMessage
     data class Rejected(val status: Int) : PairMessage
 }
 
@@ -70,10 +76,11 @@ data class PairUiState(
 
 class PairViewModel(
     private val credentials: CredentialStore,
-    private val httpClients: HttpClients,
-    private val probe: CertificateProbe,
+    private val pairing: PairingApi,
+    private val probe: CertificateSource,
     defaultDeviceName: String,
-) : ViewModel() {
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+) : ViewModel(scope) {
     private val state = MutableStateFlow(PairUiState(deviceName = defaultDeviceName.take(MAX_NAME)))
     val uiState: StateFlow<PairUiState> = state.asStateFlow()
 
@@ -143,14 +150,14 @@ class PairViewModel(
         state.update { it.copy(step = step, busy = true, codeError = null, message = null) }
         val form = state.value
         viewModelScope.launch {
-            val client = ServerClient(httpClients.forEndpoint(step.endpoint, step.fingerprint), step.endpoint.baseUrl)
-            onPairResult(step, client.pair(form.code, form.deviceName))
+            // The pin is the one the user just compared (step.fingerprint), never a fresh probe.
+            onPairResult(step, pairing.pair(step.endpoint, step.fingerprint, form.code, form.deviceName))
         }
     }
 
-    private fun onPairResult(step: PairStep.Confirmed, result: PairResult) {
+    private suspend fun onPairResult(step: PairStep.Confirmed, result: PairResult) {
         when (result) {
-            is PairResult.Paired -> credentials.save(
+            is PairResult.Paired -> store(
                 PcCredentials(
                     pcId = result.deviceId,
                     deviceId = result.deviceId,
@@ -165,9 +172,22 @@ class PairViewModel(
             is PairResult.Rejected -> state.update { it.copy(busy = false, message = PairMessage.Rejected(result.status)) }
             is PairResult.Failed -> when (result.problem) {
                 ConnectionProblem.CertificateChanged -> backToEntry(message = PairMessage.CertificateChanged)
+                ConnectionProblem.TailscaleOff -> backToEntry(addressError = AddressFieldError.TailscaleOff)
                 ConnectionProblem.Unreachable, ConnectionProblem.CleartextRefused ->
                     backToEntry(addressError = AddressFieldError.Unreachable)
             }
+        }
+    }
+
+    /** On success the app leaves this screen (the store's state turns Paired); the form stays busy until then. */
+    private suspend fun store(paired: PcCredentials) {
+        try {
+            credentials.save(paired)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Keystore failures arrive checked (GeneralSecurityException) and unchecked (ProviderException).
+            backToEntry(message = PairMessage.StoreFailed)
         }
     }
 

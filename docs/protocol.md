@@ -73,6 +73,11 @@ dynamic: re-read it on every connect. Client must refuse `runtime_protocol != 1`
   `instance_id` → `PermissionError: stale runtime instance` (`a-probes.jsonl`).
 - Client checks (as Hermes' own clients do): `ok`, `id == 1`, `instance_id`/`profile_id` echo, `runtime_protocol == 1`.
 
+**Profile homes (T07b, D18).** When `$HERMES_HOME` is a profile home (`~/.hermes/profiles/<name>`) with no `gateway.sock`,
+aristotle-server asks the root home's gateway (`~/.hermes/gateway.sock`), as Hermes' own clients do (sources cited in
+`docs/v1-tickets/runs/T07b/build-report.md`), and uses it only if `served_profiles` lists that profile. The launch profile is
+then that profile, not `default`. A systemd-started server has no `HERMES_HOME` and uses the root home.
+
 ### 1.2 WebSocket upgrade
 ```
 GET /api/ws HTTP/1.1
@@ -466,7 +471,7 @@ gets a normal result. Consequences:
 | `1003` | `text_frames_only` | the phone sent a binary frame | fix the client |
 | `1008` | `desktop_local_refused` | the phone's `client.capabilities` named `desktop_local` (see Capabilities) | fix the client; never send it |
 | `1009` | `read limited at …` | a phone frame over 1 MiB (sent by the WebSocket library) | split/shrink; upload files via REST |
-| `1011` | `pong_timeout` | within 15 s of a ping (sent every 25 s), no byte came from the phone and no write that had to wait for it completed (see Keepalive) | reconnect |
+| `1011` | `pong_timeout` | within 15 s of a ping (sent every 25 s), no byte came from the phone and no write that had to wait for it got bytes out (see Keepalive) | reconnect; answer every ping and never block the read thread |
 | `1013` | `try_again` / Hermes' reason | Hermes draining or not ready, at dial (`ErrDraining`) or later (Hermes sent 1013) | retry with backoff |
 | `4401` | `revoked` | the device was revoked (`devices revoke`); every live socket of it closes within 1 s. A phone that has not read the 4401 within 0.5 s (not reading, or still draining buffered data) gets a TCP close instead | re-pair |
 | `4429` | `rate_limited` | more than 600 phone frames in 60 s on this socket | reconnect later, send less |
@@ -488,14 +493,26 @@ OkHttp reassembles them), so pings and close frames are not stuck behind one lar
 
 **Keepalive.** aristotle-server sends the phone a WebSocket ping every 25 s, whatever the traffic (at most 4 unanswered
 pings outstanding). It closes the phone `1011` when, within 15 s of a ping, neither of these happened: a byte arrived
-from the phone (the pong, a frame, part of a frame), or a write to the phone that had to wait for it completed. A write
-counts only when it waited at least 10 ms for send-buffer space: a frame the kernel takes into a free buffer proves
-nothing, so a phone that is gone is closed within 40 s even while Hermes streams events to it. A slow phone downloading
-a large message keeps its socket while those writes keep completing, even when its pong waits behind the data. Once
-the last bytes are in the kernel nothing waits any more: the phone must then read what is buffered for it and answer a
-ping within 15 s. While a phone frame waits for Hermes to take it, the phone is not read and its pongs are unseen: pings
-still go out, but no `1011` is decided from a window that overlaps the wait. WebSocket clients answer pings
-automatically while they read. It does not ping Hermes (loopback); the phone may still call `gateway.ping` itself (§1.3).
+from the phone (the pong, a frame, part of a frame), or a write to the phone that had to wait for it got bytes out. A
+write counts only when the kernel refused it for a full send buffer (`EAGAIN`) and later took its bytes, which needs the
+phone's TCP to acknowledge data: a frame the kernel takes into a free buffer proves nothing, so a phone that is gone is
+closed within 40 s even while Hermes streams events to it, however loaded the PC is. (On non-Unix builds the server
+cannot see `EAGAIN` and counts a write that took at least 10 ms instead; a scheduling stall can then cost a dead phone
+one more round.) A slow phone downloading a large message keeps its socket while those writes keep completing, even
+when its pong waits behind the data. On Linux each phone socket has `TCP_NOTSENT_LOWAT` = 128 KiB: at most that much
+waits unsent in the kernel, so writes keep waiting on the phone until little is left. Once the last bytes are in the
+kernel nothing waits any more: the phone must then read what is buffered for it and answer a ping within 15 s. While a
+phone frame waits for Hermes to take it, the phone is not read and its pongs are unseen: pings still go out, but no
+`1011` is decided from a window that overlaps the wait. It does not ping Hermes (loopback); the phone may still call
+`gateway.ping` itself (§1.3).
+
+Client obligations (the phone app):
+- **Answer every ping** with its own pong. RFC 6455 lets a client answer only the most recent ping; such a client can
+  leave 4 pings unanswered, after which the server sends no more pings and an idle phone is closed `1011`. OkHttp
+  answers every ping.
+- **Keep reading.** WebSocket clients answer pings only while they read. OkHttp reads, and answers pings, on one
+  thread that also runs `onMessage`: the app must hand each incoming frame off (queue/channel to another thread) and
+  never block that callback; a callback blocked for more than 15 s delays the pong and the socket is closed `1011`.
 
 **Redaction.** Hermes -> phone only, exactly §10: `system_prompt` -> `system_prompt_chars`, `credential_hint` removed,
 at `params.payload`, `result`, `result.info` and every `result.events[].params.payload`. Frames without either field

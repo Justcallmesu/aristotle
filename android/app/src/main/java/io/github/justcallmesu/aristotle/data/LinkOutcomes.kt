@@ -1,19 +1,22 @@
-package io.github.justcallmesu.aristotle.ui.sessions
+package io.github.justcallmesu.aristotle.data
 
-import io.github.justcallmesu.aristotle.data.ConnectionProblem
-import io.github.justcallmesu.aristotle.data.MeResult
-
-/** A connection page (design.md §5). [details] is protocol data for the mono block, never translated. */
+/**
+ * Why the link to the PC ended, as a connection page (design.md §5). [details] is protocol data for
+ * the mono block, never translated.
+ */
 sealed interface ConnectionIssue {
     val details: String
 
     data class HermesNotRunning(override val details: String) : ConnectionIssue
     data class HermesUpdated(override val details: String) : ConnectionIssue
     data class CertificateChanged(override val details: String) : ConnectionIssue
+
+    /** A tailnet PC while no VPN network routes it: nothing was sent. */
+    data class TailscaleOff(override val details: String) : ConnectionIssue
     data class Generic(override val details: String) : ConnectionIssue
 }
 
-/** What the sessions screen does after the link to the PC ends or fails. */
+/** What the app does after the link to the PC ends or fails. */
 sealed interface LinkOutcome {
     /** The device token is no longer valid: wipe credentials, back to pairing. */
     data object Revoked : LinkOutcome
@@ -41,6 +44,7 @@ object LinkOutcomes {
     fun ofFailure(httpStatus: Int?, problem: ConnectionProblem): LinkOutcome = when {
         httpStatus == HTTP_UNAUTHORIZED -> LinkOutcome.Revoked
         problem == ConnectionProblem.CertificateChanged -> LinkOutcome.Show(ConnectionIssue.CertificateChanged(CERT_DETAILS))
+        problem == ConnectionProblem.TailscaleOff -> LinkOutcome.Show(ConnectionIssue.TailscaleOff(TAILSCALE_OFF_DETAILS))
         httpStatus != null -> LinkOutcome.Show(ConnectionIssue.Generic("/v1/ws HTTP $httpStatus"))
         else -> LinkOutcome.Show(ConnectionIssue.Generic(problemDetails(problem)))
     }
@@ -60,7 +64,9 @@ object LinkOutcomes {
         ConnectionProblem.Unreachable -> "no connection"
         ConnectionProblem.CertificateChanged -> CERT_DETAILS
         ConnectionProblem.CleartextRefused -> "plain HTTP refused: not a Tailscale address"
+        ConnectionProblem.TailscaleOff -> TAILSCALE_OFF_DETAILS
     }
 
     private const val CERT_DETAILS = "certificate SPKI SHA-256 differs from the pinned fingerprint"
+    private const val TAILSCALE_OFF_DETAILS = "no VPN network routes the tailnet address; nothing sent"
 }

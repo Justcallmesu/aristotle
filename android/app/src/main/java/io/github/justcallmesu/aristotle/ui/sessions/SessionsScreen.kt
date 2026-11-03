@@ -28,7 +28,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
@@ -190,7 +189,7 @@ private fun RowStatus(row: SessionRow) {
             RunningSpinner()
             Text(
                 text = stringResource(R.string.session_running),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                style = AristotleTextStyles.liveStatus,
                 color = MaterialTheme.colorScheme.tertiary,
                 maxLines = 1,
             )

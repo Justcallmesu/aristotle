@@ -23,18 +23,27 @@ sealed interface RelayEvent {
     data class Failed(val httpStatus: Int?, val problem: ConnectionProblem) : RelayEvent
 }
 
+/** A relay socket as the session feed sees it; [RelaySocket] in the app, a fake in tests. */
+interface RelayChannel {
+    /** Opens on collect; cancelling the collector closes the socket. */
+    fun events(): Flow<RelayEvent>
+
+    /** False when the socket is not open (or already closing). */
+    fun send(text: String): Boolean
+}
+
 /**
  * The phone's relay socket `/v1/ws` (protocol §12). No `pingInterval`: the server pings, and a
  * client ping timeout could cut a large message mid-download. Reconnecting is the caller's call.
  */
-class RelaySocket(private val client: OkHttpClient, baseUrl: String, private val token: DeviceToken) {
+class RelaySocket(private val client: OkHttpClient, baseUrl: String, private val token: DeviceToken) : RelayChannel {
     private val url = baseUrl.toHttpUrl().resolve("/v1/ws")!!
 
     @Volatile
     private var socket: WebSocket? = null
 
     /** Opens on collect; cancelling the collector closes the socket with 1000. */
-    fun events(): Flow<RelayEvent> = callbackFlow {
+    override fun events(): Flow<RelayEvent> = callbackFlow {
         val request = Request.Builder().url(url).header("Authorization", "Bearer ${token.value}").build()
         val ws = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -63,8 +72,7 @@ class RelaySocket(private val client: OkHttpClient, baseUrl: String, private val
         }
     }.buffer(Channel.UNLIMITED)
 
-    /** False when the socket is not open (or already closing). */
-    fun send(text: String): Boolean = socket?.send(text) ?: false
+    override fun send(text: String): Boolean = socket?.send(text) ?: false
 
     private companion object {
         const val NORMAL_CLOSURE = 1000

@@ -65,6 +65,9 @@ object AristotleTextStyles {
     val pairingCode: TextStyle = style(AtkinsonMonoFamily, 22f, 28f, FontWeight.W500, 1f)
     val fingerprintShort: TextStyle = style(AtkinsonMonoFamily, 12f, 16f, FontWeight.W400)
 
+    /** The live status line of a session row ("Running · step N"): bodyMedium at 600. */
+    val liveStatus: TextStyle = style(AtkinsonFamily, 14f, 20f, FontWeight.W600)
+
     /** Times and durations use tabular figures. */
     fun tabular(base: TextStyle): TextStyle = base.copy(fontFeatureSettings = "tnum")
 }

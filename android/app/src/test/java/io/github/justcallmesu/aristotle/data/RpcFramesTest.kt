@@ -43,6 +43,8 @@ class RpcFramesTest {
         assertEquals(InboundFrame.ServerRequest("srq-0123456789ab", "sudo"),
             RpcFrames.parse("""{"jsonrpc":"2.0","id":"srq-0123456789ab","method":"sudo","params":{}}"""))
         assertEquals(InboundFrame.Unknown, RpcFrames.parse("not json"))
+        // Our call ids are numbers: a string id "5" must not answer pending call 5.
+        assertEquals(InboundFrame.Unknown, RpcFrames.parse("""{"jsonrpc":"2.0","id":"5","result":{}}"""))
         assertEquals(InboundFrame.Unknown, RpcFrames.parse("[1,2]"))
     }
 

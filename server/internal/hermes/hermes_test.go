@@ -553,3 +553,92 @@ func TestDoForwardsPostBody(t *testing.T) {
 		t.Fatalf("Content-Type = %q", ct)
 	}
 }
+
+// profileHome makes <fake root>/profiles/<name> with no gateway of its own and marks the fake's home as a
+// Hermes home (config.yaml), as the real ~/.hermes is.
+func profileHome(t *testing.T, f *hermestest.Fake, name string, markRoot bool) string {
+	t.Helper()
+	home := filepath.Join(f.Home, "profiles", name)
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if markRoot {
+		if err := os.WriteFile(filepath.Join(f.Home, "config.yaml"), []byte("{}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return home
+}
+
+// D18: HERMES_HOME=<root>/profiles/pm (any shell Hermes launched) has no gateway.sock; the root's gateway
+// serves pm, so Dial and Do go through it and bind tickets to pm.
+func TestProfileHomeWithoutSocketUsesTheRootGateway(t *testing.T) {
+	f := hermestest.New(t)
+	pm := profileHome(t, f, "pm", true)
+	c, err := New(Options{Home: pm})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := c.Dial(testCtx(t))
+	if err != nil {
+		t.Fatalf("Dial err = %v", err)
+	}
+	conn.Close()
+	doGet(t, c, "", "/api/echo", nil)
+	f.Mu.Lock()
+	defer f.Mu.Unlock()
+	want := []hermestest.MintRequest{
+		{Purpose: "interactive", Scope: "host", ProfileID: f.Home + "/profiles/pm"},
+		{Purpose: "native-http", Scope: "", ProfileID: f.Home + "/profiles/pm"},
+	}
+	if len(f.Minted) != 2 || f.Minted[0] != want[0] || f.Minted[1] != want[1] {
+		t.Fatalf("minted = %+v, want %+v", f.Minted, want)
+	}
+}
+
+// The served-profile check stays: a root gateway that does not list this profile home is not its gateway.
+func TestRootGatewayNotServingTheProfileIsNotRunning(t *testing.T) {
+	f := hermestest.New(t)
+	other := profileHome(t, f, "other", true)
+	c, _ := New(Options{Home: other})
+	if _, err := c.Dial(testCtx(t)); !errors.Is(err, ErrHermesNotRunning) {
+		t.Fatalf("Dial err = %v, want ErrHermesNotRunning", err)
+	}
+	f.Mu.Lock()
+	defer f.Mu.Unlock()
+	if len(f.Minted) != 0 {
+		t.Fatalf("minted %+v for a profile the gateway does not serve", f.Minted)
+	}
+}
+
+// Only a provable Hermes root is followed (hermes_constants._is_hermes_profiles_root): a directory
+// that merely has a profiles/ segment, or a dot-named profile, is not.
+func TestRootFallbackNeedsAHermesRootAndAProfileName(t *testing.T) {
+	f := hermestest.New(t)
+	for _, tc := range []struct {
+		name     string
+		markRoot bool
+	}{{"pm", false}, {".pm", true}} {
+		home := profileHome(t, f, tc.name, tc.markRoot)
+		c, _ := New(Options{Home: home})
+		if _, err := c.Identify(testCtx(t)); !errors.Is(err, ErrHermesNotRunning) {
+			t.Fatalf("%s (marked %v): err = %v, want ErrHermesNotRunning", tc.name, tc.markRoot, err)
+		}
+	}
+}
+
+// Neither the profile nor its root has a gateway: still plain "not running".
+func TestProfileHomeWithoutAnyGatewayIsNotRunning(t *testing.T) {
+	root, _ := os.MkdirTemp("", "fh")
+	t.Cleanup(func() { os.RemoveAll(root) })
+	if err := os.MkdirAll(filepath.Join(root, ".hermes", "profiles", "pm"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := New(Options{Home: filepath.Join(root, ".hermes", "profiles", "pm")})
+	if c.root != filepath.Join(root, ".hermes") {
+		t.Fatalf("root = %q", c.root)
+	}
+	if _, err := c.Identify(testCtx(t)); !errors.Is(err, ErrHermesNotRunning) {
+		t.Fatalf("err = %v", err)
+	}
+}

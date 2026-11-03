@@ -283,6 +283,7 @@ private fun addressErrorText(error: AddressFieldError): String = stringResource(
         AddressFieldError.Unreachable -> R.string.address_error_unreachable
         AddressFieldError.NotAllowed -> R.string.address_error_not_allowed
         AddressFieldError.NoCertificate -> R.string.address_error_no_certificate
+        AddressFieldError.TailscaleOff -> R.string.address_error_tailscale_off
     },
 )
 
@@ -300,5 +301,6 @@ private fun messageText(message: PairMessage): String = when (message) {
     PairMessage.FingerprintRejected -> stringResource(R.string.pair_message_fp_rejected)
     PairMessage.CertificateChanged -> stringResource(R.string.pair_message_cert_changed)
     PairMessage.ServerError -> stringResource(R.string.pair_message_server_error, stringResource(R.string.pair_command))
+    PairMessage.StoreFailed -> stringResource(R.string.pair_message_store_failed, stringResource(R.string.pair_command))
     is PairMessage.Rejected -> stringResource(R.string.pair_message_rejected, message.status)
 }

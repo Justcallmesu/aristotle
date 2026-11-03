@@ -1,7 +1,5 @@
-package io.github.justcallmesu.aristotle.ui.sessions
+package io.github.justcallmesu.aristotle.data
 
-import io.github.justcallmesu.aristotle.data.ConnectionProblem
-import io.github.justcallmesu.aristotle.data.MeResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -44,6 +42,10 @@ class LinkOutcomesTest {
         assertEquals(
             LinkOutcome.Show(ConnectionIssue.Generic("no connection")),
             LinkOutcomes.ofFailure(null, ConnectionProblem.Unreachable),
+        )
+        assertEquals(
+            ConnectionIssue.TailscaleOff::class,
+            (LinkOutcomes.ofFailure(null, ConnectionProblem.TailscaleOff) as LinkOutcome.Show).issue::class,
         )
     }
 

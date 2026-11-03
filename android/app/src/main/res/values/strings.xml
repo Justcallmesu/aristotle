@@ -37,10 +37,12 @@
     <string name="address_error_unreachable">Can\'t reach this address. Check it, and check that aristotle-server is running on the laptop.</string>
     <string name="address_error_not_allowed">The laptop doesn\'t accept this phone on that address (different network). Use another address that pair shows.</string>
     <string name="address_error_no_certificate">Something answered here, but without a certificate. On Wi-Fi, use the Wi-Fi address that pair shows.</string>
+    <string name="address_error_tailscale_off">Tailscale is off on this phone. Turn it on, then try again. Aristotle never sends to a 100.x address outside Tailscale.</string>
 
     <string name="pair_message_fp_rejected">Not paired. Another device may be answering at this address. Check that the phone is on your own Wi-Fi and that the address is the one pair shows.</string>
     <string name="pair_message_cert_changed">The certificate changed after you compared it. Not paired; start again.</string>
     <string name="pair_message_server_error">The laptop could not save this phone. Run %1$s again.</string>
+    <string name="pair_message_store_failed">The laptop paired this phone, but the phone could not lock the pairing in its key store. Run %1$s again on the laptop, then pair again.</string>
     <string name="pair_message_rejected">The laptop refused the request (HTTP %1$d).</string>
 
     <!-- Sessions screen -->
@@ -75,4 +77,10 @@
     <string name="conn_generic_body">The connection to aristotle-server on %1$s ended or could not start. Check that the laptop is awake and on the same network, then retry.</string>
     <string name="conn_cert_title">The laptop\'s certificate changed</string>
     <string name="conn_cert_body">Aristotle refused to connect: %1$s answered with a different certificate than the one you confirmed when pairing. If aristotle-server\'s key was deleted, pair again. Otherwise another device may be answering at this address.</string>
+    <string name="conn_tailscale_title">Tailscale is off</string>
+    <string name="conn_tailscale_body">This laptop is paired over Tailscale (%1$s), but Tailscale is off on this phone, so Aristotle sent nothing. Turn Tailscale on, then retry.</string>
+
+    <!-- Stored pairing unreadable for now -->
+    <string name="creds_unavailable_title">Can\'t open the pairing</string>
+    <string name="creds_unavailable_body">Android\'s key store did not open this phone\'s pairing with the laptop. This is usually brief, right after the phone starts. Retry; if it keeps failing, pair again.</string>
 </resources>

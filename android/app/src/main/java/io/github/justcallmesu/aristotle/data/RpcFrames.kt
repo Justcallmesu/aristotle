@@ -52,7 +52,8 @@ object RpcFrames {
         return when {
             method == "event" -> event(obj)
             method != null && id != null && id.isString -> InboundFrame.ServerRequest(id.content, method)
-            method == null && id?.longOrNull != null -> response(id.longOrNull!!, obj)
+            // Our ids are JSON numbers; a string id "5" is not an answer to call 5.
+            method == null && id != null && !id.isString && id.longOrNull != null -> response(id.longOrNull!!, obj)
             else -> InboundFrame.Unknown
         }
     }

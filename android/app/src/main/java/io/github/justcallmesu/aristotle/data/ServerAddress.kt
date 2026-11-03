@@ -1,6 +1,5 @@
 package io.github.justcallmesu.aristotle.data
 
-import java.net.Inet6Address
 import java.net.InetAddress
 
 /** Which aristotle-server listener an address belongs to (docs/protocol.md §11.1). */
@@ -15,6 +14,10 @@ data class ServerEndpoint(val host: String, val port: Int, val network: Network)
     val hostForUrl: String get() = if (':' in host) "[$host]" else host
     val baseUrl: String get() = "$scheme://$hostForUrl:$port"
     val displayAddress: String get() = "$hostForUrl:$port"
+
+    /** The address as an [InetAddress], built from the literal's bytes (no lookup). */
+    val inetAddress: InetAddress
+        get() = InetAddress.getByAddress(requireNotNull(ServerAddress.parseIpLiteral(host)) { "not an IP literal" })
 }
 
 enum class AddressError {
@@ -111,13 +114,45 @@ object ServerAddress {
         return bytes
     }
 
+    /**
+     * Pure RFC 4291 §2.2 text parser: up to 8 groups of 1-4 hex digits, at most one `::`, optionally a
+     * dotted quad as the last two groups. Zone ids (%wlan0) are refused. No platform call, so nothing
+     * can fall through to a DNS lookup (Android's InetAddress.getByName resolves anything it cannot parse).
+     */
     private fun parseIpv6(text: String): ByteArray? {
-        // Only hex digits, colons and an embedded dotted quad: InetAddress then parses a literal
-        // and never does a DNS lookup. Zone ids (%wlan0) are refused.
-        if (!text.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' }) return null
-        val address = runCatching { InetAddress.getByName(text) }.getOrNull() ?: return null
-        return if (address is Inet6Address) address.address else null
+        if (text.length > MAX_IPV6_TEXT) return null
+        val gap = text.indexOf("::")
+        if (gap >= 0 && text.indexOf("::", gap + 1) >= 0) return null
+        val groups = if (gap < 0) {
+            ipv6Groups(text)?.takeIf { it.size == IPV6_GROUPS }
+        } else {
+            val head = ipv6Groups(text.substring(0, gap), dottedQuadAllowed = false) ?: return null
+            val tail = ipv6Groups(text.substring(gap + 2)) ?: return null
+            val missing = IPV6_GROUPS - head.size - tail.size
+            if (missing < 1) null else head + List(missing) { 0 } + tail
+        } ?: return null
+        return ByteArray(16) { i -> (groups[i / 2] shr (if (i % 2 == 0) 8 else 0)).toByte() }
     }
+
+    /** "a:b:c" as 16-bit values; a trailing dotted quad counts as two groups; "" is no groups. */
+    private fun ipv6Groups(text: String, dottedQuadAllowed: Boolean = true): List<Int>? {
+        if (text.isEmpty()) return emptyList()
+        val parts = text.split(':')
+        val groups = ArrayList<Int>(IPV6_GROUPS)
+        for ((i, part) in parts.withIndex()) {
+            if (dottedQuadAllowed && i == parts.lastIndex && '.' in part) {
+                val v4 = parseIpv4(part) ?: return null
+                groups += (u(v4[0]) shl 8) or u(v4[1])
+                groups += (u(v4[2]) shl 8) or u(v4[3])
+            } else {
+                if (part.isEmpty() || part.length > 4 || !part.all(::isHexDigit)) return null
+                groups += part.toInt(16)
+            }
+        }
+        return groups
+    }
+
+    private fun isHexDigit(c: Char): Boolean = c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F'
 
     private fun isTailscale(a: ByteArray): Boolean = when (a.size) {
         4 -> u(a[0]) == 100 && (u(a[1]) and 0xC0) == 64
@@ -138,4 +173,7 @@ object ServerAddress {
         else InetAddress.getByAddress(bytes).hostAddress.orEmpty()
 
     private fun u(b: Byte): Int = b.toInt() and 0xFF
+
+    private const val IPV6_GROUPS = 8
+    private const val MAX_IPV6_TEXT = 45
 }

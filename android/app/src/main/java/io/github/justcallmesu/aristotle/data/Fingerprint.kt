@@ -26,10 +26,13 @@ object Fingerprint {
 
     private const val HEX = "0123456789ABCDEF"
 
-    /** Parses [format]'s output (spaces optional, any case) back to the 32 digest bytes. */
+    /**
+     * Parses [format]'s output (spaces optional, any case) back to the 32 digest bytes. ASCII hex only:
+     * isDigit() and toInt(16) also accept other scripts' digits.
+     */
     fun parse(text: String): ByteArray? {
         val hex = text.filterNot { it == ' ' }
-        if (hex.length != BYTES * 2 || !hex.all { it.isDigit() || it.uppercaseChar() in 'A'..'F' }) return null
+        if (hex.length != BYTES * 2 || !hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) return null
         return ByteArray(BYTES) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
     }
 
