@@ -61,6 +61,9 @@ class ProfileLink(private val base: RelayLink, val profile: String?) : RelayLink
 
     override suspend fun call(method: String, params: JsonObject): JsonElement = base.call(method, withProfile(params, profile))
 
+    override suspend fun callWithin(method: String, params: JsonObject, timeoutMillis: Long): JsonElement =
+        base.callWithin(method, withProfile(params, profile), timeoutMillis)
+
     override fun respond(requestId: String, result: JsonObject): Boolean = base.respond(requestId, result)
 
     override fun retryNow() = base.retryNow()

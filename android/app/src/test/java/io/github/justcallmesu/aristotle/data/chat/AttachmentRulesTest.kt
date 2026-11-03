@@ -2,6 +2,7 @@ package io.github.justcallmesu.aristotle.data.chat
 
 import io.github.justcallmesu.aristotle.data.ProfileLink
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -108,5 +109,29 @@ class AttachmentRulesTest {
         assertEquals("application/octet-stream", AttachmentRules.safeMime("text/plain; charset=utf-8"))
         assertEquals("application/octet-stream", AttachmentRules.safeMime("a,b/c"))
         assertEquals("application/octet-stream", AttachmentRules.safeMime(null))
+    }
+
+    @Test
+    fun aFilePickIsRoutedByItsBytesNotByTheMimeTheProviderGave() {
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE1.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0)
+        val heic = byteArrayOf(0, 0, 0, 0x18) + "ftypheic".toByteArray()
+        val gif = "GIF89a".toByteArray() + ByteArray(4)
+        val webp = "RIFF".toByteArray() + ByteArray(4) + "WEBP".toByteArray()
+        listOf(jpeg, png, heic, gif, webp).forEach { assertTrue(AttachmentRules.routesAsImage(PickKind.File, it)) }
+        listOf("%PDF-1.7".toByteArray(), "hello".toByteArray(), ByteArray(0), "PK\u0003\u0004".toByteArray()).forEach { assertFalse(AttachmentRules.routesAsImage(PickKind.File, it)) }
+        // A photo or camera pick is always an image.
+        assertTrue(AttachmentRules.routesAsImage(PickKind.Photo, "garbage".toByteArray()))
+        assertTrue(AttachmentRules.routesAsImage(PickKind.Camera, ByteArray(0)))
+    }
+
+    @Test
+    fun theUploadTimeoutGrowsWithTheFrameFrom15SecondsToAtMost120() {
+        assertEquals(15_000L, AttachmentRules.uploadTimeoutMillis(0))
+        assertEquals(16_000L, AttachmentRules.uploadTimeoutMillis(1))
+        assertEquals(16_000L, AttachmentRules.uploadTimeoutMillis(32 * 1024))
+        assertEquals(17_000L, AttachmentRules.uploadTimeoutMillis(32 * 1024 + 1))
+        assertEquals(47_000L, AttachmentRules.uploadTimeoutMillis(1_044_480))
+        assertEquals(120_000L, AttachmentRules.uploadTimeoutMillis(10_000_000))
     }
 }

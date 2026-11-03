@@ -19,7 +19,7 @@ enum class ImageKind(val mime: String?, val ext: String?) {
 
 /** What happens to a picked image before it is uploaded. */
 sealed interface ImagePlan {
-    /** Sent as it is (a JPEG with its location blanked first, [ImageMetadata.stripLocation]). */
+    /** Sent as it is (a JPEG or GIF with its location and XMP removed first, [ImageMetadata.sanitizeJpeg]; re-encoded when that cannot be done safely). */
     data object Original : ImagePlan
 
     /** Decoded and written again as JPEG ([AttachmentRules.LADDER]): no metadata survives. */
@@ -64,6 +64,35 @@ object AttachmentRules {
      * wire bytes for no fidelity" (`tools/vision_tools.py:358-365`).
      */
     val LADDER: List<Pair<Int, Int>> = listOf(1568 to 85, 1568 to 75, 1280 to 75, 1024 to 70, 768 to 65)
+
+    /** At most this many picked items are prepared at the same time: each holds its source bytes and a decoded bitmap. */
+    const val MAX_PREPARING = 2
+
+    /** How many leading bytes [sniff] needs. */
+    const val SNIFF_BYTES = 16
+
+    /** The image formats that go the image way (location stripped, re-encoded when needed) whatever the picker called them. */
+    private val IMAGE_KINDS = setOf(ImageKind.Jpeg, ImageKind.Png, ImageKind.Gif, ImageKind.Webp, ImageKind.Heif)
+
+    /**
+     * Whether a pick is prepared as an image: a photo or camera pick always is; a file pick when its first bytes
+     * ([head]) are an image, whatever MIME type the document provider gave it (`application/octet-stream`,
+     * `image/jpg`, `image/avif`).
+     */
+    fun routesAsImage(pick: PickKind, head: ByteArray): Boolean = pick != PickKind.File || sniff(head) in IMAGE_KINDS
+
+    /**
+     * Call timeout for a staging call of [frameBytes]: 15 s plus 1 s per 32 KiB, at most 120 s. A fixed 15 s cannot
+     * write 1 MB below about 0.6 Mbit/s; this allows about 70 kbit/s at the largest frame.
+     */
+    fun uploadTimeoutMillis(frameBytes: Int): Long {
+        val chunks = (frameBytes.coerceAtLeast(0) + UPLOAD_CHUNK - 1L) / UPLOAD_CHUNK
+        return minOf(UPLOAD_MAX_MILLIS, UPLOAD_BASE_MILLIS + chunks * 1000L)
+    }
+
+    private const val UPLOAD_CHUNK = 32 * 1024
+    private const val UPLOAD_BASE_MILLIS = 15_000L
+    private const val UPLOAD_MAX_MILLIS = 120_000L
 
     /** The thumbnails shown in chips and bubbles: long edge in pixels. */
     const val THUMB_EDGE = 192

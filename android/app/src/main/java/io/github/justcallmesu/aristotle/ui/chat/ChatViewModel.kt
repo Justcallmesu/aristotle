@@ -303,6 +303,8 @@ class ChatViewModel(
 
     fun cameraUnavailable() = composer.cameraUnavailable()
 
+    fun cameraCancelled(target: String) = composer.cameraCancelled(target)
+
     // ── slash commands (T15) ──────────────────────────────────────────────────────────────────────
 
     fun pickCommand(command: SlashCommand) = commands.pick(command)

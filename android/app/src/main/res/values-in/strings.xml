@@ -337,6 +337,7 @@
     <string name="attach_preparing">Menyiapkan…</string>
     <string name="attach_too_large">Terlalu besar · maks %1$s</string>
     <string name="attach_too_large_size">%1$s · terlalu besar, maks %2$s</string>
+    <string name="attach_too_large_prepare">Terlalu besar untuk diproses</string>
     <string name="attach_unreadable">Tidak bisa dibaca</string>
     <string name="attach_remove">Hapus %1$s</string>
     <string name="attach_refused_hint">Hapus yang tidak bisa dikirim, lalu kirim.</string>

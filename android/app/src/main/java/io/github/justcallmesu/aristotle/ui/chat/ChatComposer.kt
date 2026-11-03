@@ -4,6 +4,7 @@ import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.RpcException
 import io.github.justcallmesu.aristotle.data.chat.AttachFrames
 import io.github.justcallmesu.aristotle.data.chat.Attachment
+import io.github.justcallmesu.aristotle.data.chat.AttachmentProblem
 import io.github.justcallmesu.aristotle.data.chat.AttachmentRules
 import io.github.justcallmesu.aristotle.data.chat.AttachmentSource
 import io.github.justcallmesu.aristotle.data.chat.AttachmentStatus
@@ -17,6 +18,8 @@ import io.github.justcallmesu.aristotle.data.chat.Staged
 import io.github.justcallmesu.aristotle.data.chat.Upload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -68,7 +71,9 @@ internal class ChatComposer(
     // ── attachments (T16) ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Items picked with [kind]: each shows at once as a chip while it is prepared off the main thread. Past
+     * Items picked with [kind]: each shows at once as a chip while it is prepared off the main thread, at most
+     * [AttachmentRules.MAX_PREPARING] at a time (each holds its source bytes and a decoded bitmap; ten at once could
+     * exhaust the heap). An item the phone has no memory for shows "Too large to prepare". Past
      * [AttachmentRules.MAX_ATTACHMENTS] the rest are left out and the user is told.
      */
     fun attach(uris: List<String>, kind: PickKind) {
@@ -79,7 +84,11 @@ internal class ChatComposer(
             val item = Attachment(newId(), "", kind)
             updateComposer { it.copy(attachments = it.attachments + item) }
             work.launch {
-                val result = source.prepare(uri, kind)
+                val result = try {
+                    preparing.withPermit { source.prepare(uri, kind) }
+                } catch (e: OutOfMemoryError) {
+                    Preparation.Refused(uri.substringAfterLast('/'), AttachmentProblem.OutOfMemory)
+                }
                 var kept = false
                 updateComposer { c ->
                     kept = c.attachments.any { it.id == item.id }
@@ -99,6 +108,11 @@ internal class ChatComposer(
     }
 
     fun cameraTarget(): String? = source?.cameraTarget()
+
+    /** The camera returned without a picture: the empty file it was given goes. */
+    fun cameraCancelled(target: String) {
+        source?.discardCamera(target)
+    }
 
     fun cameraUnavailable() = updateComposer { it.copy(message = ComposerMessage.CameraUnavailable) }
 
@@ -246,6 +260,8 @@ internal class ChatComposer(
             }
             val images = Outbox.sentImages(current)
             admission?.takeIf { images.isNotEmpty() }?.let { id -> updateComposer { it.copy(sentImages = it.sentImages + (id to images)) } }
+            // Hermes has the message: the prepared copies are not needed again (a retry of a sent message never re-reads them).
+            if (admission != null) current.attachments.forEach { a -> a.prepared?.let { source?.discard(it.handle) } }
         }
     }
 
@@ -269,8 +285,10 @@ internal class ChatComposer(
         val bytes = prepared?.let { source?.read(it.handle) } ?: return attachFailed(id, attachment, AttachCause.Gone)
         val call = AttachFrames.stage(sessionId, prepared, bytes)
         // Checked when it was prepared; a frame the relay would refuse (close 1009) is never written.
-        if (AttachFrames.frameBytes(call) > AttachmentRules.MAX_FRAME_BYTES - PROFILE_RESERVE) return attachFailed(id, attachment, AttachCause.TooLarge)
-        return when (val outcome = attempt(call)) {
+        val frameBytes = AttachFrames.frameBytes(call)
+        if (frameBytes > AttachmentRules.MAX_FRAME_BYTES - PROFILE_RESERVE) return attachFailed(id, attachment, AttachCause.TooLarge)
+        // The call's timeout grows with the frame: the whole write counts against it (T16b).
+        return when (val outcome = attempt(call, AttachmentRules.uploadTimeoutMillis(frameBytes))) {
             is Attempt.Answered -> AttachFrames.staged(outcome.result, prepared.image)?.also { staged ->
                 updateAttachment(id, attachment.id) { it.copy(staged = staged, upload = Upload.Sent) }
             } ?: attachFailed(id, attachment, AttachCause.Refused, AttachFrames.refusal(outcome.result))
@@ -317,8 +335,8 @@ internal class ChatComposer(
         data class Failed(val error: RpcException) : Attempt
     }
 
-    private suspend fun attempt(call: ComposerCall): Attempt = try {
-        Attempt.Answered(link.call(call.method, call.params))
+    private suspend fun attempt(call: ComposerCall, timeoutMillis: Long? = null): Attempt = try {
+        Attempt.Answered(if (timeoutMillis == null) link.call(call.method, call.params) else link.callWithin(call.method, call.params, timeoutMillis))
     } catch (e: RpcException) {
         Attempt.Failed(e)
     }
@@ -348,6 +366,9 @@ internal class ChatComposer(
     private fun reasonOf(error: RpcException): String = error.error?.message?.ifBlank { null } ?: error.message.orEmpty()
 
     private companion object {
+        /** Shared by every composer: the limit is on the phone's memory, not on one chat. */
+        val preparing = Semaphore(AttachmentRules.MAX_PREPARING)
+
         /** `session.interrupt` for a claim that already settled (`gateway/session_controls.py:880-886`). */
         const val STALE_GENERATION = "stale_generation"
 

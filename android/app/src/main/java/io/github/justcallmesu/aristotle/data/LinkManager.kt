@@ -35,6 +35,12 @@ interface RelayLink {
     suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap())): JsonElement
 
     /**
+     * [call] that waits up to [timeoutMillis] for the answer (a staging upload of about 1 MB, T16b). The default is a
+     * plain [call], so a link that does not know the difference keeps its own timeout.
+     */
+    suspend fun callWithin(method: String, params: JsonObject, timeoutMillis: Long): JsonElement = call(method, params)
+
+    /**
      * Answers a Hermes -> client request (`srq-…`) on the live relay; false when there is none. Used only for the
      * prompts the user answers (sudo, secret): a response settles the request for every viewer (protocol §6).
      */
@@ -144,6 +150,9 @@ class LinkManager(
 
     override suspend fun call(method: String, params: JsonObject): JsonElement =
         (live ?: throw RpcException(null, "$method: not connected", linkClosed = true, written = false)).call(method, params)
+
+    override suspend fun callWithin(method: String, params: JsonObject, timeoutMillis: Long): JsonElement =
+        (live ?: throw RpcException(null, "$method: not connected", linkClosed = true, written = false)).call(method, params, timeoutMillis)
 
     override fun respond(requestId: String, result: JsonObject): Boolean = live?.respond(requestId, result) ?: false
 

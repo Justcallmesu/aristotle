@@ -87,7 +87,7 @@ fun AttachButton(enabled: Boolean, actions: ComposerActions) {
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
         val target = cameraTarget
         cameraTarget = null
-        if (taken && target != null) actions.attach(listOf(target), PickKind.Camera)
+        if (taken && target != null) actions.attach(listOf(target), PickKind.Camera) else if (target != null) actions.cameraCancelled(target)
     }
     Box {
         IconButton(onClick = { open = true }, enabled = enabled) {
@@ -109,6 +109,7 @@ fun AttachButton(enabled: Boolean, actions: ComposerActions) {
                         camera.launch(target.toUri())
                     } catch (e: ActivityNotFoundException) {
                         cameraTarget = null
+                        actions.cameraCancelled(target)
                         actions.cameraUnavailable()
                     }
                 }
@@ -191,6 +192,7 @@ private fun problemText(problem: AttachmentProblem): String {
                 ?: stringResource(R.string.attach_too_large, limit)
         }
         AttachmentProblem.Unreadable -> stringResource(R.string.attach_unreadable)
+        AttachmentProblem.OutOfMemory -> stringResource(R.string.attach_too_large_prepare)
     }
 }
 

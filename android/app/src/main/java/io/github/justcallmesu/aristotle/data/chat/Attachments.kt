@@ -11,6 +11,9 @@ sealed interface AttachmentProblem {
     data class TooLarge(val limit: Long, val size: Long?) : AttachmentProblem
 
     data object Unreadable : AttachmentProblem
+
+    /** The phone ran out of memory preparing it (a very large photo): shown as "Too large to prepare". */
+    data object OutOfMemory : AttachmentProblem
 }
 
 /**
@@ -88,4 +91,7 @@ interface AttachmentSource {
 
     /** A fresh `content://` target for the camera to write into, null when there is none. */
     fun cameraTarget(): String?
+
+    /** The camera returned without a picture: deletes the empty file behind [target]. */
+    fun discardCamera(target: String) = Unit
 }

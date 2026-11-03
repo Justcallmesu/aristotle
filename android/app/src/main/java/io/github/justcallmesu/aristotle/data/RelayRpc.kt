@@ -19,17 +19,23 @@ class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis:
     private val nextId = AtomicLong(1)
     private val pending = ConcurrentHashMap<Long, CompletableDeferred<InboundFrame.Response>>()
 
-    suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap())): JsonElement {
+    /**
+     * [timeout]: how long this call waits for its answer; the default is [timeoutMillis]. There is no call queue here:
+     * every call is written at once to the one socket (OkHttp writes its messages in order), and each call's own timer
+     * runs from its write, so a large upload does not wait for other calls and does not lengthen their timers. What it
+     * can do is delay the writes behind it on a slow link, which is why only staging calls get the longer timeout.
+     */
+    suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap()), timeout: Long = timeoutMillis): JsonElement {
         val id = nextId.getAndIncrement()
         val answer = CompletableDeferred<InboundFrame.Response>()
         pending[id] = answer
         try {
             if (!send(RpcFrames.request(id, method, params))) throw RpcException(null, "$method: socket not open", linkClosed = true, written = false)
-            val response = withTimeout(timeoutMillis) { answer.await() }
+            val response = withTimeout(timeout) { answer.await() }
             response.error?.let { throw RpcException(it, "$method failed: ${it.code}") }
             return response.result ?: throw RpcException(null, "$method: empty result")
         } catch (e: TimeoutCancellationException) {
-            throw RpcException(null, "$method: no answer in ${timeoutMillis / 1000} s").apply { initCause(e) }
+            throw RpcException(null, "$method: no answer in ${timeout / 1000} s").apply { initCause(e) }
         } finally {
             pending.remove(id)
         }

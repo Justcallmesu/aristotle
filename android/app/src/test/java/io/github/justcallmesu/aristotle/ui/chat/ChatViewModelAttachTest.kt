@@ -10,6 +10,7 @@ import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.RpcError
 import io.github.justcallmesu.aristotle.data.RpcException
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
+import io.github.justcallmesu.aristotle.data.chat.AttachFrames
 import io.github.justcallmesu.aristotle.data.chat.AttachmentProblem
 import io.github.justcallmesu.aristotle.data.chat.AttachmentRules
 import io.github.justcallmesu.aristotle.data.chat.AttachmentSource
@@ -23,6 +24,8 @@ import io.github.justcallmesu.aristotle.data.chat.Staged
 import io.github.justcallmesu.aristotle.data.chat.Upload
 import io.github.justcallmesu.aristotle.data.chat.UserAttachment
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +55,7 @@ class ChatViewModelAttachTest {
         override val state = MutableStateFlow<LinkState>(LinkState.Online(ServerEndpoint("192.168.1.61", 8760, Network.Lan), 1))
         override val events: SharedFlow<InboundFrame> = MutableSharedFlow(extraBufferCapacity = 64)
         val calls = CopyOnWriteArrayList<Call>()
+        val timeouts = CopyOnWriteArrayList<Pair<String, Long>>()
         var answer: suspend (Call) -> JsonElement = { HermesJson.parseToJsonElement("{}") }
 
         override suspend fun call(method: String, params: JsonObject): JsonElement {
@@ -60,6 +64,11 @@ class ChatViewModelAttachTest {
             val call = Call(method, params)
             calls += call
             return answer(call)
+        }
+
+        override suspend fun callWithin(method: String, params: JsonObject, timeoutMillis: Long): JsonElement {
+            timeouts += method to timeoutMillis
+            return call(method, params)
         }
 
         override fun respond(requestId: String, result: JsonObject): Boolean = true
@@ -72,6 +81,7 @@ class ChatViewModelAttachTest {
         val results = HashMap<String, Preparation>()
         val bytes = HashMap<String, ByteArray>()
         val discarded = mutableListOf<String>()
+        val cancelledCamera = mutableListOf<String>()
 
         fun ready(uri: String, name: String, image: Boolean, sha: String = "c".repeat(64)) {
             results[uri] = Preparation.Ready(PreparedAttachment("h-$uri", name, if (image) "image/jpeg" else "application/pdf", 3, sha, image))
@@ -84,6 +94,9 @@ class ChatViewModelAttachTest {
             discarded += handle
         }
         override fun cameraTarget(): String = "content://io.github.justcallmesu.aristotle.files/camera/x.jpg"
+        override fun discardCamera(target: String) {
+            cancelledCamera += target
+        }
     }
 
     private fun json(text: String) = HermesJson.parseToJsonElement(text)
@@ -113,8 +126,8 @@ class ChatViewModelAttachTest {
     private var ids = 0
     private val source = FakeSource()
 
-    private fun viewModel(link: FakeLink) =
-        ChatViewModel(session, link, ResumedSessions(), ChatDrafts(MemoryStore()), background = Dispatchers.Unconfined, scope = scope, clock = { now }, newId = { "id-${++ids}" }, attachments = source)
+    private fun viewModel(link: FakeLink, from: AttachmentSource = source) =
+        ChatViewModel(session, link, ResumedSessions(), ChatDrafts(MemoryStore()), background = Dispatchers.Unconfined, scope = scope, clock = { now }, newId = { "id-${++ids}" }, attachments = from)
             .also { now = 1_000 }
 
     private fun looked() {
@@ -315,6 +328,93 @@ class ChatViewModelAttachTest {
     @Test
     fun theCameraTargetComesFromTheSource() {
         assertEquals("content://io.github.justcallmesu.aristotle.files/camera/x.jpg", viewModel(FakeLink()).cameraTarget())
+    }
+
+    // ── T16b ──────────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun atMostTwoItemsArePreparedAtOnceAndAllFinish() {
+        val running = AtomicInteger()
+        val peak = AtomicInteger()
+        val gates = HashMap<String, CompletableDeferred<Unit>>()
+        val slow = object : AttachmentSource {
+            override suspend fun prepare(uri: String, kind: PickKind): Preparation {
+                peak.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+                gates.getOrPut(uri) { CompletableDeferred() }.await()
+                running.decrementAndGet()
+                return Preparation.Ready(PreparedAttachment("h-$uri", "$uri.jpg", "image/jpeg", 3, "c".repeat(64), true))
+            }
+            override suspend fun read(handle: String): ByteArray? = null
+            override fun discard(handle: String) = Unit
+            override fun cameraTarget(): String? = null
+        }
+        val vm = viewModel(FakeLink(), slow)
+        val uris = (1..6).map { "p$it" }
+        uris.forEach { gates[it] = CompletableDeferred() }
+        vm.attach(uris, PickKind.Photo)
+        assertEquals(2, running.get())
+        assertEquals(6, vm.composer().attachments.size)
+        assertEquals(6, vm.composer().attachments.count { it.status == AttachmentStatus.Preparing })
+        uris.forEach { gates.getValue(it).complete(Unit) }
+        assertEquals(2, peak.get())
+        assertEquals(List(6) { AttachmentStatus.Ready }, vm.composer().attachments.map { it.status })
+    }
+
+    @Test
+    fun anItemThePhoneHasNoMemoryForShowsTooLargeToPrepareAndTheRestStillWork() {
+        val oom = object : AttachmentSource {
+            override suspend fun prepare(uri: String, kind: PickKind): Preparation {
+                if (uri == "content://huge/1") throw OutOfMemoryError("test")
+                return source.results.getValue(uri)
+            }
+            override suspend fun read(handle: String): ByteArray? = null
+            override fun discard(handle: String) = Unit
+            override fun cameraTarget(): String? = null
+        }
+        source.ready("content://ok/2", "ok.jpg", image = true)
+        val vm = viewModel(FakeLink(), oom)
+        vm.attach(listOf("content://huge/1", "content://ok/2"), PickKind.Photo)
+        val (huge, ok) = vm.composer().attachments
+        assertEquals(AttachmentStatus.Refused(AttachmentProblem.OutOfMemory), huge.status)
+        assertEquals(AttachmentStatus.Ready, ok.status)
+        // The permit came back: a later pick still prepares.
+        source.ready("content://ok/3", "ok3.jpg", image = true)
+        vm.attach(listOf("content://ok/3"), PickKind.Photo)
+        assertEquals(AttachmentStatus.Ready, vm.composer().attachments.last().status)
+    }
+
+    @Test
+    fun uploadsGetATimeoutThatGrowsWithTheFrameAndOtherCallsKeepTheDefault() {
+        val link = FakeLink().also { hermes(it) }
+        val vm = viewModel(link)
+        vm.picked()
+        vm.send()
+        val prepared = (source.results.getValue("content://photo/1") as Preparation.Ready).prepared
+        val image = AttachFrames.frameBytes(AttachFrames.image(session, prepared, byteArrayOf(1, 2, 3)))
+        assertEquals(listOf("image.attach_bytes", "file.attach"), link.timeouts.map { it.first })
+        assertEquals(AttachmentRules.uploadTimeoutMillis(image), link.timeouts.first().second)
+        assertTrue(link.timeouts.all { it.second in 15_000L..120_000L })
+        // The prompt itself is an ordinary call.
+        assertTrue(link.timeouts.none { it.first == "prompt.submit" })
+    }
+
+    @Test
+    fun preparedCopiesAreDeletedOnceTheMessageIsSentButKeptWhileItCanStillBeRetried() {
+        val link = FakeLink().also { hermes(it, "prompt.submit" to RpcException(null, "no answer")) }
+        val vm = viewModel(link)
+        vm.picked()
+        vm.send()
+        assertTrue("kept after a failed send", source.discarded.isEmpty())
+        looked()
+        vm.retrySend(vm.composer().outbox.single().id)
+        assertEquals(listOf("h-content://photo/1", "h-content://doc/2"), source.discarded)
+    }
+
+    @Test
+    fun aCancelledCameraShotDeletesItsEmptyFile() {
+        val vm = viewModel(FakeLink())
+        vm.cameraCancelled("content://x/camera/y.jpg")
+        assertEquals(listOf("content://x/camera/y.jpg"), source.cancelledCamera)
     }
 
     private companion object {

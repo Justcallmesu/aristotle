@@ -7,6 +7,7 @@ import java.util.zip.CRC32
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -151,5 +152,88 @@ class ImageMetadataTest {
         assertTrue(ImageMetadata.scan(webp(vp8x, webpChunk("EXIF", exifHeader + tiff(ByteOrder.LITTLE_ENDIAN))), ImageKind.Webp).location)
         assertTrue(ImageMetadata.scan(webp(vp8x, webpChunk("XMP ", "<x/>".toByteArray())), ImageKind.Webp).xmp)
         assertFalse(ImageMetadata.scan(webp(webpChunk("VP8 ", ByteArray(11))), ImageKind.Webp).any)
+    }
+
+    // ── T16b ──────────────────────────────────────────────────────────────────────────────────────
+
+    private val xmpExtension = "http://ns.adobe.com/xmp/extension/\u0000GUIDGUIDGUIDGUIDGUIDGUIDGUIDGUID<x exif:GPSLatitude=\"6,12.5S\"/>".toByteArray(Charsets.ISO_8859_1)
+    private val mpf = segment(0xE2, "MPF\u0000".toByteArray(Charsets.ISO_8859_1) + ByteArray(16))
+
+    @Test
+    fun extendedXmpIsFoundAndRemovedLikeThePlainPacket() {
+        val original = jpeg(segment(0xE1, xmp), segment(0xE1, xmpExtension))
+        assertTrue(ImageMetadata.scan(jpeg(segment(0xE1, xmpExtension)), ImageKind.Jpeg).xmp)
+        val stripped = ImageMetadata.stripLocation(original)
+        assertFalse(stripped.contains("GPSLatitude".toByteArray()))
+        assertFalse(ImageMetadata.scan(stripped, ImageKind.Jpeg).any)
+    }
+
+    @Test
+    fun gpsInASecondaryJpegAfterTheFirstImageIsFoundAndBlankedAndItsXmpZeroedInPlace() {
+        val primary = jpeg(segment(0xE1, exifHeader + tiff(ByteOrder.LITTLE_ENDIAN)), mpf)
+        val secondary = jpeg(segment(0xE1, exifHeader + tiff(ByteOrder.BIG_ENDIAN)), segment(0xE1, xmp), segment(0xE1, xmpExtension))
+        val file = primary + secondary
+        assertTrue(file.contains(latitudeBytes(ByteOrder.BIG_ENDIAN)))
+        assertFalse(ImageMetadata.scan(jpeg(mpf), ImageKind.Jpeg).any)
+        val cleaned = ImageMetadata.sanitizeJpeg(file)!!
+        // Same length: the MPF offsets still point at the secondary image.
+        assertEquals(file.size, cleaned.size)
+        assertFalse(cleaned.contains(latitudeBytes(ByteOrder.BIG_ENDIAN)))
+        assertFalse(cleaned.contains(latitudeBytes(ByteOrder.LITTLE_ENDIAN)))
+        assertFalse(cleaned.contains("GPSLatitude".toByteArray()))
+        assertEquals(ImageMetadata.Found(location = false, xmp = false), ImageMetadata.scan(cleaned, ImageKind.Jpeg))
+        assertArrayEquals(scan, cleaned.copyOfRange(cleaned.size - scan.size, cleaned.size))
+    }
+
+    @Test
+    fun aSingleImageLosesItsXmpSegmentsOutright() {
+        val original = jpeg(segment(0xE1, exifHeader + tiff(ByteOrder.LITTLE_ENDIAN)), segment(0xE1, xmp), segment(0xE1, xmpExtension))
+        val cleaned = ImageMetadata.sanitizeJpeg(original)!!
+        assertEquals(original.size - segment(0xE1, xmp).size - segment(0xE1, xmpExtension).size, cleaned.size)
+        assertFalse(cleaned.contains(latitudeBytes(ByteOrder.LITTLE_ENDIAN)))
+        assertEquals(ImageMetadata.Found(false, false), ImageMetadata.scan(cleaned, ImageKind.Jpeg))
+    }
+
+    @Test
+    fun whatCannotBeParsedSafelyReturnsNullSoTheCallerReencodes() {
+        val good = jpeg(segment(0xE1, exifHeader + tiff(ByteOrder.LITTLE_ENDIAN)))
+        // A vendor trailer after the EOI (not a JPEG).
+        assertNull(ImageMetadata.sanitizeJpeg(good + "SAMSUNGTRAILER-with-a-location".toByteArray()))
+        // A truncated image (no EOI).
+        assertNull(ImageMetadata.sanitizeJpeg(good.copyOf(good.size - 2)))
+        // A second image that does not parse.
+        assertNull(ImageMetadata.sanitizeJpeg(good + byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE1.toByte(), 0x7F, 0x00)))
+        // An Exif block whose GPS IFD points outside it.
+        val broken = tiff(ByteOrder.LITTLE_ENDIAN).also { it[8 + 2 + 12 + 8] = 100 }
+        assertNull(ImageMetadata.sanitizeJpeg(jpeg(segment(0xE1, exifHeader + broken))))
+        // Not a JPEG at all.
+        assertNull(ImageMetadata.sanitizeJpeg("hello".toByteArray()))
+        // Padding after the last EOI is fine.
+        assertEquals(good.size + 4, ImageMetadata.sanitizeJpeg(good + ByteArray(4))!!.size)
+    }
+
+    private fun gifBlock(vararg parts: ByteArray) = parts.fold(ByteArray(0)) { a, b -> a + b }
+
+    private fun subBlocks(data: ByteArray): ByteArray = (data.size.takeIf { it in 1..255 }?.let { byteArrayOf(it.toByte()) + data } ?: ByteArray(0)) + byteArrayOf(0)
+
+    private fun gif(vararg extensions: ByteArray): ByteArray {
+        val header = "GIF89a".toByteArray() + byteArrayOf(1, 0, 1, 0, 0x80.toByte(), 0, 0) + ByteArray(6) // 2-colour table
+        val frame = byteArrayOf(0x2C, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2) + subBlocks(byteArrayOf(0x44, 0x01))
+        return gifBlock(header, *extensions, frame, byteArrayOf(0x3B))
+    }
+
+    private val gifXmp = byteArrayOf(0x21, 0xFF.toByte(), 11) + "XMP DataXMP".toByteArray() + subBlocks("<x exif:GPSLatitude=\"1\"/>".toByteArray())
+    private val gifLoop = byteArrayOf(0x21, 0xFF.toByte(), 11) + "NETSCAPE2.0".toByteArray() + subBlocks(byteArrayOf(1, 0, 0))
+
+    @Test
+    fun aGifLosesItsXmpExtensionButKeepsItsAnimationBlocks() {
+        val original = gif(gifLoop, gifXmp)
+        assertTrue(ImageMetadata.scan(original, ImageKind.Gif).xmp)
+        assertFalse(ImageMetadata.scan(gif(gifLoop), ImageKind.Gif).any)
+        val cleaned = ImageMetadata.stripGif(original)!!
+        assertFalse(cleaned.contains("GPSLatitude".toByteArray()))
+        assertArrayEquals(gif(gifLoop), cleaned)
+        assertNull(ImageMetadata.stripGif(original.copyOf(original.size - 1)))
+        assertNull(ImageMetadata.stripGif("GIF89a".toByteArray()))
     }
 }

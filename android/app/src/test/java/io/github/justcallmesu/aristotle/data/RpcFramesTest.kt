@@ -125,4 +125,17 @@ class RelayRpcTest {
         dropped.failAll("relay closed")
         assertTrue(pending.await() is RpcException)
     }
+
+    @Test
+    fun aCallCanWaitLongerThanTheDefaultAndOthersKeepTheirOwnTimer() = runBlocking {
+        val sent = mutableListOf<String>()
+        val rpc = RelayRpc({ sent.add(it) }, timeoutMillis = 50)
+        val long = async { rpc.call("image.attach_bytes", timeout = 5_000) }
+        val short = async { runCatching { rpc.call("session.list") }.exceptionOrNull() }
+        assertTrue(short.await() is RpcException) // the default timer ran out
+        assertTrue(long.isActive) // the long call is still waiting
+        val id = HermesJson.parseToJsonElement(sent.first()).jsonObject["id"]!!.jsonPrimitive.content.toLong()
+        rpc.onResponse(InboundFrame.Response(id, JsonPrimitive("ok"), null))
+        assertEquals(JsonPrimitive("ok"), long.await())
+    }
 }

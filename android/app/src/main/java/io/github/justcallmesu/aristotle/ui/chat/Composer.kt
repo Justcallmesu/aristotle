@@ -81,6 +81,9 @@ interface ComposerActions {
     fun cameraTarget(): String?
 
     fun cameraUnavailable()
+
+    /** The camera returned without a picture: its empty file at [target] goes. */
+    fun cameraCancelled(target: String)
 }
 
 /** The field never grows past this many lines; then it scrolls (T13 brief). */

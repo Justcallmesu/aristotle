@@ -342,6 +342,7 @@
     <string name="attach_preparing">Preparing…</string>
     <string name="attach_too_large">Too large · max %1$s</string>
     <string name="attach_too_large_size">%1$s · too large, max %2$s</string>
+    <string name="attach_too_large_prepare">Too large to prepare</string>
     <string name="attach_unreadable">Can\'t read this</string>
     <string name="attach_remove">Remove %1$s</string>
     <string name="attach_refused_hint">Remove what can\'t be sent, then send.</string>

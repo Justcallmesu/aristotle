@@ -138,6 +138,7 @@ private class ViewModelComposerActions(private val vm: ChatViewModel) : Composer
     override fun removeAttachment(id: String) = vm.removeAttachment(id)
     override fun cameraTarget(): String? = vm.cameraTarget()
     override fun cameraUnavailable() = vm.cameraUnavailable()
+    override fun cameraCancelled(target: String) = vm.cameraCancelled(target)
 }
 
 /** What a sent message's row can do: Retry, remove a failed one, clear the composer's snackbar, remove a command's row. */

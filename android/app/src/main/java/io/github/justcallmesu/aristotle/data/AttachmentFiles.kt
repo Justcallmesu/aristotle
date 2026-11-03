@@ -52,7 +52,11 @@ class AttachmentFiles(context: Context, private val io: CoroutineDispatcher = Di
         val meta = runCatching { describe(parsed) }.getOrElse { Meta(null, null, null) }
         val fallback = if (kind == PickKind.File) "file" else "image"
         try {
-            if (kind != PickKind.File || meta.type in IMAGE_TYPES) prepareImage(parsed, meta, fallback) else prepareFile(parsed, meta, fallback)
+            // By content, not by the picker's MIME type: a JPEG labelled application/octet-stream still loses its GPS.
+            val asImage = kind != PickKind.File || AttachmentRules.routesAsImage(kind, open(parsed).use { it.readHead(AttachmentRules.SNIFF_BYTES) })
+            if (asImage) prepareImage(parsed, meta, fallback) else prepareFile(parsed, meta, fallback)
+        } catch (e: OutOfMemoryError) {
+            Preparation.Refused(meta.name ?: fallback, AttachmentProblem.OutOfMemory)
         } catch (e: IOException) {
             Preparation.Refused(meta.name ?: fallback, AttachmentProblem.Unreadable)
         } catch (e: SecurityException) {
@@ -70,6 +74,10 @@ class AttachmentFiles(context: Context, private val io: CoroutineDispatcher = Di
 
     override fun discard(handle: String) {
         preparedFile(handle)?.delete()
+    }
+
+    override fun discardCamera(target: String) {
+        cameraFile(target.toUri())?.delete()
     }
 
     override fun cameraTarget(): String? = runCatching {
@@ -100,21 +108,37 @@ class AttachmentFiles(context: Context, private val io: CoroutineDispatcher = Di
         val name = AttachmentRules.fileName(meta.name, null, fallback)
         val limit = AttachmentRules.MAX_PAYLOAD_BYTES
         meta.size?.takeIf { !AttachmentRules.fileFits(it) }?.let { return Preparation.Refused(name, AttachmentProblem.TooLarge(limit, it)) }
-        val bytes = open(uri).use { it.readAtMost(limit) } ?: return Preparation.Refused(name, AttachmentProblem.TooLarge(limit, meta.size))
+        val bytes = open(uri).use { it.readAtMost(limit, meta.size) } ?: return Preparation.Refused(name, AttachmentProblem.TooLarge(limit, meta.size))
         return Preparation.Ready(store(bytes, name, AttachmentRules.safeMime(meta.type), image = false))
     }
 
-    /** An image: sent as it is (location blanked) when it fits and Hermes takes its type, else re-encoded as JPEG. */
+    /**
+     * An image: sent as it is (location and XMP removed) when it fits and Hermes takes its type, else re-encoded as
+     * JPEG. A JPEG or GIF whose metadata cannot be removed safely ([ImageMetadata.sanitizeJpeg], [ImageMetadata.stripGif]
+     * return null) is re-encoded too.
+     */
     private fun prepareImage(uri: Uri, meta: Meta, fallback: String): Preparation {
         val limit = AttachmentRules.MAX_PAYLOAD_BYTES
-        val source = open(uri).use { it.readAtMost(AttachmentRules.MAX_SOURCE_BYTES) }
+        val source = open(uri).use { it.readAtMost(AttachmentRules.MAX_SOURCE_BYTES, meta.size) }
             ?: return Preparation.Refused(meta.name ?: fallback, AttachmentProblem.TooLarge(limit, meta.size))
-        val kind = AttachmentRules.sniff(source.copyOf(minOf(source.size, SNIFF_BYTES)))
+        val kind = AttachmentRules.sniff(source.copyOf(minOf(source.size, AttachmentRules.SNIFF_BYTES)))
         val found = ImageMetadata.scan(source, kind)
-        val (bytes, out) = when (val plan = AttachmentRules.plan(kind, source.size.toLong(), found.any)) {
-            ImagePlan.Original -> (if (kind == ImageKind.Jpeg) ImageMetadata.stripLocation(source) else source) to kind
-            ImagePlan.Reencode -> (reencode(source)?.let(ImageMetadata::stripLocation) ?: return Preparation.Refused(meta.name ?: fallback, AttachmentProblem.TooLarge(limit, source.size.toLong()))) to ImageKind.Jpeg
-            is ImagePlan.Refuse -> return Preparation.Refused(meta.name ?: fallback, plan.problem)
+        val plan = AttachmentRules.plan(kind, source.size.toLong(), found.any)
+        if (plan is ImagePlan.Refuse) return Preparation.Refused(meta.name ?: fallback, plan.problem)
+        var out = kind
+        var bytes: ByteArray? = if (plan == ImagePlan.Original) {
+            when (kind) {
+                ImageKind.Jpeg -> ImageMetadata.sanitizeJpeg(source)
+                ImageKind.Gif -> ImageMetadata.stripGif(source)
+                else -> source
+            }
+        } else {
+            null
+        }
+        if (bytes == null) {
+            bytes = reencode(source)?.let(ImageMetadata::stripLocation)
+                ?: return Preparation.Refused(meta.name ?: fallback, AttachmentProblem.TooLarge(limit, source.size.toLong()))
+            out = ImageKind.Jpeg
         }
         val name = AttachmentRules.fileName(meta.name, out.ext, fallback)
         val prepared = store(bytes, name, out.mime ?: "image/jpeg", image = true)
@@ -130,17 +154,19 @@ class AttachmentFiles(context: Context, private val io: CoroutineDispatcher = Di
     private fun reencode(source: ByteArray): ByteArray? {
         val first = AttachmentRules.LADDER.first().first
         val decoded = decode(source, first)
-        val opaque = if (decoded.hasAlpha()) onWhite(decoded) else decoded
+        val opaque = if (decoded.hasAlpha()) onWhite(decoded).also { decoded.recycle() } else decoded
         for ((edge, quality) in AttachmentRules.LADDER) {
             val (w, h) = AttachmentRules.scaled(opaque.width, opaque.height, edge)
             val step = if (w == opaque.width && h == opaque.height) opaque else opaque.scale(w, h)
             val out = ByteArrayOutputStream()
             step.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            if (step !== opaque) step.recycle()
             if (out.size() <= AttachmentRules.MAX_PAYLOAD_BYTES) return out.toByteArray()
         }
         return null
     }
 
+    /** Decoded at the target size (the decoder samples while it reads), so a full-resolution photo never exists as a full-size bitmap. */
     private fun decode(bytes: ByteArray, edge: Int): Bitmap = try {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
             val (w, h) = AttachmentRules.scaled(info.size.width, info.size.height, edge)
@@ -202,32 +228,49 @@ class AttachmentFiles(context: Context, private val io: CoroutineDispatcher = Di
         private const val PREPARED_DIR = "attachments/prepared"
         private const val CAMERA_DIR = "camera"
         private const val THUMBS_DIR = "attachments/thumbs"
-        private const val SNIFF_BYTES = 16
         private const val THUMB_QUALITY = 80
         private const val THUMB_DAYS = 30L
         private val HANDLE = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
         private val CAMERA_NAME = Regex("[0-9a-f-]{36}\\.jpg")
-
-        /** Picked documents of these types go the image way, as the Desktop sends a picked image file as an image. */
-        private val IMAGE_TYPES = setOf("image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif")
 
         /** Where the thumbnail of the image whose bytes hash to [sha256] is kept (the bubbles read it too). */
         fun thumbFile(cacheDir: File, sha256: String): File = File(File(cacheDir, THUMBS_DIR), "$sha256.jpg")
 
         private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
-        /** All of the stream, or null when it is longer than [limit] bytes (nothing past [limit] + 1 is read). */
-        private fun InputStream.readAtMost(limit: Long): ByteArray? {
-            val out = ByteArrayOutputStream()
-            val buffer = ByteArray(BUFFER)
-            var total = 0L
+        /**
+         * All of the stream, or null when it is longer than [limit] bytes (nothing past [limit] + 1 is read). Read
+         * straight into an array of [sizeHint] bytes when the provider told the size, so no second copy is made.
+         */
+        private fun InputStream.readAtMost(limit: Long, sizeHint: Long? = null): ByteArray? {
+            var buf = ByteArray(sizeHint?.takeIf { it in 1..limit }?.toInt() ?: BUFFER)
+            var n = 0
             while (true) {
-                val n = read(buffer)
-                if (n < 0) return out.toByteArray()
-                total += n
-                if (total > limit) return null
-                out.write(buffer, 0, n)
+                if (n == buf.size) {
+                    val next = read()
+                    if (next < 0) return buf
+                    if (n + 1L > limit) return null
+                    buf = buf.copyOf(minOf(limit + 1, maxOf(buf.size * 2L, n + 1L)).toInt())
+                    buf[n++] = next.toByte()
+                    continue
+                }
+                val r = read(buf, n, buf.size - n)
+                if (r < 0) return if (n == buf.size) buf else buf.copyOf(n)
+                n += r
+                if (n > limit) return null
             }
+        }
+
+        /** Up to [count] leading bytes (fewer for a shorter stream). */
+        private fun InputStream.readHead(count: Int): ByteArray {
+            val head = ByteArray(count)
+            var n = 0
+            while (n < count) {
+                val r = read(head, n, count - n)
+                if (r < 0) break
+                n += r
+            }
+            return head.copyOf(n)
         }
 
         private const val BUFFER = 64 * 1024
