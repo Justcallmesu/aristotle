@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aristotle — TD1 mockups (draft)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Literata:opsz,wght@7..72,500;7..72,600&family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=add,arrow_back,arrow_drop_down,battery_full,check,check_box,check_box_outline_blank,check_circle,close,cloud_off,description,error,expand_more,front_hand,more_vert,open_in_new,push_pin,qr_code_scanner,radio_button_checked,radio_button_unchecked,refresh,schedule,search,send,signal_cellular_alt,stop,task_alt,terminal,verified_user,wifi&display=block" rel="stylesheet">
+<style>
+/* ---------- Tokens: M3 ColorScheme roles per identity x mode (see design-notes.md) ---------- */
+body{
+  --r-xs:4px;--r-sm:6px;--r-md:10px;--r-lg:14px;--r-xl:24px;--r-btn:8px;--r-chip:6px;
+  --f-display:"Literata",Georgia,serif;
+  --f-ui:"Atkinson Hyperlegible Next",system-ui,sans-serif;
+  --f-mono:"Atkinson Hyperlegible Mono",ui-monospace,monospace;
+}
+body[data-pal="b"]{--r-xs:4px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:28px;--r-btn:20px;--r-chip:8px}
+body[data-type="roboto"]{--f-display:"Roboto Flex",Roboto,sans-serif;--f-ui:"Roboto Flex",Roboto,sans-serif}
+
+body[data-pal="a"][data-mode="light"] .phone{
+  --surface:#F5EEDF;--surface-lowest:#FFFBF3;--surface-low:#F0E7D5;--surface-c:#EBE1CD;--surface-high:#E5DAC4;--surface-highest:#DFD3BB;
+  --on-surface:#2B2119;--on-surface-variant:#5C4B3C;--outline:#8A7763;--outline-variant:#D3C4AA;
+  --primary:#3B2E23;--on-primary:#F8F0E1;--primary-container:#E7D7BC;--on-primary-container:#2B2119;
+  --secondary:#6E5843;--secondary-container:#EADCC6;--on-secondary-container:#2B2119;
+  --tertiary:#2C6A5C;--on-tertiary:#FFFFFF;--tertiary-container:#BFE3D6;--on-tertiary-container:#0B2A23;
+  --error:#B3261E;--on-error:#FFFFFF;--error-container:#F7D9D2;--on-error-container:#5A110A;
+  --inverse-surface:#3A3029;--inverse-on-surface:#F5EEDF;--scrim:rgb(0 0 0 / .32);
+}
+body[data-pal="a"][data-mode="dark"] .phone{
+  --surface:#17130F;--surface-lowest:#110E0B;--surface-low:#1F1A15;--surface-c:#231E19;--surface-high:#2D2721;--surface-highest:#38312A;
+  --on-surface:#EDE3D1;--on-surface-variant:#CBBBA4;--outline:#96846F;--outline-variant:#4B4035;
+  --primary:#E8D6B8;--on-primary:#2F241A;--primary-container:#4B3D30;--on-primary-container:#F3E4CA;
+  --secondary:#D6C2A6;--secondary-container:#4A3C2E;--on-secondary-container:#F0E0C8;
+  --tertiary:#8BD0BC;--on-tertiary:#00382D;--tertiary-container:#1C4F43;--on-tertiary-container:#A9EDD8;
+  --error:#FFB4A9;--on-error:#690003;--error-container:#8C1D13;--on-error-container:#FFDAD4;
+  --inverse-surface:#EDE3D1;--inverse-on-surface:#2B2119;--scrim:rgb(0 0 0 / .5);
+}
+body[data-pal="b"][data-mode="light"] .phone{
+  --surface:#F8F9FF;--surface-lowest:#FFFFFF;--surface-low:#F2F3FA;--surface-c:#ECEEF4;--surface-high:#E6E8EE;--surface-highest:#E1E2E8;
+  --on-surface:#191C20;--on-surface-variant:#43474E;--outline:#73777F;--outline-variant:#C3C7CF;
+  --primary:#34618E;--on-primary:#FFFFFF;--primary-container:#D1E4FF;--on-primary-container:#001D36;
+  --secondary:#535F70;--secondary-container:#D7E3F7;--on-secondary-container:#101C2B;
+  --tertiary:#6B5778;--on-tertiary:#FFFFFF;--tertiary-container:#F2DAFF;--on-tertiary-container:#251431;
+  --error:#BA1A1A;--on-error:#FFFFFF;--error-container:#FFDAD6;--on-error-container:#410002;
+  --inverse-surface:#2E3135;--inverse-on-surface:#EFF0F7;--scrim:rgb(0 0 0 / .32);
+}
+body[data-pal="b"][data-mode="dark"] .phone{
+  --surface:#111418;--surface-lowest:#0C0E13;--surface-low:#191C20;--surface-c:#1D2024;--surface-high:#282A2F;--surface-highest:#33353A;
+  --on-surface:#E1E2E8;--on-surface-variant:#C3C7CF;--outline:#8D9199;--outline-variant:#43474E;
+  --primary:#A0CAFD;--on-primary:#003258;--primary-container:#194975;--on-primary-container:#D1E4FF;
+  --secondary:#BBC7DB;--secondary-container:#3B4858;--on-secondary-container:#D7E3F7;
+  --tertiary:#D6BEE4;--on-tertiary:#3B2948;--tertiary-container:#523F5F;--on-tertiary-container:#F2DAFF;
+  --error:#FFB4AB;--on-error:#690005;--error-container:#93000A;--on-error-container:#FFDAD6;
+  --inverse-surface:#E1E2E8;--inverse-on-surface:#2E3135;--scrim:rgb(0 0 0 / .5);
+}
+
+/* ---------- Board chrome (not part of the app) ---------- */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:15px/1.5 var(--f-ui);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  background:#E4E1DB;color:#26221D}
+body[data-mode="dark"]{background:#0C0B0A;color:#DAD4CA}
+.tweaks{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 20px;
+  background:#E4E1DB;border-bottom:1px solid rgb(0 0 0 / .1)}
+body[data-mode="dark"] .tweaks{background:#0C0B0A;border-bottom-color:rgb(255 255 255 / .1)}
+.tweaks b{font:600 14px/1 var(--f-ui);margin-right:4px}
+.seg{display:inline-flex;align-items:center;gap:6px}
+.seg>span{font-size:12px;opacity:.7}
+.seg .opts{display:inline-flex;border:1px solid rgb(0 0 0 / .25);border-radius:8px;overflow:hidden}
+body[data-mode="dark"] .seg .opts{border-color:rgb(255 255 255 / .25)}
+.seg button{font:500 13px/1 var(--f-ui);color:inherit;background:transparent;border:0;padding:0 12px;min-height:36px;cursor:pointer;
+  transition-property:background-color,color;transition-duration:.15s}
+.seg button+button{border-left:1px solid rgb(0 0 0 / .25)}
+body[data-mode="dark"] .seg button+button{border-left-color:rgb(255 255 255 / .25)}
+.seg button[aria-pressed="true"]{background:#26221D;color:#F4F1EA}
+body[data-mode="dark"] .seg button[aria-pressed="true"]{background:#DAD4CA;color:#14120F}
+.seg button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
+.intro{max-width:1340px;margin:0 auto;padding:28px 24px 4px}
+.intro h1{font:600 30px/1.15 var(--f-display);margin:0 0 8px;text-wrap:balance}
+.intro p{margin:0 0 6px;max-width:80ch;opacity:.8;text-wrap:pretty}
+.intro a{color:inherit}
+#board{max-width:1340px;margin:0 auto;padding:8px 24px 80px}
+.group{padding:28px 0 8px;border-top:1px solid rgb(0 0 0 / .1);margin-top:20px}
+body[data-mode="dark"] .group{border-top-color:rgb(255 255 255 / .1)}
+.group>h2{font:600 22px/1.2 var(--f-display);margin:0 0 4px}
+.group>p{margin:0 0 18px;max-width:90ch;opacity:.75;font-size:14px;text-wrap:pretty}
+.row{display:flex;flex-wrap:wrap;gap:28px 24px;align-items:flex-start}
+.shot{margin:0;display:flex;flex-direction:column;gap:10px;width:calc(413px * var(--z,1))}
+.shot figcaption{font-size:13px;line-height:1.4;max-width:413px}
+.shot figcaption b{display:block;font-size:14px}
+.shot figcaption code,.intro code,.group code{font-family:var(--f-mono);font-size:.92em}
+.shot.flash .phone{outline:3px solid #C77C2E;outline-offset:4px}
+body[data-view="proto"] .intro{display:none}
+#proto{display:none;padding:24px 16px 80px;justify-content:center}
+body[data-view="proto"] #board{display:none}
+body[data-view="proto"] #proto{display:flex}
+#proto .shot{align-items:center}
+
+/* ---------- Phone frame (393 x 873 dp) ---------- */
+.phone{zoom:var(--z,1);width:413px;height:893px;padding:10px;border-radius:46px;background:#1A1918;
+  box-shadow:0 1px 2px rgb(0 0 0 / .2),0 12px 32px rgb(0 0 0 / .18);flex:none}
+.screen{position:relative;width:393px;height:873px;border-radius:36px;overflow:hidden;background:var(--surface);color:var(--on-surface);
+  font-family:var(--f-ui);font-size:14px;line-height:20px;display:flex;flex-direction:column}
+.statusbar{height:32px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;
+  font:500 13px/1 var(--f-ui);font-variant-numeric:tabular-nums;color:var(--on-surface)}
+.statusbar .si{display:flex;gap:4px;align-items:center}
+.statusbar .ms{font-size:16px}
+.navbar{height:24px;flex:none;display:flex;align-items:center;justify-content:center}
+.navbar i{width:108px;height:4px;border-radius:2px;background:var(--on-surface);opacity:.55}
+.app{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+.scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+
+/* ---------- Type (M3 Typography slots) ---------- */
+.ms{font-family:"Material Symbols Outlined";font-weight:400;font-style:normal;font-size:24px;line-height:1;letter-spacing:normal;
+  text-transform:none;display:inline-block;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";
+  font-variation-settings:"FILL" 0,"wght" 400,"GRAD" 0,"opsz" 24;flex:none;user-select:none;overflow:hidden;width:1em}
+.ms.fill{font-variation-settings:"FILL" 1,"wght" 400,"GRAD" 0,"opsz" 24}
+.headline-s{font:500 24px/32px var(--f-display);margin:0;text-wrap:balance;letter-spacing:0}
+.title-l{font:500 22px/28px var(--f-display);margin:0}
+.title-m{font:600 16px/24px var(--f-ui);margin:0;letter-spacing:.1px}
+.title-s{font:600 14px/20px var(--f-ui);margin:0;letter-spacing:.1px}
+.body-l{font:400 16px/24px var(--f-ui);margin:0;text-wrap:pretty}
+.body-m{font:400 14px/20px var(--f-ui);margin:0;text-wrap:pretty}
+.body-s{font:400 12px/16px var(--f-ui);margin:0;text-wrap:pretty}
+.label-l{font:600 14px/20px var(--f-ui);letter-spacing:.1px}
+.label-m{font:600 12px/16px var(--f-ui);letter-spacing:.3px}
+.muted{color:var(--on-surface-variant)}
+code,.mono{font-family:var(--f-mono);font-size:.93em}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- Components ---------- */
+button{font:inherit;color:inherit}
+.topbar{height:64px;flex:none;display:flex;align-items:center;gap:4px;padding:0 4px}
+.topbar .tt{flex:1;min-width:0;padding:0 4px}
+.topbar .tt .t{font:500 18px/24px var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .tt .s .ms{font-size:14px;width:14px}
+.topbar .tt .s{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+.wordmark{font:600 22px/28px var(--f-display);letter-spacing:.2px}
+.ib{width:48px;height:48px;border:0;background:transparent;border-radius:50%;display:inline-grid;place-items:center;cursor:pointer;color:var(--on-surface-variant);
+  transition-property:background-color;transition-duration:.15s;flex:none}
+.ib:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+.ib:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 20px;border-radius:var(--r-btn);border:0;
+  font:600 14px/20px var(--f-ui);letter-spacing:.1px;cursor:pointer;white-space:nowrap;position:relative;
+  transition-property:background-color,box-shadow,scale;transition-duration:.15s;transition-timing-function:cubic-bezier(.2,0,0,1)}
+.btn::after{content:"";position:absolute;inset:-4px 0}
+.btn:active{scale:.96}
+.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.btn .ms{font-size:18px;margin-left:-4px}
+.btn.filled{background:var(--primary);color:var(--on-primary)}
+.btn.filled:hover{box-shadow:0 1px 2px rgb(0 0 0 / .3),0 1px 3px 1px rgb(0 0 0 / .15)}
+.btn.tonal{background:var(--secondary-container);color:var(--on-secondary-container)}
+.btn.outlined{background:transparent;border:1px solid var(--outline);color:var(--primary)}
+.btn.text{background:transparent;color:var(--primary);padding:0 12px}
+.btn.danger{background:transparent;border:1px solid var(--error);color:var(--error)}
+.btn.filled:hover,.btn.tonal:hover{filter:none}
+.btn.outlined:hover,.btn.text:hover,.btn.danger:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.btn.block{width:100%}
+.btn[disabled]{background:color-mix(in srgb,var(--on-surface) 12%,transparent);color:color-mix(in srgb,var(--on-surface) 38%,transparent);border-color:transparent;cursor:default}
+
+.field{position:relative;margin-top:8px}
+.field .box{height:56px;border:1px solid var(--outline);border-radius:var(--r-xs);display:flex;align-items:center;padding:0 16px;gap:12px;
+  font:400 16px/24px var(--f-ui);color:var(--on-surface)}
+.field .box.mono{font-family:var(--f-mono);font-size:17px;letter-spacing:1px}
+.field label{position:absolute;left:12px;top:-8px;padding:0 4px;background:var(--surface);font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.field .sup{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);padding:4px 16px 0}
+.field.focus .box{border:2px solid var(--primary);padding:0 15px}
+.field.focus label{color:var(--primary)}
+.field.err .box{border:2px solid var(--error);padding:0 15px}
+.field.err label,.field.err .sup,.field.err .box .ms{color:var(--error)}
+.field .box .grow{flex:1}
+.field .box .caret{display:inline-block;width:2px;height:22px;background:var(--primary);vertical-align:middle;margin-left:1px}
+
+.divtext{display:flex;align-items:center;gap:12px;color:var(--on-surface-variant);font:400 12px/16px var(--f-ui);margin:20px 0 4px}
+.divtext::before,.divtext::after{content:"";flex:1;height:1px;background:var(--outline-variant)}
+
+.card{background:var(--surface-low);border-radius:var(--r-md);padding:16px}
+.fp{display:grid;grid-template-columns:repeat(4,auto);justify-content:start;gap:6px 18px;font:500 17px/24px var(--f-mono);letter-spacing:.5px;
+  margin:12px 0 4px;color:var(--on-surface);font-variant-numeric:tabular-nums}
+.btnrow{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+.chip{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 8px 0 12px;border-radius:var(--r-chip);border:1px solid var(--outline-variant);
+  background:transparent;font:600 14px/20px var(--f-ui);color:var(--on-surface);cursor:pointer;position:relative}
+.chip::after{content:"";position:absolute;inset:-8px 0}
+.chip .ms{font-size:18px;color:var(--on-surface-variant)}
+
+.sec{font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant);padding:16px 16px 6px}
+.li{display:flex;align-items:center;gap:16px;min-height:72px;padding:8px 16px 8px 16px;cursor:pointer;
+  transition-property:background-color;transition-duration:.15s;border:0;background:transparent;width:100%;text-align:left}
+.li:hover{background:color-mix(in srgb,var(--on-surface) 6%,transparent)}
+.li .lead{width:24px;color:var(--on-surface-variant);display:grid;place-items:center}
+.li .mid{flex:1;min-width:0}
+.li .h{font:400 16px/24px var(--f-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--on-surface)}
+.li .m{font:400 14px/20px var(--f-ui);color:var(--on-surface-variant);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+.li .tr{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums;align-self:flex-start;padding-top:6px}
+.li .m.live{color:var(--tertiary);font-weight:600}
+.li .m.ask{color:var(--error);font-weight:600}
+.li.stale .h{color:var(--on-surface-variant)}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid color-mix(in srgb,currentColor 25%,transparent);border-top-color:currentColor;flex:none;
+  animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.fab{position:absolute;right:16px;bottom:16px;height:56px;padding:0 20px 0 16px;border-radius:var(--r-lg);border:0;display:flex;align-items:center;gap:12px;
+  background:var(--primary-container);color:var(--on-primary-container);font:600 14px/20px var(--f-ui);cursor:pointer;
+  box-shadow:0 1px 3px rgb(0 0 0 / .3),0 4px 8px 3px rgb(0 0 0 / .15)}
+
+.banner{margin:0 12px 4px;padding:12px 12px 8px 16px;border-radius:var(--r-md);background:var(--surface-highest);display:grid;grid-template-columns:24px 1fr;gap:4px 14px}
+.banner .ms{color:var(--on-surface-variant);margin-top:2px}
+.banner .acts{grid-column:2;display:flex;justify-content:flex-end;gap:4px;margin-right:-4px}
+
+/* Chat */
+.msgs{padding:8px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.ubub{align-self:flex-end;max-width:82%;background:var(--secondary-container);color:var(--on-secondary-container);
+  padding:10px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg);font:400 15px/22px var(--f-ui)}
+.atext{font:400 15px/23px var(--f-ui);color:var(--on-surface);margin:0;text-wrap:pretty}
+.atext code{background:var(--surface-high);padding:1px 4px;border-radius:4px;font-size:13.5px}
+.cursor{display:inline-block;width:8px;height:17px;background:var(--tertiary);vertical-align:-3px;margin-left:2px;border-radius:1px}
+.reason{display:flex;flex-direction:column;align-items:flex-start}
+.reason>button{display:inline-flex;align-items:center;gap:4px;height:32px;border:0;background:transparent;padding:0 8px 0 0;cursor:pointer;
+  color:var(--on-surface-variant);font:600 12px/16px var(--f-ui);letter-spacing:.3px}
+.reason>button .ms{font-size:18px;transition-property:rotate;transition-duration:.2s}
+.reason .rt{display:none;font:italic 400 13px/20px var(--f-ui);color:var(--on-surface-variant);padding:0 0 4px 0}
+.reason.open .rt{display:block}
+.reason.open>button .ms{rotate:180deg}
+.tool{background:var(--surface-low);border-radius:var(--r-md);overflow:hidden}
+.tool-h{display:grid;grid-template-columns:20px auto 1fr auto 20px;align-items:center;gap:10px;width:100%;min-height:48px;padding:6px 12px;
+  border:0;background:transparent;cursor:pointer;text-align:left;color:var(--on-surface)}
+.tool-h .ms{font-size:20px;color:var(--on-surface-variant)}
+.tool-h .tn{font:600 13px/18px var(--f-mono)}
+.tool-h .ts{font:400 13px/18px var(--f-mono);color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tool-h .tm{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center}
+.tool-h .bad{color:var(--error);font-weight:600}
+.tool-h .chev{transition-property:rotate;transition-duration:.2s}
+.tool-b{display:none;padding:0 12px 6px}
+.tool.open .tool-b{display:block}
+.tool.open .tool-h .chev{rotate:180deg}
+.tool pre{margin:0;padding:10px 12px;background:var(--surface-highest);border-radius:var(--r-sm);font:400 11.5px/17px var(--f-mono);
+  color:var(--on-surface);overflow-x:auto;white-space:pre;scrollbar-width:thin}
+.tool pre .f{color:var(--error)}
+.tool pre .p{color:var(--on-surface-variant)}
+.tool .btn.text{height:36px;margin-left:-12px}
+.pendchip{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px 0 10px;border-radius:var(--r-chip);border:0;cursor:pointer;
+  background:var(--error-container);color:var(--on-error-container);font:600 13px/18px var(--f-ui)}
+.pendchip .ms{font-size:18px}
+.composer{flex:none;padding:8px 12px 8px;background:var(--surface-c);border-radius:var(--r-xl) var(--r-xl) 0 0}
+.queued{display:flex;align-items:center;gap:8px;padding:0 0 6px 4px;font:400 13px/18px var(--f-ui);color:var(--on-surface-variant)}
+.queued .lbl{font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant);flex:none}
+.queued .q{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--on-surface)}
+.queued .ib{width:40px;height:40px}
+.queued .ib .ms{font-size:20px}
+.cfield{min-height:48px;border-radius:var(--r-lg);background:var(--surface-lowest);padding:12px 16px;font:400 16px/24px var(--f-ui);color:var(--on-surface)}
+.cfield.ph{color:var(--on-surface-variant)}
+.cacts{display:flex;align-items:center;gap:8px;padding-top:8px}
+.cacts .sp{flex:1}
+.chint{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);padding:6px 4px 0;margin:0}
+.btn.stop{background:transparent;border:1px solid var(--outline);color:var(--error);padding:0 16px}
+
+/* Sheets */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:3}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:4;background:var(--surface-low);border-radius:var(--r-xl) var(--r-xl) 0 0;padding:0 24px 20px;
+  box-shadow:0 -1px 3px rgb(0 0 0 / .15)}
+.handle{width:32px;height:4px;border-radius:2px;background:var(--on-surface-variant);opacity:.4;margin:16px auto 18px}
+.sheet .ctx{font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant);margin-bottom:6px}
+.cmd{margin:16px 0 0;padding:14px 16px;border-radius:var(--r-md);background:var(--surface-highest);font:500 15px/22px var(--f-mono);color:var(--on-surface);
+  word-break:break-all}
+.cmd .pr{color:var(--on-surface-variant);user-select:none}
+.why{margin:14px 0 0}
+.why .label-m{color:var(--on-surface-variant);display:block;margin-bottom:2px}
+.timer{display:flex;align-items:center;gap:6px;margin:14px 0 18px;font:400 13px/18px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.timer .ms{font-size:18px}
+.apgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.apmore{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
+.apmore .btn{padding:0 12px}
+.apnote{margin:6px 0 0}
+.done-state{display:flex;gap:12px;align-items:flex-start;margin-top:4px}
+.done-state .ms{color:var(--on-surface-variant);margin-top:4px}
+.cmd.dim{opacity:.55}
+.choice{display:flex;align-items:center;gap:12px;min-height:56px;width:100%;border:0;background:transparent;padding:0 4px;cursor:pointer;text-align:left;
+  font:400 16px/22px var(--f-ui);color:var(--on-surface);border-radius:var(--r-sm)}
+.choice .ms{color:var(--on-surface-variant)}
+.choice[aria-checked="true"] .ms{color:var(--primary)}
+.radio-list{margin:10px -4px 4px}
+.prof{display:flex;align-items:center;gap:16px;min-height:56px;width:100%;border:0;background:transparent;padding:0 4px;cursor:pointer;text-align:left;
+  font:400 16px/24px var(--f-ui);color:var(--on-surface)}
+.prof .ms{color:var(--on-surface-variant)}
+.prof[aria-checked="true"] .ms{color:var(--primary)}
+.prof .n{flex:1}
+
+/* State pages (connection errors) */
+.state{padding:32px 24px 0;display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.details{margin-top:8px;padding:12px 14px;border-radius:var(--r-sm);background:var(--surface-low);font:400 12px/18px var(--f-mono);color:var(--on-surface-variant);
+  align-self:stretch;overflow-wrap:anywhere}
+.progress{height:4px;position:relative;overflow:hidden;background:var(--secondary-container);border-radius:2px}
+.progress::before{content:"";position:absolute;top:0;bottom:0;width:40%;background:var(--primary);border-radius:2px;animation:indet 1.6s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes indet{from{left:-40%}to{left:100%}}
+.recon{margin:0 12px 8px;padding:12px 16px;border-radius:var(--r-md);background:var(--surface-highest)}
+.recon .title-s{margin-top:10px}
+
+/* Battery guide */
+.step{display:grid;grid-template-columns:28px 1fr;gap:4px 12px;padding:16px 0;border-top:1px solid var(--outline-variant)}
+.step:first-of-type{border-top:0}
+.step .no{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--secondary-container);color:var(--on-secondary-container);
+  font:600 13px/1 var(--f-ui)}
+.step .no.ok{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.step .no .ms{font-size:18px}
+.step .acts{grid-column:2;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.check{display:inline-flex;align-items:center;gap:8px;min-height:40px;border:0;background:transparent;cursor:pointer;color:var(--on-surface);font:400 14px/20px var(--f-ui);padding:0 4px}
+.check .ms{color:var(--on-surface-variant)}
+.check[aria-checked="true"] .ms{color:var(--primary)}
+.okline{display:inline-flex;align-items:center;gap:6px;color:var(--tertiary);font:600 13px/18px var(--f-ui)}
+.okline .ms{font-size:18px}
+
+@media (prefers-reduced-motion:reduce){
+  .spin,.progress::before{animation:none}
+  .progress::before{left:30%}
+  .btn,.ib,.li,.seg button{transition:none}
+  .btn:active{scale:1}
+}
+@media (max-width:460px){
+  .tweaks{padding:8px 12px;gap:10px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .tweaks::-webkit-scrollbar{display:none}
+  .seg{flex:none}
+  .tweaks b{display:none}
+  .seg>span{display:none}
+  .intro{padding:20px 16px 0}
+  .intro h1{font-size:24px}
+  #board{padding:8px 0 64px}
+  .group{padding:24px 0 8px}
+  .group>h2,.group>p{padding:0 16px}
+  .row{gap:28px}
+  .shot{width:100%}
+  .shot figcaption{padding:0 16px}
+  .phone{padding:0;border-radius:0;width:393px;height:873px;box-shadow:none;background:none}
+  .screen{border-radius:0}
+  #proto{padding:0 0 40px}
+}
+</style>
+</head>
+<body data-pal="a" data-mode="dark" data-lang="en" data-type="brand" data-view="board">
+
+<div class="tweaks" role="toolbar" aria-label="Tweaks">
+  <b>Tweaks</b>
+  <div class="seg"><span>Identity</span><div class="opts" data-key="pal"><button data-v="a">A · Aristotle</button><button data-v="b">B · Material You</button></div></div>
+  <div class="seg"><span>Mode</span><div class="opts" data-key="mode"><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
+  <div class="seg"><span>Language</span><div class="opts" data-key="lang"><button data-v="en">EN</button><button data-v="id">ID</button></div></div>
+  <div class="seg"><span>Type</span><div class="opts" data-key="type"><button data-v="brand">Literata + Atkinson</button><button data-v="roboto">Roboto Flex</button></div></div>
+  <div class="seg"><span>View</span><div class="opts" data-key="view"><button data-v="board">Board</button><button data-v="proto">Click-through</button></div></div>
+</div>
+
+<header class="intro">
+  <h1>Aristotle — key screens, TD1 draft</h1>
+  <p>Each phone is 393 × 873 dp, the Poco X5 Pro in portrait. Every screen is a real state from <code>docs/protocol.md</code>; the session names, commands and times are sample data. All copy is draft, in English and Indonesian.</p>
+  <p>Pick an identity with the Tweaks bar: <b>A</b> is drawn from the engraving (parchment, ink, one verdigris accent that only marks live work), <b>B</b> is a Material You scheme as a blue-grey wallpaper would produce it. Click-through follows Pair → Sessions → Chat → Approval. On the board, tap a button that leads somewhere to jump to that screen.</p>
+</header>
+
+<main id="board" aria-live="polite"></main>
+<div id="proto"></div>
+
+<script>
+const STR={
+en:{
+  pairTitle:"Pair with your PC",
+  pairLead:"On the laptop, run {cmd}. It shows a QR code, the address and a one-time code.",
+  scanQr:"Scan QR code", orManual:"or type it in",
+  addr:"Address", addrHelp:"Wi-Fi or Tailscale address, with port",
+  code:"Pairing code", codeHelp:"8 characters, valid for 5 minutes",
+  fpTitle:"Compare the certificate fingerprint",
+  fpBody:"The laptop at 192.168.1.23 answered with this certificate. All 16 groups must match what pair shows on the laptop.",
+  fpMatch:"They match, pair", fpNo:"They don't match",
+  fpOk:"Fingerprint matched",
+  codeErr:"Invalid or expired pairing code",
+  codeErrHelp:"A code works once and expires after 5 minutes. Run {cmd} again on the laptop for a new one.",
+  tryAgain:"Try again",
+  online:"little-boy · Wi-Fi", offSub:"little-boy · offline",
+  pinned:"Pinned", today:"Today", yesterday:"Yesterday",
+  running:"Running · step {n}", needsApproval:"Needs your approval", msgs:"{n} messages", now:"now",
+  newSession:"New session", search:"Search sessions",
+  profileTitle:"Hermes profile", profileBody:"Each profile has its own sessions, memory and skills.",
+  offTitle:"PC offline since 22:10", offBody:"little-boy stopped answering. This list is from 22:09.", retry:"Retry now",
+  wasRunning:"Was running at 22:09",
+  thought:"Thought for 4 s", failed:"Failed", showAll:"Show all 41 lines",
+  queued:"Queued", steer:"Steer", queue:"Queue", stop:"Stop",
+  steerHint:"Steer joins the running turn. Queue sends after it.",
+  waitingApproval:"Waiting for your approval",
+  apTitle:"Run this command?", apReason:"Reason Hermes gave", apTimeout:"Waits {t} more",
+  deny:"Deny", once:"Allow once", session:"For this session", always:"Always allow",
+  alwaysNote:"Always: Hermes stops asking for this command.",
+  wdTitle:"Answered elsewhere", wdBody:"It was answered on another device, timed out, or the turn ended. Nothing to do here.", close:"Close",
+  clTitle:"Hermes is asking", other:"Other answer", answer:"Answer",
+  e4503Title:"Hermes isn't running",
+  e4503Body:"aristotle-server on little-boy answered, but Hermes is not running there. Start Hermes on the laptop; Aristotle reconnects by itself.",
+  e4505Title:"Hermes was updated",
+  e4505Body:"Hermes on little-boy now speaks a newer protocol than this aristotle-server knows, so the server stopped relaying to stay safe. Update aristotle-server on the laptop.",
+  checkAgain:"Check again", details:"Details",
+  recTitle:"Reconnecting… try 3, next in 8 s",
+  recBody:"Lost the connection at 22:14 on Wi-Fi. Also trying Tailscale.",
+  recComposer:"You can send once reconnected",
+  lastSeen:"Last seen running at 22:14",
+  batTitle:"Keep Aristotle running",
+  batBody:"HyperOS stops apps in the background. Without these three settings you can miss approvals and “turn finished” alerts.",
+  s1:"Battery optimisation: off", s1sub:"Aristotle checks this one itself.", done:"Done",
+  s2:"Battery saver: No restrictions", s2sub:"A HyperOS setting. Aristotle can't read it, so tick it when done.",
+  s3:"Autostart: on", s3sub:"Also a HyperOS setting.",
+  openSettings:"Open settings", marked:"I've done this"
+},
+id:{
+  pairTitle:"Sandingkan dengan PC",
+  pairLead:"Di laptop, jalankan {cmd}. Perintah ini menampilkan kode QR, alamat, dan kode sekali pakai.",
+  scanQr:"Pindai kode QR", orManual:"atau ketik manual",
+  addr:"Alamat", addrHelp:"Alamat Wi-Fi atau Tailscale, dengan port",
+  code:"Kode penyandingan", codeHelp:"8 karakter, berlaku 5 menit",
+  fpTitle:"Cocokkan sidik jari sertifikat",
+  fpBody:"Laptop di 192.168.1.23 menjawab dengan sertifikat ini. Ke-16 kelompok harus sama persis dengan yang ditampilkan pair di laptop.",
+  fpMatch:"Sama, sandingkan", fpNo:"Tidak sama",
+  fpOk:"Sidik jari cocok",
+  codeErr:"Kode penyandingan tidak valid atau kedaluwarsa",
+  codeErrHelp:"Kode hanya bisa dipakai sekali dan kedaluwarsa setelah 5 menit. Jalankan {cmd} lagi di laptop untuk kode baru.",
+  tryAgain:"Coba lagi",
+  online:"little-boy · Wi-Fi", offSub:"little-boy · offline",
+  pinned:"Disematkan", today:"Hari ini", yesterday:"Kemarin",
+  running:"Berjalan · langkah {n}", needsApproval:"Menunggu persetujuan Anda", msgs:"{n} pesan", now:"baru saja",
+  newSession:"Sesi baru", search:"Cari sesi",
+  profileTitle:"Profil Hermes", profileBody:"Setiap profil punya sesi, memori, dan skill sendiri.",
+  offTitle:"PC offline sejak 22:10", offBody:"little-boy tidak menjawab. Daftar ini dari pukul 22:09.", retry:"Coba sekarang",
+  wasRunning:"Sedang berjalan pukul 22:09",
+  thought:"Berpikir 4 dtk", failed:"Gagal", showAll:"Tampilkan 41 baris",
+  queued:"Antrean", steer:"Arahkan", queue:"Antrekan", stop:"Hentikan",
+  steerHint:"Arahkan: masuk ke giliran yang sedang berjalan. Antrekan: dikirim setelahnya.",
+  waitingApproval:"Menunggu persetujuan Anda",
+  apTitle:"Jalankan perintah ini?", apReason:"Alasan dari Hermes", apTimeout:"Menunggu {t} lagi",
+  deny:"Tolak", once:"Izinkan sekali", session:"Untuk sesi ini", always:"Selalu izinkan",
+  alwaysNote:"Selalu: Hermes tidak akan bertanya lagi untuk perintah ini.",
+  wdTitle:"Sudah dijawab di tempat lain", wdBody:"Sudah dijawab di perangkat lain, habis waktunya, atau giliran sudah selesai. Tidak perlu tindakan.", close:"Tutup",
+  clTitle:"Hermes bertanya", other:"Jawaban lain", answer:"Jawab",
+  e4503Title:"Hermes tidak berjalan",
+  e4503Body:"aristotle-server di little-boy menjawab, tetapi Hermes tidak berjalan di sana. Jalankan Hermes di laptop; Aristotle akan tersambung lagi sendiri.",
+  e4505Title:"Hermes diperbarui",
+  e4505Body:"Hermes di little-boy sekarang memakai protokol yang lebih baru dari yang dikenal aristotle-server ini, jadi server berhenti meneruskan demi keamanan. Perbarui aristotle-server di laptop.",
+  checkAgain:"Periksa lagi", details:"Detail",
+  recTitle:"Menyambung ulang… percobaan 3, lagi dalam 8 dtk",
+  recBody:"Koneksi terputus pukul 22:14 di Wi-Fi. Juga mencoba lewat Tailscale.",
+  recComposer:"Bisa mengirim setelah tersambung lagi",
+  lastSeen:"Terakhir terlihat berjalan pukul 22:14",
+  batTitle:"Biarkan Aristotle tetap berjalan",
+  batBody:"HyperOS menghentikan aplikasi di latar belakang. Tanpa tiga pengaturan ini, Anda bisa melewatkan persetujuan dan notifikasi “giliran selesai”.",
+  s1:"Optimasi baterai: nonaktif", s1sub:"Aristotle mengecek yang ini sendiri.", done:"Selesai",
+  s2:"Penghemat baterai: Tanpa batasan", s2sub:"Pengaturan HyperOS. Aristotle tidak bisa membacanya, jadi centang jika sudah.",
+  s3:"Mulai otomatis: aktif", s3sub:"Juga pengaturan HyperOS.",
+  openSettings:"Buka pengaturan", marked:"Sudah saya atur"
+}};
+
+let T=STR.en;
+const fmt=(s,o)=>s.replace(/\{(\w+)\}/g,(_,k)=>o[k]);
+const ic=(n,c="")=>`<span class="ms ${c}" aria-hidden="true">${n}</span>`;
+const btn=(kind,label,{icon="",go="",extra="",attrs=""}={})=>`<button class="btn ${kind} ${extra}" ${go?`data-go="${go}"`:""} ${attrs}>${icon?ic(icon):""}${label}</button>`;
+const status=(time="22:31",wifi=true)=>`<div class="statusbar"><span>${time}</span><span class="si">${ic("signal_cellular_alt")}${wifi?ic("wifi"):""}${ic("battery_full")}</span></div>`;
+const CMD=`<code>aristotle-server pair</code>`;
+const FP=["7E54","D87B","19C0","A4F2","5B3E","0D96","C1A8","72FE","3E09","B6D4","8A15","F0C3","62D9","4E7A","BCA7","EAA7"];
+
+/* ----- Screens ----- */
+function pairScreen(err){
+  const fpBlock = err
+    ? `<div class="card" style="margin-top:20px;display:flex;gap:12px;align-items:center;padding:12px 16px">${ic("verified_user")}<div><div class="title-s">${T.fpOk}</div><div class="body-s muted mono">${FP[0]} ${FP[1]} … ${FP[14]} ${FP[15]}</div></div></div>`
+    : `<div class="card" style="margin-top:20px"><h3 class="title-s">${T.fpTitle}</h3><p class="body-s muted" style="margin-top:4px">${T.fpBody}</p>
+        <div class="fp">${FP.map(g=>`<span>${g}</span>`).join("")}</div>
+        <div class="btnrow" style="margin-top:12px">${btn("text",T.fpNo)}${btn("filled",T.fpMatch,{go:"sessions"})}</div></div>`;
+  const codeField = err
+    ? `<div class="field err"><label>${T.code}</label><div class="box mono"><span class="grow">K7Q2 M9XD</span>${ic("error")}</div><div class="sup" role="alert">${T.codeErr}</div></div>
+       <p class="body-s muted" style="padding:4px 16px 0">${fmt(T.codeErrHelp,{cmd:CMD})}</p>`
+    : `<div class="field focus"><label>${T.code}</label><div class="box mono"><span class="grow">K7Q2 M9XD<span class="caret"></span></span></div><div class="sup">${T.codeHelp}</div></div>`;
+  return `${status()}<div class="app"><div class="scroll" style="padding:12px 20px 20px">
+    <div class="wordmark" style="color:var(--on-surface-variant);font-size:18px">Aristotle</div>
+    <h1 class="headline-s" style="margin-top:20px">${T.pairTitle}</h1>
+    <p class="body-m muted" style="margin-top:8px">${fmt(T.pairLead,{cmd:CMD})}</p>
+    <div style="margin-top:20px">${btn("tonal",T.scanQr,{icon:"qr_code_scanner",extra:"block"})}</div>
+    <div class="divtext">${T.orManual}</div>
+    <div class="field" style="margin-top:12px"><label>${T.addr}</label><div class="box"><span class="grow">192.168.1.23:8760</span></div><div class="sup">${T.addrHelp}</div></div>
+    <div style="margin-top:16px">${codeField}</div>
+    ${fpBlock}
+    ${err?`<div class="btnrow" style="margin-top:20px">${btn("filled",T.tryAgain)}</div>`:""}
+  </div></div><div class="navbar"><i></i></div>`;
+}
+
+const SESS=[
+  {sec:"pinned"},
+  {t:"Aristotle v1 tickets",m:()=>fmt(T.msgs,{n:214}),time:"21:40",pin:1},
+  {sec:"today"},
+  {t:"T06 relay: revoke closes live socket",live:4,time:()=>T.now,go:"chat"},
+  {t:"Fix flaky relay test",ask:1,time:"22:29",go:"approval"},
+  {t:"TD1 design pass",m:()=>fmt(T.msgs,{n:38}),time:"20:58"},
+  {t:"IDX holiday calendar 2026",m:()=>fmt(T.msgs,{n:12}),time:"18:12"},
+  {sec:"yesterday"},
+  {t:"Review T05b pairing listener",m:()=>fmt(T.msgs,{n:57}),time:"23:05"},
+  {t:"aristotle-spike",m:()=>fmt(T.msgs,{n:9}),time:"16:40"},
+];
+function sessionRows(offline){
+  return SESS.map(s=>{
+    if(s.sec) return `<div class="sec">${T[s.sec]}</div>`;
+    const v=x=>typeof x==="function"?x():x;
+    let meta, cls="m";
+    if(s.live && !offline){meta=`<span class="spin"></span>${fmt(T.running,{n:s.live})}`;cls="m live"}
+    else if(s.live && offline){meta=T.wasRunning}
+    else if(s.ask && !offline){meta=`${ic("front_hand")}${T.needsApproval}`;cls="m ask"}
+    else if(s.ask){meta=fmt(T.msgs,{n:23})}
+    else meta=v(s.m);
+    const lead=s.pin?ic("push_pin"):"";
+    return `<button class="li ${offline?"stale":""}" ${s.go&&!offline?`data-go="${s.go}"`:""}><span class="lead">${lead}</span><span class="mid"><span class="h" style="display:block">${s.t}</span><span class="${cls}">${meta}</span></span><span class="tr">${offline&&s.live?"22:09":v(s.time)}</span></button>`;
+  }).join("");
+}
+function sessionsTop(offline){
+  return `<div class="topbar" style="padding-left:16px"><div class="tt" style="padding:0"><div class="wordmark">Aristotle</div><div class="s">${offline?ic("cloud_off")+T.offSub:T.online}</div></div>
+    <button class="chip" data-go="sessions-profiles" aria-haspopup="dialog" aria-label="Hermes profile: pm">pm${ic("arrow_drop_down")}</button>
+    <button class="ib" aria-label="${T.search}">${ic("search")}</button></div>`;
+}
+function sessionsScreen(){
+  return `${status()}<div class="app">${sessionsTop()}<div class="scroll" style="padding-bottom:88px">${sessionRows()}</div>
+    <button class="fab">${ic("add")}${T.newSession}</button></div><div class="navbar"><i></i></div>`;
+}
+function profilesScreen(){
+  const P=["default","bkm-reports-bot","developer","pm","reviewer","teacher"];
+  return `${status()}<div class="app">${sessionsTop()}<div class="scroll">${sessionRows()}</div>
+    <div class="scrim" data-go="sessions"></div>
+    <div class="sheet" role="dialog" aria-label="${T.profileTitle}"><div class="handle"></div>
+      <h2 class="title-l">${T.profileTitle}</h2><p class="body-m muted" style="margin-top:4px">${T.profileBody}</p>
+      <div role="radiogroup" style="margin:8px -4px 0">${P.map(p=>`<button class="prof" role="radio" aria-checked="${p==="pm"}" data-radio>${ic(p==="pm"?"radio_button_checked":"radio_button_unchecked")}<span class="n">${p}</span></button>`).join("")}</div>
+    </div></div><div class="navbar"><i></i></div>`;
+}
+function offlineScreen(){
+  return `${status()}<div class="app">${sessionsTop(true)}
+    <div class="banner" role="status">${ic("cloud_off")}<div><div class="title-s">${T.offTitle}</div><p class="body-m muted" style="margin-top:2px">${T.offBody}</p></div>
+      <div class="acts">${btn("text",T.retry)}</div></div>
+    <div class="scroll">${sessionRows(true)}</div></div><div class="navbar"><i></i></div>`;
+}
+
+const GOTEST=`<span class="p">$ cd server &amp;&amp; go test ./...</span>
+ok   …/internal/config     0.021s
+ok   …/internal/devices    0.134s
+ok   …/internal/hermes     0.388s
+ok   …/internal/httpapi    0.512s
+ok   …/internal/pairing    0.402s
+<span class="f">--- FAIL: TestRevokeClosesLiveConnection (10.00s)</span>
+<span class="f">    relay_test.go:212: socket still open 10s after revoke</span>
+<span class="f">FAIL …/internal/relay      10.214s</span>`;
+function chatTop(title,sub,back="sessions"){
+  return `<div class="topbar"><button class="ib" data-go="${back}" aria-label="Back">${ic("arrow_back")}</button>
+    <div class="tt"><div class="t">${title}</div><div class="s">${sub}</div></div>
+    <button class="ib" aria-label="More">${ic("more_vert")}</button></div>`;
+}
+function liveChat(){
+  const sub=`<span style="color:var(--tertiary);font-weight:600;display:inline-flex;align-items:center;gap:6px"><span class="spin" style="width:12px;height:12px"></span>${fmt(T.running,{n:4})}</span>· claude-opus-5-5 · high`;
+  return `${status()}<div class="app">${chatTop("T06 relay: revoke closes live socket",sub)}
+  <div class="scroll" data-bottom><div class="msgs">
+    <div class="ubub">Run the server tests and tell me if T06 broke anything.</div>
+    <div class="reason"><button data-toggle="reason">${T.thought}${ic("expand_more")}</button><div class="rt">The relay package is new. Run the whole module, not just relay, so a regression in pairing or httpapi shows up too.</div></div>
+    <div class="tool"><button class="tool-h" data-toggle="tool">${ic("description")}<span class="tn">read_file</span><span class="ts">server/internal/relay/relay.go</span><span class="tm num">0.1 s</span>${ic("expand_more","chev")}</button>
+      <div class="tool-b"><pre>package relay
+
+// Relay pipes one phone socket to one Hermes socket.
+type Relay struct {
+…</pre></div></div>
+    <div class="tool open"><button class="tool-h" data-toggle="tool">${ic("terminal")}<span class="tn">terminal</span><span class="ts">cd server &amp;&amp; go test ./...</span><span class="tm num"><span class="bad">${T.failed}</span>11.8 s</span>${ic("expand_more","chev")}</button>
+      <div class="tool-b"><pre>${GOTEST}</pre>${btn("text",T.showAll)}</div></div>
+    <p class="atext">One package fails: <code>internal/relay</code>. <code>TestRevokeClosesLiveConnection</code> expects the socket to close within 10 s of the revoke, but the relay only checks the token when the phone sends a frame, so an idle connection stays open<span class="cursor" aria-label="streaming"></span></p>
+  </div></div>
+  <div class="composer">
+    <div class="queued"><span class="lbl">${T.queued} · 1</span><span class="q">also run gofmt -l .</span><button class="ib" aria-label="Remove from queue">${ic("close")}</button></div>
+    <div class="cfield">Check the idle timeout in relay.go too</div>
+    <div class="cacts">${btn("stop",T.stop,{icon:"stop"})}<span class="sp"></span>${btn("tonal",T.queue)}${btn("filled",T.steer)}</div>
+    <p class="chint">${T.steerHint}</p>
+  </div></div><div class="navbar" style="background:var(--surface-c)"><i></i></div>`;
+}
+function flakyChat(withChip=true){
+  return `<div class="msgs">
+    <div class="ubub">TestRevokeClosesLiveConnection fails about one run in five. Find out why.</div>
+    <div class="tool"><button class="tool-h" data-toggle="tool">${ic("terminal")}<span class="tn">terminal</span><span class="ts">go test -count=20 -run Revoke ./internal/relay</span><span class="tm num"><span class="bad">${T.failed}</span>48.2 s</span>${ic("expand_more","chev")}</button>
+      <div class="tool-b"><pre><span class="p">$ go test -count=20 -run Revoke ./internal/relay</span>
+<span class="f">--- FAIL: TestRevokeClosesLiveConnection (10.00s)</span>
+<span class="f">--- FAIL: TestRevokeClosesLiveConnection (10.00s)</span>
+…
+<span class="f">FAIL …/internal/relay   48.214s</span></pre></div></div>
+    <p class="atext">4 of 20 runs failed, all on the 10 s close timeout. The cached test binary predates the timeout change, so I'll clear the build cache and run it again.</p>
+    ${withChip?`<button class="pendchip" data-go="approval">${ic("front_hand")}${T.waitingApproval}</button>`:""}
+  </div>`;
+}
+function flakyBase(){
+  const sub=`<span style="color:var(--tertiary);font-weight:600;display:inline-flex;align-items:center;gap:6px"><span class="spin" style="width:12px;height:12px"></span>${fmt(T.running,{n:3})}</span>· claude-opus-5-5 · high`;
+  return chatTop("Fix flaky relay test",sub)+`<div class="scroll" data-bottom>${flakyChat()}</div>`;
+}
+function approvalScreen(){
+  return `${status()}<div class="app">${flakyBase()}<div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-labelledby="ap-t"><div class="handle"></div>
+    <div class="ctx">Fix flaky relay test · pm</div>
+    <h2 class="headline-s" id="ap-t">${T.apTitle}</h2>
+    <div class="cmd"><span class="pr">$ </span>rm -r /tmp/build-cache</div>
+    <div class="why"><span class="label-m">${T.apReason}</span><p class="body-m">Clear the stale Go build cache before re-running the tests.</p></div>
+    <div class="timer">${ic("schedule")}<span>${fmt(T.apTimeout,{t:"4:51"})}</span></div>
+    <div class="apgrid">${btn("danger",T.deny,{go:"chat"})}${btn("filled",T.once,{go:"chat"})}</div>
+    <div class="apmore">${btn("text",T.session,{go:"chat"})}${btn("text",T.always,{go:"chat"})}</div>
+    <p class="body-s muted apnote">${T.alwaysNote}</p>
+  </div></div><div class="navbar" style="background:var(--surface-low);position:relative;z-index:5"><i></i></div>`;
+}
+function withdrawnScreen(){
+  return `${status()}<div class="app">${flakyBase()}<div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-labelledby="wd-t"><div class="handle"></div>
+    <div class="ctx">Fix flaky relay test · pm</div>
+    <div class="done-state">${ic("task_alt")}<div><h2 class="headline-s" id="wd-t">${T.wdTitle}</h2><p class="body-m muted" style="margin-top:6px">${T.wdBody}</p></div></div>
+    <div class="cmd dim"><span class="pr">$ </span>rm -r /tmp/build-cache</div>
+    <div class="btnrow" style="margin-top:20px">${btn("filled",T.close,{go:"chat"})}</div>
+  </div></div><div class="navbar" style="background:var(--surface-low);position:relative;z-index:5"><i></i></div>`;
+}
+function clarifyScreen(){
+  const C=["Only internal/relay (Recommended)","The whole server module","Server and Android unit tests"];
+  return `${status()}<div class="app">${flakyBase()}<div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-labelledby="cl-t"><div class="handle"></div>
+    <div class="ctx">Fix flaky relay test · pm</div>
+    <h2 class="headline-s" id="cl-t">${T.clTitle}</h2>
+    <p class="title-m" style="margin-top:12px">The fix is in. Which tests should I run before I report back?</p>
+    <div class="radio-list" role="radiogroup">${C.map((c,i)=>`<button class="choice" role="radio" aria-checked="${i===0}" data-radio>${ic(i===0?"radio_button_checked":"radio_button_unchecked")}<span>${c}</span></button>`).join("")}
+      <button class="choice" role="radio" aria-checked="false" data-radio>${ic("radio_button_unchecked")}<span class="muted">${T.other}</span></button></div>
+    <div class="timer" style="margin:4px 0 16px">${ic("schedule")}<span>${fmt(T.apTimeout,{t:"9:12"})}</span></div>
+    <div class="btnrow">${btn("filled",T.answer,{go:"chat"})}</div>
+  </div></div><div class="navbar" style="background:var(--surface-low);position:relative;z-index:5"><i></i></div>`;
+}
+function connState(code){
+  const is3=code===4503;
+  return `${status()}<div class="app">${sessionsTop()}
+   <div class="state">
+     <h1 class="headline-s">${is3?T.e4503Title:T.e4505Title}</h1>
+     <p class="body-m muted">${is3?T.e4503Body:T.e4505Body}</p>
+     <div class="details"><span style="font-family:var(--f-ui);font-weight:600">${T.details}</span><br>${is3
+        ?"close 4503 hermes_not_running<br>aristotle-server 0.1.0 · 22:31"
+        :"close 4505 hermes_protocol_unsupported<br>runtime_protocol 2 (this server knows 1)<br>aristotle-server 0.1.0 · 22:31"}</div>
+     <div style="margin-top:8px">${btn(is3?"filled":"tonal",is3?T.retry:T.checkAgain,{icon:"refresh"})}</div>
+   </div></div><div class="navbar"><i></i></div>`;
+}
+function reconnectScreen(){
+  return `${status("22:15",false)}<div class="app">${chatTop("Fix flaky relay test",T.lastSeen)}
+    <div class="recon" role="status"><div class="progress"></div><div class="title-s">${T.recTitle}</div><p class="body-m muted" style="margin-top:2px">${T.recBody}</p></div>
+    <div class="scroll" data-bottom>${flakyChat(false)}</div>
+    <div class="composer"><div class="cfield ph">${T.recComposer}</div>
+      <div class="cacts"><span class="sp"></span><button class="btn filled" disabled>${ic("send")}</button></div></div>
+  </div><div class="navbar" style="background:var(--surface-c)"><i></i></div>`;
+}
+function batteryScreen(){
+  return `${status()}<div class="app"><div class="topbar"><button class="ib" data-go="sessions" aria-label="Back">${ic("arrow_back")}</button><div class="tt"><div class="t">${T.batTitle}</div></div></div>
+   <div class="scroll" style="padding:4px 24px 24px"><p class="body-m muted">${T.batBody}</p>
+    <div style="margin-top:12px">
+     <div class="step"><span class="no ok">${ic("check")}</span><div><div class="title-s">${T.s1}</div><p class="body-s muted">${T.s1sub}</p></div><div class="acts"><span class="okline">${ic("check_circle")}${T.done}</span></div></div>
+     <div class="step"><span class="no">2</span><div><div class="title-s">${T.s2}</div><p class="body-s muted">${T.s2sub}</p></div><div class="acts">${btn("tonal",T.openSettings,{icon:"open_in_new"})}<button class="check" role="checkbox" aria-checked="false" data-check>${ic("check_box_outline_blank")}${T.marked}</button></div></div>
+     <div class="step"><span class="no">3</span><div><div class="title-s">${T.s3}</div><p class="body-s muted">${T.s3sub}</p></div><div class="acts">${btn("tonal",T.openSettings,{icon:"open_in_new"})}<button class="check" role="checkbox" aria-checked="false" data-check>${ic("check_box_outline_blank")}${T.marked}</button></div></div>
+    </div></div></div><div class="navbar"><i></i></div>`;
+}
+
+/* ----- Board definition ----- */
+const GROUPS=[
+ {h:"1 · Pair",p:"Manual path (spec Q7b). The app reaches the address first, shows the certificate fingerprint in 16 groups of 4 (protocol §11.3), and pairs only after the user confirms. The QR path skips typing; the fingerprint check stays. On a Tailscale address there is no certificate, so the fingerprint card is not shown.",
+  shots:[["pair","1a · Manual entry + fingerprint",()=>pairScreen(false),"<code>GET</code> the cert, then <code>POST /v1/pair</code> after confirm"],
+         ["pair-error","1b · Invalid or expired code",()=>pairScreen(true),"<code>401 {\"error\":\"invalid or expired pairing code\"}</code> — the server does not say which"]]},
+ {h:"2 · Sessions",p:"The home screen. The profile chip shows the active Hermes profile (§3) and opens the switcher. Running and waiting-for-approval are the only coloured row states.",
+  shots:[["sessions","2a · List with a live turn",sessionsScreen,"<code>session.list</code> + <code>running</code>, <code>agent.step</code>; approval from a pending <code>approval.request</code>"],
+         ["sessions-profiles","2b · Profile switcher",profilesScreen,"Profiles from <code>served_profiles</code>; switching adds <code>profile</code> to RPC params"],
+         ["sessions-offline","2c · PC offline since 22:10",offlineScreen,"No socket and no <code>/healthz</code> answer; list from the last fetch (T09)"]]},
+ {h:"3 · Chat, live turn",p:"A turn in progress: reasoning collapsed, one tool card collapsed and one expanded, assistant text streaming. The composer is in its busy form (spec Q10): Stop interrupts, Queue sends after the turn, Steer joins it. Tap the cards to open or close them.",
+  shots:[["chat","3a · Streaming + busy composer",liveChat,"<code>thinking.delta</code>, <code>tool.start/complete</code> (<code>is_error</code>), <code>message.delta</code>; <code>pending</code> from <code>session.info</code>"]]},
+ {h:"4 · Approval and clarify",p:"Modal bottom sheets over the chat. Deny and Allow once share the bottom row where the thumb is; the rarer, wider grants sit below as text buttons. The withdrawn state appears when <code>approval.settled</code> arrives for a prompt this phone did not answer.",
+  shots:[["approval","4a · Approval",approvalScreen,"<code>approval.request</code> choices <code>once / session / always / deny</code>, <code>timeout_s 300</code>"],
+         ["approval-withdrawn","4b · Answered elsewhere",withdrawnScreen,"<code>approval.settled</code> without our answer; buttons gone, Close only"],
+         ["clarify","4c · Clarify question",clarifyScreen,"<code>clarify.request</code>, <code>multi_select:false</code>; free text via Other"]]},
+ {h:"5 · Connection",p:"What the phone shows for the relay's close codes (T06) and for a dropped socket. Left-aligned, with the cause and the one action that helps; the raw code sits in Details for bug reports.",
+  shots:[["conn-4503","5a · Hermes not running",()=>connState(4503),"WS close <code>4503 hermes_not_running</code>"],
+         ["conn-4505","5b · Hermes updated",()=>connState(4505),"WS close <code>4505 hermes_protocol_unsupported</code> (fail closed)"],
+         ["conn-reconnecting","5c · Reconnecting",reconnectScreen,"Socket lost; backoff, Wi-Fi then Tailscale (T09); resume with <code>session.events.since</code>"]]},
+ {h:"6 · Xiaomi battery guide (optional)",p:"First-run guide from spec Q27 / T10. Only step 1 can be checked by the app; HyperOS settings are confirmed by the user.",
+  shots:[["battery","6 · Keep Aristotle running",batteryScreen,"Battery optimisation via <code>PowerManager</code>; HyperOS intents are best-effort"]]},
+];
+const BY_ID={};GROUPS.forEach(g=>g.shots.forEach(s=>BY_ID[s[0]]=s));
+const PROTO_FLOW=["pair","sessions","chat","approval"];
+
+function phone(id,fn){return `<div class="phone"><div class="screen" data-screen="${id}">${fn()}</div></div>`}
+function renderBoard(){
+  document.getElementById("board").innerHTML=GROUPS.map(g=>`<section class="group"><h2>${g.h}</h2><p>${g.p}</p><div class="row">${
+    g.shots.map(([id,cap,fn,proto])=>`<figure class="shot" id="s-${id}">${phone(id,fn)}<figcaption><b>${cap}</b>${proto}</figcaption></figure>`).join("")}</div></section>`).join("");
+}
+let protoAt=localStorage.getItem("td1.proto")||"pair";
+function renderProto(){
+  const s=BY_ID[protoAt]||BY_ID.pair;
+  document.getElementById("proto").innerHTML=`<figure class="shot">${phone(s[0],s[2])}<figcaption><b>${s[1]}</b>Flow: ${PROTO_FLOW.map(f=>f===s[0]?`<b style="display:inline">${f}</b>`:f).join(" → ")}. Tap the highlighted actions to move on.</figcaption></figure>`;
+}
+function toBottom(){document.querySelectorAll(".scroll[data-bottom]").forEach(e=>e.scrollTop=e.scrollHeight)}
+function render(){T=STR[document.body.dataset.lang];document.documentElement.lang=document.body.dataset.lang;renderBoard();renderProto();fit();toBottom()}
+
+/* ----- Tweaks ----- */
+const KEYS=["pal","mode","lang","type","view"];
+KEYS.forEach(k=>{const v=localStorage.getItem("td1."+k);if(v)document.body.dataset[k]=v});
+function syncTweaks(){document.querySelectorAll(".opts").forEach(o=>o.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(document.body.dataset[o.dataset.key]===b.dataset.v))))}
+document.querySelector(".tweaks").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-v]");if(!b)return;
+  const k=b.parentElement.dataset.key;document.body.dataset[k]=b.dataset.v;localStorage.setItem("td1."+k,b.dataset.v);syncTweaks();
+  if(k==="lang")render();
+});
+
+/* ----- In-phone interactions ----- */
+document.addEventListener("click",e=>{
+  const tg=e.target.closest("[data-toggle]");
+  if(tg){tg.parentElement.classList.toggle("open");return}
+  const r=e.target.closest("[data-radio]");
+  if(r){r.parentElement.querySelectorAll("[data-radio]").forEach(x=>{const on=x===r;x.setAttribute("aria-checked",String(on));x.querySelector(".ms").textContent=on?"radio_button_checked":"radio_button_unchecked"});return}
+  const c=e.target.closest("[data-check]");
+  if(c){const on=c.getAttribute("aria-checked")!=="true";c.setAttribute("aria-checked",String(on));c.querySelector(".ms").textContent=on?"check_box":"check_box_outline_blank";return}
+  const g=e.target.closest("[data-go]");
+  if(!g)return;
+  const to=g.dataset.go;
+  if(document.body.dataset.view==="proto"){protoAt=to;localStorage.setItem("td1.proto",to);renderProto();fit();toBottom();return}
+  const el=document.getElementById("s-"+to);if(!el)return;
+  el.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"});
+  el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),1200);
+});
+
+/* ----- Fit phones to narrow viewports ----- */
+function fit(){
+  const w=document.documentElement.clientWidth;
+  const z=w<=460?Math.min(1,w/393):1;
+  document.body.style.setProperty("--z",z);
+}
+addEventListener("resize",fit);
+syncTweaks();render();document.fonts.ready.then(toBottom);
+</script>
+</body>
+</html>

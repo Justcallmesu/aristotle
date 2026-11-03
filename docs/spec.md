@@ -101,6 +101,8 @@ Rules that hold everywhere:
 | Q34 | The relay strips the system prompt (and `credential_hint`) from `session.info` / resume results before sending to the phone (replaced by its length). The one exception to "frames pass unchanged". | Saves ~21 KB per full `session.info` (once per turn, plus per resume and per explicit call; `docs/protocol.md` §2.1, §10); memories/skills never stored on the phone. Found in T01. |
 | Q35 | Remote terminal (T19) is a real shell on the laptop opened by aristotle-server and streamed to the phone, behind the device token. | Hermes Desktop's terminal is a Desktop-local PTY, not a Hermes feature (T01). PM adds a server setting `terminal.enabled`, default off, as a safety default; user may object. |
 | Q36 | Android: keep build-tools 36.0.0 (auto-installed by AGP 9.4.1) and install platform `android-36`; compileSdk/targetSdk 36 and current Compose/androidx versions. | User approved the SDK install 2026-11-03. |
+| Q37 | A design pass (TD1: clickable mockups of the key screens + icon concepts + draft design notes) happens before T07; the approved result becomes `docs/design.md`, which every UI ticket follows. | User chose (a) 2026-11-03. |
+| Q38 | Colour identity: OPEN. Options shown side by side in TD1: Aristotle palette from the engraving vs Material You (and a switch between them). | User answered "A" to the design-pass question only; PM asked him to pick colours from the mockups. |
 
 ## 4. Risks
 

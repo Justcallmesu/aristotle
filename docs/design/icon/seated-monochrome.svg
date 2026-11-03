@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432">
+<!-- TD1 concept A monochrome layer: one colour, cuts are real holes (mask). -->
+<defs><mask id="mseated" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#000" mask="url(#mseated)"/>
+</svg>

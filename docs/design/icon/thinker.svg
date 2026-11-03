@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432">
+<!-- TD1 concept B: Hand on chin. Adaptive icon canvas 108x108 dp; safe zone = circle r33 at 54,54. Draft, not a final asset (T20). -->
+<rect width="108" height="108" fill="#F3EAD8"/>
+<g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g>
+</svg>

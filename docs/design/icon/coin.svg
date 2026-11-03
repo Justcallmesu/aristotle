@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432">
+<!-- TD1 concept C: Coin head. Adaptive icon canvas 108x108 dp; safe zone = circle r33 at 54,54. Draft, not a final asset (T20). -->
+<rect width="108" height="108" fill="#F3EAD8"/>
+<circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g>
+</svg>

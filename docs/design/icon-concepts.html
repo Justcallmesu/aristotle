@@ -1,0 +1,441 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aristotle — icon concepts (TD1 draft)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#2B2119;--muted:#6B5A49;--paper:#F5EEDF;--line:#D9CCB4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Atkinson Hyperlegible Next",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:32px 20px 64px}
+h1{font:600 32px/1.15 Literata,serif;margin:0 0 8px;text-wrap:balance}
+.intro{max-width:68ch;color:var(--muted);margin:0 0 8px;text-wrap:pretty}
+.ref{display:flex;gap:20px;align-items:flex-start;margin:24px 0 8px}
+.ref img{width:120px;height:auto;outline:1px solid oklch(0 0 0 / .1);outline-offset:-1px}
+.concept{display:grid;grid-template-columns:260px 1fr;gap:12px 32px;padding:32px 0;border-top:1px solid var(--line)}
+.concept header{grid-column:1/-1;max-width:72ch}
+h2{font:600 24px/1.2 Literata,serif;margin:0 0 6px}
+.letter{display:inline-block;min-width:1.4em;color:var(--muted)}
+.concept p{margin:0 0 6px;text-wrap:pretty}
+.verdict{color:var(--muted)}
+.files{font-size:13px;color:var(--muted)}
+code{font-family:"Atkinson Hyperlegible Mono",ui-monospace,monospace;font-size:.92em}
+.key p{font-size:13px;color:var(--muted);max-width:216px}
+.strips{display:grid;gap:8px}
+.strip{display:flex;align-items:flex-end;gap:28px;padding:16px 20px 10px;border-radius:12px;overflow-x:auto}
+.strip .sl{width:150px;flex:none;align-self:center;font-size:13px;color:#6B5A49}
+.strip[style*="#16130F"] .sl,.strip[style*="#0F1216"] .sl{color:#B9AC98}
+.strip[style*="#16130F"] figcaption,.strip[style*="#0F1216"] figcaption{color:#B9AC98}
+figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+figcaption{font-size:11px;color:#6B5A49;font-variant-numeric:tabular-nums}
+.notes{border-top:1px solid var(--line);padding-top:24px;max-width:72ch}
+.notes li{margin-bottom:6px}
+@media (max-width:760px){.concept{grid-template-columns:1fr}.strip .sl{width:90px}.strip{gap:16px}}
+</style></head><body><main>
+<h1>Aristotle icon concepts</h1>
+<p class="intro">Draft for T20 (spec Q6, Q29). Three ways to redraw the reference engraving as an adaptive icon. Each is shown at 48, 96 and 192 px (48 dp is the launcher size to beat), on light and dark launchers, and as the Android 13+ themed (monochrome) icon.</p>
+<div class="ref"><img src="../assets/icon-reference.png" alt="Reference engraving: Aristotle seated on a block, hand on chin"><p class="intro">Reference: <code>docs/assets/icon-reference.png</code>. All three were traced over it, so the proportions come from the engraving, not from memory. Ink <code>#2B2119</code> on parchment <code>#F3EAD8</code> (palette A).</p></div>
+<section class="concept" id="seated">
+<header><h2><span class="letter">A</span> Seated on the plinth</h2><p>The whole engraving as one silhouette: hunched back, hand on chin, crossed arm, the block under him. White cuts carry the arm and the folds.</p><p class="verdict">Most faithful to the reference and the most recognisable shape at 48 dp. The face itself disappears below 96 px; the pose does the work.</p>
+<p class="files">SVG: <code>icon/seated.svg</code>, <code>icon/seated-monochrome.svg</code></p></header>
+<div class="key"><svg width="216" height="216" viewBox="0 0 108 108" aria-label="108 dp canvas with safe zone"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g>
+<rect x="0.25" y="0.25" width="107.5" height="107.5" fill="none" stroke="#B3261E" stroke-width="0.5" stroke-dasharray="2 2"/>
+<circle cx="54" cy="54" r="36" fill="none" stroke="#B3261E" stroke-width="0.4"/><circle cx="54" cy="54" r="33" fill="none" stroke="#B3261E" stroke-width="0.4" stroke-dasharray="1.5 1.5"/></svg><p>108 dp canvas. Solid ring: 72 dp visible area. Dashed ring: 66 dp safe zone.</p></div>
+<div class="strips">
+<div class="strip" style="background:#ECE6DA"><span class="sl">Light launcher · circle</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k2"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k2)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k3"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k3)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k4"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k4)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#16130F"><span class="sl">Dark launcher · squircle</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k5"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k5)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k6"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k6)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k7"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k7)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="#2B2119"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119" stroke="#F3EAD8" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#F4F5FA"><span class="sl">Themed icon · light</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k8"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k8)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx8" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx8)"/></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k9"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k9)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx9" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx9)"/></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k10"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k10)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx10" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx10)"/></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#0F1216"><span class="sl">Themed icon · dark</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k11"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k11)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx11" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx11)"/></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k12"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k12)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx12" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx12)"/></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k13"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k13)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx13" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(28.3,22.9) scale(0.13)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4,322 L118,314 L118,446 L392,450 L392,474 L8,476 Z" fill="white"/>
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C205,125 205,160 202,190 C230,192 270,196 298,206 C306,212 306,222 300,232 C310,270 318,320 328,360 C334,385 340,400 350,415 C368,425 384,432 386,442 C360,448 320,448 300,444 C296,430 300,415 304,400 C292,360 280,320 268,290 C255,300 235,310 215,318 C214,340 210,360 205,380 C208,392 212,402 214,412 C190,416 150,416 118,410 C124,398 140,394 160,392 C170,372 176,352 180,330 C150,322 110,318 70,316 C40,316 20,316 10,312 C14,260 18,210 28,170 C40,130 60,95 95,76 C115,70 135,68 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white" stroke="black" stroke-width="16" paint-order="stroke"/>
+<g fill="none" stroke="black" stroke-width="13">
+<path d="M170,108 C162,132 160,160 164,190"/>
+<path d="M60,176 C110,178 140,182 166,190"/>
+<path d="M174,84 C184,80 194,88 198,98"/>
+<path d="M150,64 C158,60 166,56 170,48"/>
+<path d="M40,260 C110,246 190,240 262,246"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx13)"/></g></svg><figcaption>192</figcaption></figure></div>
+</div></section><section class="concept" id="thinker">
+<header><h2><span class="letter">B</span> Hand on chin</h2><p>Head, fist and forearm only, in line art. The gesture the brief describes, cropped tight.</p><p class="verdict">Weakest of the three: at 48 dp the fist reads as a blob, and line art thins out on dark launchers. Kept to show the line-art direction.</p>
+<p class="files">SVG: <code>icon/thinker.svg</code>, <code>icon/thinker-monochrome.svg</code></p></header>
+<div class="key"><svg width="216" height="216" viewBox="0 0 108 108" aria-label="108 dp canvas with safe zone"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g>
+<rect x="0.25" y="0.25" width="107.5" height="107.5" fill="none" stroke="#B3261E" stroke-width="0.5" stroke-dasharray="2 2"/>
+<circle cx="54" cy="54" r="36" fill="none" stroke="#B3261E" stroke-width="0.4"/><circle cx="54" cy="54" r="33" fill="none" stroke="#B3261E" stroke-width="0.4" stroke-dasharray="1.5 1.5"/></svg><p>108 dp canvas. Solid ring: 72 dp visible area. Dashed ring: 66 dp safe zone.</p></div>
+<div class="strips">
+<div class="strip" style="background:#ECE6DA"><span class="sl">Light launcher · circle</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k15"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k15)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k16"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k16)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k17"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k17)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#16130F"><span class="sl">Dark launcher · squircle</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k18"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k18)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k19"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k19)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k20"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k20)"><rect width="108" height="108" fill="#F3EAD8"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="#2B2119" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="#2B2119"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="#2B2119"/>
+</g></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#F4F5FA"><span class="sl">Themed icon · light</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k21"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k21)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx21" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="white" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="white"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="white"/>
+</g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx21)"/></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k22"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k22)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx22" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="white" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="white"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="white"/>
+</g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx22)"/></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k23"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k23)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx23" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="white" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="white"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="white"/>
+</g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx23)"/></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#0F1216"><span class="sl">Themed icon · dark</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k24"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k24)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx24" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="white" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="white"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="white"/>
+</g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx24)"/></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k25"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k25)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx25" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="white" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="white"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="white"/>
+</g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx25)"/></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k26"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k26)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx26" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><g transform="translate(-30,26) scale(0.48)" fill="none" stroke="white" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M148,64 C130,68 112,70 96,77 C84,86 76,100 72,118"/>
+<path d="M120,176 C135,178 150,180 163,184"/>
+<path d="M169,108 C161,132 159,162 162,200"/>
+<path d="M199,110 C206,132 206,165 201,200"/>
+<path d="M144,44 C141,26 150,8 170,4 C190,1 207,12 212,30 C206,28 199,31 195,36 C190,34 183,37 180,43 C174,44 170,50 168,57 C160,58 153,62 148,64 C145,58 144,52 144,44 Z" fill="white"/>
+<path d="M212,30 C214,40 212,47 213,54 C215,61 218,66 219,71 L211,75 C211,78 209,80 210,82 C208,89 205,95 199,99"/>
+<path d="M182,45 C189,43 192,53 187,59"/>
+<path d="M186,66 C189,77 193,87 198,96"/>
+<path d="M170,80 C180,75 196,83 200,97 C202,108 196,114 187,114 C177,113 168,104 166,93 Z" fill="white"/>
+</g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx26)"/></g></svg><figcaption>192</figcaption></figure></div>
+</div></section><section class="concept" id="coin">
+<header><h2><span class="letter">C</span> Coin head</h2><p>The head from the engraving struck on a coin, like an Attic silver drachm. Headband instead of the curls.</p><p class="verdict">Cleanest at 48 dp and as a monochrome glyph. Loses the hand-on-chin gesture, which is the thing that says "thinking".</p>
+<p class="files">SVG: <code>icon/coin.svg</code>, <code>icon/coin-monochrome.svg</code></p></header>
+<div class="key"><svg width="216" height="216" viewBox="0 0 108 108" aria-label="108 dp canvas with safe zone"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g>
+<rect x="0.25" y="0.25" width="107.5" height="107.5" fill="none" stroke="#B3261E" stroke-width="0.5" stroke-dasharray="2 2"/>
+<circle cx="54" cy="54" r="36" fill="none" stroke="#B3261E" stroke-width="0.4"/><circle cx="54" cy="54" r="33" fill="none" stroke="#B3261E" stroke-width="0.4" stroke-dasharray="1.5 1.5"/></svg><p>108 dp canvas. Solid ring: 72 dp visible area. Dashed ring: 66 dp safe zone.</p></div>
+<div class="strips">
+<div class="strip" style="background:#ECE6DA"><span class="sl">Light launcher · circle</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k28"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k28)"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k29"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k29)"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k30"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k30)"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#16130F"><span class="sl">Dark launcher · squircle</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k31"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k31)"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k32"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k32)"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k33"><path d="M54,18 C80,18 90,28 90,54 C90,80 80,90 54,90 C28,90 18,80 18,54 C18,28 28,18 54,18 Z"/></clipPath></defs><g clip-path="url(#k33)"><rect width="108" height="108" fill="#F3EAD8"/><circle cx="54" cy="54" r="29" fill="none" stroke="#2B2119" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="#2B2119"/>
+<g fill="none" stroke="#F3EAD8" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#F4F5FA"><span class="sl">Themed icon · light</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k34"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k34)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx34" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><circle cx="54" cy="54" r="29" fill="none" stroke="white" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white"/>
+<g fill="none" stroke="black" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx34)"/></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k35"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k35)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx35" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><circle cx="54" cy="54" r="29" fill="none" stroke="white" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white"/>
+<g fill="none" stroke="black" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx35)"/></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k36"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k36)"><rect width="108" height="108" fill="#D7E3F7"/><defs><mask id="mx36" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><circle cx="54" cy="54" r="29" fill="none" stroke="white" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white"/>
+<g fill="none" stroke="black" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#101C2B" mask="url(#mx36)"/></g></svg><figcaption>192</figcaption></figure></div>
+<div class="strip" style="background:#0F1216"><span class="sl">Themed icon · dark</span><figure><svg width="48" height="48" viewBox="18 18 72 72" role="img" aria-label="48 px"><defs><clipPath id="k37"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k37)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx37" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><circle cx="54" cy="54" r="29" fill="none" stroke="white" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white"/>
+<g fill="none" stroke="black" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx37)"/></g></svg><figcaption>48</figcaption></figure><figure><svg width="96" height="96" viewBox="18 18 72 72" role="img" aria-label="96 px"><defs><clipPath id="k38"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k38)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx38" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><circle cx="54" cy="54" r="29" fill="none" stroke="white" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white"/>
+<g fill="none" stroke="black" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx38)"/></g></svg><figcaption>96</figcaption></figure><figure><svg width="192" height="192" viewBox="18 18 72 72" role="img" aria-label="192 px"><defs><clipPath id="k39"><circle cx="54" cy="54" r="36"/></clipPath></defs><g clip-path="url(#k39)"><rect width="108" height="108" fill="#1F2A36"/><defs><mask id="mx39" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="108"><rect width="108" height="108" fill="black"/><circle cx="54" cy="54" r="29" fill="none" stroke="white" stroke-width="3.2"/>
+<g transform="translate(-22.5,29.2) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M162,4 C188,2 208,14 212,32 C213,42 211,48 213,56 L218,71 L211,75 L210,82 C208,90 205,96 200,100 C194,104 184,104 177,101 L172,116 L144,116 C148,100 150,80 148,64 C142,50 140,30 146,18 C150,10 156,6 162,4 Z" fill="white"/>
+<g fill="none" stroke="black" stroke-width="4.5">
+<path d="M146,44 C156,38 172,34 190,36 C198,34 204,34 211,36"/>
+
+<path d="M182,47 C189,45 192,55 187,61"/>
+<path d="M186,68 C189,79 192,88 197,96"/>
+<path d="M204,54 L209,54"/>
+</g></g></mask></defs><rect width="108" height="108" fill="#BBC7DB" mask="url(#mx39)"/></g></svg><figcaption>192</figcaption></figure></div>
+</div></section>
+<section class="notes"><h2>Notes for T20</h2><ul>
+<li>Foreground and background are separate layers. The parchment background is a flat colour; no texture, because texture turns to noise at 48 px.</li>
+<li>Cut lines in A are drawn in the background colour here. In the real foreground and monochrome layers they must be holes (path subtraction), so the themed icon shows the launcher's colour through them. The <code>-monochrome.svg</code> files already do this with a mask.</li>
+<li>Nothing important sits outside the 66 dp safe zone, so circle, squircle and rounded-square launcher masks all keep the figure.</li>
+<li>The colours used for the themed preview are a plausible Material You pair, not the phone's real wallpaper colours.</li>
+</ul></section>
+</main></body></html>
