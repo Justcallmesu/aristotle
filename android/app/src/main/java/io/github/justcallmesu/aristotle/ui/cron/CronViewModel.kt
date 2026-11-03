@@ -75,6 +75,10 @@ data class CronUiState(
     val problem: String? = null,
     /** Hermes' own warning that no gateway runs to fire jobs (`gateway_running: false`). */
     val warning: String? = null,
+    /** Hermes' timezone, when the list names it. */
+    val timezone: String? = null,
+    /** A non-launch profile whose list came without Hermes' `scoped` proof: shown read-only, nothing is sent. */
+    val unscoped: Boolean = false,
     val refreshing: Boolean = false,
     /** The job whose detail page is open. */
     val open: String? = null,
@@ -92,7 +96,10 @@ data class CronUiState(
 
     fun job(id: String): CronJob? = jobs?.firstOrNull { it.id == id }
 
-    fun canToggle(job: CronJob): Boolean = online && job.id !in busy && CronArm.toggleKey(job) in armed
+    /** The switch may be used at all: the PC is there, the profile is proven, Bot Mode does not forbid it, nothing is on its way. */
+    fun togglable(job: CronJob): Boolean = online && !unscoped && !job.legacyDelegated && job.id !in busy
+
+    fun canToggle(job: CronJob): Boolean = togglable(job) && CronArm.toggleKey(job) in armed
 }
 
 /**
@@ -103,6 +110,9 @@ object CronArm {
     const val ARM_MS = PromptSheetLogic.ARM_MS
     const val CREATE = "create"
 
+    /** Create's key carries Hermes' last refusal: its block moves the button, so the arm starts again. */
+    fun createKey(form: CronForm) = if (form.error == null) CREATE else "$CREATE:${form.error}"
+
     fun toggleKey(job: CronJob) = "toggle:${job.id}:${job.active}"
 
     fun deleteKey(jobId: String) = "delete:$jobId"
@@ -111,8 +121,8 @@ object CronArm {
 
     /** The controls on screen in [state]: the form covers the rest, the confirmation its page, a page the list. */
     fun keys(state: CronUiState): Set<String> {
-        if (!state.online) return emptySet()
-        state.form?.let { return setOf(CREATE) }
+        if (!state.online || state.unscoped) return emptySet()
+        state.form?.let { return setOf(createKey(it)) }
         state.confirmDelete?.let { return setOf(confirmKey(it)) }
         state.openJob?.let { return setOf(toggleKey(it), deleteKey(it.id)) }
         return state.jobs.orEmpty().mapTo(HashSet(), ::toggleKey)
@@ -150,6 +160,7 @@ class CronViewModel(
     private var poll: Job? = null
     private var changeWindow: Job? = null
     private var listed = false
+    private var stopped = false
 
     init {
         work.launch { link.state.collect { l -> change { it.copy(link = l, refreshing = it.refreshing && l is LinkState.Online) } } }
@@ -182,6 +193,22 @@ class CronViewModel(
         poll = null
     }
 
+    /**
+     * The app left the screen: `cron.changed` refetches stop (it also fires on scheduler ticks, `change_watcher.py:375-377`),
+     * as T17b's subagent reads do.
+     */
+    fun onStop() {
+        stopped = true
+        changeWindow?.cancel()
+    }
+
+    /** The app is back: one list at once, whatever moved meanwhile. Nothing happens if it was never stopped. */
+    fun onStart() {
+        if (!stopped) return
+        stopped = false
+        if (state.value.online) reload()
+    }
+
     // ── list ───────────────────────────────────────────────────────────────────────────────────────
 
     /** Pull to refresh; offline it is a Retry of the link. */
@@ -210,14 +237,14 @@ class CronViewModel(
     fun toggle(jobId: String) {
         val current = state.value
         val job = current.job(jobId) ?: return
-        if (!current.online || jobId in current.busy || !armed(CronArm.toggleKey(job))) return
+        if (!current.togglable(job) || !armed(CronArm.toggleKey(job))) return
         perform(jobId, CronFrames.toggle(job))
     }
 
     /** Delete on the detail page asks first. */
     fun askDelete(jobId: String) {
         val current = state.value
-        if (!current.online || jobId in current.busy || current.open != jobId || !armed(CronArm.deleteKey(jobId))) return
+        if (!current.online || current.unscoped || jobId in current.busy || current.open != jobId || !armed(CronArm.deleteKey(jobId))) return
         change { it.copy(confirmDelete = jobId) }
     }
 
@@ -228,12 +255,12 @@ class CronViewModel(
         val current = state.value
         val jobId = current.confirmDelete ?: return
         val job = current.job(jobId) ?: return
-        if (!current.online || jobId in current.busy || !armed(CronArm.confirmKey(jobId))) return
+        if (!current.online || current.unscoped || jobId in current.busy || !armed(CronArm.confirmKey(jobId))) return
         change { it.copy(confirmDelete = null) }
         perform(jobId, CronFrames.remove(jobId), done = CronMessage.Deleted(job.name)) { it.copy(open = it.open.takeIf { open -> open != jobId }) }
     }
 
-    fun newJob() = change { if (it.online && it.form == null) it.copy(form = CronForm()) else it }
+    fun newJob() = change { if (it.online && !it.unscoped && it.form == null) it.copy(form = CronForm()) else it }
 
     fun closeForm() = change { if (it.form?.sending == true) it else it.copy(form = null) }
 
@@ -244,7 +271,7 @@ class CronViewModel(
     fun create() {
         val current = state.value
         val form = current.form ?: return
-        if (!current.online || form.sending || !form.complete || !armed(CronArm.CREATE)) return
+        if (!current.online || current.unscoped || form.sending || !form.complete || !armed(CronArm.createKey(form))) return
         val draft = CronDraft(form.name.trim(), form.prompt.trim(), form.schedule, CronSchedule.repeat(form.plan), form.continuity)
         change { it.copy(form = form.copy(sending = true, error = null), message = null) }
         work.launch {
@@ -276,10 +303,10 @@ class CronViewModel(
 
     /** The first `cron.changed` opens a window; later ones join it: one refetch per window, only once a list came. */
     private fun CoroutineScope.onChanged() {
-        if (!listed || changeWindow?.isActive == true) return
+        if (!listed || stopped || changeWindow?.isActive == true) return
         changeWindow = launch {
             delay(timings.changeWindowMillis)
-            reload()
+            if (!stopped) reload()
         }
     }
 
@@ -301,6 +328,8 @@ class CronViewModel(
             s.copy(
                 jobs = list.jobs,
                 warning = list.warning,
+                timezone = list.timezone,
+                unscoped = list.unscopedFor(profile),
                 problem = null,
                 refreshing = false,
                 open = s.open?.takeIf { it in known },

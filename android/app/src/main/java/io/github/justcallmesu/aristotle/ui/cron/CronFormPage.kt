@@ -138,7 +138,7 @@ private fun SchedulePicker(plan: SchedulePlan, enabled: Boolean, locale: Locale,
                 Label(stringResource(R.string.cron_form_day))
                 Chips(WEEK, plan.weekday, enabled, { CronTimes.weekday(it, locale) }) { d -> edit { it.copy(weekday = d) } }
             }
-            Frequency.Monthly -> NumberField(R.string.cron_form_month_day, plan.monthDay, 2, enabled) { n -> edit { it.copy(monthDay = n) } }
+            Frequency.Monthly -> NumberField(R.string.cron_form_month_day, plan.monthDay, 2, enabled) { n -> edit { it.copy(monthDay = CronSchedule.monthDay(n, it.monthDay)) } }
             Frequency.Advanced -> OutlinedTextField(
                 value = plan.raw,
                 onValueChange = { text -> edit { it.copy(raw = text) } },
@@ -181,7 +181,7 @@ private fun NumberField(label: Int, value: String, digits: Int, enabled: Boolean
     )
 }
 
-/** The half-hour times the Desktop offers (`cron.tsx:651-665`), the PC's clock. */
+/** The half-hour times the Desktop offers (`cron.tsx:651-665`), Hermes' timezone. */
 @Composable
 private fun TimeChoice(plan: SchedulePlan, enabled: Boolean, locale: Locale, onPick: (Int, Int) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }

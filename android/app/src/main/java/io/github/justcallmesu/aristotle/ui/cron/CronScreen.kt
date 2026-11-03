@@ -55,6 +55,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
@@ -79,6 +81,8 @@ fun CronScreen(viewModel: CronViewModel, profileLabel: String?, onBack: () -> Un
         viewModel.onResume()
         onPauseOrDispose { viewModel.onPause() }
     }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onStop() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onStart() }
     BackHandler(enabled = state.form != null || state.open != null) {
         if (state.form != null) viewModel.closeForm() else viewModel.close()
     }
@@ -97,11 +101,11 @@ fun CronScreen(viewModel: CronViewModel, profileLabel: String?, onBack: () -> Un
             val form = state.form
             val job = state.openJob
             when {
-                form != null -> CronFormPage(form, state.online, CronArm.CREATE in state.armed, locale, remember(viewModel) { ViewModelFormActions(viewModel) })
+                form != null -> CronFormPage(form, state.online, CronArm.createKey(form) in state.armed, locale, remember(viewModel) { ViewModelFormActions(viewModel) })
                 job != null -> JobPage(job, state, locale, viewModel)
                 else -> ListPage(state, profileLabel, locale, bottom.asPaddingValues(), viewModel, onBack)
             }
-            if (form == null && job == null && state.online && state.jobs != null && state.problem == null) {
+            if (form == null && job == null && state.online && !state.unscoped && state.jobs != null && state.problem == null) {
                 ExtendedFloatingActionButton(
                     onClick = viewModel::newJob,
                     icon = { Icon(painter = painterResource(R.drawable.ic_add), contentDescription = null) },
@@ -128,10 +132,11 @@ private fun ListPage(state: CronUiState, profileLabel: String?, locale: Locale, 
     Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         SubPageTopBar(stringResource(R.string.cron_title), onBack)
         QuietLine(
-            listOfNotNull(profileLabel?.let { stringResource(R.string.cron_profile, it) }, stringResource(R.string.cron_tz_note)).joinToString(" · "),
+            listOfNotNull(profileLabel?.let { stringResource(R.string.cron_profile, it) }, tzNote(state.timezone)).joinToString(" · "),
             Modifier.padding(start = Spacing.listGutter, end = Spacing.listGutter, bottom = Spacing.s),
         )
         if (!state.online) Banner(stringResource(R.string.cron_offline))
+        if (state.unscoped) Banner(stringResource(R.string.cron_unscoped))
         state.warning?.let { Banner(it) }
         val jobs = state.jobs
         when {
@@ -174,7 +179,7 @@ private fun JobRow(job: CronJob, state: CronUiState, locale: Locale, now: ZonedD
         },
         trailingContent = {
             Switch(
-                checked = job.active,
+                checked = job.active && !job.legacyDelegated,
                 onCheckedChange = { onToggle() },
                 enabled = state.canToggle(job),
                 modifier = Modifier.semantics { contentDescription = active },
@@ -212,10 +217,11 @@ private fun JobPage(job: CronJob, state: CronUiState, locale: Locale, vm: CronVi
     Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         SubPageTopBar(job.name, vm::close)
         if (!state.online) Banner(stringResource(R.string.cron_offline))
+        if (state.unscoped) Banner(stringResource(R.string.cron_unscoped))
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(bottom = Spacing.xxl)) {
             ListItem(
                 modifier = Modifier
-                    .toggleable(value = job.active, enabled = state.canToggle(job), role = Role.Switch, onValueChange = { vm.toggle(job.id) })
+                    .toggleable(value = job.active && !job.legacyDelegated, enabled = state.canToggle(job), role = Role.Switch, onValueChange = { vm.toggle(job.id) })
                     .heightIn(min = Sizes.listRowHeight),
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
                 headlineContent = { Text(stringResource(R.string.cron_active), style = MaterialTheme.typography.bodyLarge) },
@@ -228,16 +234,17 @@ private fun JobPage(job: CronJob, state: CronUiState, locale: Locale, vm: CronVi
                     }
                     Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
-                trailingContent = { Switch(checked = job.active, onCheckedChange = null, enabled = state.canToggle(job)) },
+                trailingContent = { Switch(checked = job.active && !job.legacyDelegated, onCheckedChange = null, enabled = state.canToggle(job)) },
             )
+            if (job.legacyDelegated) Banner(stringResource(R.string.cron_legacy_unsafe))
             job.issue?.let { Banner(it) }
             Facts(job, now, locale)
             PromptBlock(job)
-            QuietLine(stringResource(R.string.cron_tz_note), Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.s))
+            QuietLine(tzNote(state.timezone), Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.s))
             QuietLine(stringResource(R.string.cron_pc_only), Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.s))
             OutlinedButton(
                 onClick = { vm.askDelete(job.id) },
-                enabled = state.online && !busy && CronArm.deleteKey(job.id) in state.armed,
+                enabled = state.online && !state.unscoped && !busy && CronArm.deleteKey(job.id) in state.armed,
                 shape = ButtonShape,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.l).heightIn(min = Sizes.minTouchTarget),
@@ -350,6 +357,11 @@ private fun EmptyBody() {
         Text(stringResource(R.string.cron_empty_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/** Schedule times follow Hermes' configured timezone (`cron/jobs.py:820-828`), not the PC's system clock. */
+@Composable
+private fun tzNote(timezone: String?): String =
+    if (timezone == null) stringResource(R.string.cron_tz_note_hermes) else stringResource(R.string.cron_tz_note_hermes_named, timezone)
 
 @Composable
 private fun QuietLine(text: String, modifier: Modifier = Modifier) {

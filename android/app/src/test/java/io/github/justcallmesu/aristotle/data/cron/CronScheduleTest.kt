@@ -89,6 +89,18 @@ class CronScheduleTest {
     }
 
     @Test
+    fun theMonthDayFieldTakesOnlyOneToThirtyOne() {
+        assertEquals("1", CronSchedule.monthDay("1", ""))
+        assertEquals("31", CronSchedule.monthDay("31", "3"))
+        assertEquals("3", CronSchedule.monthDay("32", "3"))
+        assertEquals("", CronSchedule.monthDay("0", ""))
+        assertEquals("1", CronSchedule.monthDay("00", "1"))
+        assertEquals("", CronSchedule.monthDay("", "1"))
+        assertEquals("12", CronSchedule.monthDay("1a2", "1"))
+        assertEquals("1", CronSchedule.monthDay("99", "1"))
+    }
+
+    @Test
     fun aSlotPastTheGraceIsOverdueNeverNext() {
         val now = Instant.parse("2026-11-04T03:00:00Z")
         val job = CronJob("a", "A", nextRunAt = "2026-11-04T09:30:00+07:00") // 02:30Z, 30 min ago

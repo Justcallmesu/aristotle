@@ -125,5 +125,25 @@ class CronFramesTest {
         assertFalse(CronJob("a", "A", promptPreview = "short...").promptCut)
     }
 
+    @Test
+    fun scopedIsHermesProofOfTheProfile() {
+        val jobs = """"success":true,"jobs":[]"""
+        assertFalse(CronFrames.jobs(json("{$jobs,\"scoped\":\"pm\"}")).unscopedFor("pm"))
+        assertTrue(CronFrames.jobs(json("{$jobs,\"scoped\":\"other\"}")).unscopedFor("pm"))
+        assertTrue(CronFrames.jobs(json("{$jobs}")).unscopedFor("pm"))
+        assertFalse(CronFrames.jobs(json("{$jobs,\"scoped\":true}")).unscopedFor("pm"))
+        assertFalse(CronFrames.jobs(json("{$jobs}")).unscopedFor(null))
+        assertEquals("Asia/Jakarta", CronFrames.jobs(json("{$jobs,\"timezone\":\"Asia/Jakarta\"}")).timezone)
+    }
+
+    @Test
+    fun legacyDelegatedBotRoutinesAreTheDesktopsShape() {
+        val prompt = "You are running the scheduled routine \"Audit\" for agent 'research'."
+        assertTrue(CronJob("a", "[bot:research] Audit", promptPreview = prompt).legacyDelegated)
+        assertTrue(CronJob("a", "[BOT:Research] Audit", promptPreview = prompt).legacyDelegated)
+        assertFalse(CronJob("a", "Audit", promptPreview = prompt).legacyDelegated)
+        assertFalse(CronJob("a", "[bot:research] Audit", promptPreview = "[bot-mode:routine:v2] Audit").legacyDelegated)
+    }
+
     private fun JsonObject.action(): String = (this["action"] as kotlinx.serialization.json.JsonPrimitive).content
 }

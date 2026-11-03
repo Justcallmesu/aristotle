@@ -483,4 +483,9 @@
     <string name="cron_form_refused">Hermes refused this job</string>
     <string name="cron_form_create">Create</string>
     <string name="cron_form_creating">Creating…</string>
+    <!-- T18b: cron minors -->
+    <string name="cron_tz_note_hermes">Schedule times are in Hermes\' timezone; run times are this phone\'s.</string>
+    <string name="cron_tz_note_hermes_named">Schedule times are in Hermes\' timezone (%1$s); run times are this phone\'s.</string>
+    <string name="cron_unscoped">This PC\'s Hermes can\'t manage jobs for this profile from the phone</string>
+    <string name="cron_legacy_unsafe">Paused for security: delete and recreate this legacy job before running it again.</string>
 </resources>

@@ -474,4 +474,9 @@
     <string name="cron_form_refused">Hermes menolak tugas ini</string>
     <string name="cron_form_create">Buat</string>
     <string name="cron_form_creating">Membuat…</string>
+    <!-- T18b: cron minors -->
+    <string name="cron_tz_note_hermes">Jam di jadwal mengikuti zona waktu Hermes; waktu jalan mengikuti jam ponsel ini.</string>
+    <string name="cron_tz_note_hermes_named">Jam di jadwal mengikuti zona waktu Hermes (%1$s); waktu jalan mengikuti jam ponsel ini.</string>
+    <string name="cron_unscoped">Hermes di PC ini tidak bisa mengelola tugas profil ini dari ponsel</string>
+    <string name="cron_legacy_unsafe">Dijeda demi keamanan: hapus dan buat ulang tugas lama ini sebelum menjalankannya lagi.</string>
 </resources>

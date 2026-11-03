@@ -62,11 +62,14 @@ class CronViewModelTest {
 
     /** Hermes' store: [active] says whether job `a1` runs; answers changes with [change]. */
     private var active = true
+    private var extra = "" // more top-level fields of the list answer, e.g. `"scoped":"pm",`
+    private var jobName = "Digest"
+    private var jobPrompt = "Read mail"
     private var change: (Call) -> JsonElement = { json("""{"success":true}""") }
 
     private fun hermes(call: Call): JsonElement = when (call.action) {
         "list" -> json(
-            """{"success":true,"count":1,"jobs":[{"job_id":"a1","name":"Digest","prompt_preview":"Read mail","schedule":"0 9 * * *",
+            """{$extra"success":true,"count":1,"jobs":[{"job_id":"a1","name":"$jobName","prompt_preview":"$jobPrompt","schedule":"0 9 * * *",
                "enabled":$active,"state":"${if (active) "scheduled" else "paused"}","next_run_at":"2026-11-05T09:00:00+07:00"}]}""",
         )
         else -> change(call)
@@ -238,6 +241,10 @@ class CronViewModelTest {
         // The user fixes the schedule and creates again: one more add, the form closes.
         vm.editForm { it.copy(plan = it.plan.copy(frequency = io.github.justcallmesu.aristotle.data.cron.Frequency.Daily, hour = 7, minute = 30)) }
         assertNull(vm.uiState.value.form!!.error)
+        now = 1_249 // the button moved back up when the refusal went (at 650): it arms again (T18b)
+        vm.create()
+        assertEquals(1, link.actions("add").size)
+        now = 1_250
         vm.create()
         waitFor("created") { vm.uiState.value.form == null }
         assertEquals(
@@ -299,5 +306,131 @@ class CronViewModelTest {
         assertNull(vm.uiState.value.form)
         assertTrue(vm.uiState.value.armed.isEmpty())
         assertEquals(1, vm.uiState.value.jobs!!.size) // the last list stays
+    }
+
+    private fun changed(link: FakeLink) = link.events.tryEmit(InboundFrame.Event("cron.changed", "", JsonObject(emptyMap())))
+
+    // ── T18b ──────────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun cronChangedDoesNotRefetchInTheBackgroundAndComingBackListsAtOnce() {
+        val link = FakeLink(::hermes)
+        val vm = listed(link)
+        vm.onStop()
+        repeat(5) { changed(link) }
+        runBlocking { delay(300) }
+        assertEquals("nothing is listed while the app is in the background", 1, link.actions("list").size)
+        vm.onStart()
+        waitFor("listed on ON_START") { link.actions("list").size == 2 }
+        // Back in front: cron.changed refetches again, once per window.
+        changed(link)
+        waitFor("refetch after the window") { link.actions("list").size == 3 }
+    }
+
+    @Test
+    fun aWindowOpenWhenTheAppStopsDoesNotFire() {
+        val link = FakeLink(::hermes)
+        val vm = listed(link)
+        changed(link)
+        vm.onStop()
+        runBlocking { delay(300) }
+        assertEquals(1, link.actions("list").size)
+    }
+
+    @Test
+    fun startingWithoutAStopListsNothingExtra() {
+        val link = FakeLink(::hermes)
+        val vm = listed(link)
+        vm.onStart()
+        runBlocking { delay(150) }
+        assertEquals(1, link.actions("list").size)
+    }
+
+    @Test
+    fun aProfileListWithoutScopedIsReadOnlyAndSendsNothing() {
+        val link = FakeLink(::hermes) // an older gateway: no `scoped`
+        val vm = listed(link, profile = "pm")
+        assertTrue(vm.uiState.value.unscoped)
+        now = 5_000
+        vm.toggle("a1")
+        vm.open("a1")
+        now = 6_000
+        vm.askDelete("a1")
+        vm.newJob()
+        assertTrue(vm.uiState.value.armed.isEmpty())
+        assertNull(vm.uiState.value.form)
+        assertNull(vm.uiState.value.confirmDelete)
+        assertEquals(listOf("list"), link.calls.map { it.action })
+        assertTrue(!vm.uiState.value.canToggle(vm.uiState.value.jobs!!.single()))
+    }
+
+    @Test
+    fun aListScopedToTheProfileKeepsTheControls() {
+        extra = """"scoped":"pm","""
+        val link = FakeLink(::hermes)
+        val vm = listed(link, profile = "pm")
+        assertTrue(!vm.uiState.value.unscoped)
+        now = 700
+        vm.toggle("a1")
+        waitFor("paused") { link.actions("pause").size == 1 }
+        // Scoped to another profile is not a proof either.
+        extra = """"scoped":"other","""
+        val wrong = listed(FakeLink(::hermes), profile = "pm")
+        assertTrue(wrong.uiState.value.unscoped)
+    }
+
+    @Test
+    fun theLaunchProfileNeedsNoScopedProof() {
+        val vm = listed(FakeLink(::hermes))
+        assertTrue(!vm.uiState.value.unscoped)
+    }
+
+    @Test
+    fun aDelegatedBotRoutineKeepsItsSwitchOff() {
+        jobName = "[bot:research] Audit"
+        jobPrompt = "You are running the scheduled routine \\\"Audit\\\" for agent"
+        active = false
+        val link = FakeLink(::hermes)
+        val vm = listed(link)
+        now = 5_000
+        vm.toggle("a1")
+        assertTrue(vm.uiState.value.jobs!!.single().legacyDelegated)
+        assertTrue(!vm.uiState.value.canToggle(vm.uiState.value.jobs!!.single()))
+        assertTrue(link.actions("resume").isEmpty())
+        // A bot-tagged routine of the safe shape, and a legacy prompt without the tag, are ordinary jobs.
+        jobPrompt = "[bot-mode:routine:v2] Audit"
+        val safe = listed(FakeLink(::hermes))
+        now = 20_000
+        safe.refresh()
+        now = 21_000
+        assertTrue(!safe.uiState.value.jobs!!.single().legacyDelegated)
+    }
+
+    @Test
+    fun theListCarriesHermesTimezoneWhenItNamesOne() {
+        extra = """"timezone":"Asia/Jakarta","""
+        assertEquals("Asia/Jakarta", listed(FakeLink(::hermes)).uiState.value.timezone)
+        extra = ""
+        assertNull(listed(FakeLink(::hermes)).uiState.value.timezone)
+    }
+
+    @Test
+    fun createArmsAgainWhenARefusalMovesTheButton() {
+        change = { json("""{"success":false,"error":"Invalid schedule"}""") }
+        val link = FakeLink(::hermes)
+        val vm = listed(link)
+        now = 100
+        vm.newJob()
+        vm.editForm { it.copy(name = "N", prompt = "P") }
+        now = 700
+        vm.create()
+        waitFor("refused") { vm.uiState.value.form?.error != null }
+        // The refusal block pushed the button down: a tap in the next 600 ms is not counted.
+        now = 750
+        vm.create()
+        assertEquals(1, link.actions("add").size)
+        now = 1_300
+        vm.create()
+        waitFor("second add") { link.actions("add").size == 2 }
     }
 }

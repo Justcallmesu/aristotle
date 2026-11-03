@@ -80,6 +80,12 @@ object CronSchedule {
         }
     }
 
+    /** The month-day field after an edit to [text]: digits only, 1-31 (a day Hermes' cron would refuse never gets in); [previous] when [text] is outside. */
+    fun monthDay(text: String, previous: String): String {
+        val digits = text.filter(Char::isDigit).take(2)
+        return if (digits.isEmpty() || digits.toInt() in 1..31) digits else previous
+    }
+
     /** "Stop after N runs" for [plan]: null for a one-shot, the raw string, or a blank field (`cron.tsx:1008-1011`). */
     fun repeat(plan: SchedulePlan): Int? = if (plan.repeats && plan.repeat.isNotBlank()) positive(plan.repeat) else null
 

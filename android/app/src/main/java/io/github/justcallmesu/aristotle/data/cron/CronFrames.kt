@@ -37,6 +37,13 @@ data class CronJob(
     val skills: List<String> = emptyList(),
     val continuity: Boolean = false,
 ) {
+    /**
+     * A delegated `[bot:x]` routine of the old shape: Bot Mode never lets it run again, it pauses it and disables its
+     * switch (the Desktop's `isLegacyDelegatedRoutine`, `hermes-bots/cron.tsx:99-103`, `:499-500`, `:572`, `:602`). The
+     * phone leaves its switch off for the same reason.
+     */
+    val legacyDelegated: Boolean get() = BOT_TAG.containsMatchIn(name) && promptPreview.startsWith(LEGACY_PREFIX)
+
     /** Scheduled to fire: enabled and not paused (the Desktop's switch, `hermes-bots/cron.tsx:500`). */
     val active: Boolean get() = enabled && state != PAUSED
 
@@ -52,11 +59,27 @@ data class CronJob(
     private companion object {
         const val PAUSED = "paused"
         const val PREVIEW_CHARS = 100
+
+        /** `BOT_TAG_RE` and `LEGACY_DELEGATED_ROUTINE_PREFIX`, `hermes-bots/cron.tsx:75-77`. */
+        val BOT_TAG = Regex("^\\[bot:([a-z0-9][a-z0-9_-]*)\\]\\s*", RegexOption.IGNORE_CASE)
+        const val LEGACY_PREFIX = "You are running the scheduled routine \""
     }
 }
 
-/** A `cron.manage list` answer: the jobs, and Hermes' warning when no gateway is there to fire them (`gateway_running`). */
-data class CronList(val jobs: List<CronJob>, val warning: String? = null)
+/**
+ * A `cron.manage list` answer: the jobs, and Hermes' warning when no gateway is there to fire them (`gateway_running`).
+ * [scope]: Hermes' proof that it scoped the call to the asked profile (`scoped`, the profile's name; `true` is read as
+ * a yes too); null when the gateway omitted it, as older ones do (`methods_tools.py:1314-1317`, Desktop `cron.tsx:82-84`).
+ * [timezone]: Hermes' timezone when the answer names one.
+ */
+data class CronList(val jobs: List<CronJob>, val warning: String? = null, val scope: String? = null, val timezone: String? = null) {
+    /** Hermes did not say it honoured [profile]: acting would reach the launch profile's jobs. Never true for the launch profile. */
+    fun unscopedFor(profile: String?): Boolean = profile != null && scope != profile && scope != TRUE
+
+    private companion object {
+        const val TRUE = "true"
+    }
+}
 
 /** What a `cron.manage` change answered: done (with the job when Hermes sent it), or refused with Hermes' reason. */
 sealed interface CronAnswer {
@@ -125,7 +148,8 @@ object CronFrames {
         refusal(answer)?.let { throw IllegalArgumentException(it) }
         val rows = (answer["jobs"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::job) }
         val warning = answer.text("warning")?.takeIf { answer.flag("gateway_running") == false && it.isNotBlank() }
-        return CronList(rows, warning)
+        val scope = (answer["scoped"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() && it != "false" }
+        return CronList(rows, warning, scope, answer.text("timezone")?.takeIf { it.isNotBlank() })
     }
 
     /** A change's answer: `success: false` with `error` is Hermes refusing (`tool_error`, `cronjob_tools.py:1091-1103`). */
