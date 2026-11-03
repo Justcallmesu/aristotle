@@ -8,3 +8,6 @@ local.properties
 *.iml
 .cxx/
 captures/
+keystore.properties
+*.p12
+app/release/
