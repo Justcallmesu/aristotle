@@ -15,9 +15,12 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T02b | compileSdk/targetSdk 36 + current Compose/androidx (Q36); `android.builder.sdkDownload=false`; wrapper `distributionSha256Sum`; DayNight launch theme (no dark flash) — T02 review MAJOR×2, MINOR×2 | T02 | android | DONE |
 | T03b | State dir forced to 0700 (chmod or refuse if group/other readable); android gate fails when `gradlew` exists but is not executable; config keys exact-case, duplicates refused — T03 review MAJOR + MINOR×2 | T03 | server, docs | DONE |
 | T01b | `docs/protocol.md`: `session.info` has two shapes (partial update vs full inventory) — clients merge present keys only; correct system_prompt frequency; document ticket params; fix 403 cite — T01 review MAJOR + MINOR/NITs | T01 | docs | DONE |
-| T04 | Hermes connector package (ticket, dial, capabilities, reconnect, fail closed) + fake Hermes | T01b, T03b | server | TODO |
-| T05 | Listeners + device auth + manual pairing + devices list/revoke (server) | T03b | server | TODO |
-| T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T04, T05 | server | TODO |
+| T04 | Hermes connector package (ticket, dial, capabilities, reconnect, fail closed) + fake Hermes | T01b, T03b | server | DONE |
+| T05 | Listeners + device auth + manual pairing + devices list/revoke (server) | T03b | server | DONE |
+| T04b | Connector review fixes: `Do` per profile (MAJOR), no redirects, strip caller auth headers, ack timeout + buffer cap, close-code helper, Hermes-order socket discovery + owner check | T04 | server/internal/hermes | DONE |
+| T05b | Listener/pairing review fixes: Tailscale by TUN interface (MAJOR, cleartext risk), LAN physical-only + subnet peers, iface names in `pair`, per-IP lockout, pair read deadline, protocol.md §11 | T05 | server, docs | DONE |
+| T05c | Hardening from wave-4 reviews: D9, D10, D12, D13, D14, D15 | T04b, T05b | server, docs §11 | TODO |
+| T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T05c | server | TODO |
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06 | android | TODO |
 | T08 | Pairing by QR (server prints QR; app scans) | T07 | server, android | TODO |
 | T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07 | android | TODO |
@@ -41,14 +44,21 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 
 | # | Finding (source) | Goes to | Status |
 |---|---|---|---|
-| D1 | Unmatched routes log the raw path (`httpapi.go:47`); a secret in a path would leak (T03b review) | T05 | OPEN |
-| D2 | `Lstat`->`Chmod` race on the state dir; open with O_NOFOLLOW and fchmod (T03b review) | T05 | OPEN |
-| D3 | No test for the other-owner refusal; inject file info (T03b review) | T05 | OPEN |
+| D1 | Unmatched routes log the raw path (`httpapi.go:47`); a secret in a path would leak (T03b review) | T05 | DONE (T05) |
+| D2 | `Lstat`->`Chmod` race on the state dir; open with O_NOFOLLOW and fchmod (T03b review) | T05 | DONE (T05) |
+| D3 | No test for the other-owner refusal; inject file info (T03b review) | T05 | DONE (T05) |
 | D4 | Request log written after the handler returns; long-lived WS logs nothing until close (T03b review) | T06 | OPEN |
-| D5 | Config file containing only `null` accepted as defaults (T03b review) | T05 | OPEN |
-| D6 | `docs/protocol.md` §1.2: a MISSING ticket subprotocol falls through to the web gate (only ill-formed -> 4403) (T01b review) | T04 | OPEN |
+| D5 | Config file containing only `null` accepted as defaults (T03b review) | T05 | DONE (T05) |
+| D6 | `docs/protocol.md` §1.2: a MISSING ticket subprotocol falls through to the web gate (only ill-formed -> 4403) (T01b review) | T04 | DONE (T04) |
 | D7 | Second Ctrl-C ignored during shutdown; net/http errors bypass slog (T03 review) | T21 | OPEN |
 | D8 | Revisit night-theme window colours when edge-to-edge is adopted (T02b review) | T11 | OPEN |
+| D9 | `Do` header strip misses non-canonical keys (`authorization`); use `delete(h, name)` (T04b review) | T05c | OPEN |
+| D10 | `Do` strips a denylist; switch to an allowlist so `X-Forwarded-*` never reaches Hermes (T04b review) | T05c | OPEN |
+| D11 | `"default"` profile = launch profile in Aristotle, root `~/.hermes` in Hermes; names case-sensitive (T04b review) | T14 | OPEN |
+| D12 | No test for 1013/4403 arriving on `Conn.Read` after dial (T04b review) | T05c | OPEN |
+| D13 | Tailscale listener accepts tailnet-range sources from any interface; bind with SO_BINDTODEVICE (T05b review, unproven) | T05c | OPEN |
+| D14 | One rejection-log limiter per listener; hard-coded "5 tries" text; control lock taken after cert creation; §11 omissions (T05b review NITs) | T05c | OPEN |
+| D15 | `decodeEnvelope` `sizeOK` parameter is dead (T04b review NIT) | T05c | OPEN |
 
 ## Tickets
 
@@ -156,3 +166,8 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 User: go. T01b, T02b, T03b dispatched in parallel (std each; disjoint files).
 - 2026-11-03 T01b/T02b/T03b built. PM gates GREEN on the full tree (runs/pm-gate-2: 30 Go tests, android lint+test+assemble on SDK 36). T03b mutation (skip chmod of existing dir) fails TestEnsureDirTightensExisting; restored sha256 match. T03b's own android FAIL was a parallel-build collision, not reproduced. Reviews: T01b std, T02b std (config/resources), T03b deep.
 - 2026-11-03 Wave-2 reviews: T01b, T02b, T03b PASS-WITH-FINDINGS, no BLOCKER/MAJOR. All DONE; deferred findings D1-D8 on the board.
+- 2026-11-03 Wave 2 committed+pushed (ea00641..4d8207a). T04 (std) and T05 (deep, security boundary) dispatched in parallel; T04 owns internal/hermes + go.mod, T05 owns cmd/app/config/httpapi/new packages. Dependency decision: github.com/coder/websocket for the WS client (std lib has none).
+- 2026-11-03 T04/T05 built. PM gates GREEN (runs/pm-gate-3: 110 Go tests + android). Mutations: T04 protocol guard -> TestUnsupportedProtocolFailsClosed fails; T05 token compare forced true -> 4 auth tests fail; both restored sha-match. T05 live run on real Wi-Fi + Tailscale: pair 201, /v1/me 200, revoke 401. Reviews dispatched (deep x2). Open: docker bridge 172.28.0.1 gets an HTTPS listener.
+- 2026-11-03 Wave-3 reviews: T04 PASS-WITH-FINDINGS (MAJOR: REST `Do` bound to launch profile; unused so far) -> committed e927430 and pushed, fixes in T04b. T05 CHANGES-REQUIRED (MAJOR proven: any 100.64/10 address got a plain-HTTP 'Tailscale' listener; PM confirmed `listen/addr.go:81-97` classifies by address only) -> not committed; fix round T05b (deep, retry 1/2). Docker bridge listener folded into T05b.
+- 2026-11-03 T04b/T05b built. PM gates GREEN (runs/pm-gate-4: 154 Go tests + android; control+listen -race -count=3 green). Mutations: Tailscale-by-TUN -> TestSelectTailnetRangeNeedsTailscaleTun fails; Do launch-profile ticket -> TestDoMintsTicketForTargetProfile fails; both restored sha-match. T05b also fixed a shared tls.Config data race and a flaky TestOtherUIDRefused. Reviews dispatched (deep x2).
+- 2026-11-03 Wave-4 reviews: T04b and T05b PASS-WITH-FINDINGS, no BLOCKER/MAJOR; all earlier findings FIXED. Committed T04b and T05+T05b; new minors D9-D15 -> T05c (before T06), D11 -> T14.
