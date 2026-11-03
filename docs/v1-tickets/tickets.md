@@ -24,8 +24,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T06b | Relay review fixes: slow phone not cut by keepalive (MAJOR), revoke on stalled phone, method-name log allowlist, §12 docs, refuse `desktop_local` (Q43) | T06 | server, docs §12 | DONE |
 | T06c | Relay liveness: dead phone closed even while Hermes streams small frames (T06b review MAJOR, proven) | T06b | server/internal/relay | DONE |
 | TD1 | Design pass: mockups (pair, sessions, chat live turn, approval, offline), icon concepts, draft design notes (Q37) | — | docs/design | DONE |
-| T06d | Relay hardening D20 | T06c | server/internal/relay, docs §12 | TODO |
-| T07b | App + connector fixes from T07 review and device test: D18 (server), D19, D21, D22 | T07 | android, server/internal/hermes | TODO |
+| T06d | Relay hardening D20 | T06c | server/internal/relay, docs §12 | DONE |
+| T07b | App + connector fixes from T07 review and device test: D18 (server), D19, D21, D22 | T07 | android, server/internal/hermes | DONE |
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | DONE |
 | T08 | Pairing by QR (server prints QR; app scans) | T07b | server, android | TODO |
 | T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07b | android | TODO |
@@ -33,7 +33,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | TODO ⟳ |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | TODO ⟳ |
-| T14 | Sessions: search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
+| T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
 | T15 | Model + reasoning switch; slash commands | T13 | android | TODO ⟳ |
 | T16 | Send pictures and files | T13 | android (+server) | TODO ⟳ |
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
@@ -67,11 +67,16 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D14 | One rejection-log limiter per listener; hard-coded "5 tries" text; control lock taken after cert creation; §11 omissions (T05b review NITs) | T05c | DONE (T05c) |
 | D15 | `decodeEnvelope` `sizeOK` parameter is dead (T04b review NIT) | T05c | DONE (T05c) |
 | D16 | No positive test that the interface pin is applied (getsockopt SO_BINDTODEVICE); empty iface name silently unpins (`manager.go:220`) (T05c review F1+F2) | T06 | DONE (T06) |
-| D18 | Connector looks for `gateway.sock` only in `$HERMES_HOME`; when that is a profile home (e.g. `profiles/pm`, set in any Hermes-launched shell) it reports 4503 although the root gateway runs. Fall back to the root home / follow Hermes' own resolution (found in T07 device test) | T07b | OPEN |
-| D19 | Default device name is the model code (`22101320G`); use the marketing name (`Settings.Global.DEVICE_NAME` / `Build.MODEL` fallback) (T07 device test) | T07b | OPEN |
-| D20 | Relay: detect blocked writes exactly (wrap the TLS listener, write via SyscallConn) instead of the 10 ms threshold; `TCP_NOTSENT_LOWAT` ~128 KiB on phone sockets; §12: clients must answer every ping and hand frames off fast (T06c review F1, F3, F5, F6) | T06d | OPEN |
-| D21 | App: Tailscale cleartext only over the VPN `Network` (refuse when Tailscale is off) + `Proxy.NO_PROXY` on every client (T07 review MAJOR, unproven) | T07b | OPEN |
-| D22 | App: transient Keystore decrypt error must not wipe pairing; Keystore off the main thread; `parseIpv6` never resolves DNS; move relay logic from SessionsViewModel to `data/` with tests; 3 missing security tests; 4 NITs (T07 review MINORs) | T07b | OPEN |
+| D18 | Connector looks for `gateway.sock` only in `$HERMES_HOME`; when that is a profile home (e.g. `profiles/pm`, set in any Hermes-launched shell) it reports 4503 although the root gateway runs. Fall back to the root home / follow Hermes' own resolution (found in T07 device test) | T07b | DONE |
+| D19 | Default device name is the model code (`22101320G`); use the marketing name (`Settings.Global.DEVICE_NAME` / `Build.MODEL` fallback) (T07 device test) | T07b | DONE |
+| D20 | Relay: detect blocked writes exactly (wrap the TLS listener, write via SyscallConn) instead of the 10 ms threshold; `TCP_NOTSENT_LOWAT` ~128 KiB on phone sockets; §12: clients must answer every ping and hand frames off fast (T06c review F1, F3, F5, F6) | T06d | DONE |
+| D21 | App: Tailscale cleartext only over the VPN `Network` (refuse when Tailscale is off) + `Proxy.NO_PROXY` on every client (T07 review MAJOR, unproven) | T07b | DONE |
+| D22 | App: transient Keystore decrypt error must not wipe pairing; Keystore off the main thread; `parseIpv6` never resolves DNS; move relay logic from SessionsViewModel to `data/` with tests; 3 missing security tests; 4 NITs (T07 review MINORs) | T07b | DONE |
+| D23 | App: a non-Tailscale full-tunnel VPN (0.0.0.0/0) passes the tailnet route check; cleartext would go through it. Fix depends on Q49 (TLS on Tailscale) (T07b review MAJOR, unproven) | Q49 | OPEN |
+| D24 | Android 10-11: transient keystore daemon failure looks like a missing key and wipes pairing (T07b review) | T09 | OPEN |
+| D25 | With HERMES_HOME=profile, the profile name "default" resolves to that profile, not the root; document or fix before profile switching (T07b review) | T14 | OPEN |
+| D26 | Shared OkHttp pool does not compare socket factories (safe today via forEndpoint); discover.go symlinks; duplicate served entry; "Tailscale is off" wording when VPN has no route (T07b NITs) | T09 | OPEN |
+| D27 | trackedConn inherits ReadFrom/writev from embedded *net.TCPConn, bypassing drain tracking; error text; protocol.md:497 wording; long line (T06d review) | T09 | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
 ## Tickets
@@ -203,3 +208,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 T06c + T07 built. PM gates GREEN (runs/pm-gate-8: 211 Go tests; android lint + 59 unit tests + assemble). T07 mutation: pin check disabled -> 2 of 59 tests fail; restored sha-match. T07 not run on device (phone not visible to adb at the time). T06c uses a 10 ms blocked-write threshold (no API); reviewer asked to judge vs Linux SIOCOUTQ. Reviews dispatched (deep x2).
 - 2026-11-03 T07 device test with the user: Wi-Fi pairing with fingerprint compare WORKED (/v1/pair 201, /v1/me 200 over pinned HTTPS). Relay gave 4503 because the PM's shell exported HERMES_HOME=profiles/pm (no gateway.sock there) -> D18. Server restarted with HERMES_HOME=~/.hermes for the demo.
 - 2026-11-03 T06c review PASS-WITH-FINDINGS (dead phone closed at ping+pong 3/3; recommends exact SyscallConn detection over SIOCOUTQ) and T07 review PASS-WITH-FINDINGS (MAJOR unproven: 100.64/10 trusted by range on the phone too). Committed T06b+T06c and T07. Follow-ups T06d (D20) and T07b (D18, D19, D21, D22) before T08/T09.
+- 2026-11-03 User chose Q48 (a): live + stored sessions -> T14.
+- 2026-11-03 T06d + T07b built. PM gates GREEN (runs/pm-gate-9: 221 Go tests; android 88 unit tests). T07b mutation (tailnet without VPN -> system default) fails 1 test, restored sha-match. PM added the D18 profile-home note to protocol.md §1.1. Reviews dispatched (deep x2).
+- 2026-11-03 T06d PASS-WITH-FINDINGS, T07b PASS-WITH-FINDINGS (MAJOR unproven: full-tunnel non-Tailscale VPN passes the route check). Both committed. D23 waits on Q49 (TLS on the Tailscale listener too); D24-D27 -> T09/T14.
