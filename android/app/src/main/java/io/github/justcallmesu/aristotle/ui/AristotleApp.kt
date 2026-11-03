@@ -27,9 +27,12 @@ import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.ui.chat.ChatScreen
 import io.github.justcallmesu.aristotle.ui.chat.ChatViewModel
+import io.github.justcallmesu.aristotle.ui.cron.CronScreen
+import io.github.justcallmesu.aristotle.ui.cron.CronViewModel
 import io.github.justcallmesu.aristotle.ui.quote.QuoteLoadingScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairViewModel
+import io.github.justcallmesu.aristotle.ui.sessions.ScheduledRequest
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsScreen
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsViewModel
 import io.github.justcallmesu.aristotle.ui.settings.BatteryGuideScreen
@@ -44,6 +47,7 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
     val epoch by container.pairEpoch.collectAsStateWithLifecycle()
     val routes = viewModel { RouteStores() }
     val chatRoutes = viewModel(key = CHAT_ROUTES) { RouteStores() }
+    val cronRoutes = viewModel(key = CRON_ROUTES) { RouteStores() }
     if (quoteGateVisible(container, credentials)) {
         QuoteLoadingScreen(container.quotes)
         return
@@ -63,7 +67,7 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
         is CredentialState.Paired -> {
             val pc = current.credentials
             LaunchedEffect(pc.pcId) { container.clearPairNotice() }
-            PairedPages(container, pc, routes, chatRoutes)
+            PairedPages(container, pc, routes, chatRoutes, cronRoutes)
         }
     }
 }
@@ -95,7 +99,7 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
 
 /** The pages under a paired PC. Back from a sub-page goes to [back]. */
 private enum class PairedPage {
-    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat;
+    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled;
 
     val back: PairedPage get() = if (this == SettingsGuide) Settings else Sessions
 }
@@ -103,10 +107,10 @@ private enum class PairedPage {
 /**
  * Session list, a session's chat, settings and the battery guide; the guide opens once on its own after pairing
  * a Xiaomi-family phone. The chat keeps its own route store ([chatRoutes]), so opening a chat does not clear
- * the session list's ViewModel.
+ * the session list's ViewModel; so does the "Scheduled" page ([cronRoutes], T18).
  */
 @Composable
-private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: RouteStores, chatRoutes: RouteStores) {
+private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: RouteStores, chatRoutes: RouteStores, cronRoutes: RouteStores) {
     val settings = container.settings
     var page by rememberSaveable(pc.pcId) {
         mutableStateOf(if (container.isXiaomiFamily && !settings.batteryGuideShown) PairedPage.FirstRunGuide else PairedPage.Sessions)
@@ -116,6 +120,9 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
     // The chat's Hermes profile (null = the relay's launch profile): it keeps it whatever the list shows later (T14).
     var chatProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var focusComposer by rememberSaveable(pc.pcId) { mutableStateOf(false) }
+    // The "Scheduled" page's profile (null = launch) and its name, taken from the list when it was opened (T18).
+    var cronProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
+    var cronLabel by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
     // A notification tap: that session's chat (ChatRoute raises the prompt sheet and takes the request).
     val openRequest by container.openChat.collectAsStateWithLifecycle()
@@ -144,6 +151,11 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
                     focusComposer = request.focusComposer
                     page = PairedPage.Chat
                 },
+                onScheduled = { request: ScheduledRequest ->
+                    cronProfile = request.profile
+                    cronLabel = request.label
+                    page = PairedPage.Scheduled
+                },
             )
             NotificationPermissionPrompt(settings, container.notifier::canPost)
         }
@@ -155,6 +167,7 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
         )
         PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
+        PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
         PairedPage.Chat -> {
             val id = chatId
             if (id != null) {
@@ -198,6 +211,19 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
     }
 }
 
+/** The "Scheduled" page of [profile]; leaving it clears its ViewModel, which ends its listing and polling. */
+@Composable
+private fun CronRoute(container: AppContainer, cronRoutes: RouteStores, profile: String?, label: String?, onBack: () -> Unit) {
+    val activity = LocalActivity.current
+    DisposableEffect(Unit) {
+        onDispose { if (activity?.isChangingConfigurations != true) cronRoutes.clear() }
+    }
+    RouteScope(cronRoutes, "cron-${profile.orEmpty()}") {
+        val cronViewModel = viewModel { CronViewModel(container.link, profile) }
+        CronScreen(cronViewModel, label, onBack)
+    }
+}
+
 /** Gives the current route's ViewModels their own store. */
 @Composable
 private fun RouteScope(routes: RouteStores, key: String, content: @Composable () -> Unit) {
@@ -237,3 +263,4 @@ class RouteStores : ViewModel() {
 }
 
 private const val CHAT_ROUTES = "chat-routes"
+private const val CRON_ROUTES = "cron-routes"

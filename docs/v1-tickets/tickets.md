@@ -45,12 +45,13 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T15b | T15/TQ1 minors: block typed desktop-only slash commands via catalog `desktop` field (/busy would change busy_input_mode, Q10); Switch-anyway dialog closes on remote model change + armed; skill-command submission id created before send; blocked command keeps the draft; quote tile colour from theme (dark mode), radius token, shared reduced-motion helper, design curve, ComposableNaming lint | T15 | android | DONE |
 | T16 | Send pictures and files | T13 | android (+server) | DONE |
 | T16b | T16 minors: prepare attachments 1-2 at a time + catch OOM (crash); sniff file bytes so a mislabelled JPEG/PNG/WebP picked as a file gets GPS stripped; upload call timeout scales with size; strip GPS/XMP in extra JPEG images (MPF/Ultra-HDR) and extended XMP; clean temp files on send/cancel; GIF XMP | T16 | android | DONE |
-| T17 | Subagents: view live output, stop | T11 | android | DONE (review on commit running) |
-| T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | BUILDING |
+| T17 | Subagents: view live output, stop | T11 | android | FIX ROUND (T17b) |
+| T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | DONE (review on commit running; edit/run-now/history need Q57) |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | BLOCKED: user decisions Q52-Q55 (red-team done) |
 | TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | DONE |
 | T14b | T14 minors: stored-list failure must not hide live sessions; sessions.changed refetch debounced + live-only (stored refreshed on open/pull/load-more); unserved remembered profile falls back to the launch profile so the watcher keeps notifying; NITs from runs/T14/review-report.md | T14 | android | DONE |
 | TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | DONE |
+| T17b | T17 fix: `delegate_task` with action "spawn" shows subagent rows (MAJOR); pause subagent.list/tail polling on ON_STOP, read once on ON_START (MAJOR); fix delegate-model.ts cites; interrupted not red; tail loop backoff when link down | T17 | android, docs §2.2 | BUILDING |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | T22 | v1 QA on the Poco + release signing | all above | all | TODO |
@@ -297,3 +298,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 T16 review PASS-WITH-FINDINGS (frames exact, phone never names a PC path, size pre-check keeps 1009 impossible). Committed. T16b (std) now: a crash and two location leaks are worth fixing before device QA.
 - 2026-11-04 T16b PM gate GREEN runs/pm-gate-30 (491 tests); mutation (JPEG signature off) fails 2 tests. Committed without separate review (worker proved 11 tests red on broken code). PM found D43 reading the sniffer; T16c (light) fixes it in parallel with T17 (deep).
 - 2026-11-04 T16c (D43) mutation (sniffHeif always Heif) fails 1 test; T17 built (519 tests), PM gate GREEN runs/pm-gate-31. Committed both (T16c separately). T17 deep review runs against the commit in parallel with T18 build (deep).
+- 2026-11-04 T17 review CHANGES-REQUIRED (spawn action hides rows; polling continues in background). T17b (std). T18 built for what /api/ws carries (cron.manage list/add/remove/pause/resume); edit/run-now/history are REST-only -> Q57 to the user. T18 PM gate GREEN runs/pm-gate-32 (548), mutation (bare '30m' one-shot) fails 1. T18 committed; std review on the commit.

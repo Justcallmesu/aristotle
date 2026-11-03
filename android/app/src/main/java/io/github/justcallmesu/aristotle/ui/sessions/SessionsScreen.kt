@@ -75,7 +75,13 @@ import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
-fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit, onSettings: () -> Unit, onOpen: (OpenRequest) -> Unit) {
+fun SessionsScreen(
+    viewModel: SessionsViewModel,
+    onPairAgain: () -> Unit,
+    onSettings: () -> Unit,
+    onOpen: (OpenRequest) -> Unit,
+    onScheduled: (ScheduledRequest) -> Unit,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(state.open) {
         val request = state.open ?: return@LaunchedEffect
@@ -88,6 +94,7 @@ fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit, onSett
         onRetry = viewModel::retry,
         onPairAgain = onPairAgain,
         onSettings = onSettings,
+        onScheduled = onScheduled,
         actions = remember(viewModel) { ViewModelListActions(viewModel) },
     )
     SessionSheets(state, remember(viewModel) { ViewModelSheetActions(viewModel) })
@@ -133,6 +140,9 @@ private class ViewModelSheetActions(private val vm: SessionsViewModel) : SheetAc
     override fun rename(title: String) = vm.rename(title)
 }
 
+/** The "Scheduled" page for the listed [profile] (null = the launch profile), named [label] on the page. */
+data class ScheduledRequest(val profile: String?, val label: String?)
+
 @Composable
 fun SessionsContentView(
     state: SessionsUiState,
@@ -141,6 +151,7 @@ fun SessionsContentView(
     onPairAgain: () -> Unit,
     onSettings: () -> Unit,
     actions: ListActions,
+    onScheduled: (ScheduledRequest) -> Unit = {},
 ) {
     val address = state.address?.hostForUrl.orEmpty()
     val snackbar = remember { SnackbarHostState() }
@@ -156,7 +167,7 @@ fun SessionsContentView(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-                if (state.searching) SearchBar(state.query, actions) else TopBar(state, address, onSettings, actions)
+                if (state.searching) SearchBar(state.query, actions) else TopBar(state, address, onSettings, onScheduled, actions)
                 val page = pageFor(state)
                 if (page != null) {
                     Box(modifier = Modifier.windowInsetsPadding(bottom)) { ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) }
@@ -199,7 +210,7 @@ private fun ListBody(state: SessionsUiState, address: String, insets: PaddingVal
 }
 
 @Composable
-private fun TopBar(state: SessionsUiState, address: String, onSettings: () -> Unit, actions: ListActions) {
+private fun TopBar(state: SessionsUiState, address: String, onSettings: () -> Unit, onScheduled: (ScheduledRequest) -> Unit, actions: ListActions) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -212,6 +223,10 @@ private fun TopBar(state: SessionsUiState, address: String, onSettings: () -> Un
             ConnectionLine(state.link, address)
         }
         state.profileName?.let { ProfileChip(it, enabled = state.link is LinkState.Online, onClick = actions::openProfiles) }
+        // T18: the listed profile's Hermes cron jobs.
+        IconButton(onClick = { onScheduled(ScheduledRequest(state.profile, state.profileName)) }) {
+            Icon(painter = painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.cron_open))
+        }
         IconButton(onClick = actions::openSearch, enabled = state.items != null) {
             Icon(painter = painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.sessions_search))
         }

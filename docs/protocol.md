@@ -488,9 +488,9 @@ Canonical (authority) sockets get approvals and clarify as **events**, answered 
 - **Subagents**: `subagent.list {session_id}` → `{subagents:[…], delegations:[…]}`;
   `subagent.interrupt {session_id, subagent_id}`; `subagent.steer {session_id, subagent_id, text}`;
   `subagent.tail {session_id, subagent_id}`; events `subagent.*`.
-- **Cron**: job list/create/edit/pause/resume/trigger/delete are REST only: `/api/cron/jobs[?profile=<name>]`
-  (`hermes_cli/web_routers/cron.py`). WS `cron.submit|status|cancel|recover {job_id, request_id}` run a job
-  through the owner (canonical, `tui_gateway/contracts/canonical.py:393-430`).
+- **Cron**: §13. Over `/api/ws`: `cron.manage` list/add/remove/pause/resume (corrects the earlier "REST only").
+  Edit, run now and run history are REST only (`/api/cron/jobs…`, `hermes_cli/web_routers/cron.py`). WS
+  `cron.submit|status|cancel|recover` are the scheduler's producer verbs, not user controls.
 - **Config**: `config.get {key, session_id?}`, `config.set {key, value, session_id?, scope?}` — Aristotle must
   not use `config.set` for global config (spec: never edit Hermes config).
 - **Shell**: `shell.exec {session_id, command}` runs one command in a LOCAL session's cwd
@@ -779,3 +779,58 @@ differ). A frame that names a field but is not a JSON object is dropped (counted
 `close_code`, `closed_by`, `frames_in/out`, `bytes_in/out`, `dropped`, and counts per JSON-RPC `method` name sent by
 the phone; only names this document lists (§1-§9, e.g. `session.resume`, `prompt.submit`, `commands.catalog`) are
 logged by name, any other is counted as `other`, so a token sent as a method never reaches the log). Never frame bodies, tickets or tokens.
+
+## 13. Cron jobs (T18, from source, not exercised)
+Hermes has two surfaces for its scheduled jobs; the relay (§12) carries only the `/api/ws` one. Paths as in §1.
+
+| Method | Params | Result | Cite |
+|---|---|---|---|
+| `cron.manage` | `{action?: "list"\|"add"\|"remove"\|"pause"\|"resume"` (default `list`), `name?, include_disabled?, schedule?, prompt?, repeat?, continuity?, deliver?, profile?}` | pass-through of the `cronjob` tool's JSON. `list`: `{success, count, jobs[], gateway_running?, warning?, scoped?}`; `add`: `{success, job_id, name, schedule, repeat, deliver, next_run_at, job, message, guidance?}`; `remove`: `{success, message, removed_job{id, name, schedule}}`; `pause`/`resume`: `{success, job}` | contract `tui_gateway/contracts/tools_commands.py:435-529`; handler `tui_gateway/methods_tools.py:1305-1329`; bodies `tools/cronjob_tools.py:676-782` |
+
+- **Routing.** `cron.manage` is not an owner verb: the owner answers `-32601` and the socket's legacy fallback runs
+  it (`tui_gateway/ws.py:380-397`, `tui_gateway/ws_legacy_fallback.py:53-62`). `profile` scopes the job store to that
+  profile's home (`_profile_scoped_rpc`, `methods_tools.py:20-65`); a profile Hermes cannot find is JSON-RPC error
+  `4064 profile '<name>' not found`. Without `profile` it is the launch profile's store. Unknown action: `4016`.
+- **Job key.** `remove`/`pause`/`resume` name the job in `name`, resolved as id or name
+  (`methods_tools.py:1309`, `:1327-1328`; `cronjob_tools.py:1091-1097`). The phone sends the `job_id`.
+- **Refusals are results.** A tool-level failure is `{"success": false, "error": "<text>"}` in `result`, not a JSON-RPC
+  error (`tool_error`, `cronjob_tools.py:1040-1044`, `:1091-1103`): unknown job, a bad schedule, a refused prompt.
+- **`list` row** (`_format_job`, `tools/cronjob_job_args.py:476-526`): `job_id, name, skill, skills, prompt_preview`
+  (first 100 characters + `...`; the full prompt is not on this surface), `model, provider, pinned, base_url,
+  schedule` (Hermes' display string), `repeat` (`forever`, `once`, `N times`, `k/N`, `:210-217`), `deliver` (default
+  `local`), `next_run_at, last_run_at` (ISO with offset), `last_status` (`ok`, `error`, `delivery_failed`,
+  `blocked_config`), `last_error, last_delivery_error, last_fire_error, enabled, state` (`scheduled`, `paused`,
+  `running`, `completed`, `error`; `cron/jobs.py:542-555`), `paused_at, paused_reason`, optional `workdir, script,
+  no_agent, continuity, context_from, …`. `include_disabled` defaults to false, which hides paused jobs; send `true`.
+- **Schedules** (`parse_schedule`, `cron/jobs.py:787-860`): `every 30m` / `30m` / `every 2h` (recurring interval;
+  a **bare** duration recurs), `in 30m` (one shot), `every monday 9am` / `weekdays at 9am` (cron), a 5-6 field cron
+  expression, an ISO timestamp (one shot; a naive one is in Hermes' configured zone). Stored display: `every <N>m`, the
+  cron text as given, `once in …`, `once at YYYY-MM-DD HH:MM`. There is **no dry-run**: `cron.manage` has no validate
+  action, so the `add` itself is the check, refused with Hermes' usage text (`:853-860`).
+- **Event `cron.changed`** (`payload {}`, `session_id ""`; `tui_gateway/contracts/events.py:860`): the gateway's
+  1 s watcher saw the launch profile's `cron/jobs.json` move (`tui_gateway/change_watcher.py:57-58`, `:375-380`). It
+  moves on edits and on every scheduler tick, and it says nothing about sibling profiles' stores.
+- **Not user controls.** `cron.submit|status|cancel|recover {job_id, request_id, …}` are the scheduler's producer
+  contract: a fire of a persisted job admitted into the owner's FIFO, with delivery owned by the scheduler
+  (`tui_gateway/contracts/canonical.py:378-430`, `gateway/session_cron.py:1-4`, `:90-101`). The Desktop never calls them.
+- **REST only** (the Desktop's Cron page, `apps/desktop/src/api/cron.ts:31-148` → `hermes_cli/web_routers/cron.py:734-805`;
+  native-http ticket per request and `?profile=`, §8): `GET /api/cron/jobs` (full jobs incl. prompt), `GET
+  /api/cron/jobs/{id}`, `GET /api/cron/jobs/{id}/runs?limit` (run history: `source:"cron"` sessions plus script
+  outputs, `:485-542`), `PUT /api/cron/jobs/{id}` (edit), `POST /api/cron/jobs/{id}/trigger` (run now; waits for the
+  whole run, `api/cron.ts:20-24`), `POST …/{id}/cancel` (stop a live run), `POST /api/cron/jobs`, `POST …/pause|resume`,
+  `DELETE …/{id}`, `GET /api/cron/delivery-targets`, blueprints. The relay does not carry REST, so **edit, run now,
+  run history (and opening a run's session), the full prompt and the delivery-target picker are not on the phone**;
+  carrying them needs a REST path through aristotle-server, a PM/security decision (not taken in T18).
+
+**The Desktop's two cron UIs.** The Cron page (REST above; Delete confirms, `apps/desktop/src/app/cron/index.tsx:618-640`,
+`:826-840`) and Bot Mode's Routines pane (`cron.manage`, `apps/desktop/src/plugins/hermes-bots/cron.tsx`: list with
+`include_disabled:true` `:125-129`, switch = pause/resume `:507-535`, delete without confirmation `:574-585`, create
+dialog `:955-1133`, read-only detail from the list row `:425-480`, refetch every 20 s `:189`). Its one-shot picker sends
+a bare `30m` (`:672-676`), which Hermes parses as recurring.
+
+**The phone (T18).** The Routines pane's calls, profile by `ProfileLink` (§1 "Profiles from the phone"): `list` on every
+relay socket, after `cron.changed` (one refetch per 2 s window), every 20 s while the page is in front, and after each
+own change. Switch, Delete (with a confirmation, as the Cron page) and Create are sent once each, behind the 600 ms
+arm; `success:false`, a JSON-RPC error, a lost answer or an unsent call is said and never retried. Create sends `name,
+schedule, prompt`, `repeat` and `continuity` only when set, no `deliver` (Hermes' `local`); a one-shot is sent as
+`in <N><unit>`. Detail shows the list row only (prompt preview, schedule, next/last run, last result, Hermes' issue text).
