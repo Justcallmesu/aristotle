@@ -36,7 +36,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
 | T19 | Remote terminal: server-side PTY behind `terminal.enabled` (default off), spec Q35 | T09 | android (+server) | TODO ⟳ |
-| TQ1 | Quote loading screen: verified Aristotle quotes with source citations (Q44-Q46 pending user) | T09, Q44-Q46 | android, docs | TODO |
+| TQ0 | Quote research: 20-30 verified Aristotle quotes, Greek + PD English + Bekker citation, misattribution list (Q45) | — | docs | AWAITING-HUMAN (approve list) |
+| TQ1 | Quote loading screen (Q44-Q46): icon + quote fade-in + verdigris progress line, at start and reconnecting | T09, TQ0 approved | android | TODO |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | TODO |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | TODO |
 | T22 | v1 QA on the Poco + release signing | all above | all | TODO |
@@ -187,3 +188,5 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 User chose Q43 = refuse desktop_local; steered into running T06b. Design choices Q38-Q42 still open.
 - 2026-11-03 User chose Q38 A (Aristotle palette only), Q39 slightly rounded, Q40 Literata+Atkinson, Q41 as drawn, Q42 icon B. TD1b: consolidate into docs/design.md (light worker).
 - 2026-11-03 docs/design.md written (210 lines). PM accepted the writer's unspecified values (onSecondary, pairing-code type 22/28, reduced-motion rule, 200 ms exit) as technical calls, and its contrast fix (tertiary/error never on surfaceContainerHighest in light). User asked for an Aristotle-quote loading screen: TQ1 added, Q44-Q46 asked.
+- 2026-11-03 User: Q44 a, Q45 c, Q46 a + icon. TQ0 quote research dispatched (std).
+- 2026-11-03 TQ0 delivered 24 quotes (NE 12, Metaphysics 5, Poetics 3, Rhetoric 2, Politics 2) + 12 misattributions. PM spot-checked 4 random quotes against the MIT Classics texts: all 4 match verbatim. Awaiting user approval of the list.

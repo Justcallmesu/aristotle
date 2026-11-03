@@ -108,6 +108,9 @@ Rules that hold everywhere:
 | Q41 | Approval sheet as drawn: Deny + Allow once primary side by side; For this session + Always allow smaller below. | User 2026-11-03. |
 | Q42 | Icon direction for T20: concept B, hand on chin line art. | User chose B over PM's A, 2026-11-03. TD1 rated B weak at 48 dp: T20 must simplify until it reads at 48 dp on the Poco home screen; user approves on device. |
 | Q43 | The relay refuses a phone `client.capabilities` frame carrying `desktop_local` (close 1008 `desktop_local_refused`); the phone can never be treated as the local Desktop. Narrows Q7d. | User chose (a) refuse, 2026-11-03. Found in T06 review. |
+| Q44 | Quote loading screen shows only while really loading: app start while connecting, and the reconnecting state; minimum display ~1.2 s so it can be read. | User 2026-11-03. |
+| Q45 | Quote language: English (public-domain translation) with the original Greek in small type and a source citation (work + Bekker number). Not localised. | User 2026-11-03. Only quotes traceable to Aristotle's works; misattributions (e.g. Durant's "We are what we repeatedly do") excluded. |
+| Q46 | Animation: calm line-by-line fade-in with a thin verdigris progress line, plus the app icon (static) above the quote. | User "A, and an icon too" 2026-11-03; PM reads it as the static icon, not a stroke-drawing animation. Icon = T20 result; placeholder until then. |
 
 ## 4. Risks
 
