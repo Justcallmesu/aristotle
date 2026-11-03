@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -83,8 +84,14 @@ fun QuoteLoadingContent(quote: Quote?, reduced: Boolean) {
 @Composable
 private fun LauncherIcon() {
     // The adaptive icon's 108 dp canvas shows its middle 72 dp; draw it so that part fills the 88 dp tile.
+    // The one-colour layer, tinted, so the ink mark stays legible on the dark tile too.
     Box(Modifier.size(88.dp).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-        Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, modifier = Modifier.requiredSize(132.dp))
+        Image(
+            painterResource(R.drawable.ic_launcher_monochrome),
+            contentDescription = null,
+            modifier = Modifier.requiredSize(132.dp),
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface),
+        )
     }
 }
 
