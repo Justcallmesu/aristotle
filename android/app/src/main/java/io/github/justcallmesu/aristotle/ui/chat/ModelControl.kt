@@ -31,6 +31,9 @@ sealed interface ModelMessage {
 
     /** The session's revision or generation is not known yet (still loading, or offline). */
     data object NotReady : ModelMessage
+
+    /** Hermes asked to confirm without a token: nothing was switched. */
+    data object NoToken : ModelMessage
 }
 
 /** A guarded model target Hermes asks the user to confirm (cost, data policy, large context). */
@@ -51,12 +54,22 @@ data class ModelSheetState(
     /** A pick is on its way: nothing else is sent until Hermes answers. */
     val sending: Boolean = false,
     val confirm: ModelConfirm? = null,
+    /** The model and provider the chat showed when [confirm] was asked, and when: the dialog goes if they move, and arms after [ComposerLogic.ARM_MS]. */
+    val confirmFrom: Pair<String?, String?>? = null,
+    val confirmAt: Long = 0,
     val message: ModelMessage? = null,
     val adopted: AdoptedFences? = null,
 )
 
 /** Pure rules of the model switch. */
 object ModelLogic {
+    /** [sheet] without its confirmation once the chat's model or provider is not the one it was asked about (changed elsewhere). */
+    fun dropStale(sheet: ModelSheetState, chat: ChatState): ModelSheetState =
+        if (sheet.confirm != null && sheet.confirmFrom != (chat.model to chat.provider)) sheet.copy(confirm = null, confirmFrom = null) else sheet
+
+    /** The confirmation's \"Switch anyway\" counts once it has been on screen for [ComposerLogic.ARM_MS]. */
+    fun confirmArmed(sheet: ModelSheetState, now: Long): Boolean = sheet.confirm != null && now - sheet.confirmAt >= ComposerLogic.ARM_MS
+
     /**
      * The fences a pick presents: the chat's revision and generation, or what a refusal named while the chat has not
      * moved since. Null when either is unknown: the Desktop refuses to edit then too ("Session revision unavailable",
@@ -79,6 +92,7 @@ internal class ChatModelControl(
     private val sessionId: String,
     private val link: RelayLink,
     private val newId: () -> String,
+    private val clock: () -> Long,
     private val work: CoroutineScope,
     private val state: () -> ChatUiState,
     private val change: ((ChatUiState) -> ChatUiState) -> Unit,
@@ -95,7 +109,7 @@ internal class ChatModelControl(
 
     fun messageShown() = update { it.copy(message = null) }
 
-    fun cancelConfirm() = update { it.copy(confirm = null) }
+    fun cancelConfirm() = update { it.copy(confirm = null, confirmFrom = null) }
 
     /** A model row; a locked one does nothing. The sheet closes, as the Desktop's picker does (`model-picker.tsx:160-163`). */
     fun pickModel(group: ModelGroup, model: String) {
@@ -111,8 +125,10 @@ internal class ChatModelControl(
 
     /** "Switch anyway" on a guarded target: the same pick with Hermes' token (`gateway/session_mutation_model.py:371-372`). */
     fun confirm() {
-        val asked = state().model.confirm ?: return
-        update { it.copy(confirm = null) }
+        val ui = state()
+        val asked = ui.model.confirm ?: return
+        if (!ModelLogic.confirmArmed(ui.model, clock())) return
+        update { it.copy(confirm = null, confirmFrom = null) }
         send(Pick.Model(asked.model, asked.provider, asked.token))
     }
 
@@ -179,8 +195,9 @@ internal class ChatModelControl(
         // The receipt's revision is the next fence until the chat's own `session.updated` / `session.info` arrives.
         PickAnswer.Applied -> base.copy(adopted = revision?.let { AdoptedFences(it, null, chat.revision, chat.generation) })
         is PickAnswer.Deferred -> base.copy(message = ModelMessage.Deferred(answer.value ?: pick.label))
+        PickAnswer.NoToken -> base.copy(message = ModelMessage.NoToken)
         is PickAnswer.Confirm -> when (pick) {
-            is Pick.Model -> base.copy(confirm = ModelConfirm(pick.model, pick.provider, answer.token, answer.message))
+            is Pick.Model -> base.copy(confirm = ModelConfirm(pick.model, pick.provider, answer.token, answer.message), confirmFrom = chat.model to chat.provider, confirmAt = clock())
             is Pick.Reasoning -> base
         }
     }

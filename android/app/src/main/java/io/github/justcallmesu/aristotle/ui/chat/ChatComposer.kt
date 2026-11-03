@@ -37,14 +37,14 @@ internal class ChatComposer(
     }
 
     /**
-     * A turn a slash command asked for (a skill's expanded [message], T15): submitted with this phone's own submission
-     * id, as the Desktop does (`use-prompt-actions/slash.ts:502-517`); the bubble shows [display]. While a turn runs
+     * A turn a slash command asked for (a skill's expanded [message], T15): submitted with the submission id the
+     * caller made before the command ran ([id], reused when the same command goes again), as the Desktop does (`use-prompt-actions/slash.ts:502-517`); the bubble shows [display]. While a turn runs
      * Hermes queues it like any submit.
      */
-    fun submitDirective(display: String, message: String) {
+    fun submitDirective(display: String, message: String, id: String) {
         val kind = if (state().feed.chat.running) OutgoingKind.Queue else OutgoingKind.Send
-        val item = Outgoing(newId(), display, kind, OutgoingStatus.Sending, wire = message)
-        updateComposer { it.copy(outbox = it.outbox + item) }
+        val item = Outgoing(id, display, kind, OutgoingStatus.Sending, wire = message)
+        updateComposer { it.copy(outbox = it.outbox + item, keptIds = it.keptIds - display) }
         deliverSubmit(item)
     }
 

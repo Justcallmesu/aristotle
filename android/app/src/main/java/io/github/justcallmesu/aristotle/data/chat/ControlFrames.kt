@@ -106,6 +106,9 @@ sealed interface PickAnswer {
      * (`apps/desktop/src/app/session/hooks/use-model-controls.ts:389-448`).
      */
     data class Confirm(val token: String, val message: String, val model: String?) : PickAnswer
+
+    /** Hermes asked to confirm but gave no token to confirm with: the pick is not applied and cannot be confirmed. */
+    data object NoToken : PickAnswer
 }
 
 /** Why a pick did not apply. */
@@ -129,7 +132,7 @@ object PickAnswers {
             "deferred" -> PickAnswer.Deferred(answer.text("model") ?: answer.text("effort"))
             "confirmation_required" -> answer.text("confirm")?.let {
                 PickAnswer.Confirm(it, answer.text("confirm_message").orEmpty(), answer.text("target_model"))
-            } ?: PickAnswer.Applied
+            } ?: PickAnswer.NoToken
             else -> PickAnswer.Applied
         }
     }

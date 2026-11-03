@@ -1,8 +1,6 @@
 package io.github.justcallmesu.aristotle.ui.quote
 
-import android.provider.Settings
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -32,8 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -45,7 +40,9 @@ import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.Quote
 import io.github.justcallmesu.aristotle.data.QuoteMotion
 import io.github.justcallmesu.aristotle.data.QuoteSource
+import io.github.justcallmesu.aristotle.ui.components.reducedMotion
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
+import io.github.justcallmesu.aristotle.ui.theme.Motion
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +50,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val EaseOut = CubicBezierEasing(0f, 0f, 0.2f, 1f)
 private const val LINES = 3
 
 /**
@@ -64,10 +60,7 @@ private const val LINES = 3
 fun QuoteLoadingScreen(source: QuoteSource) {
     var quote by remember { mutableStateOf<Quote?>(null) }
     LaunchedEffect(Unit) { quote = withContext(Dispatchers.Default) { source.next() } }
-    val reduced = QuoteMotion.reduced(
-        Settings.Global.getFloat(LocalContext.current.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f),
-    )
-    QuoteLoadingContent(quote, reduced)
+    QuoteLoadingContent(quote, reducedMotion())
 }
 
 @Composable
@@ -90,7 +83,7 @@ fun QuoteLoadingContent(quote: Quote?, reduced: Boolean) {
 @Composable
 private fun LauncherIcon() {
     // The adaptive icon's 108 dp canvas shows its middle 72 dp; draw it so that part fills the 88 dp tile.
-    Box(Modifier.size(88.dp).clip(RoundedCornerShape(22.dp)).background(colorResource(R.color.ic_launcher_background)), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(88.dp).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
         Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, modifier = Modifier.requiredSize(132.dp))
     }
 }
@@ -104,7 +97,7 @@ private fun QuoteLines(quote: Quote, reduced: Boolean) {
         alphas.forEachIndexed { line, alpha ->
             launch {
                 delay(QuoteMotion.delayMillis(line, reduced).toLong())
-                alpha.animateTo(1f, tween(QuoteMotion.durationMillis(reduced), easing = EaseOut))
+                alpha.animateTo(1f, tween(QuoteMotion.durationMillis(reduced), easing = Motion.EmphasizedDecelerate))
             }
         }
     }

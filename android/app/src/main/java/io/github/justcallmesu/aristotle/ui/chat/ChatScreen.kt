@@ -251,6 +251,7 @@ private fun modelMessage(message: ModelMessage): String = when (message) {
     is ModelMessage.Refused -> stringResource(R.string.model_refused, message.reason)
     ModelMessage.NoAnswer -> stringResource(R.string.model_no_answer)
     ModelMessage.NotReady -> stringResource(R.string.model_not_ready)
+    ModelMessage.NoToken -> stringResource(R.string.model_no_token)
 }
 
 /** A deferred pick names a model or a reasoning level; a level reads as its label. */

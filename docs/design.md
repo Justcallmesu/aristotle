@@ -203,6 +203,8 @@ adaptive foreground (safe zone 66 dp of 108) + monochrome layer. The user approv
 - No gradients, glassmorphism/blur, glow, or decorative shadows.
 - No blue/purple "tech" hue; no accent other than verdigris, and verdigris only for live work.
 - No icon above state-page headlines; no centered hero stacks; no feature-tile grids or dashboard stat numbers.
+  Exception (Q46): the quote loading screen is a centred stack with the static app icon above the quote, the quote set in
+  Literata (a reading text, not UI), and a calm line-by-line fade-in with a `tertiary` progress line.
 - No accent rails/left borders on text blocks.
 - No M3 pill buttons; no `CircleShape` containers.
 - No decorative dots, badges, or status colours that mark nothing.

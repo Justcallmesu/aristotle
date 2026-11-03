@@ -81,7 +81,7 @@ class ChatViewModel(
     )
     val uiState: StateFlow<ChatUiState> = state.asStateFlow()
     private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change)
-    private val models = ChatModelControl(sessionId, link, newId, work, state::value, ::change)
+    private val models = ChatModelControl(sessionId, link, newId, clock, work, state::value, ::change)
     private val commands = ChatCommands(sessionId, link, newId, clock, work, state::value, ::change, composer)
 
     private var job: Job? = null
@@ -327,7 +327,7 @@ class ChatViewModel(
             val sheet = PromptSheetLogic.track(changed.sheet, changed.feed.chat, now)
             val outbox = Outbox.reconcile(changed.composer.outbox, changed.feed.chat)
             val key = ComposerLogic.key(changed.link, changed.feed, sheet, outbox)
-            changed.copy(sheet = sheet, composer = ComposerLogic.track(changed.composer.copy(outbox = outbox), key, now))
+            changed.copy(model = ModelLogic.dropStale(changed.model, changed.feed.chat), sheet = sheet, composer = ComposerLogic.track(changed.composer.copy(outbox = outbox), key, now))
         }
         armSheet(next.sheet.shown)
         armComposer(next.composer.shown)

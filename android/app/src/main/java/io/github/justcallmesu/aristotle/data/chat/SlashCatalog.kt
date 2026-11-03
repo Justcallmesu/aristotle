@@ -34,12 +34,30 @@ data class SlashCommand(
  * command (`desktop`: null offered, `"hidden"`, or why the Desktop has no surface for it; `:137-149`,
  * `hermes_cli/commands.py:367-372`), `canon` = lowercase name or alias -> canonical name, `skills` = the skill commands.
  */
-data class SlashCatalog(val commands: List<SlashCommand>, val canon: Map<String, String> = emptyMap()) {
+data class SlashCatalog(
+    val commands: List<SlashCommand>,
+    val canon: Map<String, String> = emptyMap(),
+    /** Every name and alias (lowercase, with its slash) the Desktop has no menu row for, and why the phone does not run it. */
+    val withheld: Map<String, SlashBlock> = emptyMap(),
+) {
+    private fun nameOf(typed: String): String {
+        val key = typed.trim().lowercase().let { if (it.startsWith("/")) it else "/$it" }
+        return (canon[key] ?: PhoneSlash.ALIASES[key] ?: key)
+    }
+
     /** [typed] (a name or alias, any case) as its catalog row, or null for a command Hermes does not list. */
     fun resolve(typed: String): SlashCommand? {
-        val key = typed.trim().lowercase().let { if (it.startsWith("/")) it else "/$it" }
-        val name = canon[key] ?: PhoneSlash.ALIASES[key] ?: key
+        val name = nameOf(typed)
         return commands.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+
+    /**
+     * Why a typed command is not sent, or null when it may go to Hermes: its menu row's block, the catalog's own
+     * `desktop` verdict for a command the menu leaves out (a typed `/footer`, `/busy`), then the hand-kept list.
+     */
+    fun blockOf(typed: String): SlashBlock? {
+        val name = nameOf(typed)
+        return resolve(typed)?.block ?: withheld[name.lowercase()] ?: withheld[typed.trim().lowercase().let { if (it.startsWith("/")) it else "/$it" }] ?: PhoneSlash.block(name)
     }
 
     companion object {
@@ -56,6 +74,19 @@ data class SlashCatalog(val commands: List<SlashCommand>, val canon: Map<String,
             val canon = (answer["canon"] as? JsonObject).orEmpty().mapNotNull { (alias, name) ->
                 (name as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.let { alias.lowercase() to it }
             }.toMap()
+            // Every name and alias with a `desktop` verdict (the catalog keys aliases too, `command_discovery.py:144`).
+            val withheld = HashMap<String, SlashBlock>()
+            fun withhold(name: String, desktop: String?) {
+                val key = name.trim().lowercase().let { if (it.startsWith("/")) it else "/$it" }
+                val block = if (desktop == "hidden") SlashBlock.PhoneControl else SlashBlock.DesktopApp
+                withheld[key] = block
+                canon.forEach { (alias, target) -> if (target.equals(name, ignoreCase = true)) withheld[alias] = block }
+            }
+            meta.forEach { (name, entry) ->
+                val desktop = entry.asObject()?.text("desktop")
+                val subs = (entry.asObject()?.get("desktop_subcommands") as? JsonArray)
+                if (desktop != null || subs?.isEmpty() == true) withhold(name, desktop)
+            }
             val seen = HashSet<String>()
             val rows = (answer["pairs"] as? JsonArray).orEmpty().mapNotNull { pair ->
                 val (name, description) = pairOf(pair) ?: return@mapNotNull null
@@ -66,7 +97,7 @@ data class SlashCatalog(val commands: List<SlashCommand>, val canon: Map<String,
                 if (desktop != null || subcommands?.isEmpty() == true) return@mapNotNull null
                 SlashCommand(name, description, skill = name in skills, block = PhoneSlash.block(name), subcommands = subcommands)
             }
-            return SlashCatalog(rows, canon)
+            return SlashCatalog(rows, canon, withheld)
         }
 
         private fun pairOf(element: JsonElement): Pair<String, String>? {
@@ -87,7 +118,7 @@ data class SlashCatalog(val commands: List<SlashCommand>, val canon: Map<String,
  */
 object PhoneSlash {
     private val DESKTOP_APP = setOf(
-        "/skin", "/pet", "/hatch", "/journey", "/palette", "/wake", "/timestamps", "/browser", "/save", "/export", "/import", "/handoff",
+        "/busy", "/skin", "/pet", "/hatch", "/journey", "/palette", "/wake", "/timestamps", "/browser", "/save", "/export", "/import", "/handoff",
     )
     private val PHONE_CONTROL = setOf("/new", "/resume", "/profile", "/stop", "/steer", "/queue", "/model", "/reasoning")
     private val NOT_ON_PHONE = setOf("/compress", "/undo", "/retry", "/branch", "/btw", "/bg", "/background", "/agents", "/config", "/history", "/rollback")

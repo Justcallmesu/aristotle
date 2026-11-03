@@ -1,7 +1,6 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -54,6 +53,7 @@ import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
 import io.github.justcallmesu.aristotle.ui.components.reducedMotion
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
+import io.github.justcallmesu.aristotle.ui.theme.Motion
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 
@@ -312,8 +312,8 @@ private fun Fold(open: Boolean, content: @Composable () -> Unit) {
     val exit = if (instant) 0 else COLLAPSE_MILLIS
     AnimatedVisibility(
         visible = open,
-        enter = expandVertically(tween(enter, easing = EMPHASIZED_DECELERATE)) + fadeIn(tween(enter, easing = EMPHASIZED_DECELERATE)),
-        exit = shrinkVertically(tween(exit, easing = STANDARD_ACCELERATE)) + fadeOut(tween(exit, easing = STANDARD_ACCELERATE)),
+        enter = expandVertically(tween(enter, easing = Motion.EmphasizedDecelerate)) + fadeIn(tween(enter, easing = Motion.EmphasizedDecelerate)),
+        exit = shrinkVertically(tween(exit, easing = Motion.StandardAccelerate)) + fadeOut(tween(exit, easing = Motion.StandardAccelerate)),
     ) { content() }
 }
 
@@ -325,5 +325,3 @@ private fun toolIconRes(name: String): Int = when (toolIcon(name)) {
 
 private const val EXPAND_MILLIS = 300
 private const val COLLAPSE_MILLIS = 200
-private val EMPHASIZED_DECELERATE = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
-private val STANDARD_ACCELERATE = CubicBezierEasing(0.3f, 0f, 1f, 1f)

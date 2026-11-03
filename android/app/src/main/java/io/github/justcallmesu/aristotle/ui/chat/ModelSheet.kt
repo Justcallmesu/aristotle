@@ -23,6 +23,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -204,11 +210,17 @@ private fun LoadFailed(problem: String, onRetry: () -> Unit) {
 /** Hermes asked before a guarded switch (cost, data policy, large context): its own words, then the user decides. */
 @Composable
 fun ModelConfirmDialog(confirm: ModelConfirm, actions: ModelActions) {
+    // The dialog just appeared: "Switch anyway" ignores taps for the arming time (a tap meant for what was under it).
+    var armed by remember(confirm) { mutableStateOf(false) }
+    LaunchedEffect(confirm) {
+        delay(ComposerLogic.ARM_MS)
+        armed = true
+    }
     AlertDialog(
         onDismissRequest = actions::cancelConfirm,
         title = { Text(stringResource(R.string.model_confirm_title, confirm.model)) },
         text = { Text(confirm.message) },
-        confirmButton = { Button(onClick = actions::confirm, shape = ButtonShape) { Text(stringResource(R.string.model_confirm_switch)) } },
+        confirmButton = { Button(onClick = actions::confirm, enabled = armed, shape = ButtonShape) { Text(stringResource(R.string.model_confirm_switch)) } },
         dismissButton = { TextButton(onClick = actions::cancelConfirm, shape = ButtonShape) { Text(stringResource(R.string.model_confirm_cancel)) } },
         shape = MaterialTheme.shapes.extraLarge,
     )

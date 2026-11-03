@@ -303,6 +303,7 @@
     <string name="model_refused">Couldn\'t change it: %1$s</string>
     <string name="model_no_answer">No answer from Hermes. The top bar shows what it uses.</string>
     <string name="model_not_ready">This chat is not connected yet. Try again in a moment.</string>
+    <string name="model_no_token">Hermes asked to confirm but sent no way to confirm, so nothing was switched.</string>
     <string name="model_confirm_title">Switch to %1$s?</string>
     <string name="model_confirm_switch">Switch anyway</string>
     <string name="model_confirm_cancel">Cancel</string>

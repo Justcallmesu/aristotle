@@ -44,7 +44,7 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
     val epoch by container.pairEpoch.collectAsStateWithLifecycle()
     val routes = viewModel { RouteStores() }
     val chatRoutes = viewModel(key = CHAT_ROUTES) { RouteStores() }
-    if (QuoteGateHost(container, credentials)) {
+    if (quoteGateVisible(container, credentials)) {
         QuoteLoadingScreen(container.quotes)
         return
     }
@@ -73,7 +73,7 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
  * the min display holds even when nothing else changes.
  */
 @Composable
-private fun QuoteGateHost(container: AppContainer, credentials: CredentialState): Boolean {
+private fun quoteGateVisible(container: AppContainer, credentials: CredentialState): Boolean {
     val link by container.link.state.collectAsStateWithLifecycle()
     val input = GateInput(
         reading = credentials == CredentialState.Loading,

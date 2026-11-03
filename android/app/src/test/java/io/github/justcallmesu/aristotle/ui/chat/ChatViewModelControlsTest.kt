@@ -14,6 +14,7 @@ import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.chat.ReasoningLevels
 import io.github.justcallmesu.aristotle.data.chat.SlashBlock
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -182,6 +183,7 @@ class ChatViewModelControlsTest {
 
         vm.pickModel(vm.group(), "gpt-5.1-mini")
         link.answers["session.mutate"] = { HermesJson.parseToJsonElement("""{"session_id":"s1","operation":"model","revision":8}""") }
+        now += 700
         vm.confirmModel()
         val sent = link.sent("session.mutate")
         assertEquals(3, sent.size)
@@ -304,5 +306,164 @@ class ChatViewModelControlsTest {
         vm.send()
         assertTrue(link.sent("slash.exec").isEmpty())
         assertEquals("/status", vm.uiState.value.composer.draft)
+    }
+
+    // ── T15b ──────────────────────────────────────────────────────────────────────────────────────
+
+    private val desktopCatalog = """{"pairs":[["/status","Show status"],["/footer","Footer"],["/busy","Busy input"]],
+        "canon":{"/f":"/footer"},"commands":{"/status":{"desktop":null},"/footer":{"desktop":"no surface"},"/f":{"desktop":"no surface"},"/busy":{"desktop":"no surface"}},"skills":{}}"""
+
+    @Test
+    fun aTypedCommandTheDesktopRefusesIsNotSentAndKeepsTheDraft() {
+        val link = FakeLink(snapshot()).apply { answers["commands.catalog"] = { HermesJson.parseToJsonElement(desktopCatalog) } }
+        val vm = viewModel(link)
+        vm.editDraft("/")
+        for (typed in listOf("/footer", "/f on", "/FOOTER")) {
+            vm.editDraft(typed)
+            vm.send()
+            assertEquals(typed, vm.uiState.value.composer.draft)
+            assertEquals(CommandStatus.Blocked(SlashBlock.DesktopApp), vm.uiState.value.slash.runs.last().status)
+        }
+        assertTrue(link.sent("slash.exec").isEmpty())
+    }
+
+    @Test
+    fun busyIsNeverSentEvenWhenTheCatalogDoesNotKnowIt() {
+        val link = FakeLink(snapshot()).withCatalog()
+        val vm = viewModel(link)
+        vm.editDraft("/busy queue")
+        vm.send()
+        assertTrue(link.sent("slash.exec").isEmpty())
+        assertEquals(CommandStatus.Blocked(SlashBlock.DesktopApp), vm.uiState.value.slash.runs.single().status)
+        assertEquals("/busy queue", vm.uiState.value.composer.draft)
+    }
+
+    @Test
+    fun aCommandSentBeforeTheCatalogLoadedWaitsForItAndIsThenChecked() {
+        val gate = CompletableDeferred<Unit>()
+        val link = FakeLink(snapshot()).apply {
+            answers["commands.catalog"] = {
+                gate.await()
+                HermesJson.parseToJsonElement(desktopCatalog)
+            }
+            answers["slash.exec"] = { HermesJson.parseToJsonElement("""{"type":"exec","output":"ok"}""") }
+        }
+        val vm = viewModel(link)
+        vm.editDraft("/footer")
+        vm.send()
+        vm.send() // a second tap while it waits does nothing
+        assertTrue(link.sent("slash.exec").isEmpty())
+        assertEquals(CommandStatus.Running, vm.uiState.value.slash.runs.single().status)
+        gate.complete(Unit)
+        assertTrue(link.sent("slash.exec").isEmpty())
+        assertEquals(CommandStatus.Blocked(SlashBlock.DesktopApp), vm.uiState.value.slash.runs.single().status)
+        assertEquals("/footer", vm.uiState.value.composer.draft)
+        // A command the catalog allows goes out after the wait.
+        vm.editDraft("/status")
+        vm.send()
+        assertEquals(1, link.sent("slash.exec").size)
+    }
+
+    @Test
+    fun aCatalogThatCannotBeReadSendsNothingAndKeepsTheDraft() {
+        val link = FakeLink(snapshot()).apply { answers["commands.catalog"] = { throw RpcException(RpcError(5000, "boom", null), "x") } }
+        val vm = viewModel(link)
+        vm.editDraft("/status")
+        vm.send()
+        assertTrue(link.sent("slash.exec").isEmpty())
+        assertEquals("/status", vm.uiState.value.composer.draft)
+        assertEquals(CommandStatus.Failed("boom", sent = false), vm.uiState.value.slash.runs.single().status)
+    }
+
+    @Test
+    fun aSkillSubmissionIdExistsBeforeTheFirstCallAndIsReusedForTheRestoredText() {
+        val link = FakeLink(snapshot()).withCatalog()
+        var idsAtCall = -1
+        link.answers["slash.exec"] = {
+            idsAtCall = ids
+            HermesJson.parseToJsonElement("""{"type":"skill","name":"gif-search","message":"[skill body] cats","display":"/gif-search cats"}""")
+        }
+        link.answers["prompt.submit"] = { throw RpcException(null, "relay closed", linkClosed = true) }
+        val vm = viewModel(link)
+        vm.editDraft("/gif-search cats")
+        vm.send()
+        // run row id-1 and the submission id-2 were made before slash.exec answered.
+        assertEquals(2, idsAtCall)
+        val echo = vm.uiState.value.composer.outbox.single()
+        assertEquals("id-2", echo.id)
+        now += 700
+        vm.dismissFailed(echo.id)
+        assertEquals("/gif-search cats", vm.uiState.value.composer.draft)
+        vm.send()
+        assertEquals(listOf("id-2", "id-2"), link.sent("prompt.submit").map { (it.params["submission_id"] as JsonPrimitive).content })
+    }
+
+    @Test
+    fun aSkillRetryAfterAFailedSlashExecKeepsItsId() {
+        val link = FakeLink(snapshot()).withCatalog()
+        var fail = true
+        link.answers["slash.exec"] = {
+            if (fail) throw RpcException(null, "no answer", linkClosed = true, written = true)
+            HermesJson.parseToJsonElement("""{"type":"skill","name":"gif-search","message":"[skill body] cats","display":"/gif-search cats"}""")
+        }
+        val vm = viewModel(link)
+        vm.editDraft("/gif-search cats")
+        vm.send()
+        fail = false
+        vm.editDraft("/gif-search cats")
+        vm.send()
+        assertEquals("id-2", (link.sent("prompt.submit").single().params["submission_id"] as JsonPrimitive).content)
+    }
+
+    @Test
+    fun aConfirmationWithoutATokenIsNotAppliedAndSaysSo() {
+        val link = FakeLink(snapshot()).withOptions()
+        link.answers["session.mutate"] = { HermesJson.parseToJsonElement("""{"session_id":"s1","operation":"model","status":"confirmation_required","confirm_message":"Costs"}""") }
+        val vm = viewModel(link)
+        vm.openModels()
+        vm.pickModel(vm.group(), "gpt-5.1-mini")
+        assertNull(vm.uiState.value.model.confirm)
+        assertEquals(ModelMessage.NoToken, vm.uiState.value.model.message)
+    }
+
+    private fun askedToConfirm(): Pair<ChatViewModel, FakeLink> {
+        val link = FakeLink(snapshot()).withOptions()
+        link.answers["session.mutate"] = {
+            HermesJson.parseToJsonElement("""{"session_id":"s1","operation":"model","status":"confirmation_required","confirm":"tok","confirm_message":"Costs more"}""")
+        }
+        val vm = viewModel(link)
+        vm.openModels()
+        vm.pickModel(vm.group(), "gpt-5.1-mini")
+        return vm to link
+    }
+
+    @Test
+    fun theSwitchAnywayDialogClosesWhenTheModelChangesElsewhere() {
+        val (vm, link) = askedToConfirm()
+        assertTrue(vm.uiState.value.model.confirm != null)
+        link.frames.tryEmit(InboundFrame.Event("session.info", session, json("""{"session_id":"s1","model":"claude-x","provider":"anthropic"}"""), seq = 4, replayEpoch = "e"))
+        assertNull(vm.uiState.value.model.confirm)
+        now += 700
+        vm.confirmModel()
+        assertEquals(1, link.sent("session.mutate").size)
+    }
+
+    @Test
+    fun theSwitchAnywayDialogStaysWhenTheModelDidNotChange() {
+        val (vm, link) = askedToConfirm()
+        link.frames.tryEmit(InboundFrame.Event("session.info", session, json("""{"session_id":"s1","title":"renamed"}"""), seq = 4, replayEpoch = "e"))
+        assertTrue(vm.uiState.value.model.confirm != null)
+    }
+
+    @Test
+    fun switchAnywayIgnoresATapBeforeItsArmingTime() {
+        val (vm, link) = askedToConfirm()
+        now += 100
+        vm.confirmModel()
+        assertEquals(1, link.sent("session.mutate").size)
+        assertTrue(vm.uiState.value.model.confirm != null)
+        now += 600
+        vm.confirmModel()
+        assertEquals(2, link.sent("session.mutate").size)
     }
 }
