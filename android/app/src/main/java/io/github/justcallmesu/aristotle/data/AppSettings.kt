@@ -20,6 +20,11 @@ class AppSettings(private val store: KeyValueStore) {
     val batteryGuideShown: Boolean get() = flag(GUIDE_SHOWN) == true
     val notificationsAsked: Boolean get() = flag(NOTIFICATIONS_ASKED) == true
 
+    /** The id of the last loading-screen quote shown, so the next one differs. */
+    var lastQuoteId: Int?
+        get() = store.get(LAST_QUOTE)?.toIntOrNull()
+        set(value) = if (value == null) store.remove(LAST_QUOTE) else store.put(LAST_QUOTE, value.toString())
+
     fun setKeepConnected(on: Boolean) {
         store.put(KEEP_CONNECTED, on.toString())
         keep.value = on
@@ -40,6 +45,7 @@ class AppSettings(private val store: KeyValueStore) {
         const val KEEP_CONNECTED = "keep_connected"
         const val GUIDE_SHOWN = "battery_guide_shown"
         const val NOTIFICATIONS_ASKED = "notifications_asked"
+        const val LAST_QUOTE = "last_quote_id"
     }
 }
 

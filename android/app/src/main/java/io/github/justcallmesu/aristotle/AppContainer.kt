@@ -12,6 +12,8 @@ import io.github.justcallmesu.aristotle.data.AlertRouter
 import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
 import io.github.justcallmesu.aristotle.data.DeviceMaker
+import io.github.justcallmesu.aristotle.data.QuoteGate
+import io.github.justcallmesu.aristotle.data.QuoteSource
 import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.ScreenFocus
 import io.github.justcallmesu.aristotle.data.SessionWatcher
@@ -86,6 +88,12 @@ class AppContainer(context: Context) {
     /** Unsent composer text per session (T13): this phone only, written in the background as the user types. */
     val drafts = ChatDrafts(ApplyingPreferencesStore(context.getSharedPreferences(DRAFTS_FILE, Context.MODE_PRIVATE)))
 
+    /** The loading-screen quotes (TQ1): `quotes.json` is an asset copied from docs/ at build time; parsed once, off the main thread. */
+    val quotes = QuoteSource({ context.assets.open("quotes.json") }, settings)
+
+    /** When the quote loading screen shows (Q44); the main thread owns it. */
+    val quoteGate = QuoteGate()
+
     /** The Hermes profile the list shows and the watcher follows (Q25, T14), remembered per PC. */
     val profileSelection = ProfileSelection(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
 
@@ -116,6 +124,7 @@ class AppContainer(context: Context) {
 
     init {
         reloadCredentials()
+        scope.launch(Dispatchers.Default) { quotes.load() }
         link.start()
         scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
         scope.launch { credentials.state.collect { profileSelection.follow((it as? CredentialState.Paired)?.credentials?.pcId) } }

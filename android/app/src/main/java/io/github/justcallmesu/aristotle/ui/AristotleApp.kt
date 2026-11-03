@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.ui
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
@@ -11,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -19,10 +21,13 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.justcallmesu.aristotle.AppContainer
 import io.github.justcallmesu.aristotle.data.CredentialState
+import io.github.justcallmesu.aristotle.data.GateInput
 import io.github.justcallmesu.aristotle.data.HttpPairingApi
+import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.ui.chat.ChatScreen
 import io.github.justcallmesu.aristotle.ui.chat.ChatViewModel
+import io.github.justcallmesu.aristotle.ui.quote.QuoteLoadingScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairViewModel
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsScreen
@@ -39,6 +44,10 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
     val epoch by container.pairEpoch.collectAsStateWithLifecycle()
     val routes = viewModel { RouteStores() }
     val chatRoutes = viewModel(key = CHAT_ROUTES) { RouteStores() }
+    if (QuoteGateHost(container, credentials)) {
+        QuoteLoadingScreen(container.quotes)
+        return
+    }
     when (val current = credentials) {
         CredentialState.Loading -> BlankPage()
         CredentialState.Unavailable -> CredentialsUnavailablePage(
@@ -57,6 +66,31 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
             PairedPages(container, pc, routes, chatRoutes)
         }
     }
+}
+
+/**
+ * True while the quote loading screen covers the app (Q44). Time only moves the gate through its own recheck, so
+ * the min display holds even when nothing else changes.
+ */
+@Composable
+private fun QuoteGateHost(container: AppContainer, credentials: CredentialState): Boolean {
+    val link by container.link.state.collectAsStateWithLifecycle()
+    val input = GateInput(
+        reading = credentials == CredentialState.Loading,
+        paired = credentials is CredentialState.Paired,
+        linkPending = link == LinkState.Idle || link == LinkState.Connecting,
+    )
+    val gate = container.quoteGate
+    var visible by remember { mutableStateOf(gate.update(input, SystemClock.elapsedRealtime()).visible) }
+    LaunchedEffect(input) {
+        while (true) {
+            val out = gate.update(input, SystemClock.elapsedRealtime())
+            visible = out.visible
+            if (out.recheckAfterMillis <= 0) break
+            delay(out.recheckAfterMillis)
+        }
+    }
+    return visible
 }
 
 /** The pages under a paired PC. Back from a sub-page goes to [back]. */

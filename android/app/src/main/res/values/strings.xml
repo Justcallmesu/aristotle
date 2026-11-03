@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Aristotle</string>
+    <string name="loading_progress">Loading</string>
     <string name="pair_command" translatable="false">aristotle-server pair</string>
 
     <!-- Pair screen -->

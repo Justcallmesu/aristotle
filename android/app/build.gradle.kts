@@ -4,6 +4,13 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val quoteAssets = layout.buildDirectory.dir("generated/quote-assets")
+val copyQuotes by tasks.registering(Copy::class) {
+    from(rootProject.layout.projectDirectory.file("../docs/quotes.json"))
+    into(quoteAssets)
+}
+tasks.named("preBuild") { dependsOn(copyQuotes) }
+
 android {
     namespace = "io.github.justcallmesu.aristotle"
     compileSdk = 36
@@ -15,6 +22,9 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
+
+    // quotes.json has one source, docs/quotes.json: copied into a generated assets dir at build time (TQ1).
+    sourceSets.getByName("main").assets.srcDir(quoteAssets.get().asFile)
 
     buildFeatures {
         compose = true

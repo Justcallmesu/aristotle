@@ -280,4 +280,5 @@
     <string name="scan_error_fingerprint">Sidik jari sertifikat di kode QR ini tidak valid. Jalankan %1$s lagi.</string>
     <string name="scan_error_address">Kode QR ini memuat alamat yang tidak dipakai aplikasi (hanya alamat IP Wi-Fi atau Tailscale lewat HTTPS). Masukkan alamatnya secara manual.</string>
     <string name="scan_error_malformed">Kode QR ini rusak atau tidak lengkap. Pindai lagi, atau masukkan kodenya secara manual.</string>
+    <string name="loading_progress">Memuat</string>
 </resources>

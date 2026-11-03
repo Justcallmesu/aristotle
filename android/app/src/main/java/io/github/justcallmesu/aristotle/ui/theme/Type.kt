@@ -84,6 +84,11 @@ object AristotleTextStyles {
     /** Tool output and Markdown code blocks (design.md §2 "code tool output"). */
     val toolOutput: TextStyle = style(AtkinsonMonoFamily, 11.5f, 17f, FontWeight.W400)
 
+    /** Loading screen quote (Q45): English in Literata, the Greek below it smaller, then the citation. */
+    val quote: TextStyle = style(LiterataFamily, 20f, 30f, FontWeight.W400)
+    val quoteGreek: TextStyle = style(LiterataFamily, 13f, 20f, FontWeight.W400)
+    val quoteCitation: TextStyle = style(AtkinsonFamily, 12f, 16f, FontWeight.W500, 0.3f)
+
     /** Times and durations use tabular figures. */
     fun tabular(base: TextStyle): TextStyle = base.copy(fontFeatureSettings = "tnum")
 }
