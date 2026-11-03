@@ -157,13 +157,14 @@ class LinkManagerTest {
         credentials: StateFlow<CredentialState> = this.credentials,
         memory: LinkMemory = LinkMemory { _, addresses, lastGood -> remembered += Remembered(addresses, lastGood) },
         readyTimeoutMillis: Long = 2_000,
+        supersededRetryMillis: Long = 60_000,
     ): LinkManager = LinkManager(
         scope = scope,
         credentials = credentials,
         dialer = dialer,
         network = network,
         memory = memory,
-        timings = LinkTimings(readyTimeoutMillis = readyTimeoutMillis, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff),
+        timings = LinkTimings(readyTimeoutMillis = readyTimeoutMillis, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff, supersededRetryMillis = supersededRetryMillis),
     ).also { it.start() }
 
     private fun LinkManager.await(what: String, predicate: (LinkState) -> Boolean): LinkState = runBlocking {
@@ -278,6 +279,20 @@ class LinkManagerTest {
         manager.retryNow()
         manager.await("back after Retry now") { it is LinkState.Online && it.generation != again.generation }
         assertEquals(3, dialer.opened.size)
+    }
+
+    // T13b: a backgrounded phone on a stable network gets no wake; a slow backstop round brings the link back.
+    @Test
+    fun aSupersededSocketIsRetriedByTheSlowBackstop() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val manager = link(dialer, supersededRetryMillis = 400)
+        val first = manager.await("online") { it is LinkState.Online } as LinkState.Online
+        dialer.sockets.single().close(4409, "superseded by a newer connection")
+        manager.await("superseded") { it is LinkState.Offline && it.waiting }
+        runBlocking { delay(150) }
+        assertEquals(1, dialer.opened.size)
+        manager.await("back by itself") { it is LinkState.Online && it.generation != first.generation }
+        assertEquals(2, dialer.opened.size)
     }
 
     @Test

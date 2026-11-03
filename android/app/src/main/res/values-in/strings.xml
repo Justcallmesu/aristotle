@@ -227,6 +227,7 @@
     <string name="composer_queued">Antrean · %1$d</string>
     <string name="composer_queue_remove">Hapus dari antrean</string>
     <string name="composer_sending">Mengirim…</string>
+    <string name="composer_stop_unavailable">Belum bisa dihentikan</string>
     <string name="composer_stop_failed">Gagal menghentikan: %1$s</string>
     <string name="composer_cancel_failed">Tidak bisa menghapus dari antrean: %1$s</string>
     <string name="echo_steered">Diarahkan ke giliran ini</string>

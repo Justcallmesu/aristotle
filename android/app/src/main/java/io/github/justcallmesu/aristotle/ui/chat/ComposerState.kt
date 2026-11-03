@@ -22,6 +22,10 @@ data class ComposerShown(val key: ComposerKey, val at: Long, val armed: Boolean 
 /** A one-off line (snackbar) about a composer action. */
 sealed interface ComposerMessage {
     data class StopFailed(val reason: String) : ComposerMessage
+
+    /** Stop before the turn's generation is known: nothing was sent. */
+    data object StopUnavailable : ComposerMessage
+
     data class CancelFailed(val reason: String) : ComposerMessage
 }
 
@@ -40,6 +44,8 @@ data class ComposerState(
     val stopping: Boolean = false,
     val cancelling: Set<String> = emptySet(),
     val message: ComposerMessage? = null,
+    /** Text -> `submission_id` of a dismissed "No answer" submit: sending the same text again is the same admission (T13 NIT). */
+    val keptIds: Map<String, String> = emptyMap(),
 ) {
     val mode: ComposerMode get() = shown?.key?.mode ?: ComposerMode.Offline
     val blocked: Boolean get() = shown?.key?.blocked == true

@@ -107,7 +107,7 @@ object ChatReducer {
      * text-only prompt is stored as typed, `agent/session_persistence.py:122-127`).
      */
     private fun withRunningPrompt(history: List<ChatItem>, started: List<JsonObject>): List<ChatItem> {
-        val lastUser = history.lastOrNull { it is ChatItem.User } as? ChatItem.User
+        val lastUser = history.lastOrNull { it is ChatItem.User && !it.steer } as? ChatItem.User
         return started.filter { it.flag("steering") != true }.fold(history) { items, admission ->
             val id = admission.text("admission_id") ?: return@fold items
             val text = admission.text("text")?.takeIf { it.isNotBlank() } ?: return@fold items

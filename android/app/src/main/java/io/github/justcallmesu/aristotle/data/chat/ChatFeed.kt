@@ -23,7 +23,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** What the chat screen gets: the transcript, whether it has loaded once, and why the last load failed. */
-data class ChatFeedState(val chat: ChatState, val loaded: Boolean = false, val problem: String? = null)
+data class ChatFeedState(
+    val chat: ChatState,
+    val loaded: Boolean = false,
+    val problem: String? = null,
+    /** The relay socket (link generation) whose subscription last gave this chat a snapshot or catch-up (D38). */
+    val confirmedGeneration: Long? = null,
+)
 
 /**
  * One session's chat over the process-wide link (T11). On every relay socket it subscribes the session once
@@ -104,7 +110,7 @@ class ChatFeed(
             val fresh = resumed.claim(generation, sessionId)
             val caughtUp = if (rebuild || !current.loaded) null else catchUp(current.chat)
             if (caughtUp != null && !fresh) {
-                publish(current.copy(chat = caughtUp, problem = null)) // the watcher holds the subscription already
+                publish(current.copy(chat = caughtUp, problem = null, confirmedGeneration = generation)) // the watcher holds the subscription already
                 return true
             }
             val params = buildJsonObject {
@@ -122,7 +128,7 @@ class ChatFeed(
                 // Hermes restarted its event log between the catch-up and the resume: only a full snapshot can tell.
                 return subscribe(generation, rebuild = true)
             }
-            publish(ChatFeedState(ChatReducer.fromSnapshot(sessionId, snapshot, caughtUp ?: current.chat), loaded = true))
+            publish(ChatFeedState(ChatReducer.fromSnapshot(sessionId, snapshot, caughtUp ?: current.chat), loaded = true, confirmedGeneration = generation))
             return true
         }
 

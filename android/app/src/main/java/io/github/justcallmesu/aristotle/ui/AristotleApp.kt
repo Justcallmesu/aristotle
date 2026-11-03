@@ -91,7 +91,7 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
     BackHandler(enabled = page != PairedPage.Sessions) { page = page.back }
     when (page) {
         PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
-            val sessionsViewModel = viewModel { SessionsViewModel(pc, container.link) }
+            val sessionsViewModel = viewModel { SessionsViewModel(pc, container.link, container.drafts) }
             SessionsScreen(
                 sessionsViewModel,
                 onPairAgain = { container.forgetPc(reason = null) },

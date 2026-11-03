@@ -13,6 +13,7 @@ class MemoryStore : KeyValueStore {
     override fun remove(key: String) {
         map.remove(key)
     }
+    override fun keys(): Set<String> = map.keys.toSet()
 }
 
 fun softwareKey(): SecretKey = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()

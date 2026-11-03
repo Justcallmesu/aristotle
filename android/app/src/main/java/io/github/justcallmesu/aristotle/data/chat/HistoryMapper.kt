@@ -22,7 +22,7 @@ object HistoryMapper {
             if (modelOnly(row)) return@forEachIndexed
             val key = "h-${row.number("row_id")?.toLong() ?: "i$index"}"
             when (row.text("role")) {
-                "user" -> textOf(row["content"])?.let { items += ChatItem.User(key, it) }
+                "user" -> textOf(row["content"])?.let { items += ChatItem.User(key, it, steer = row.text("display_kind") == "steer") }
                 "assistant" -> assistant(row, key, items, cards, toolKeys)
                 "tool" -> toolResult(row, key, items, cards)
             }

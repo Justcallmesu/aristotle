@@ -48,6 +48,18 @@ class ComposerReducerTest {
         assertEquals(1, started.items.count { it is ChatItem.User && it.text == "Second" })
     }
 
+    // T13b: Hermes stores a steer as its own user row (display_kind steer) after the prompt; it is not the prompt.
+    @Test
+    fun aSteerRowAfterTheStoredPromptDoesNotShowThePromptTwice() {
+        val snapshot = json(
+            """{"session_id":"$session","running":true,"replay_epoch":"e","last_sequence":9,"prompts":[],"info":{},
+               "messages":[{"role":"user","content":"Second","row_id":3},{"role":"user","content":"steer me","display_kind":"steer","row_id":4}],
+               "pending":[{"admission_id":"a2","input_id":"i2","status":"started","text":"Second"}]}""",
+        )
+        val state = ChatReducer.fromSnapshot(session, snapshot)
+        assertEquals(listOf("Second", "steer me"), state.items.map { (it as ChatItem.User).text })
+    }
+
     @Test
     fun aStoredPromptIsNotShownTwice() {
         val snapshot = json(

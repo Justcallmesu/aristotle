@@ -18,8 +18,8 @@ sealed interface SendFailure {
     /** It went out and the link dropped (or nothing answered) before Hermes' answer: it may have arrived. */
     data object NoAnswer : SendFailure
 
-    /** Hermes refused it; [reason] is its error message (`stale_generation`, `queue_full`, …). */
-    data class Refused(val reason: String) : SendFailure
+    /** Hermes refused it; [reason] is its error message, [code] its JSON-RPC code (`stale_generation`, `queue_full`, …). */
+    data class Refused(val reason: String, val code: Int? = null) : SendFailure
 
     /** A steer no agent saw: the turn had ended (`rejected` + `delivered: false`, safe to send as a new message). */
     data object TurnEnded : SendFailure
@@ -48,12 +48,13 @@ sealed interface OutgoingStatus {
 data class Outgoing(val id: String, val text: String, val kind: OutgoingKind, val status: OutgoingStatus) {
     /**
      * Retry is offered when it cannot deliver twice: a submit always (same `submission_id`), a steer only when it
-     * surely did not reach the turn (a steer has no idempotency key, `gateway/session_busy_controls.py:176`).
+     * surely did not reach the turn (a steer has no idempotency key, `gateway/session_busy_controls.py:176`): Hermes'
+     * refusal code 4001 only; a `-32603` crash or a contract violation can follow delivery.
      */
     val retryable: Boolean
         get() {
             val failure = (status as? OutgoingStatus.Failed)?.failure ?: return false
-            return kind != OutgoingKind.Steer || failure == SendFailure.NotSent || failure is SendFailure.Refused || failure == SendFailure.TurnEnded
+            return kind != OutgoingKind.Steer || failure == SendFailure.NotSent || (failure is SendFailure.Refused && failure.code == Outbox.REFUSED) || failure == SendFailure.TurnEnded
         }
 }
 
@@ -64,6 +65,9 @@ data class Outgoing(val id: String, val text: String, val kind: OutgoingKind, va
  * `c-send.jsonl:9-13`). Pure.
  */
 object Outbox {
+    /** Hermes' own refusal (`RuntimeStoreError`), raised before the steer reaches the agent. */
+    const val REFUSED = 4001
+
     /**
      * `prompt.submit` answered with an admission receipt (`tui_gateway/contracts/canonical.py:29-38`). `terminal`:
      * a Retry replayed an admission that already ran (the history holds it); `voice_stopped`: nothing was admitted.
@@ -92,7 +96,7 @@ object Outbox {
     fun failed(item: Outgoing, error: RpcException, now: Long): Outgoing {
         val failure = when {
             !error.written -> SendFailure.NotSent
-            error.error != null -> SendFailure.Refused(error.error.message.ifBlank { "error ${error.error.code}" })
+            error.error != null -> SendFailure.Refused(error.error.message.ifBlank { "error ${error.error.code}" }, error.error.code)
             else -> SendFailure.NoAnswer
         }
         return item.copy(status = OutgoingStatus.Failed(failure, now))

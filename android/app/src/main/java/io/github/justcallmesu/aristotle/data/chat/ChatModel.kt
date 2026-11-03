@@ -10,7 +10,8 @@ import kotlinx.serialization.json.contentOrNull
 sealed interface ChatItem {
     val key: String
 
-    data class User(override val key: String, val text: String) : ChatItem
+    /** [steer]: a steer Hermes stored as its own user row mid-turn (`display_kind` steer), not a turn's prompt. */
+    data class User(override val key: String, val text: String, val steer: Boolean = false) : ChatItem
 
     /** Assistant text (Markdown). [streaming]: deltas still arrive for it; the cursor shows only then. */
     data class Assistant(override val key: String, val text: String, val streaming: Boolean = false) : ChatItem

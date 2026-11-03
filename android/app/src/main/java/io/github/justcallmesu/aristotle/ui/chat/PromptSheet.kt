@@ -93,7 +93,7 @@ interface PromptActions {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PromptSheet(prompt: Prompt?, sheet: PromptSheetState, context: String, actions: PromptActions) {
+fun PromptSheet(prompt: Prompt?, sheet: PromptSheetState, context: String, actions: PromptActions, answerable: Boolean = true) {
     val withdrawn = sheet.withdrawn
     val shown = withdrawn ?: prompt ?: return
     val secret = withdrawn == null && shown is Prompt.Secret
@@ -122,7 +122,7 @@ fun PromptSheet(prompt: Prompt?, sheet: PromptSheetState, context: String, actio
             val busy = sheet.sending == shown.key
             // Answer buttons stay off until this prompt has been on screen for PromptSheetLogic.ARM_MS (T12b); the
             // ViewModel drops an earlier answer anyway.
-            val armed = sheet.shown?.let { it.key == shown.key && it.armed } == true
+            val armed = answerable && sheet.shown?.let { it.key == shown.key && it.armed } == true
             when {
                 withdrawn != null -> Withdrawn(withdrawn, actions)
                 shown is Prompt.Approval -> ApprovalBody(shown, confirming = sheet.confirmAlways == shown.key, busy = busy || !armed, actions = actions)
@@ -196,7 +196,8 @@ private fun ApprovalBody(prompt: Prompt.Approval, confirming: Boolean, busy: Boo
     Countdown(prompt.deadlineMillis)
     val offers = prompt.choices.toSet()
     // Deny and Allow once side by side, equal width, in the thumb zone (Q41).
-    Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.s), horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+    // In the "Always allow" confirmation only Confirm / Back are left: Deny and Allow once would arm and then be dropped (D38).
+    if (!confirming) Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.s), horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
         if (ApprovalChoice.Deny in offers) {
             OutlinedButton(
                 onClick = { actions.choose(prompt.key, ApprovalChoice.Deny) },

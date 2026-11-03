@@ -12,6 +12,7 @@ import io.github.justcallmesu.aristotle.data.chat.ChatFeed
 import io.github.justcallmesu.aristotle.data.chat.ChatFeedState
 import io.github.justcallmesu.aristotle.data.chat.ChatState
 import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
+import io.github.justcallmesu.aristotle.data.chat.Prompt
 import io.github.justcallmesu.aristotle.data.chat.PromptAnswer
 import io.github.justcallmesu.aristotle.data.chat.PromptReplies
 import io.github.justcallmesu.aristotle.data.chat.PromptReply
@@ -37,7 +38,15 @@ data class ChatUiState(
     val link: LinkState,
     val sheet: PromptSheetState = PromptSheetState(),
     val composer: ComposerState = ComposerState(),
-)
+) {
+    /**
+     * A sudo/secret answer is a bare response that Hermes may have resolved elsewhere meanwhile, and re-sending it
+     * sends the password out again: after a reconnect it waits until this socket's snapshot confirms the prompt is
+     * still open (D38). Other prompts are not secret and Hermes answers a duplicate itself.
+     */
+    fun answerable(prompt: Prompt?): Boolean =
+        prompt !is Prompt.Secret || (link as? LinkState.Online)?.generation?.let { it == feed.confirmedGeneration } == true
+}
 
 /**
  * The chat screen's state: one [ChatFeed] for the session, run on [background] (frames are parsed and reduced
@@ -155,7 +164,28 @@ class ChatViewModel(
     }
 
     /** [key] is on screen (in [confirming]'s step) and has been for [PromptSheetLogic.ARM_MS]. */
-    private fun armed(key: String, confirming: Boolean = false): Boolean = PromptSheetLogic.armed(state.value.sheet, key, confirming, clock())
+    private fun armed(key: String, confirming: Boolean = false): Boolean {
+        val ui = state.value
+        val prompt = ui.feed.chat.prompts.firstOrNull { it.key == key }
+        return ui.answerable(prompt) && PromptSheetLogic.armed(ui.sheet, key, confirming, clock())
+    }
+
+    /**
+     * The activity came back to the front (D38): what is on screen starts its arming time again, so a prompt or a
+     * composer swap that happened while the app was stopped is not tappable the instant the screen returns.
+     */
+    fun onResume() {
+        val now = clock()
+        state.update { ui ->
+            ui.copy(
+                sheet = ui.sheet.copy(shown = ui.sheet.shown?.copy(at = now, armed = false)),
+                composer = ui.composer.copy(shown = ui.composer.shown?.copy(at = now, armed = false)),
+            )
+        }
+        val next = state.value
+        armSheet(next.sheet.shown)
+        armComposer(next.composer.shown)
+    }
 
     private fun send(key: String, answer: PromptAnswer) {
         val current = state.value

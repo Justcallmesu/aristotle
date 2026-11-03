@@ -17,6 +17,9 @@ interface KeyValueStore {
     fun get(key: String): String?
     fun put(key: String, value: String)
     fun remove(key: String)
+
+    /** Every key held. */
+    fun keys(): Set<String>
 }
 
 /** Commits synchronously: the store only calls it off the main thread. */
@@ -24,6 +27,7 @@ class SharedPreferencesStore(private val prefs: SharedPreferences) : KeyValueSto
     override fun get(key: String): String? = prefs.getString(key, null)
     override fun put(key: String, value: String) = prefs.edit(commit = true) { putString(key, value) }
     override fun remove(key: String) = prefs.edit(commit = true) { remove(key) }
+    override fun keys(): Set<String> = prefs.all.keys.toSet()
 }
 
 /** What the app knows about its pairing; drives the top-level route. */

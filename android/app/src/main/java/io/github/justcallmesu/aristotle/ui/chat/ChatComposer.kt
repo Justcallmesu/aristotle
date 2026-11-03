@@ -51,7 +51,10 @@ internal class ChatComposer(
     fun stop() {
         val ui = state()
         if (!ComposerLogic.armed(ui.composer, ComposerMode.Busy, clock()) || ui.composer.stopping) return
-        val generation = ui.feed.chat.generation ?: return
+        val generation = ui.feed.chat.generation ?: run {
+            updateComposer { it.copy(message = ComposerMessage.StopUnavailable) }
+            return
+        }
         updateComposer { it.copy(stopping = true) }
         val call = ComposerFrames.interrupt(sessionId, generation)
         work.launch {
@@ -111,8 +114,10 @@ internal class ChatComposer(
         val item = state().composer.outbox.firstOrNull { it.id == id } ?: return
         if (!ComposerLogic.failureSeen(item, clock())) return
         var restored: String? = null
+        // A submit that may have reached Hermes keeps its id: the same text sent again is then the same admission.
+        val keep = item.kind != OutgoingKind.Steer && (item.status as? OutgoingStatus.Failed)?.failure == SendFailure.NoAnswer
         updateComposer { c ->
-            val rest = c.copy(outbox = c.outbox.filter { it.id != id })
+            val rest = c.copy(outbox = c.outbox.filter { it.id != id }, keptIds = if (keep) c.keptIds + (item.text to item.id) else c.keptIds)
             if (c.draft.isNotBlank()) rest else rest.copy(draft = item.text, draftEpoch = c.draftEpoch + 1).also { restored = item.text }
         }
         restored?.let { drafts?.put(sessionId, it) }
@@ -127,8 +132,10 @@ internal class ChatComposer(
         if (!ComposerLogic.armed(composer, mode, clock())) return
         if (kind == OutgoingKind.Send && composer.blocked) return
         val text = composer.draft.trim().ifEmpty { return }
-        val item = Outgoing(newId(), text, kind, OutgoingStatus.Sending)
+        val kept = composer.keptIds[text]
+        val item = Outgoing(kept ?: newId(), text, kind, OutgoingStatus.Sending)
         takeDraft(item)
+        if (kept != null) updateComposer { it.copy(keptIds = it.keptIds - text) }
         deliverSubmit(item)
     }
 

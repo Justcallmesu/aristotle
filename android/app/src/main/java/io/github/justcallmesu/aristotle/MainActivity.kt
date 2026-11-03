@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
             session = intent.getStringExtra(OpenSession.EXTRA_SESSION),
             title = intent.getStringExtra(OpenSession.EXTRA_TITLE),
             prompt = intent.getBooleanExtra(OpenSession.EXTRA_PROMPT, false),
+            flags = intent.flags,
         ) ?: return
         (application as AristotleApplication).container.openChat.value = request
     }

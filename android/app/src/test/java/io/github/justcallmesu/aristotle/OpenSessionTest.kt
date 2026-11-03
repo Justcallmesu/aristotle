@@ -21,6 +21,15 @@ class OpenSessionTest {
         assertNull(OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "x".repeat(257), null, prompt = false))
     }
 
+    // D38: a recents relaunch re-delivers the notification's intent; it must not reopen the chat.
+    @Test
+    fun anIntentRedeliveredFromRecentsIsIgnored() {
+        assertEquals(android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY, OpenSession.FLAG_LAUNCHED_FROM_HISTORY)
+        val flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or OpenSession.FLAG_LAUNCHED_FROM_HISTORY
+        assertNull(OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "s1", "T", prompt = true, flags = flags))
+        assertEquals(OpenChat("s1", "T", true), OpenSession.read(OpenSession.ACTION, OpenSession.ALIAS, "s1", "T", prompt = true, flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     @Test
     fun theManifestAliasIsNotExportedAndTheLauncherStays() {
         val manifest = listOf(File("src/main/AndroidManifest.xml"), File("app/src/main/AndroidManifest.xml")).first { it.exists() }

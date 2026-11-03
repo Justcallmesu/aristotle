@@ -48,4 +48,5 @@ class ApplyingPreferencesStore(private val prefs: SharedPreferences) : KeyValueS
     override fun get(key: String): String? = prefs.getString(key, null)
     override fun put(key: String, value: String) = prefs.edit { putString(key, value) }
     override fun remove(key: String) = prefs.edit { remove(key) }
+    override fun keys(): Set<String> = prefs.all.keys.toSet()
 }

@@ -1,0 +1,6 @@
++ local out
+++ gofmt -l .
++ out=
++ [[ -n '' ]]
++ echo 'gofmt: clean'
+gofmt: clean

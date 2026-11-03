@@ -232,6 +232,7 @@
     <string name="composer_queued">Queued · %1$d</string>
     <string name="composer_queue_remove">Remove from queue</string>
     <string name="composer_sending">Sending…</string>
+    <string name="composer_stop_unavailable">Can\'t stop yet</string>
     <string name="composer_stop_failed">Stop failed: %1$s</string>
     <string name="composer_cancel_failed">Couldn\'t remove it from the queue: %1$s</string>
     <string name="echo_steered">Steered into the turn</string>
@@ -242,6 +243,6 @@
     <string name="echo_not_taken">The turn did not take this steer.</string>
     <string name="echo_retry">Retry</string>
     <string name="echo_dismiss">Remove; the text goes back to the field</string>
-    <string name="offline_cause_superseded">This phone opened a newer connection to the laptop on its other address, so the one to %1$s was closed.</string>
+    <string name="offline_cause_superseded">This phone opened a newer connection to the PC on its other address, so the one to %1$s was closed.</string>
     <string name="offline_waiting">Not reconnecting by itself. Retry now to connect here.</string>
 </resources>

@@ -8,6 +8,7 @@ import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.SessionFeedEvent
 import io.github.justcallmesu.aristotle.data.SessionRepository
+import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -42,6 +43,7 @@ data class SessionsUiState(
 class SessionsViewModel(
     pc: PcCredentials,
     private val link: RelayLink,
+    private val drafts: ChatDrafts? = null,
     private val locale: () -> Locale = { Locale.getDefault() },
     private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
 ) : ViewModel() {
@@ -85,6 +87,8 @@ class SessionsViewModel(
         when (event) {
             is SessionFeedEvent.Profile -> state.update { it.copy(profileName = event.name, listProblem = null) }
             is SessionFeedEvent.Sessions -> {
+                // Drafts untouched for 30 days are pruned; absence from the list is not proof of deletion (T13 NIT).
+                drafts?.prune()
                 val at = now()
                 state.update {
                     it.copy(

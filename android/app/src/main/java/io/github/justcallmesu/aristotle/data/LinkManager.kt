@@ -66,6 +66,8 @@ fun interface LinkMemory {
 data class LinkTimings(
     val readyTimeoutMillis: Long = 20_000,
     val hermesDownRetryMillis: Long = 10_000,
+    /** The slow backstop after a `4409` (D36): a stable background network sends no other wake. */
+    val supersededRetryMillis: Long = 60_000,
     val rpcTimeoutMillis: Long = 15_000,
     val backoff: Backoff = Backoff(),
 )
@@ -75,7 +77,7 @@ data class LinkTimings(
  * Tries the PC's addresses in [EndpointChoice] order, reconnects after a loss with [Backoff] (reset once a
  * relay delivers `gateway.ready`), and at once when the phone's network changes, the app returns to the
  * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s; after `4409`
- * only a network change, the foreground or the user starts the next round (D36).
+ * a network change, the foreground or the user starts the next round at once, else a slow backstop (60 s) does (D36).
  * [stop] (the background notification's Stop, T10) closes the relay until [onForeground].
  * Frames are handed off OkHttp's reader thread at once ([RelaySocket]) and parsed here (protocol §12).
  * An unexpected error in a round shows as [OfflineCause.AppError] and the next round runs: the link never dies.
@@ -332,7 +334,7 @@ class LinkManager(
             reached()
             val since = clock().also { offlineSince = it }
             current.value = LinkState.Offline(since, OfflineCause.Superseded, end.details, end.address, attempt = 0, nextAttemptAtMillis = null, waiting = true)
-            wakes.receive()
+            sleep(timings.supersededRetryMillis)
         }
 
         /** The PC answered: it is not offline (whatever Hermes said), and a later loss backs off from the start. */

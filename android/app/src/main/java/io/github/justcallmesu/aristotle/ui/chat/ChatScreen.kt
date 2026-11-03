@@ -63,6 +63,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.LinkState
@@ -81,6 +83,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
     val composer = remember(viewModel) { ViewModelComposerActions(viewModel) }
     ChatContentView(
@@ -181,13 +184,15 @@ fun ChatContentView(
     }
     if (state.sheet.visible(chat)) {
         val context = listOfNotNull(chat.title ?: fallbackTitle, chat.profileName).joinToString(" · ")
-        PromptSheet(state.sheet.current(chat).takeIf { state.sheet.open }, state.sheet, context, actions)
+        val prompt = state.sheet.current(chat).takeIf { state.sheet.open }
+        PromptSheet(prompt, state.sheet, context, actions, answerable = state.answerable(prompt))
     }
 }
 
 @Composable
 private fun composerMessage(message: ComposerMessage): String = when (message) {
     is ComposerMessage.StopFailed -> stringResource(R.string.composer_stop_failed, message.reason)
+    ComposerMessage.StopUnavailable -> stringResource(R.string.composer_stop_unavailable)
     is ComposerMessage.CancelFailed -> stringResource(R.string.composer_cancel_failed, message.reason)
 }
 

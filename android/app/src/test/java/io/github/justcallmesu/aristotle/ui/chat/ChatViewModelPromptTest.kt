@@ -48,8 +48,14 @@ class ChatViewModelPromptTest {
         var answer: (Call) -> JsonElement = { HermesJson.parseToJsonElement("""{"status":"resolved"}""") }
         var socketOpen = true
 
+        /** Holds `session.resume` (the new socket's snapshot) until completed. */
+        var resumeGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
         override suspend fun call(method: String, params: JsonObject): JsonElement {
-            if (method == "session.resume") return resumeResult
+            if (method == "session.resume") {
+                resumeGate?.await()
+                return resumeResult
+            }
             val call = Call(method, params)
             calls += call
             return answer(call)
@@ -321,6 +327,42 @@ class ChatViewModelPromptTest {
         looked()
         vm.answerSecret("srq-0123456789ab", SecretField().apply { text = "hunter2" })
         assertEquals(2, link.responses.size)
+    }
+
+    // D38: right after a reconnect a sudo prompt may already be resolved; it is not answerable until the snapshot says so.
+    @Test
+    fun aSudoPromptIsNotAnswerableUntilTheNewSnapshotConfirmsIt() {
+        val link = FakeLink(sudoSnapshot)
+        val vm = viewModel(link)
+        looked()
+        assertTrue(vm.uiState.value.answerable(vm.uiState.value.feed.chat.prompts.single()))
+        link.resumeGate = kotlinx.coroutines.CompletableDeferred()
+        link.state.value = LinkState.Online(ServerEndpoint("192.168.1.61", 8760, Network.Lan), 2)
+        looked()
+        val field = SecretField().apply { text = "hunter2" }
+        assertFalse(vm.uiState.value.answerable(vm.uiState.value.feed.chat.prompts.single()))
+        vm.answerSecret("srq-0123456789ab", field)
+        assertTrue(link.responses.isEmpty())
+        assertEquals("hunter2", field.text)
+        link.resumeGate!!.complete(Unit) // the snapshot still lists it
+        assertTrue(vm.uiState.value.answerable(vm.uiState.value.feed.chat.prompts.single()))
+        looked()
+        vm.answerSecret("srq-0123456789ab", field)
+        assertEquals(1, link.responses.size)
+    }
+
+    // D38 (T12b MINOR-B): the arm timer restarts when the activity comes back.
+    @Test
+    fun resumingTheActivityStartsThePromptArmingAgain() {
+        val link = FakeLink(approvalSnapshot)
+        val vm = viewModel(link)
+        looked()
+        vm.onResume()
+        vm.choose("p1", ApprovalChoice.Once)
+        assertTrue(link.calls.isEmpty())
+        looked()
+        vm.choose("p1", ApprovalChoice.Once)
+        assertEquals(1, link.calls.size)
     }
 
     @Test

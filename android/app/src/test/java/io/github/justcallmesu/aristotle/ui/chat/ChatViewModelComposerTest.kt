@@ -226,7 +226,7 @@ class ChatViewModelComposerTest {
         val vm = viewModel(link)
         vm.editDraft("hello")
         vm.send()
-        assertEquals(SendFailure.Refused("queue_full"), (vm.composer().outbox.single().status as OutgoingStatus.Failed).failure)
+        assertEquals(SendFailure.Refused("queue_full", 4001), (vm.composer().outbox.single().status as OutgoingStatus.Failed).failure)
         looked()
         vm.dismissFailed("id-1")
         assertTrue(vm.composer().outbox.isEmpty())
@@ -329,6 +329,67 @@ class ChatViewModelComposerTest {
         looked()
         vm.retrySend(failed.id)
         assertEquals(1, link.calls.size)
+    }
+
+    // T13b: only Hermes' refusal 4001 surely means the steer did not arrive; a -32603 crash may follow delivery.
+    @Test
+    fun aSteerIsRetryableOnlyAfterHermesRefusal4001() {
+        for ((code, retryable) in listOf(4001 to true, -32603 to false, 5000 to false)) {
+            val link = FakeLink(busy).apply { answer = { throw RpcException(RpcError(code, "boom"), "session.steer failed: $code") } }
+            now = 0
+            val vm = viewModel(link)
+            looked()
+            vm.editDraft("also this")
+            vm.steer()
+            assertEquals("code $code", retryable, vm.composer().outbox.single().retryable)
+        }
+    }
+
+    // T13 NIT: ✕ on a "No answer" echo puts the text back; sending that same text is the same admission.
+    @Test
+    fun aDismissedNoAnswerSubmitKeepsItsSubmissionIdForTheSameText() {
+        val link = FakeLink(idle).apply { answer = { throw RpcException(null, "relay closed", linkClosed = true) } }
+        val vm = viewModel(link)
+        vm.editDraft("hello")
+        vm.send()
+        assertEquals(SendFailure.NoAnswer, (vm.composer().outbox.single().status as OutgoingStatus.Failed).failure)
+        looked()
+        vm.dismissFailed("id-1")
+        assertEquals("hello", vm.composer().draft)
+        link.answer = { receipt("a1") }
+        vm.send()
+        assertEquals(listOf("id-1", "id-1"), link.sent("prompt.submit").map { it.text("submission_id") })
+        // Other text is a new message; the kept id was used up.
+        vm.editDraft("other")
+        looked()
+        vm.send()
+        assertEquals("id-2", link.sent("prompt.submit").last().text("submission_id"))
+    }
+
+    @Test
+    fun aStopWithoutAKnownGenerationSaysSo() {
+        val link = FakeLink(busy.replace(""","execution_generation":6""", ""))
+        val vm = viewModel(link)
+        assertEquals(ComposerMode.Busy, vm.composer().mode)
+        assertNull(vm.uiState.value.feed.chat.generation)
+        looked()
+        vm.stop()
+        assertEquals(ComposerMessage.StopUnavailable, vm.composer().message)
+        assertTrue(link.sent("session.interrupt").isEmpty())
+    }
+
+    @Test
+    fun resumingTheActivityStartsTheComposerArmingAgain() {
+        val link = FakeLink(idle).apply { answer = { receipt("a1") } }
+        val vm = viewModel(link)
+        looked()
+        vm.editDraft("hello")
+        vm.onResume()
+        vm.send() // right after the screen came back: not armed
+        assertTrue(link.sent("prompt.submit").isEmpty())
+        looked()
+        vm.send()
+        assertEquals(1, link.sent("prompt.submit").size)
     }
 
     // ── tap-through guard ─────────────────────────────────────────────────────────────────────────

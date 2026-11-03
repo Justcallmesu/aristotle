@@ -16,9 +16,14 @@ object OpenSession {
     const val EXTRA_PROMPT = "prompt"
     private const val MAX_ID = 256
 
+    /** `Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`, repeated here to keep this object free of Android classes. */
+    const val FLAG_LAUNCHED_FROM_HISTORY = 0x00100000
+
     /** The chat to open for an intent with [action] that reached the activity through [component] (its class name). */
-    fun read(action: String?, component: String?, session: String?, title: String?, prompt: Boolean): OpenChat? {
+    fun read(action: String?, component: String?, session: String?, title: String?, prompt: Boolean, flags: Int = 0): OpenChat? {
         if (action != ACTION || component != ALIAS) return null
+        // A recents relaunch of the task a notification started re-delivers the old intent (D38).
+        if (flags and FLAG_LAUNCHED_FROM_HISTORY != 0) return null
         val id = session?.takeIf { it.isNotEmpty() && it.length <= MAX_ID } ?: return null
         return OpenChat(id, title, prompt)
     }
