@@ -160,6 +160,7 @@ object ChatReducer {
         "tool.complete" -> toolComplete(state, payload, at)
         "session.info" -> mergeInfo(state, payload)
         "session.title" -> payload["title"]?.let { mergeInfo(state, JsonObject(mapOf("title" to it))) } ?: state
+        "session.updated" -> adoptRevision(state, payload)
         "approval.request", "clarify.request" -> Prompts.fromEvent(payload, at)?.let { openPrompt(state, it) } ?: state
         "approval.settled", "clarify.settled" -> payload.text("prompt_id")?.let { settlePrompt(state, it, null) } ?: state
         // A withdrawn Hermes -> client request (`tui_gateway/contracts/server_requests.py:364-379`).
@@ -211,6 +212,20 @@ object ChatReducer {
             pendingEntries(payload["pending"]).filter { it.text("status") == "started" }.forEach { next = showUser(next, it) }
         }
         return next
+    }
+
+    /**
+     * Another viewer's committed `session.mutate` (a rename, a model pick) is broadcast as its receipt
+     * (`gateway/session_mutations.py:330-334`); its `revision` is the one the next mutation must present, and the
+     * policy repaint (shape B') does not carry it (protocol §2.1). Adopted only forward, as the Desktop does
+     * (`apps/desktop/src/api/canonical-protocol.ts:582-594`): a replayed older receipt never moves it back.
+     */
+    private fun adoptRevision(state: ChatState, payload: JsonObject): ChatState {
+        val revision = payload.number("revision")?.toLong() ?: return state
+        val target = payload.text("session_id")
+        if (target != null && target != state.sessionId) return state
+        if ((state.revision ?: -1) >= revision) return state
+        return state.copy(info = JsonObject(state.info + ("revision" to JsonPrimitive(revision))))
     }
 
     private fun pendingEntries(pending: Any?): List<JsonObject> = (pending as? JsonArray).orEmpty().mapNotNull { it.asObject() }

@@ -50,6 +50,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.chat.SlashCommand
+import io.github.justcallmesu.aristotle.data.chat.SlashMenu
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
@@ -62,6 +64,11 @@ interface ComposerActions {
     fun steer()
     fun stop()
     fun cancelQueued(admissionId: String)
+
+    /** A `/` menu row (T15): its name goes into the field. */
+    fun pickCommand(command: SlashCommand)
+
+    fun retryCommands()
 }
 
 /** The field never grows past this many lines; then it scrolls (T13 brief). */
@@ -72,6 +79,8 @@ private const val FIELD_MAX_LINES = 6
  * ([running]): queued rows above the field, then Stop (outlined, error) left, Queue (tonal) and Steer (filled) right,
  * and one hint line. Offline: the text stays, nothing can be sent. A control is on only once it has meant the same
  * thing for [ComposerLogic.ARM_MS] ([ComposerState.armed]); the ViewModel drops an earlier tap anyway.
+ * A draft starting with `/` is a command (T15): the `/` menu shows above the field while its name is typed, and Send
+ * (shown while busy too) runs it; Queue and Steer are off for it.
  */
 @Composable
 fun Composer(
@@ -79,12 +88,15 @@ fun Composer(
     running: Boolean,
     queued: List<QueuedRow>,
     actions: ComposerActions,
+    slash: SlashState,
     modifier: Modifier = Modifier,
     focusOnStart: Boolean = false,
 ) {
     val online = state.mode != ComposerMode.Offline
     val ready = state.armed && online
     val hasText = state.draft.isNotBlank()
+    val command = SlashMenu.isCommand(state.draft)
+    val query = SlashMenu.query(state.draft)
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -96,16 +108,19 @@ fun Composer(
                 .padding(horizontal = Spacing.m, vertical = Spacing.s),
         ) {
             if (online) queued.forEachIndexed { index, row -> QueuedLine(index + 1, row, state, ready, actions) }
+            if (online && query != null) SlashMenuPanel(slash, query, onPick = actions::pickCommand, onRetry = actions::retryCommands)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, modifier = Modifier.weight(1f))
-                if (!running || !online) {
-                    SendButton(enabled = ready && state.mode == ComposerMode.Idle && !state.blocked && hasText, onClick = actions::send)
+                if (!running || !online || command) {
+                    // A command runs idle or busy, and while a prompt waits (it is not a message to the parked turn).
+                    val canSend = if (command) state.mode == ComposerMode.Idle || state.mode == ComposerMode.Busy else state.mode == ComposerMode.Idle && !state.blocked
+                    SendButton(enabled = ready && canSend && hasText, command = command, onClick = actions::send)
                 }
             }
             when {
                 !online -> HintLine(stringResource(R.string.composer_offline))
-                running -> BusyActions(state, ready, hasText, actions)
-                state.blocked -> HintLine(stringResource(R.string.composer_blocked_idle_hint))
+                running -> BusyActions(state, ready, hasText, command, actions)
+                state.blocked && !command -> HintLine(stringResource(R.string.composer_blocked_idle_hint))
             }
         }
     }
@@ -165,7 +180,7 @@ private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (Strin
 }
 
 @Composable
-private fun SendButton(enabled: Boolean, onClick: () -> Unit) {
+private fun SendButton(enabled: Boolean, command: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -173,13 +188,13 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit) {
         contentPadding = ButtonDefaults.ContentPadding,
         modifier = Modifier.heightIn(min = Sizes.minTouchTarget),
     ) {
-        Icon(painter = painterResource(R.drawable.ic_send), contentDescription = stringResource(R.string.composer_send), modifier = Modifier.size(Sizes.chipIcon))
+        Icon(painter = painterResource(R.drawable.ic_send), contentDescription = stringResource(if (command) R.string.composer_run else R.string.composer_send), modifier = Modifier.size(Sizes.chipIcon))
     }
 }
 
 /** Busy: Stop left (always there while the turn runs), Queue and Steer right, one line on what they do. */
 @Composable
-private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, actions: ComposerActions) {
+private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, command: Boolean, actions: ComposerActions) {
     val busy = ready && state.mode == ComposerMode.Busy
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = Spacing.s),
@@ -198,14 +213,19 @@ private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, 
             Text(stringResource(R.string.composer_stop))
         }
         Spacer(Modifier.weight(1f))
-        FilledTonalButton(onClick = actions::queue, enabled = busy && hasText, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        FilledTonalButton(onClick = actions::queue, enabled = busy && hasText && !command, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
             Text(stringResource(R.string.composer_queue))
         }
-        Button(onClick = actions::steer, enabled = busy && hasText && !state.blocked, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        Button(onClick = actions::steer, enabled = busy && hasText && !state.blocked && !command, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
             Text(stringResource(R.string.composer_steer))
         }
     }
-    HintLine(stringResource(if (state.blocked) R.string.composer_blocked_hint else R.string.composer_steer_hint))
+    val hint = when {
+        command -> R.string.composer_command_hint
+        state.blocked -> R.string.composer_blocked_hint
+        else -> R.string.composer_steer_hint
+    }
+    HintLine(stringResource(hint))
 }
 
 /** "Queued · N — text" with ✕ (Hermes' queue: the Desktop shows and cancels the same rows). */

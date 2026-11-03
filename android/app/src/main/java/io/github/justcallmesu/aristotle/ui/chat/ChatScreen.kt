@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -72,6 +74,9 @@ import io.github.justcallmesu.aristotle.data.chat.ApprovalChoice
 import io.github.justcallmesu.aristotle.data.chat.ChatItem
 import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
 import io.github.justcallmesu.aristotle.data.chat.ChatState
+import io.github.justcallmesu.aristotle.data.chat.ModelGroup
+import io.github.justcallmesu.aristotle.data.chat.ReasoningLevels
+import io.github.justcallmesu.aristotle.data.chat.SlashCommand
 import io.github.justcallmesu.aristotle.data.chat.ToolStatus
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
@@ -86,6 +91,7 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
     val composer = remember(viewModel) { ViewModelComposerActions(viewModel) }
+    val models = remember(viewModel) { ViewModelModelActions(viewModel) }
     ChatContentView(
         state = state,
         fallbackTitle = fallbackTitle,
@@ -95,9 +101,26 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
         onMessageShown = viewModel::messageShown,
         actions = actions,
         composer = composer,
-        echoes = EchoActions(onRetry = viewModel::retrySend, onDismiss = viewModel::dismissFailed, onMessageShown = viewModel::composerMessageShown),
+        echoes = EchoActions(
+            onRetry = viewModel::retrySend,
+            onDismiss = viewModel::dismissFailed,
+            onMessageShown = viewModel::composerMessageShown,
+            onDismissCommand = viewModel::dismissCommand,
+        ),
+        models = models,
         focusComposer = focusComposer,
     )
+}
+
+private class ViewModelModelActions(private val vm: ChatViewModel) : ModelActions {
+    override fun open() = vm.openModels()
+    override fun close() = vm.closeModels()
+    override fun retry() = vm.retryModels()
+    override fun pickModel(group: ModelGroup, model: String) = vm.pickModel(group, model)
+    override fun pickReasoning(effort: String) = vm.pickReasoning(effort)
+    override fun confirm() = vm.confirmModel()
+    override fun cancelConfirm() = vm.cancelModelConfirm()
+    override fun messageShown() = vm.modelMessageShown()
 }
 
 private class ViewModelComposerActions(private val vm: ChatViewModel) : ComposerActions {
@@ -107,10 +130,17 @@ private class ViewModelComposerActions(private val vm: ChatViewModel) : Composer
     override fun steer() = vm.steer()
     override fun stop() = vm.stop()
     override fun cancelQueued(admissionId: String) = vm.cancelQueued(admissionId)
+    override fun pickCommand(command: SlashCommand) = vm.pickCommand(command)
+    override fun retryCommands() = vm.retryCommands()
 }
 
-/** What a sent message's row can do: Retry, remove a failed one, and clear the composer's snackbar. */
-class EchoActions(val onRetry: (String) -> Unit, val onDismiss: (String) -> Unit, val onMessageShown: () -> Unit)
+/** What a sent message's row can do: Retry, remove a failed one, clear the composer's snackbar, remove a command's row. */
+class EchoActions(
+    val onRetry: (String) -> Unit,
+    val onDismiss: (String) -> Unit,
+    val onMessageShown: () -> Unit,
+    val onDismissCommand: (String) -> Unit = {},
+)
 
 private class ViewModelPromptActions(private val vm: ChatViewModel) : PromptActions {
     override fun hide() = vm.hideSheet()
@@ -139,6 +169,8 @@ fun ChatContentView(
     actions: PromptActions,
     composer: ComposerActions,
     echoes: EchoActions,
+    /** The top bar's model and reasoning switch (T15). */
+    models: ModelActions,
     /** A session just created (T14): the composer takes focus once it shows. */
     focusComposer: Boolean = false,
 ) {
@@ -162,28 +194,44 @@ fun ChatContentView(
             echoes.onMessageShown()
         }
     }
+    val modelMessage = state.model.message
+    val modelText = modelMessage?.let { modelMessage(it) }
+    LaunchedEffect(modelMessage) {
+        if (modelText != null) {
+            snackbar.showSnackbar(modelText)
+            models.messageShown()
+        }
+    }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            ChatTopBar(chat, state.link, live, fallbackTitle, onBack, sides)
+            ChatTopBar(chat, state.link, live, fallbackTitle, onBack, onOpenModels = models::open.takeIf { feed.loaded }, modifier = sides)
             if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
             // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
             val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
             val insets = WindowInsets.safeDrawing.only(edge).asPaddingValues()
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 val outbox = state.composer.outbox
+                val runs = state.slash.runs
                 when {
-                    feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
+                    feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
                     // The chip only when tapping it opens something: not while this phone's own answer is on its way (T12b).
-                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, outbox = outbox, insets = insets, onOpenSheet = onOpenSheet, echoes = echoes)
+                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, outbox = outbox, runs = runs, insets = insets, onOpenSheet = onOpenSheet, echoes = echoes)
                     feed.problem != null -> LoadFailed(feed.problem, onRetry)
                     else -> QuietLine(stringResource(R.string.chat_loading))
                 }
                 SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
             }
             if (feed.loaded) {
-                Composer(state.composer, running = chat.running, queued = ComposerLogic.queuedRows(feed, state.composer.outbox), actions = composer, focusOnStart = focusComposer)
+                Composer(
+                    state.composer,
+                    running = chat.running,
+                    queued = ComposerLogic.queuedRows(feed, state.composer.outbox),
+                    actions = composer,
+                    slash = state.slash,
+                    focusOnStart = focusComposer,
+                )
             }
         }
     }
@@ -192,7 +240,23 @@ fun ChatContentView(
         val prompt = state.sheet.current(chat).takeIf { state.sheet.open }
         PromptSheet(prompt, state.sheet, context, actions, answerable = state.answerable(prompt))
     }
+    if (state.model.open) ModelSheet(state.model, chat, models)
+    state.model.confirm?.let { ModelConfirmDialog(it, models) }
 }
+
+@Composable
+private fun modelMessage(message: ModelMessage): String = when (message) {
+    is ModelMessage.Deferred -> stringResource(R.string.model_deferred, reasoningLabelOrModel(message.value))
+    ModelMessage.Changed -> stringResource(R.string.model_changed)
+    is ModelMessage.Refused -> stringResource(R.string.model_refused, message.reason)
+    ModelMessage.NoAnswer -> stringResource(R.string.model_no_answer)
+    ModelMessage.NotReady -> stringResource(R.string.model_not_ready)
+}
+
+/** A deferred pick names a model or a reasoning level; a level reads as its label. */
+@Composable
+private fun reasoningLabelOrModel(value: String): String =
+    if (value == ReasoningLevels.OFF || value in ReasoningLevels.LEVELS) reasoningLabel(value) else value
 
 @Composable
 private fun composerMessage(message: ComposerMessage): String = when (message) {
@@ -208,8 +272,20 @@ private fun promptMessage(message: PromptMessage): String = when (message) {
     is PromptMessage.Refused -> stringResource(R.string.prompt_refused, message.reason)
 }
 
+/**
+ * The session's title, live status, profile, model and reasoning level. The title block opens the model and reasoning
+ * sheet ([onOpenModels], null until the chat has loaded); the drop-down arrow says it does.
+ */
 @Composable
-private fun ChatTopBar(chat: ChatState, link: LinkState, live: Boolean, fallbackTitle: String?, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChatTopBar(
+    chat: ChatState,
+    link: LinkState,
+    live: Boolean,
+    fallbackTitle: String?,
+    onBack: () -> Unit,
+    onOpenModels: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier.fillMaxWidth().heightIn(min = Sizes.topBarHeight).padding(horizontal = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -217,7 +293,9 @@ private fun ChatTopBar(chat: ChatState, link: LinkState, live: Boolean, fallback
         IconButton(onClick = onBack) {
             Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back))
         }
-        Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.xs)) {
+        val openLabel = stringResource(R.string.model_open)
+        val open = onOpenModels?.let { Modifier.clickable(role = Role.Button, onClickLabel = openLabel, onClick = it) } ?: Modifier
+        Column(modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget).then(open).padding(horizontal = Spacing.xs), verticalArrangement = Arrangement.Center) {
             Text(
                 text = chat.title ?: fallbackTitle ?: stringResource(R.string.session_untitled),
                 style = AristotleTextStyles.chatTitle,
@@ -225,16 +303,20 @@ private fun ChatTopBar(chat: ChatState, link: LinkState, live: Boolean, fallback
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },
             )
-            Subtitle(chat, live = live)
+            Subtitle(chat, live = live, switchable = onOpenModels != null)
         }
         linkLabel(link)?.let { LinkChip(it, offline = link is LinkState.Offline) }
     }
 }
 
-/** "Running · step N" in verdigris with the spinner, then profile and model; no live colour unless [live]. */
+/**
+ * "Running · step N" in verdigris with the spinner, then profile, model and reasoning level; no live colour unless
+ * [live]. [switchable]: a drop-down arrow marks the model as the control that opens the sheet.
+ */
 @Composable
-private fun Subtitle(chat: ChatState, live: Boolean) {
-    val details = listOfNotNull(chat.profileName, chat.model).joinToString(" · ")
+private fun Subtitle(chat: ChatState, live: Boolean, switchable: Boolean) {
+    val effort = ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) }
+    val details = listOfNotNull(chat.profileName, chat.model, effort).joinToString(" · ")
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (chat.running && live) {
             RunningSpinner()
@@ -252,6 +334,15 @@ private fun Subtitle(chat: ChatState, live: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        if (switchable) {
+            Icon(
+                painter = painterResource(R.drawable.ic_arrow_drop_down),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Sizes.lineIcon),
             )
         }
     }
@@ -299,6 +390,7 @@ private fun Transcript(
     live: Boolean,
     waiting: Boolean,
     outbox: List<Outgoing>,
+    runs: List<CommandRun>,
     insets: PaddingValues,
     onOpenSheet: () -> Unit,
     echoes: EchoActions,
@@ -319,7 +411,7 @@ private fun Transcript(
     }
     val tail = remember(outbox) { ComposerLogic.tail(outbox) }
     val anchored = remember(outbox) { ComposerLogic.anchored(outbox) }
-    LaunchedEffect(chat.items.size, chat.items.lastOrNull(), thinking, waiting, outbox) {
+    LaunchedEffect(chat.items.size, chat.items.lastOrNull(), thinking, waiting, outbox, runs) {
         if (follow.value) listState.scrollToEnd()
     }
     val direction = LocalLayoutDirection.current
@@ -341,6 +433,7 @@ private fun Transcript(
                 anchored[chatItem.key]?.let { echoItems(it, echoes) }
             }
             echoItems(tail, echoes)
+            items(runs, key = { "cmd-${it.id}" }, contentType = { "command" }) { run -> CommandRunRow(run, echoes.onDismissCommand) }
             if (thinking) item(key = "thinking") { ThinkingLine() }
             if (waiting) item(key = "waiting") { WaitingChip(onOpenSheet) }
         }

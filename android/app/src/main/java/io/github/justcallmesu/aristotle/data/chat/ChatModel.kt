@@ -118,7 +118,15 @@ data class ChatState(
         get() = (info["pending"] as? JsonArray).orEmpty().mapNotNullTo(HashSet()) { it.asObject()?.text("admission_id") }
     val openPrompts: Set<String> get() = prompts.mapTo(LinkedHashSet()) { it.key }
     val model: String? get() = infoText("model")
+    val provider: String? get() = infoText("provider")
     val profileName: String? get() = infoText("profile_name")
+
+    /** The session's CAS revision (shape-A `session.info` and the snapshot, protocol §2.1): what `session.mutate` presents. */
+    val revision: Long? get() = info.number("revision")?.toLong()
+
+    /** `reasoning_effort` / `reasoning_effort_wire` (`gateway/session_local.py:427-444`); null when not set. */
+    val reasoningEffort: String? get() = infoText("reasoning_effort")
+    val reasoningWire: String? get() = infoText("reasoning_effort_wire")
 
     /** Some item is still receiving deltas. */
     val streaming: Boolean

@@ -41,7 +41,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | DONE |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | DONE |
 | T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | DONE |
-| T15 | Model + reasoning switch; slash commands | T13 | android | BUILDING |
+| T15 | Model + reasoning switch; slash commands | T13 | android | DONE |
+| T15b | T15/TQ1 minors: block typed desktop-only slash commands via catalog `desktop` field (/busy would change busy_input_mode, Q10); Switch-anyway dialog closes on remote model change + armed; skill-command submission id created before send; blocked command keeps the draft; quote tile colour from theme (dark mode), radius token, shared reduced-motion helper, design curve, ComposableNaming lint | T15 | android | BUILDING |
 | T16 | Send pictures and files | T13 | android (+server) | TODO ⟳ |
 | T17 | Subagents: view live output, stop | T11 | android | TODO ⟳ |
 | T18 | Hermes cron jobs: view and control | T14 | android (+server if REST) | TODO ⟳ |
@@ -287,3 +288,5 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 T14b PM gate GREEN runs/pm-gate-25 (worker showed 8 tests red against a scratch copy of the old code). Committed without separate review (minors). TQ1 dispatched (std).
 - 2026-11-04 TQ1 PM gate GREEN runs/pm-gate-26 (393 tests; quotes.json in the APK); mutation (picker may repeat) fails 2 tests. Committed; UI-only, its review is folded into T15's. T15 dispatched (deep).
 - 2026-11-04 T19 design red-team: READY-FOR-USER-DECISIONS, 2 BLOCKER fixes folded into the design (state-dir grant file + relay-style check ordering; terminal = full account access, refuse pair/grant/enable from terminal processes, lost-phone runbook). Asked the user Q52-Q55. T19 not built until answered.
+- 2026-11-04 T15 built (427 tests). PM gate GREEN runs/pm-gate-27; mutation (revision may go backwards) fails 1 test. Deep review dispatched, covering TQ1 as well.
+- 2026-11-04 T15 review PASS-WITH-FINDINGS (methods exact; stale token can't switch another model; unknown commands fail safe on Hermes). Committed. T15b (std) because M1 breaks Q10 (/busy). TQ1: quote screen shows only on the first connect, not later reconnects before content — narrower than Q44; asked the user.

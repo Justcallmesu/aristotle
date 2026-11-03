@@ -13,10 +13,13 @@ import io.github.justcallmesu.aristotle.data.chat.ChatFeed
 import io.github.justcallmesu.aristotle.data.chat.ChatFeedState
 import io.github.justcallmesu.aristotle.data.chat.ChatState
 import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
+import io.github.justcallmesu.aristotle.data.chat.ModelGroup
 import io.github.justcallmesu.aristotle.data.chat.Prompt
 import io.github.justcallmesu.aristotle.data.chat.PromptAnswer
 import io.github.justcallmesu.aristotle.data.chat.PromptReplies
 import io.github.justcallmesu.aristotle.data.chat.PromptReply
+import io.github.justcallmesu.aristotle.data.chat.SlashCommand
+import io.github.justcallmesu.aristotle.data.chat.SlashMenu
 import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +42,10 @@ data class ChatUiState(
     val link: LinkState,
     val sheet: PromptSheetState = PromptSheetState(),
     val composer: ComposerState = ComposerState(),
+    /** The model and reasoning sheet (T15). */
+    val model: ModelSheetState = ModelSheetState(),
+    /** The `/` menu and the commands run from this chat (T15). */
+    val slash: SlashState = SlashState(),
 ) {
     /**
      * A sudo/secret answer is a bare response that Hermes may have resolved elsewhere meanwhile, and re-sending it
@@ -52,7 +59,7 @@ data class ChatUiState(
 /**
  * The chat screen's state: one [ChatFeed] for the session, run on [background] (frames are parsed and reduced
  * off the main thread, protocol §12), the link state for the top bar, the prompt sheet (T12) and the composer
- * (T13, [drafts] keeps the unsent text per session). [scope] is the ViewModel's own unless a test passes one.
+ * (T13, [drafts] keeps the unsent text per session), the model/reasoning switch and slash commands (T15). [scope] is the ViewModel's own unless a test passes one.
  */
 class ChatViewModel(
     private val sessionId: String,
@@ -74,6 +81,8 @@ class ChatViewModel(
     )
     val uiState: StateFlow<ChatUiState> = state.asStateFlow()
     private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change)
+    private val models = ChatModelControl(sessionId, link, newId, work, state::value, ::change)
+    private val commands = ChatCommands(sessionId, link, newId, clock, work, state::value, ::change, composer)
 
     private var job: Job? = null
     private var arming: Job? = null
@@ -256,9 +265,13 @@ class ChatViewModel(
 
     // ── composer (T13) ────────────────────────────────────────────────────────────────────────────
 
-    fun editDraft(text: String) = composer.edit(text)
+    fun editDraft(text: String) {
+        composer.edit(text)
+        commands.onDraft(text)
+    }
 
-    fun send() = composer.send()
+    /** Send: a draft that starts with `/` runs as a command (T15), anything else is a message. */
+    fun send() = if (SlashMenu.isCommand(state.value.composer.draft)) commands.run() else composer.send()
 
     fun queue() = composer.queue()
 
@@ -273,6 +286,32 @@ class ChatViewModel(
     fun dismissFailed(id: String) = composer.dismiss(id)
 
     fun composerMessageShown() = composer.messageShown()
+
+    // ── slash commands (T15) ──────────────────────────────────────────────────────────────────────
+
+    fun pickCommand(command: SlashCommand) = commands.pick(command)
+
+    fun retryCommands() = commands.reload()
+
+    fun dismissCommand(id: String) = commands.dismiss(id)
+
+    // ── model and reasoning (T15) ─────────────────────────────────────────────────────────────────
+
+    fun openModels() = models.open()
+
+    fun closeModels() = models.close()
+
+    fun retryModels() = models.reload()
+
+    fun pickModel(group: ModelGroup, model: String) = models.pickModel(group, model)
+
+    fun pickReasoning(effort: String) = models.pickReasoning(effort)
+
+    fun confirmModel() = models.confirm()
+
+    fun cancelModelConfirm() = models.cancelConfirm()
+
+    fun modelMessageShown() = models.messageShown()
 
     private fun updateSheet(transform: (PromptSheetState) -> PromptSheetState) = change { it.copy(sheet = transform(it.sheet)) }
 

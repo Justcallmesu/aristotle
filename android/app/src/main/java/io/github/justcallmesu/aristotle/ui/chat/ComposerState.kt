@@ -80,6 +80,10 @@ object ComposerLogic {
         return shown.key.mode == mode && now - shown.at >= ARM_MS
     }
 
+    /** The composer is usable (idle or busy, not covered) and has been for [ARM_MS]: slash commands, a queued row's ✕. */
+    fun armedOnline(composer: ComposerState, now: Long): Boolean =
+        armed(composer, ComposerMode.Idle, now) || armed(composer, ComposerMode.Busy, now)
+
     /** A failed echo's Retry or dismiss counts once the failure has been on screen [ARM_MS]. */
     fun failureSeen(item: Outgoing, now: Long): Boolean {
         val failed = item.status as? OutgoingStatus.Failed ?: return false

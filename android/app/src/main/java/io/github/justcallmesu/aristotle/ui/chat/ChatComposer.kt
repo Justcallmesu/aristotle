@@ -5,6 +5,7 @@ import io.github.justcallmesu.aristotle.data.RpcException
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.chat.ComposerCall
 import io.github.justcallmesu.aristotle.data.chat.ComposerFrames
+import io.github.justcallmesu.aristotle.data.chat.SlashMenu
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
@@ -29,6 +30,24 @@ internal class ChatComposer(
         drafts?.put(sessionId, text)
     }
 
+    /** The ViewModel replaces the field's text (a picked slash command, T15); the field takes it with the cursor at the end. */
+    fun replaceDraft(text: String) {
+        updateComposer { it.copy(draft = text, draftEpoch = it.draftEpoch + 1) }
+        drafts?.put(sessionId, text)
+    }
+
+    /**
+     * A turn a slash command asked for (a skill's expanded [message], T15): submitted with this phone's own submission
+     * id, as the Desktop does (`use-prompt-actions/slash.ts:502-517`); the bubble shows [display]. While a turn runs
+     * Hermes queues it like any submit.
+     */
+    fun submitDirective(display: String, message: String) {
+        val kind = if (state().feed.chat.running) OutgoingKind.Queue else OutgoingKind.Send
+        val item = Outgoing(newId(), display, kind, OutgoingStatus.Sending, wire = message)
+        updateComposer { it.copy(outbox = it.outbox + item) }
+        deliverSubmit(item)
+    }
+
     /** Idle: a new turn. */
     fun send() = submit(ComposerMode.Idle, OutgoingKind.Send)
 
@@ -39,7 +58,7 @@ internal class ChatComposer(
     fun steer() {
         val ui = state()
         val composer = ui.composer
-        if (!ComposerLogic.armed(composer, ComposerMode.Busy, clock()) || composer.blocked) return
+        if (!ComposerLogic.armed(composer, ComposerMode.Busy, clock()) || composer.blocked || SlashMenu.isCommand(composer.draft)) return
         val generation = ui.feed.chat.generation ?: return
         val text = composer.draft.trim().ifEmpty { return }
         val item = Outgoing(newId(), text, OutgoingKind.Steer, OutgoingStatus.Sending)
@@ -131,6 +150,8 @@ internal class ChatComposer(
         val composer = state().composer
         if (!ComposerLogic.armed(composer, mode, clock())) return
         if (kind == OutgoingKind.Send && composer.blocked) return
+        // A command runs through the ViewModel's slash path, never as a message (T15).
+        if (SlashMenu.isCommand(composer.draft)) return
         val text = composer.draft.trim().ifEmpty { return }
         val kept = composer.keptIds[text]
         val item = Outgoing(kept ?: newId(), text, kind, OutgoingStatus.Sending)
@@ -140,7 +161,7 @@ internal class ChatComposer(
     }
 
     private fun deliverSubmit(item: Outgoing) {
-        val call = ComposerFrames.submit(sessionId, item.text, item.id)
+        val call = ComposerFrames.submit(sessionId, item.wire ?: item.text, item.id)
         work.launch {
             val outcome = attempt(call)
             updateItem(item.id) { current, ui ->
@@ -196,11 +217,7 @@ internal class ChatComposer(
 
     private fun updateComposer(transform: (ComposerState) -> ComposerState) = change { it.copy(composer = transform(it.composer)) }
 
-    /** The composer is usable (idle or busy, not covered) and has been for [ComposerLogic.ARM_MS]. */
-    private fun armedOnline(composer: ComposerState): Boolean {
-        val now = clock()
-        return ComposerLogic.armed(composer, ComposerMode.Idle, now) || ComposerLogic.armed(composer, ComposerMode.Busy, now)
-    }
+    private fun armedOnline(composer: ComposerState): Boolean = ComposerLogic.armedOnline(composer, clock())
 
     private fun reasonOf(error: RpcException): String = error.error?.message?.ifBlank { null } ?: error.message.orEmpty()
 

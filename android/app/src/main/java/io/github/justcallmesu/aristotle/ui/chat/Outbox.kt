@@ -45,7 +45,14 @@ sealed interface OutgoingStatus {
  * A message this phone sent, shown at once (optimistic echo) until Hermes' own record of it shows instead.
  * [id] is a submit's `submission_id` (kept for Retry, so a retry is the same admission) or a steer's local id.
  */
-data class Outgoing(val id: String, val text: String, val kind: OutgoingKind, val status: OutgoingStatus) {
+data class Outgoing(
+    val id: String,
+    val text: String,
+    val kind: OutgoingKind,
+    val status: OutgoingStatus,
+    /** What Hermes is sent when it differs from the bubble [text]: a skill command's expanded message (T15). */
+    val wire: String? = null,
+) {
     /**
      * Retry is offered when it cannot deliver twice: a submit always (same `submission_id`), a steer only when it
      * surely did not reach the turn (a steer has no idempotency key, `gateway/session_busy_controls.py:176`): Hermes'

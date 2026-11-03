@@ -275,6 +275,24 @@ A events per turn correspond to admission, run start and settle.
   never renames without a known revision and does not auto-retry: a Desktop rename made while the phone's dialog is open
   is overwritten (title only; accepted, T14 review). No subscription is needed
   (`gateway/session_mutations.py:39-70`).
+- **Model / reasoning switch (T15, from source, not exercised).** The Desktop's picker sends `config.set {key:"model",
+  value:"<model> --provider <slug>"}` and its canonical adapter turns it into `session.mutate {session_id, request_id,
+  expected_revision, expected_generation, operation:"model", payload:{model, provider?, confirm?, reasoning?}}`
+  (`apps/desktop/src/app/session/hooks/use-model-controls.ts:359-365`, `apps/desktop/src/api/canonical-protocol.ts:82-92`,
+  `:329-349`, `:471-474`); a level is `operation:"reasoning", payload:{effort}` (`"none"` = thinking off, `null` = back to
+  the profile; `hermes_state_mutations.py:13-26`). `expected_generation` is required for these policy operations
+  (`gateway/session_mutations.py:149-154`). Answers: a receipt with `revision` (applied; every viewer gets a shape-B'
+  `session.info` and the `session.updated` receipt, `:330-359`); `status:"deferred"` with `model`/`effort`, `revision`,
+  `execution_generation` while a turn runs (applies at the next turn, `:133-142`, `gateway/session_deferred_pick.py:59-61`);
+  `status:"confirmation_required"` with `confirm` (token), `confirm_message`, `target_model`, `target_provider`,
+  `warnings` for a guarded target, nothing written; resending with `payload.confirm` applies it
+  (`gateway/session_mutation_model.py:339-378`). `revision_conflict` / `stale_generation` refusals carry `error.data
+  {reason, revision, execution_generation}` (`gateway/session_controls.py:22-35`, `:844-850`). The revision is learnt
+  from shape-A `session.info`, the snapshot and `session.updated.revision` (shape B' has none). The list:
+  `model.options {session_id, explicit_only:true}` (keys `profile`, `session_id`, bools `explicit_only`,
+  `include_unconfigured`, `refresh`; `gateway/session_config.py:213-236`) → `{providers:[{slug, name, models[],
+  aliases?, capabilities{model:{reasoning, can_disable_reasoning?, fast}}, unavailable_models?, warning?, …}], model,
+  provider}` (`apps/shared/src/gateway-contract.generated.ts:822-862`).
 - **Pin:** Hermes stores one (`session.mutate sidebar {pinned}`, REST `PATCH pinned`), but `session.list` rows carry no
   `pinned` (`tui_gateway/contracts/canonical_sessions.py:171-181`) and the Desktop keeps its pins locally, mirrored over
   REST (`apps/desktop/src/store/session-pin-sync.ts:1-21`). The phone's pins are its own and are labelled so.
@@ -317,6 +335,8 @@ the running turn.
 | `prompt.cancel` | `{session_id, admission_id}` | admission | from source, not exercised |
 | `prompt.receipt` | `{session_id, admission_id, include_result?}` | admission | from source, not exercised |
 | `prompt.background` | `{session_id, text}` | `{task_id}` | from source, not exercised |
+| `slash.exec` | `{session_id, command, profile?}` (`command` = the line without its slash, as the Desktop sends it; any other key → `invalid_params`, `gateway/session_commands.py:148-155`) | `{type:"exec", output}`, or `{type:"skill"\|"send", message, display, notice?}` = a turn the CLIENT submits with its own `submission_id` (`:418-529`); a command a shared-gateway session cannot run → `unsupported_command` with `error.data.detail` hint (`:118-126`, `:456-458`) | from source, not exercised (T15) |
+| `commands.catalog` | `{session_id?, profile?}` only (`gateway/session_discovery.py:8-35`) | `{pairs:[[cmd, desc]], canon{alias→cmd}, commands{cmd:{argument_mode, desktop, desktop_subcommands?}}, categories, skills{cmd:{usage, origin}}, skill_count, sub, warning, plugin_discovery_error, plugin_commands}`; `desktop` null = offered, `"hidden"`, or the reason the Desktop has no surface (`tui_gateway/command_discovery.py:137-149`, `:206-250`) | EXERCISED keys (`f-busy-client2.jsonl:80-81`, values redacted) |
 
 `execution_generation`: take it from the latest event's `params.execution_generation` or the snapshot;
 a stale one is refused `stale_generation`.
