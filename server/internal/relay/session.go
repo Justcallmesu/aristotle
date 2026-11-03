@@ -3,12 +3,12 @@ package relay
 import (
 	"context"
 	"log/slog"
+	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
-
-	"github.com/justcallmesu/aristotle/server/internal/hermes"
 )
 
 // session is one phone socket and its Hermes socket.
@@ -23,10 +23,11 @@ type session struct {
 	listener string
 	log      *slog.Logger
 
-	ioCtx   context.Context
-	kill    context.CancelFunc
-	stopCtx context.Context
-	stop    context.CancelFunc
+	raw      net.Conn // the phone's TCP connection, set at hijack (liveness.go)
+	ioCtx    context.Context
+	cancelIO context.CancelFunc
+	stopCtx  context.Context
+	stop     context.CancelFunc
 
 	closeMu sync.Mutex
 	why     closeReason // first requested close wins
@@ -35,11 +36,30 @@ type session struct {
 
 	in, out traffic // in: phone->Hermes (owned by pumpPhone), out: Hermes->phone (owned by pumpHermes)
 	dropped int64   // Hermes frames that could not be redacted (owned by pumpHermes)
+
+	// Liveness (liveness.go). Clocks are unix nanoseconds of opts.Now, read by keepalive. lastRead moves
+	// whenever bytes arrive from the phone (frames, pongs); lastDrain when a write to the phone that had
+	// to wait for it completes. forwarding is set while a phone frame waits for Hermes to take it (the
+	// phone is not read then, so its pongs are not seen); lastForwarded is when the last such wait ended.
+	pings         sync.WaitGroup // ping goroutines (liveness.go), waited for after the sockets are cut
+	pingsOut      atomic.Int32   // pings waiting for their pong
+	forwarding    atomic.Bool
+	lastRead      atomic.Int64
+	lastDrain     atomic.Int64
+	lastForwarded atomic.Int64
 }
 
-func newSession(h *Hub, pc *websocket.Conn, dev, listener string) *session {
-	s := &session{hub: h, pc: pc, dev: dev, listener: listener, log: h.opts.Log}
-	s.ioCtx, s.kill = context.WithCancel(context.Background())
+// upstream is the Hermes side of a relay: *hermes.Conn (Options.wrapHermes may wrap it in tests).
+type upstream interface {
+	Read(ctx context.Context) ([]byte, error)
+	Write(ctx context.Context, frame []byte) error
+	Close() error
+}
+
+// newSession builds a session before its socket exists; ServeRelay sets pc after the upgrade.
+func newSession(h *Hub, dev, listener string) *session {
+	s := &session{hub: h, dev: dev, listener: listener, log: h.opts.Log}
+	s.ioCtx, s.cancelIO = context.WithCancel(context.Background())
 	s.stopCtx, s.stop = context.WithCancel(context.Background())
 	return s
 }
@@ -86,18 +106,26 @@ func (s *session) run() {
 	<-s.stopCtx.Done()
 	s.teardown(hc)
 	wg.Wait()
+	s.pings.Wait()
 }
 
-func (s *session) dial() (*hermes.Conn, error) {
+func (s *session) dial() (upstream, error) {
 	ctx, cancel := context.WithTimeout(s.stopCtx, s.hub.opts.DialTimeout)
 	defer cancel()
-	return s.hub.opts.Dialer.Dial(ctx)
+	hc, err := s.hub.opts.Dialer.Dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.hub.opts.wrapHermes != nil {
+		return s.hub.opts.wrapHermes(hc), nil
+	}
+	return hc, nil
 }
 
 // pumpPhone forwards phone frames to Hermes untouched, enforcing the text-only and rate limits. It
 // returns only when the phone read fails: once a close is requested it keeps reading and discarding,
 // so pongs and the phone's close frame are still processed and kill can always unblock it.
-func (s *session) pumpPhone(hc *hermes.Conn) {
+func (s *session) pumpPhone(hc upstream) {
 	rate := newWindow(s.hub.opts.MaxFramesPerMinute, time.Minute)
 	for {
 		typ, frame, err := s.pc.Read(s.ioCtx)
@@ -114,18 +142,33 @@ func (s *session) pumpPhone(hc *hermes.Conn) {
 		case !rate.allow(s.hub.opts.Now()):
 			s.requestClose(closeReason{CodeRateLimited, "rate_limited"})
 		default:
-			s.in.add(frame)
-			s.in.addMethod(frame)
-			if err := hc.Write(s.ioCtx, frame); err != nil {
-				s.requestCloseBy("hermes", hermesClose(err))
-			}
+			s.forward(hc, frame)
 		}
+	}
+}
+
+// forward sends one phone frame to Hermes, unless it claims desktop_local (docs/protocol.md §12).
+func (s *session) forward(hc upstream, frame []byte) {
+	f := inspectPhone(frame)
+	if f.refuse {
+		s.requestClose(closeReason{CodeRefused, "desktop_local_refused"})
+		return
+	}
+	s.in.add(frame)
+	s.in.addMethod(f.method)
+	s.forwarding.Store(true)
+	defer func() {
+		s.lastForwarded.Store(s.now()) // before forwarding drops, for keepalive's deadSince
+		s.forwarding.Store(false)
+	}()
+	if err := hc.Write(s.ioCtx, frame); err != nil {
+		s.requestCloseBy("hermes", hermesClose(err))
 	}
 }
 
 // pumpHermes forwards Hermes frames to the phone, redacted (docs/protocol.md §10). Like pumpPhone it
 // returns only when its read fails and discards frames once a close is requested.
-func (s *session) pumpHermes(hc *hermes.Conn) {
+func (s *session) pumpHermes(hc upstream) {
 	for {
 		frame, err := hc.Read(s.ioCtx)
 		if err != nil {
@@ -143,7 +186,7 @@ func (s *session) pumpHermes(hc *hermes.Conn) {
 			s.dropped++
 			continue
 		}
-		if err := s.pc.Write(s.ioCtx, websocket.MessageText, out); err != nil {
+		if err := s.writePhone(out); err != nil {
 			s.requestCloseBy("phone", phoneClose(err))
 			continue
 		}
@@ -151,30 +194,20 @@ func (s *session) pumpHermes(hc *hermes.Conn) {
 	}
 }
 
-// keepalive pings the phone every PingInterval and closes 1011 when a pong is late. Pongs are read by
-// pumpPhone's Read. The ping context is not stopCtx: ending a context mid-write would cut the socket.
-func (s *session) keepalive() {
-	t := time.NewTicker(s.hub.opts.PingInterval)
-	defer t.Stop()
-	for {
-		select {
-		case <-s.stopCtx.Done():
-			return
-		case <-t.C:
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), s.hub.opts.PongTimeout)
-		err := s.pc.Ping(ctx)
-		cancel()
-		if err != nil {
-			s.requestClose(closeReason{CodePongTimeout, "pong_timeout"})
-			return
-		}
+// kill cuts both sockets: cancelling ioCtx fails every Read and Write in flight, and closing the phone's
+// TCP connection also ends a close handshake still waiting for the phone, which runs on the library's
+// own 5 s context and so is not reached by ioCtx.
+func (s *session) kill() {
+	s.cancelIO()
+	if s.raw != nil {
+		_ = s.raw.Close()
 	}
 }
 
 // teardown closes the phone with the recorded code and Hermes normally, both at once. After
-// closeGrace the sockets are cut so a stalled peer cannot hold the relay open.
-func (s *session) teardown(hc *hermes.Conn) {
+// closeGrace (revokeGrace for a revoke) the sockets are cut so a stalled peer cannot hold the relay
+// open; a phone that is not reading then sees the TCP connection close instead of the close frame.
+func (s *session) teardown(hc upstream) {
 	why, _ := s.closeState()
 	done := make(chan struct{})
 	go func() {
@@ -186,7 +219,11 @@ func (s *session) teardown(hc *hermes.Conn) {
 		}
 		wg.Wait()
 	}()
-	t := time.NewTimer(closeGrace)
+	grace := closeGrace
+	if why.code == CodeRevoked {
+		grace = revokeGrace
+	}
+	t := time.NewTimer(grace)
 	defer t.Stop()
 	select {
 	case <-done:

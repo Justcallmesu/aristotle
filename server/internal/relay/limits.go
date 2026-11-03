@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -19,6 +18,7 @@ import (
 const (
 	CodeGoingAway           websocket.StatusCode = 1001 // server shutting down
 	CodeTextOnly            websocket.StatusCode = 1003 // the phone sent a binary frame
+	CodeRefused             websocket.StatusCode = 1008 // the phone sent client.capabilities naming desktop_local
 	CodeTooBig              websocket.StatusCode = 1009 // a phone frame over MaxFrameBytes (sent by the library)
 	CodePongTimeout         websocket.StatusCode = 1011 // no pong within PongTimeout
 	CodeTryAgain            websocket.StatusCode = 1013 // Hermes is draining or not ready (its own 1013)
@@ -142,9 +142,9 @@ func (t *traffic) add(frame []byte) {
 	t.bytes += int64(len(frame))
 }
 
-func (t *traffic) addMethod(frame []byte) {
-	name, ok := methodOf(frame)
-	if !ok {
+// addMethod counts one method name; past maxMethodNames distinct names, new ones count as "other".
+func (t *traffic) addMethod(name string) {
+	if name == "" {
 		return
 	}
 	if t.methods == nil {
@@ -154,33 +154,6 @@ func (t *traffic) addMethod(frame []byte) {
 		name = "other"
 	}
 	t.methods[name]++
-}
-
-// methodOf returns the frame's JSON-RPC method name. A name that is not a plain dotted identifier is
-// reported as "other", so a log line never carries client text.
-func methodOf(frame []byte) (string, bool) {
-	var head struct {
-		Method *string `json:"method"`
-	}
-	if json.Unmarshal(frame, &head) != nil || head.Method == nil {
-		return "", false
-	}
-	if !plainName(*head.Method) {
-		return "other", true
-	}
-	return *head.Method, true
-}
-
-func plainName(s string) bool {
-	if s == "" || len(s) > 64 {
-		return false
-	}
-	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '_' || r == '-') {
-			return false
-		}
-	}
-	return true
 }
 
 // methodSummary formats the method counts as "a=1,b=2", sorted by name.

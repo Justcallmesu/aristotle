@@ -225,8 +225,9 @@ func TestRelayHappyPath(t *testing.T) {
 	pc.Close(websocket.StatusNormalClosure, "")
 	waitFor(t, "close line", func() bool { return strings.Contains(h.logs.String(), "relay closed") })
 	logs := h.logs.String()
+	// The two captured frames are Hermes events; only Hermes sends method "event", so from a phone it is "other".
 	for _, want := range []string{"device_id=" + h.dev.ID, "close_code=1000", "closed_by=phone", "frames_in=3", "frames_out=4",
-		`methods="event=2,session.list=1"`, "duration="} {
+		`methods="other=2,session.list=1"`, "duration="} {
 		if !strings.Contains(logs, want) {
 			t.Errorf("close line lacks %q:\n%s", want, logs)
 		}
@@ -514,6 +515,8 @@ func TestRelayAuditLinesHaveNoFrameContent(t *testing.T) {
 		`{"jsonrpc":"2.0","id":1,"method":"prompt.submit","params":{"text":"` + secret + `"}}`,
 		`{"jsonrpc":"2.0","id":2,"method":"` + secret + ` as a method","params":{}}`,
 		`{"jsonrpc":"2.0","id":"srq-1","result":{"answer":"` + secret + `"}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"` + h.token + `","params":{}}`, // review T06 #3: a token-shaped method
+		`{"jsonrpc":"2.0","id":4,"method":"sk-proj-0123456789abcdefABCDEF","params":{}}`,
 	}
 	for _, f := range frames {
 		write(t, pc, f)
@@ -522,10 +525,10 @@ func TestRelayAuditLinesHaveNoFrameContent(t *testing.T) {
 	pc.Close(websocket.StatusNormalClosure, "")
 	waitFor(t, "close line", func() bool { return strings.Contains(h.logs.String(), "relay closed") })
 	logs := h.logs.String()
-	if strings.Contains(logs, secret) || strings.Contains(logs, h.token) || strings.Contains(logs, "tkt-") {
+	if strings.Contains(logs, secret) || strings.Contains(logs, h.token) || strings.Contains(logs, "tkt-") || strings.Contains(logs, "sk-proj") {
 		t.Fatalf("log holds frame content, token or ticket:\n%s", logs)
 	}
-	if !strings.Contains(logs, `methods="other=1,prompt.submit=1"`) {
+	if !strings.Contains(logs, `methods="other=3,prompt.submit=1"`) {
 		t.Fatalf("method summary:\n%s", logs)
 	}
 }

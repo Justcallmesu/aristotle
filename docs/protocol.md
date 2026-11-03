@@ -430,7 +430,8 @@ unchanged both ways, except §10's redaction on the way to the phone. No method 
 
 **Upgrade.** `GET /v1/ws` on the LAN (`wss://`, pinned cert §11.3) and Tailscale (`ws://`) listeners, HTTP/1.1
 upgrade (ALPN `http/1.1` on TLS; OkHttp does this). Header `Authorization: Bearer <device token>`, as for every
-`/v1/*` route. No subprotocol, no Origin header needed, no compression. Missing/unknown/revoked token -> HTTP `401`
+`/v1/*` route. No subprotocol, no compression. An `Origin` header is optional; if sent, its host must equal `Host`, else
+`403` (the WebSocket library's check; with Bearer-only auth it is the cross-site defence). Missing/unknown/revoked token -> HTTP `401`
 before any upgrade (Hermes is not contacted); a peer outside the listener's range -> `403` (§11.2). The request log
 line is written at upgrade time (status 101).
 
@@ -446,9 +447,13 @@ gets a normal result. Consequences:
   `secret`, `vault.*`, batch `clarify`, window bridges; §6). The phone must answer or decline each (`4404` for
   window bridges), or the agent waits until the request's deadline. Sending `server_requests:false` makes Hermes
   fail those requests at once for this socket instead.
-- The phone must NOT send `desktop_local: true`: the relay socket holds a native ticket, so Hermes would treat the
-  phone as the local Desktop app and run its first-boot work (`hermes_cli/process_identity.py:425-431`,
-  `tui_gateway/methods_onboarding.py:107`).
+- **`desktop_local` is refused (spec Q43).** The relay socket holds a native ticket, so Hermes would treat a phone
+  claiming `desktop_local` as the local Desktop app and run its first-boot work (`hermes_cli/process_identity.py:425-431`,
+  `tui_gateway/methods_onboarding.py:107`). A phone frame whose decoded `method` is `client.capabilities` and whose
+  decoded `params` object has the key `desktop_local` (any value, `false` too; escaped spellings such as
+  `desktop\u005flocal` count) closes the socket `1008 desktop_local_refused`, and the frame never reaches Hermes. Keys
+  are matched exactly, as Python does. A frame Go's JSON parser rejects but Python's may accept (`NaN`, `Infinity`,
+  leading Unicode spaces) is refused the same way when its bytes contain `capabilities` or a `\u` escape.
 - JSON-RPC ids are the phone's own; reusing id `1` is safe (the connector's request is answered before the
   phone's first frame is forwarded).
 
@@ -459,10 +464,11 @@ gets a normal result. Consequences:
 | `1000` | Hermes' reason | Hermes closed normally | reconnect when needed |
 | `1001` | `going_away` | aristotle-server is stopping (also: a new socket during shutdown) | retry with backoff |
 | `1003` | `text_frames_only` | the phone sent a binary frame | fix the client |
+| `1008` | `desktop_local_refused` | the phone's `client.capabilities` named `desktop_local` (see Capabilities) | fix the client; never send it |
 | `1009` | `read limited at …` | a phone frame over 1 MiB (sent by the WebSocket library) | split/shrink; upload files via REST |
-| `1011` | `pong_timeout` | no pong within 15 s of a ping | reconnect |
+| `1011` | `pong_timeout` | within 15 s of a ping (sent every 25 s), no byte came from the phone and no write that had to wait for it completed (see Keepalive) | reconnect |
 | `1013` | `try_again` / Hermes' reason | Hermes draining or not ready, at dial (`ErrDraining`) or later (Hermes sent 1013) | retry with backoff |
-| `4401` | `revoked` | the device was revoked (`devices revoke`); every live socket of it closes within 1 s | re-pair |
+| `4401` | `revoked` | the device was revoked (`devices revoke`); every live socket of it closes within 1 s. A phone that has not read the 4401 within 0.5 s (not reading, or still draining buffered data) gets a TCP close instead | re-pair |
 | `4429` | `rate_limited` | more than 600 phone frames in 60 s on this socket | reconnect later, send less |
 | `4430` | `too_many_connections` | the device already has 4 open relay sockets | close one |
 | `4502` | `hermes_unavailable`, `hermes_unavailable: refused (4403)`, `hermes_unavailable: connection lost` | any other dial failure; Hermes closed with 4403; Hermes vanished without a close frame | retry with backoff |
@@ -474,12 +480,22 @@ Reasons are at most 123 bytes and never contain tickets or tokens. A dial failur
 succeeded, so the phone always gets a close code instead of a hang or an HTTP error.
 
 **Limits** (per phone socket unless noted): phone frames ≤ 1 MiB each (text only); ≤ 600 phone frames per 60 s
-(sliding); ≤ 4 sockets per device. Frames Hermes -> phone have no relay size limit (a whole-transcript
-`session.resume` can be large; Hermes itself accepts up to 384 MiB, `hermes_cli/web_server_boundary.py:26`).
+(sliding); ≤ 4 sockets per device. Messages Hermes -> phone are up to 64 MiB (the relay's read limit on the Hermes
+socket; a whole-transcript `session.resume` can be large, and Hermes itself accepts up to 384 MiB,
+`hermes_cli/web_server_boundary.py:26`); a larger one ends the relay with `4502 hermes_unavailable: connection lost`.
+Messages over 32 KiB reach the phone as a fragmented WebSocket message (32 KiB frames plus continuation frames;
+OkHttp reassembles them), so pings and close frames are not stuck behind one large frame.
 
-**Keepalive.** aristotle-server pings the phone every 25 s (WebSocket ping control frame); no pong within 15 s ->
-`1011`. WebSocket clients answer pings automatically while they read. It does not ping Hermes (loopback); the phone
-may still call `gateway.ping` itself (§1.3).
+**Keepalive.** aristotle-server sends the phone a WebSocket ping every 25 s, whatever the traffic (at most 4 unanswered
+pings outstanding). It closes the phone `1011` when, within 15 s of a ping, neither of these happened: a byte arrived
+from the phone (the pong, a frame, part of a frame), or a write to the phone that had to wait for it completed. A write
+counts only when it waited at least 10 ms for send-buffer space: a frame the kernel takes into a free buffer proves
+nothing, so a phone that is gone is closed within 40 s even while Hermes streams events to it. A slow phone downloading
+a large message keeps its socket while those writes keep completing, even when its pong waits behind the data. Once
+the last bytes are in the kernel nothing waits any more: the phone must then read what is buffered for it and answer a
+ping within 15 s. While a phone frame waits for Hermes to take it, the phone is not read and its pongs are unseen: pings
+still go out, but no `1011` is decided from a window that overlaps the wait. WebSocket clients answer pings
+automatically while they read. It does not ping Hermes (loopback); the phone may still call `gateway.ping` itself (§1.3).
 
 **Redaction.** Hermes -> phone only, exactly §10: `system_prompt` -> `system_prompt_chars`, `credential_hint` removed,
 at `params.payload`, `result`, `result.info` and every `result.events[].params.payload`. Frames without either field
@@ -488,4 +504,5 @@ differ). A frame that names a field but is not a JSON object is dropped (counted
 
 **Audit.** One log line on open (`device_id`, `listener`) and one on close (`device_id`, `listener`, `duration`,
 `close_code`, `closed_by`, `frames_in/out`, `bytes_in/out`, `dropped`, and counts per JSON-RPC `method` name sent by
-the phone; a name that is not a plain dotted identifier is counted as `other`). Never frame bodies, tickets or tokens.
+the phone; only names this document lists (§1-§9, e.g. `session.resume`, `prompt.submit`, `commands.catalog`) are
+logged by name, any other is counted as `other`, so a token sent as a method never reaches the log). Never frame bodies, tickets or tokens.

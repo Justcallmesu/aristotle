@@ -26,6 +26,12 @@ const (
 	DefaultDialTimeout        = 20 * time.Second
 	// closeGrace bounds the close handshakes; after it both sockets are cut.
 	closeGrace = 2 * time.Second
+	// revokeGrace is closeGrace for a revoke: a phone that has not taken its 4401 by then is cut, so
+	// every socket of a revoked device is gone within 1 s even when the phone is not reading.
+	revokeGrace = 500 * time.Millisecond
+	// fragmentBytes is the largest WebSocket frame written to the phone. Larger messages go out as
+	// fragments, so pings and close frames are written between them instead of after the whole message.
+	fragmentBytes = 32 << 10
 )
 
 // Dialer opens one fresh Hermes socket; *hermes.Connector is the real one.
@@ -46,6 +52,8 @@ type Options struct {
 	PongTimeout        time.Duration
 	DialTimeout        time.Duration
 	Now                func() time.Time
+
+	wrapHermes func(*hermes.Conn) upstream // tests: changes what the Hermes side does (e.g. streams events)
 }
 
 func (o *Options) setDefaults() {
@@ -93,12 +101,13 @@ func New(opts Options) *Hub {
 // ServeRelay upgrades an authenticated request and relays until either side ends. listener is the
 // listener kind (for the audit line). It returns when the relay is over.
 func (h *Hub) ServeRelay(w http.ResponseWriter, r *http.Request, deviceID, listener string) {
-	pc, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	s := newSession(h, deviceID, listener)
+	pc, err := websocket.Accept(hijacker{w, s}, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
 		return // Accept has answered with an HTTP error
 	}
 	pc.SetReadLimit(h.opts.MaxFrameBytes)
-	s := newSession(h, pc, deviceID, listener)
+	s.pc = pc
 	if refusal, ok := h.register(s); !ok {
 		h.opts.Log.Info("relay refused", "device_id", deviceID, "listener", listener, "close_code", int(refusal.code))
 		_ = pc.Close(refusal.code, refusal.reason)
