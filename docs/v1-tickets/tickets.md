@@ -19,7 +19,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T05 | Listeners + device auth + manual pairing + devices list/revoke (server) | T03b | server | DONE |
 | T04b | Connector review fixes: `Do` per profile (MAJOR), no redirects, strip caller auth headers, ack timeout + buffer cap, close-code helper, Hermes-order socket discovery + owner check | T04 | server/internal/hermes | DONE |
 | T05b | Listener/pairing review fixes: Tailscale by TUN interface (MAJOR, cleartext risk), LAN physical-only + subnet peers, iface names in `pair`, per-IP lockout, pair read deadline, protocol.md §11 | T05 | server, docs | DONE |
-| T05c | Hardening from wave-4 reviews: D9, D10, D12, D13, D14, D15 | T04b, T05b | server, docs §11 | TODO |
+| T05c | Hardening from wave-4 reviews: D9, D10, D12, D13, D14, D15 | T04b, T05b | server, docs §11 | DONE |
 | T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T05c | server | TODO |
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06 | android | TODO |
 | T08 | Pairing by QR (server prints QR; app scans) | T07 | server, android | TODO |
@@ -52,13 +52,15 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D6 | `docs/protocol.md` §1.2: a MISSING ticket subprotocol falls through to the web gate (only ill-formed -> 4403) (T01b review) | T04 | DONE (T04) |
 | D7 | Second Ctrl-C ignored during shutdown; net/http errors bypass slog (T03 review) | T21 | OPEN |
 | D8 | Revisit night-theme window colours when edge-to-edge is adopted (T02b review) | T11 | OPEN |
-| D9 | `Do` header strip misses non-canonical keys (`authorization`); use `delete(h, name)` (T04b review) | T05c | OPEN |
-| D10 | `Do` strips a denylist; switch to an allowlist so `X-Forwarded-*` never reaches Hermes (T04b review) | T05c | OPEN |
+| D9 | `Do` header strip misses non-canonical keys (`authorization`); use `delete(h, name)` (T04b review) | T05c | DONE (T05c) |
+| D10 | `Do` strips a denylist; switch to an allowlist so `X-Forwarded-*` never reaches Hermes (T04b review) | T05c | DONE (T05c) |
 | D11 | `"default"` profile = launch profile in Aristotle, root `~/.hermes` in Hermes; names case-sensitive (T04b review) | T14 | OPEN |
-| D12 | No test for 1013/4403 arriving on `Conn.Read` after dial (T04b review) | T05c | OPEN |
-| D13 | Tailscale listener accepts tailnet-range sources from any interface; bind with SO_BINDTODEVICE (T05b review, unproven) | T05c | OPEN |
-| D14 | One rejection-log limiter per listener; hard-coded "5 tries" text; control lock taken after cert creation; §11 omissions (T05b review NITs) | T05c | OPEN |
-| D15 | `decodeEnvelope` `sizeOK` parameter is dead (T04b review NIT) | T05c | OPEN |
+| D12 | No test for 1013/4403 arriving on `Conn.Read` after dial (T04b review) | T05c | DONE (T05c) |
+| D13 | Tailscale listener accepts tailnet-range sources from any interface; bind with SO_BINDTODEVICE (T05b review, unproven) | T05c | DONE (T05c) |
+| D14 | One rejection-log limiter per listener; hard-coded "5 tries" text; control lock taken after cert creation; §11 omissions (T05b review NITs) | T05c | DONE (T05c) |
+| D15 | `decodeEnvelope` `sizeOK` parameter is dead (T04b review NIT) | T05c | DONE (T05c) |
+| D16 | No positive test that the interface pin is applied (getsockopt SO_BINDTODEVICE); empty iface name silently unpins (`manager.go:220`) (T05c review F1+F2) | T06 | OPEN |
+| D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | OPEN |
 
 ## Tickets
 
@@ -171,3 +173,7 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 Wave-3 reviews: T04 PASS-WITH-FINDINGS (MAJOR: REST `Do` bound to launch profile; unused so far) -> committed e927430 and pushed, fixes in T04b. T05 CHANGES-REQUIRED (MAJOR proven: any 100.64/10 address got a plain-HTTP 'Tailscale' listener; PM confirmed `listen/addr.go:81-97` classifies by address only) -> not committed; fix round T05b (deep, retry 1/2). Docker bridge listener folded into T05b.
 - 2026-11-03 T04b/T05b built. PM gates GREEN (runs/pm-gate-4: 154 Go tests + android; control+listen -race -count=3 green). Mutations: Tailscale-by-TUN -> TestSelectTailnetRangeNeedsTailscaleTun fails; Do launch-profile ticket -> TestDoMintsTicketForTargetProfile fails; both restored sha-match. T05b also fixed a shared tls.Config data race and a flaky TestOtherUIDRefused. Reviews dispatched (deep x2).
 - 2026-11-03 Wave-4 reviews: T04b and T05b PASS-WITH-FINDINGS, no BLOCKER/MAJOR; all earlier findings FIXED. Committed T04b and T05+T05b; new minors D9-D15 -> T05c (before T06), D11 -> T14.
+- 2026-11-03 Wave 4 committed+pushed (8d631d3, 338cb11, 99df769). T05c (std) dispatched alone because it touches listen/app/hermes files T06 also needs. T06 brief written (deep), dispatch after T05c lands.
+- 2026-11-03 T05c built. PM gates GREEN (runs/pm-gate-5: 162 Go tests + android). SO_BINDTODEVICE works unprivileged on kernel 7.1.4. Mutations: bind no-op -> only TestSetDeviceUnknownInterfaceFails fails (weak; asked reviewer); header allowlist widened -> 3 tests fail. Review dispatched (deep).
+- 2026-11-03 Device check on the Poco (22101320G 'redwood', Android 14, HyperOS OS2.0): debug APK installed after the user enabled 'Install via USB'; launches in 205 ms; dark mode (phone is in night mode) renders the dynamic-colour dark theme; per-app locale id-ID shows 'Belum dipasangkan' (app locale reset afterwards). NOT checked: light-mode launch flash, launcher icon.
+- 2026-11-03 T05c review PASS-WITH-FINDINGS (no BLOCKER/MAJOR; live `ss` shows %wlan0 / %tailscale0 pins incl. IPv6). Committed. F1-F5 -> D16/D17, folded into T06. T06 dispatched (deep).
