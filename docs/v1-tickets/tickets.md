@@ -20,8 +20,10 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T04b | Connector review fixes: `Do` per profile (MAJOR), no redirects, strip caller auth headers, ack timeout + buffer cap, close-code helper, Hermes-order socket discovery + owner check | T04 | server/internal/hermes | DONE |
 | T05b | Listener/pairing review fixes: Tailscale by TUN interface (MAJOR, cleartext risk), LAN physical-only + subnet peers, iface names in `pair`, per-IP lockout, pair read deadline, protocol.md §11 | T05 | server, docs | DONE |
 | T05c | Hardening from wave-4 reviews: D9, D10, D12, D13, D14, D15 | T04b, T05b | server, docs §11 | DONE |
-| T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T05c | server | TODO |
-| T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06 | android | TODO |
+| T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T05c | server | DONE |
+| T06b | Relay review fixes: slow phone not cut by keepalive (MAJOR), revoke on stalled phone, method-name log allowlist, §12 docs | T06 | server, docs §12 | BUILDING |
+| TD1 | Design pass: mockups (pair, sessions, chat live turn, approval, offline), icon concepts, draft design notes (Q37) | — | docs/design | AWAITING-HUMAN (design choices) |
+| T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | TODO |
 | T08 | Pairing by QR (server prints QR; app scans) | T07 | server, android | TODO |
 | T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07 | android | TODO |
 | T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09 | android | TODO |
@@ -47,7 +49,7 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D1 | Unmatched routes log the raw path (`httpapi.go:47`); a secret in a path would leak (T03b review) | T05 | DONE (T05) |
 | D2 | `Lstat`->`Chmod` race on the state dir; open with O_NOFOLLOW and fchmod (T03b review) | T05 | DONE (T05) |
 | D3 | No test for the other-owner refusal; inject file info (T03b review) | T05 | DONE (T05) |
-| D4 | Request log written after the handler returns; long-lived WS logs nothing until close (T03b review) | T06 | OPEN |
+| D4 | Request log written after the handler returns; long-lived WS logs nothing until close (T03b review) | T06 | DONE (T06) |
 | D5 | Config file containing only `null` accepted as defaults (T03b review) | T05 | DONE (T05) |
 | D6 | `docs/protocol.md` §1.2: a MISSING ticket subprotocol falls through to the web gate (only ill-formed -> 4403) (T01b review) | T04 | DONE (T04) |
 | D7 | Second Ctrl-C ignored during shutdown; net/http errors bypass slog (T03 review) | T21 | OPEN |
@@ -59,8 +61,8 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D13 | Tailscale listener accepts tailnet-range sources from any interface; bind with SO_BINDTODEVICE (T05b review, unproven) | T05c | DONE (T05c) |
 | D14 | One rejection-log limiter per listener; hard-coded "5 tries" text; control lock taken after cert creation; §11 omissions (T05b review NITs) | T05c | DONE (T05c) |
 | D15 | `decodeEnvelope` `sizeOK` parameter is dead (T04b review NIT) | T05c | DONE (T05c) |
-| D16 | No positive test that the interface pin is applied (getsockopt SO_BINDTODEVICE); empty iface name silently unpins (`manager.go:220`) (T05c review F1+F2) | T06 | OPEN |
-| D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | OPEN |
+| D16 | No positive test that the interface pin is applied (getsockopt SO_BINDTODEVICE); empty iface name silently unpins (`manager.go:220`) (T05c review F1+F2) | T06 | DONE (T06) |
+| D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
 ## Tickets
 
@@ -177,3 +179,7 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 T05c built. PM gates GREEN (runs/pm-gate-5: 162 Go tests + android). SO_BINDTODEVICE works unprivileged on kernel 7.1.4. Mutations: bind no-op -> only TestSetDeviceUnknownInterfaceFails fails (weak; asked reviewer); header allowlist widened -> 3 tests fail. Review dispatched (deep).
 - 2026-11-03 Device check on the Poco (22101320G 'redwood', Android 14, HyperOS OS2.0): debug APK installed after the user enabled 'Install via USB'; launches in 205 ms; dark mode (phone is in night mode) renders the dynamic-colour dark theme; per-app locale id-ID shows 'Belum dipasangkan' (app locale reset afterwards). NOT checked: light-mode launch flash, launcher icon.
 - 2026-11-03 T05c review PASS-WITH-FINDINGS (no BLOCKER/MAJOR; live `ss` shows %wlan0 / %tailscale0 pins incl. IPv6). Committed. F1-F5 -> D16/D17, folded into T06. T06 dispatched (deep).
+- 2026-11-03 User chose design pass before T07 (Q37). TD1 dispatched (deep) in parallel with T06; disjoint files (docs/design only). Q38 colours left open for the user to pick from the board.
+- 2026-11-03 T06 built. Smoke test vs real Hermes: session.list -> 3 sessions (read-only). PM gates GREEN (runs/pm-gate-6: 201 Go tests + android). Mutations: redaction fast path forced -> 5 redact tests fail; revoke hook removed -> TestRelayRevokeClosesWithinOneSecond fails; restored sha-match. Review dispatched (deep), incl. whether to strip `desktop_local: true` from phone frames.
+- 2026-11-03 TD1 delivered (13 screens, 3 icon concepts, design-notes.md; slop A 0/10, B 1/10). PM checked the board in the browser (renders, no errors) and opened it on the Poco via adb reverse :8099 (local http.server, loopback only). Awaiting the user's 5 design choices.
+- 2026-11-03 T06 review PASS-WITH-FINDINGS (MAJOR unproven: slow phone cut by 25s/15s keepalive on large frames). Committed a8a44e7; TD1 draft committed 6fb3f88. T06b dispatched (deep). Q43 desktop_local refuse/strip/pass -> user.
