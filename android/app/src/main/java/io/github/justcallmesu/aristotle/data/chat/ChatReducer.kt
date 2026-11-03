@@ -30,6 +30,23 @@ object ChatReducer {
     }
 
     /**
+     * A Hermes -> client request for this session (`sudo`, `secret`, batch `clarify`, vault): it opens a prompt. It
+     * carries no `seq`; a repeat (the same request again in a snapshot's `open_requests`) replaces the entry.
+     */
+    fun request(state: ChatState, request: InboundFrame.ServerRequest): ChatState {
+        if (request.sessionId != state.sessionId) return state
+        return Prompts.fromRequest(request)?.let { openPrompt(state, it) } ?: state
+    }
+
+    /** `session.events.since` also lists the requests still open (`gateway/session_controls.py:745-751`). */
+    fun withOpenRequests(state: ChatState, openRequests: JsonArray?): ChatState {
+        if (openRequests == null) return state
+        val requests = requestPrompts(openRequests)
+        val kept = state.prompts.filter { !it.fromRequest() }
+        return replacePrompts(state, kept + requests)
+    }
+
+    /**
      * The state a `session.resume` result (or `session.create`) gives. [previous] keeps its items when the
      * snapshot omits messages (a reconnect that caught up with `session.events.since`), and its info is the base
      * the snapshot's info merges into.
@@ -58,7 +75,6 @@ object ChatReducer {
             running = running,
             step = if (keepTurn) base.step else null,
             thinking = keepTurn && base.thinking,
-            openPrompts = (snapshot["prompts"] as? JsonArray).orEmpty().mapNotNull { it.asObject()?.text("prompt_id") }.toSet(),
             replayEpoch = caughtUp?.replayEpoch ?: snapshot.text("replay_epoch"),
             lastSeq = caughtUp?.lastSeq ?: last,
             turn = if (keepTurn) base.turn ?: TurnCursor().takeIf { running } else TurnCursor().takeIf { running },
@@ -73,7 +89,40 @@ object ChatReducer {
         )
         val stateKeys = JsonObject(SNAPSHOT_STATE_KEYS.mapNotNull { key -> snapshot[key]?.let { key to it } }.toMap())
         val merged = mergeInfo(mergeInfo(state, snapshot["info"].asObject() ?: EMPTY, showStarted = false), stateKeys, showStarted = false)
-        return if (behind) merged.copy(running = base.running) else merged
+        val prompts = (snapshot["prompts"] as? JsonArray).orEmpty().mapNotNull { it.asObject()?.let { p -> Prompts.fromEvent(p, at = null) } } +
+            requestPrompts(snapshot["open_requests"] as? JsonArray)
+        val withPrompts = replacePrompts(merged, prompts)
+        return if (behind) withPrompts.copy(running = base.running) else withPrompts
+    }
+
+    // ── prompts (protocol §6) ─────────────────────────────────────────────────────────────────────
+
+    private fun requestPrompts(entries: JsonArray?): List<Prompt> = entries.orEmpty().mapNotNull { it.asObject()?.let(Prompts::fromOpenRequest) }
+
+    private fun Prompt.fromRequest(): Boolean = key.startsWith("srq-")
+
+    private fun openPrompt(state: ChatState, prompt: Prompt): ChatState {
+        val index = state.prompts.indexOfFirst { it.key == prompt.key }
+        val prompts = if (index < 0) state.prompts + prompt else state.prompts.toMutableList().also { it[index] = prompt }
+        return state.copy(prompts = prompts)
+    }
+
+    /** A `*.settled` or `request.cancel`: the prompt is no longer open (answered here or elsewhere, timed out, ended). */
+    private fun settlePrompt(state: ChatState, key: String, reason: String?): ChatState {
+        val prompt = state.prompts.firstOrNull { it.key == key } ?: return state
+        return state.copy(
+            prompts = state.prompts - prompt,
+            lastSettled = SettledPrompt(prompt, reason, state.nextKey),
+            nextKey = state.nextKey + 1,
+        )
+    }
+
+    /** A snapshot's list is the truth; a prompt that was open and is gone settled meanwhile. */
+    private fun replacePrompts(state: ChatState, prompts: List<Prompt>): ChatState {
+        val fresh = prompts.distinctBy { it.key }
+        val gone = state.prompts.firstOrNull { old -> fresh.none { it.key == old.key } }
+        val next = state.copy(prompts = fresh)
+        return if (gone == null) next else next.copy(lastSettled = SettledPrompt(gone, null, next.nextKey), nextKey = next.nextKey + 1)
     }
 
     private fun apply(state: ChatState, event: InboundFrame.Event, payload: JsonObject, at: Long): ChatState = when (event.type) {
@@ -91,8 +140,10 @@ object ChatReducer {
         "tool.complete" -> toolComplete(state, payload, at)
         "session.info" -> mergeInfo(state, payload)
         "session.title" -> payload["title"]?.let { mergeInfo(state, JsonObject(mapOf("title" to it))) } ?: state
-        "approval.request", "clarify.request" -> payload.text("prompt_id")?.let { state.copy(openPrompts = state.openPrompts + it) } ?: state
-        "approval.settled", "clarify.settled" -> payload.text("prompt_id")?.let { state.copy(openPrompts = state.openPrompts - it) } ?: state
+        "approval.request", "clarify.request" -> Prompts.fromEvent(payload, at)?.let { openPrompt(state, it) } ?: state
+        "approval.settled", "clarify.settled" -> payload.text("prompt_id")?.let { settlePrompt(state, it, null) } ?: state
+        // A withdrawn Hermes -> client request (`tui_gateway/contracts/server_requests.py:364-379`).
+        "request.cancel" -> payload.text("id")?.let { settlePrompt(state, it, payload.text("reason")) } ?: state
         "error" -> notice(state, NoticeKind.Error, payload.text("message").orEmpty())
         "notice" -> payload.text("message")?.takeIf { it.isNotBlank() }?.let { notice(state, NoticeKind.Info, it) } ?: state
         else -> state

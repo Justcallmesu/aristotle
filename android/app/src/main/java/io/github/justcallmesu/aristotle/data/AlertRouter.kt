@@ -13,6 +13,12 @@ sealed interface AlertBody {
     /** Never the command itself: a command line can carry a secret. */
     data class Approval(val command: Boolean) : AlertBody
     data class Clarify(val question: String?) : AlertBody
+
+    /** A sudo password or secret value is asked for; never what for, never a value. */
+    data object Secret : AlertBody
+
+    /** A vault prompt the PC answers. */
+    data object OnPc : AlertBody
 }
 
 /** One notification: [tag] is its collapse key, so a newer one for the same session replaces it. */
@@ -139,6 +145,8 @@ class AlertRouter {
         val body = when (alert.kind) {
             PromptKind.Approval -> AlertBody.Approval(alert.command)
             PromptKind.Clarify -> AlertBody.Clarify(alert.question?.let(NotificationText::firstLine)?.ifEmpty { null })
+            PromptKind.Secret -> AlertBody.Secret
+            PromptKind.OnPc -> AlertBody.OnPc
         }
         return AlertNotice(AlertChannel.NeedsYou, NotificationText.needsTag(alert.sessionId), alert.sessionId, alert.title, body, alert.promptId, repeat)
     }

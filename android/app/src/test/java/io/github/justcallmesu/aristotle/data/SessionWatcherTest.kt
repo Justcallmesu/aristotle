@@ -38,6 +38,8 @@ class SessionWatcherTest {
 
         override fun retryNow() = Unit
 
+        override fun respond(requestId: String, result: JsonObject): Boolean = false
+
         fun resumed(): List<String> = calls.filter { it.method == "session.resume" }.map { it.params["session_id"]!!.jsonPrimitive.content }
 
         fun event(type: String, sessionId: String, payload: String) =
@@ -104,7 +106,7 @@ class SessionWatcherTest {
     @Test
     fun aReplayGapResumesTheWatchedSessionAgainOnTheSameSocket() {
         val reread = json(
-            """{"session_id":"a","running":true,"info":{},"prompts":[{"kind":"approval","prompt_id":"p1","command":"ls"}]}""",
+            """{"session_id":"a","running":true,"info":{},"prompts":[{"kind":"approval","prompt_id":"p1","execution_generation":3,"command":"ls"}]}""",
         )
         var resumes = 0
         val link = FakeLink { call ->
@@ -203,7 +205,7 @@ class SessionWatcherTest {
     @Test
     fun thePromptsOpenAtResumeAreReportedWithTheListTitle() {
         val snapshot = json(
-            """{"session_id":"s1","running":true,"info":{},"prompts":[{"kind":"approval","prompt_id":"p1","command":"x"},{"kind":"sudo"},"junk"]}""",
+            """{"session_id":"s1","running":true,"info":{},"prompts":[{"kind":"approval","prompt_id":"p1","execution_generation":3,"command":"x"},{"kind":"sudo"},"junk"]}""",
         )
         val link = FakeLink { call -> if (call.method == "session.list") list("s1" to true) else snapshot }
         val alerts = run(link) { seen ->
@@ -213,6 +215,40 @@ class SessionWatcherTest {
         }
         assertEquals(
             listOf(SessionAlert.NeedsYou("s1", "Title s1", "p1", PromptKind.Approval, null, command = true), SessionAlert.PromptsOpen("s1", setOf("p1"))),
+            alerts,
+        )
+    }
+
+    @Test
+    fun serverRequestsNeedYouAndRequestCancelClearsThem() {
+        // D32: sudo, secret, batch clarify and vault requests are notified; window bridges are not prompts.
+        val snapshot = json(
+            """{"session_id":"s1","running":true,"info":{},"prompts":[],
+               "open_requests":[{"id":"srq-000000000001","method":"sudo","params":{"session_id":"s1","command":"sudo ls"}}]}""",
+        )
+        val link = FakeLink { call -> if (call.method == "session.list") list("s1" to true) else snapshot }
+        fun request(id: String, method: String, params: String) =
+            link.frames.tryEmit(RpcFrames.parse("""{"jsonrpc":"2.0","id":"$id","method":"$method","params":$params}"""))
+        val alerts = run(link) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            seen.first { it.size >= 2 }
+            request("srq-000000000002", "secret", """{"session_id":"s1","env_var":"KEY","prompt":"p"}""")
+            request("srq-000000000003", "clarify", """{"session_id":"s1","questions":[{"qid":"q0","question":"Which?"}]}""")
+            request("srq-000000000004", "vault.code", """{"session_id":"s1","site":"github.com"}""")
+            request("srq-000000000005", "terminal.read", """{"session_id":"s1"}""")
+            link.event("request.cancel", "s1", """{"id":"srq-000000000002","method":"secret","reason":"resolved"}""")
+            seen.first { it.size >= 6 }
+            delay(50)
+        }
+        assertEquals(
+            listOf(
+                SessionAlert.NeedsYou("s1", "Title s1", "srq-000000000001", PromptKind.Secret, null),
+                SessionAlert.PromptsOpen("s1", setOf("srq-000000000001")),
+                SessionAlert.NeedsYou("s1", "Title s1", "srq-000000000002", PromptKind.Secret, null),
+                SessionAlert.NeedsYou("s1", "Title s1", "srq-000000000003", PromptKind.Clarify, "Which?"),
+                SessionAlert.NeedsYou("s1", "Title s1", "srq-000000000004", PromptKind.OnPc, null),
+                SessionAlert.Settled("s1", "srq-000000000002"),
+            ),
             alerts,
         )
     }

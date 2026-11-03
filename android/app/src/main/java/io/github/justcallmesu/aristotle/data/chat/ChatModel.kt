@@ -65,6 +65,12 @@ data class TurnCursor(
     val lateTextKey: String? = null,
 )
 
+/**
+ * A prompt that is no longer open: `approval.settled` / `clarify.settled` ([reason] null), `request.cancel`
+ * ([reason] `resolved`, `timeout`, `interrupted`, …), or gone from a new snapshot. [serial] tells two settles apart.
+ */
+data class SettledPrompt(val prompt: Prompt, val reason: String?, val serial: Long)
+
 /** What the chat screen shows for one session. Built only by [ChatReducer] and [HistoryMapper]. */
 data class ChatState(
     val sessionId: String,
@@ -75,8 +81,10 @@ data class ChatState(
     val step: Int? = null,
     /** Hermes' spinner is on (`thinking.delta` with text): the model works but nothing streams yet. */
     val thinking: Boolean = false,
-    /** Approval / clarify prompts still open (answered in T12). */
-    val openPrompts: Set<String> = emptySet(),
+    /** What Hermes waits for in this session, oldest first (protocol §6); the prompt sheet shows the first. */
+    val prompts: List<Prompt> = emptyList(),
+    /** The prompt that left [prompts] last, and why; the sheet tells "answered elsewhere" from it (T12). */
+    val lastSettled: SettledPrompt? = null,
     val replayEpoch: String? = null,
     val lastSeq: Long? = null,
     val turn: TurnCursor? = null,
@@ -85,6 +93,7 @@ data class ChatState(
     val nextKey: Long = 0,
 ) {
     val title: String? get() = infoText("title")
+    val openPrompts: Set<String> get() = prompts.mapTo(LinkedHashSet()) { it.key }
     val model: String? get() = infoText("model")
     val profileName: String? get() = infoText("profile_name")
 

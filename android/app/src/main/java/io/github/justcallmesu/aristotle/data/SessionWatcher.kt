@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import io.github.justcallmesu.aristotle.data.chat.Prompt
+import io.github.justcallmesu.aristotle.data.chat.Prompts
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -20,7 +22,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
-enum class PromptKind { Approval, Clarify }
+/** [Secret]: a sudo password or a secret value (Q51: answered on the phone). [OnPc]: a vault prompt, answered on the PC. */
+enum class PromptKind { Approval, Clarify, Secret, OnPc }
 
 /** What a watched session did that may deserve a notification (T10). */
 sealed interface SessionAlert {
@@ -29,7 +32,10 @@ sealed interface SessionAlert {
     /** `message.complete` (one per turn, protocol §2); [text] is the final assistant text, never tool output. */
     data class TurnFinished(override val sessionId: String, val title: String?, val text: String) : SessionAlert
 
-    /** `approval.request` / `clarify.request`, or one still open in the resume snapshot's `prompts` (§6). */
+    /**
+     * `approval.request` / `clarify.request`, a `sudo` / `secret` / batch `clarify` / vault server request, or one
+     * still open in the resume snapshot's `prompts` / `open_requests` (§6). Never carries a command or value.
+     */
     data class NeedsYou(
         override val sessionId: String,
         val title: String?,
@@ -43,7 +49,7 @@ sealed interface SessionAlert {
     /** After a resume: the prompts the snapshot says are still open; a notification for another one is stale. */
     data class PromptsOpen(override val sessionId: String, val promptIds: Set<String>) : SessionAlert
 
-    /** `approval.settled` / `clarify.settled`: answered somewhere, timed out or the turn ended. */
+    /** `approval.settled` / `clarify.settled` / `request.cancel`: answered somewhere, timed out or the turn ended. */
     data class Settled(override val sessionId: String, val promptId: String) : SessionAlert
 }
 
@@ -85,7 +91,17 @@ class SessionWatcher(
 
         suspend fun run() = coroutineScope {
             launch(start = CoroutineStart.UNDISPATCHED) {
-                link.events.collect { frame -> if (frame is InboundFrame.Event) onEvent(frame, this@coroutineScope) }
+                link.events.collect { frame ->
+                    when (frame) {
+                        is InboundFrame.Event -> onEvent(frame, this@coroutineScope)
+                        // D32: sudo, secret, batch clarify and vault requests need the user too.
+                        // Only the launch profile's own (session ids repeat across profiles on this host-scoped socket).
+                        is InboundFrame.ServerRequest -> frame.sessionId.takeIf { it.isNotEmpty() && resumed.requestFor(generation, it) }?.let { id ->
+                            Prompts.fromRequest(frame)?.let { out.send(needsYou(id, it)) }
+                        }
+                        else -> Unit
+                    }
+                }
             }
             resumeRunning()
             while (true) {
@@ -111,8 +127,9 @@ class SessionWatcher(
                 MESSAGE_COMPLETE -> if (payload.text("outcome") != OUTCOME_CANCELLED) {
                     out.send(SessionAlert.TurnFinished(id, titles[id], payload.text("text").orEmpty()))
                 }
-                APPROVAL_REQUEST, CLARIFY_REQUEST -> promptOf(id, payload)?.let { out.send(it) }
+                APPROVAL_REQUEST, CLARIFY_REQUEST -> Prompts.fromEvent(payload, at = null)?.let { out.send(needsYou(id, it)) }
                 APPROVAL_SETTLED, CLARIFY_SETTLED -> payload.text("prompt_id")?.let { out.send(SessionAlert.Settled(id, it)) }
+                REQUEST_CANCEL -> payload.text("id")?.let { out.send(SessionAlert.Settled(id, it)) }
             }
         }
 
@@ -146,30 +163,23 @@ class SessionWatcher(
             }
             val snapshot = result as? JsonObject ?: return true
             (snapshot["info"] as? JsonObject)?.text("title")?.takeIf { it.isNotBlank() }?.let { titles[id] = it }
-            val prompts = snapshot["prompts"] as? JsonArray ?: return true
-            val open = mutableSetOf<String>()
-            prompts.forEach { prompt ->
-                (prompt as? JsonObject)?.let { promptOf(id, it) }?.let {
-                    open += it.promptId
-                    out.send(it)
-                }
-            }
-            out.send(SessionAlert.PromptsOpen(id, open))
+            val prompts = (snapshot["prompts"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let { p -> Prompts.fromEvent(p, at = null) } } +
+                (snapshot["open_requests"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(Prompts::fromOpenRequest) }
+            prompts.forEach { out.send(needsYou(id, it)) }
+            out.send(SessionAlert.PromptsOpen(id, prompts.mapTo(mutableSetOf()) { it.key }))
             return true
         }
 
-        /** A request payload or snapshot prompt (same dict in Hermes, `session_pending_controls.py:53-64`). */
-        private fun promptOf(id: String, prompt: JsonObject): SessionAlert.NeedsYou? {
-            val promptId = prompt.text("prompt_id") ?: return null
-            val kind = when (prompt.text("kind")) {
-                "approval" -> PromptKind.Approval
-                "clarify" -> PromptKind.Clarify
-                else -> return null
-            }
-            val question = if (kind == PromptKind.Clarify) prompt.text("question") else null
-            // Read only to pick the wording, never shown: a file write arrives as "<write to AGENTS.md>".
-            val command = kind == PromptKind.Approval && prompt.text("command")?.let { it.isNotBlank() && !(it.startsWith("<") && it.endsWith(">")) } == true
-            return SessionAlert.NeedsYou(id, titles[id], promptId, kind, question, command)
+        /** The notification's facts about a prompt: its kind and, for a clarify, the question. */
+        private fun needsYou(id: String, prompt: Prompt): SessionAlert.NeedsYou = when (prompt) {
+            // The command is read only to pick the wording, never shown: a file write arrives as "<write to AGENTS.md>".
+            is Prompt.Approval -> SessionAlert.NeedsYou(
+                id, titles[id], prompt.key, PromptKind.Approval, null,
+                command = prompt.command.isNotBlank() && !(prompt.command.startsWith("<") && prompt.command.endsWith(">")),
+            )
+            is Prompt.Clarify -> SessionAlert.NeedsYou(id, titles[id], prompt.key, PromptKind.Clarify, prompt.questions.firstOrNull()?.question)
+            is Prompt.Secret -> SessionAlert.NeedsYou(id, titles[id], prompt.key, PromptKind.Secret, null)
+            is Prompt.OnPc -> SessionAlert.NeedsYou(id, titles[id], prompt.key, PromptKind.OnPc, null)
         }
     }
 
@@ -182,6 +192,7 @@ class SessionWatcher(
         const val CLARIFY_REQUEST = "clarify.request"
         const val APPROVAL_SETTLED = "approval.settled"
         const val CLARIFY_SETTLED = "clarify.settled"
+        const val REQUEST_CANCEL = "request.cancel"
         const val OUTCOME_CANCELLED = "cancelled"
 
         fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull

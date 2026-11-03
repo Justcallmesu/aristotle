@@ -10,6 +10,17 @@ class AlertRouterTest {
     private fun post(actions: List<NotifyAction>): AlertNotice = (actions.single() as NotifyAction.Post).notice
 
     @Test
+    fun passwordAndVaultRequestsGetTheirOwnBodyWithoutDetails() {
+        val router = AlertRouter()
+        val secret = post(router.onAlert(SessionAlert.NeedsYou("s1", "T", "srq-1", PromptKind.Secret, null), away))
+        assertEquals(AlertBody.Secret, secret.body)
+        assertEquals("srq-1", secret.promptId)
+        assertEquals(AlertChannel.NeedsYou, secret.channel)
+        assertEquals(AlertBody.OnPc, post(router.onAlert(SessionAlert.NeedsYou("s2", "T", "srq-2", PromptKind.OnPc, null), away)).body)
+        assertEquals(listOf(NotifyAction.Cancel(NotificationText.needsTag("s1"))), router.onAlert(SessionAlert.Settled("s1", "srq-1"), away))
+    }
+
+    @Test
     fun firstLineSkipsBlankAndFenceLinesAndDropsHeadingMarks() {
         assertEquals("pong", NotificationText.firstLine("pong"))
         assertEquals("one", NotificationText.firstLine("one\ntwo\nthree\nsteered"))

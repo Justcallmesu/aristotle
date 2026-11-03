@@ -297,9 +297,25 @@ Canonical (authority) sockets get approvals and clarify as **events**, answered 
 - Reconnect: unanswered prompts are in the resume snapshot `prompts` (§4).
 - `srq-` server→client requests still exist for `sudo`, `secret`, `vault.*`, batch `clarify`
   (`prompt.submit {clarify_batch:true}`), and window bridges (`terminal.read`, `window.read`, `preview.*`,
-  `tour`). Answer `{"jsonrpc":"2.0","id":"srq-…","result":{…}}`, or decline with error code `4404`
-  (not shown here) for window bridges; withdrawn by event `request.cancel {id, method, reason}`
-  (`tui_gateway/server_requests.py:1-35`, `:117-121`). From source, not exercised.
+  `tour`). Frame `{"jsonrpc":"2.0","id":"srq-…","method":"sudo","params":{"session_id":…,"command":…}}`, written to
+  every viewer attached to the session (`gateway/session_server_requests.py:171-178`). Withdrawn by the session event
+  `request.cancel {id, method, reason}` (reason `resolved` when some viewer answered, `timeout`, `interrupted`, …;
+  `:188-208`, `tui_gateway/contracts/server_requests.py:364-379`). Still open ones are in `open_requests` of
+  `session.resume` / `session.events.since` (`session_server_requests.py:125-134`, `session_controls.py:700-703`,
+  `:745-751`). From source, not exercised.
+  - **Corrected (T12):** on the canonical owner (`/api/ws`, `session_authority:true`) a response frame is routed by
+    `session_controls.py:283-289` → `_resolve_response` (`:909-923`) → `session_server_requests.resolve`
+    (`:78-97`), and ANY response settles the request for every viewer: an `error` frame (including `4404`) settles it
+    with `""`. The `4404` "not shown" decline counting exists only in the sidecar (`tui_gateway/server_requests.py:249-278`).
+    So a client must never answer or decline a window bridge it does not own.
+  - `sudo` / `secret` answer: `{"jsonrpc":"2.0","id":"srq-…","result":{"value":"<value>"}}` (`ValueResult`,
+    `tui_gateway/contracts/server_requests.py:26-30`, `:206-223`); `value:""` = skipped/declined
+    (`gateway/session_sudo_prompt.py:22-26`, `gateway/session_secret_prompt.py:45-46`). No reply comes back.
+  - Batch `clarify` (`params.questions[{qid, question, choices?, multi_select}]`, `answers` on replay): lock each answer
+    with `clarify.lock {request_id, question_id, answer}` (no `session_id`; `tui_gateway/contracts/prompt_voice.py:265-285`)
+    → `{status:"ok", remaining:[…]}` or `{status:"expired"}`; the last lock settles it (`gateway/session_clarify_lock.py:15-38`).
+  - A multi-select clarify answer (event or batch) is a JSON array string of labels (`tools/clarify_gateway.py:213-230`,
+    `tools/clarify_tool.py:37-47`).
 
 ## 7. Model, reasoning, slash commands, attachments, subagents, cron (from source, not exercised unless noted)
 - **Model / reasoning**: `session.mutate` `operation:"model"` payload `{model, provider?, …}` or
@@ -478,10 +494,14 @@ ack are never shown to the phone.
 **Capabilities: the phone need not send any.** Hermes records them per socket (`tui_gateway/methods_voice.py:522-541`):
 each `client.capabilities` call updates only the keys it names and is answered normally, so a phone that sends one
 gets a normal result. Consequences:
-- The socket is already marked `server_requests: true`, so Hermes sends the phone `srq-` server requests (`sudo`,
-  `secret`, `vault.*`, batch `clarify`, window bridges; §6). The phone must answer or decline each (`4404` for
-  window bridges), or the agent waits until the request's deadline. Sending `server_requests:false` makes Hermes
-  fail those requests at once for this socket instead.
+- Hermes writes `srq-` requests (`sudo`, `secret`, `vault.*`, batch `clarify`, window bridges) to every attached
+  viewer (§6). The phone answers only `sudo`/`secret` (`result.value`, `""` = skip) and batch `clarify` (via
+  `clarify.lock`). It never answers or declines window bridges or `vault.*`: on the owner, any response (`error`/`4404`
+  included) settles the request for every viewer. Unanswered requests wait for another viewer or their deadline. The
+  owner's fanout ignores the per-socket `server_requests` flag (`tui_gateway/transport.py:209-211`,
+  `session_server_requests.py:171-178`), so `server_requests:false` does not fail them early (that is sidecar-only,
+  `tui_gateway/server_requests.py:249-278`). Corrected 2026-11-03 from the T12 review; the old text said to decline
+  window bridges with `4404`.
 - **`desktop_local` is refused (spec Q43).** The relay socket holds a native ticket, so Hermes would treat a phone
   claiming `desktop_local` as the local Desktop app and run its first-boot work (`hermes_cli/process_identity.py:425-431`,
   `tui_gateway/methods_onboarding.py:107`). A phone frame whose decoded `method` is `client.capabilities` and whose
@@ -504,6 +524,7 @@ gets a normal result. Consequences:
 | `1011` | `pong_timeout` | within 15 s of a ping (sent every 25 s), no byte came from the phone and no write that had to wait for it got bytes out (see Keepalive) | reconnect; answer every ping and never block the read thread |
 | `1013` | `try_again` / Hermes' reason | Hermes draining or not ready, at dial (`ErrDraining`) or later (Hermes sent 1013) | retry with backoff |
 | `4401` | `revoked` | the device was revoked (`devices revoke`); every live socket of it closes within 1 s. A phone that has not read the 4401 within 0.5 s (not reading, or still draining buffered data) gets a TCP close instead | re-pair |
+| `4409` | `superseded`, reason `superseded by a newer connection` | the same device opened a relay on the other listener (lan vs tailscale); its older sockets there are closed. Same-listener sockets are untouched, and the newer socket is admitted before the 4430 cap counts the old ones | do not reconnect this socket (the phone has moved networks) |
 | `4429` | `rate_limited` | more than 600 phone frames in 60 s on this socket | reconnect later, send less |
 | `4430` | `too_many_connections` | the device already has 4 open relay sockets | close one |
 | `4502` | `hermes_unavailable`, `hermes_unavailable: refused (4403)`, `hermes_unavailable: connection lost` | any other dial failure; Hermes closed with 4403; Hermes vanished without a close frame | retry with backoff |

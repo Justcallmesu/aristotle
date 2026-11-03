@@ -32,6 +32,13 @@
             </intent-filter>
         </activity>
 
+        <!-- T12b: notification taps open a session chat through this alias only. Not exported, so no other app can
+             raise the prompt sheet or spoof the title; the launcher entry above never opens a session. -->
+        <activity-alias
+            android:name=".OpenSessionAlias"
+            android:exported="false"
+            android:targetActivity=".MainActivity" />
+
         <receiver
             android:name=".background.AlertDismissReceiver"
             android:exported="false" />

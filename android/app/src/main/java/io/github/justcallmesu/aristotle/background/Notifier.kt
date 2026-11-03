@@ -93,7 +93,9 @@ class Notifier(private val context: Context) {
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setSilent(notice.repeat)
-            .setContentIntent(openApp())
+            // Opens the session's chat, with the prompt sheet up for a "needs you" notice. No action buttons: nothing is
+            // ever answered from the notification or the lock screen (Q50); Android asks for the unlock before opening.
+            .setContentIntent(openSession(notice))
             .apply { if (notice.promptId != null) setDeleteIntent(dismissed(notice)) }
             .build()
     }
@@ -114,6 +116,8 @@ class Notifier(private val context: Context) {
         is AlertBody.Approval -> context.getString(if (body.command) R.string.notify_needs_approval else R.string.notify_needs_approval_generic)
         is AlertBody.Clarify -> body.question?.let { context.getString(R.string.notify_needs_clarify, it) }
             ?: context.getString(R.string.notify_needs_clarify_no_text)
+        AlertBody.Secret -> context.getString(R.string.notify_needs_secret)
+        AlertBody.OnPc -> context.getString(R.string.notify_needs_on_pc)
     }
 
     private fun ongoingText(notice: ConnectionNotice?): String = when (notice) {
@@ -138,6 +142,14 @@ class Notifier(private val context: Context) {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         return PendingIntent.getActivity(context, REQUEST_OPEN, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
+
+    /** Brings the app forward on [AlertNotice.sessionId]'s chat ([MainActivity.openIntent]); one PendingIntent per notification tag. */
+    private fun openSession(notice: AlertNotice): PendingIntent = PendingIntent.getActivity(
+        context,
+        notice.tag.hashCode(),
+        MainActivity.openIntent(context, notice.sessionId, notice.title, showPrompt = notice.channel == AlertChannel.NeedsYou),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     private fun stopLink(): PendingIntent = PendingIntent.getService(
         context,

@@ -80,6 +80,14 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
     var chatId by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var chatTitle by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
+    // A notification tap: that session's chat (ChatRoute raises the prompt sheet and takes the request).
+    val openRequest by container.openChat.collectAsStateWithLifecycle()
+    LaunchedEffect(openRequest) {
+        val request = openRequest ?: return@LaunchedEffect
+        if (chatId != request.sessionId) chatTitle = request.title
+        chatId = request.sessionId
+        page = PairedPage.Chat
+    }
     BackHandler(enabled = page != PairedPage.Sessions) { page = page.back }
     when (page) {
         PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
@@ -127,6 +135,12 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, sessionI
     }
     RouteScope(chatRoutes, "chat-$sessionId") {
         val chatViewModel = viewModel { ChatViewModel(sessionId, container.link, container.resumedSessions) }
+        val openRequest by container.openChat.collectAsStateWithLifecycle()
+        LaunchedEffect(openRequest) {
+            val request = openRequest?.takeIf { it.sessionId == sessionId } ?: return@LaunchedEffect
+            if (request.showPrompt) chatViewModel.openSheet()
+            container.openChat.compareAndSet(request, null)
+        }
         ChatScreen(chatViewModel, fallbackTitle = title, onBack = onBack)
     }
 }

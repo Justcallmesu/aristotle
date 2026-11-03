@@ -46,6 +46,8 @@ class ChatFeedTest {
 
         override fun retryNow() = Unit
 
+        override fun respond(requestId: String, result: JsonObject): Boolean = false
+
         fun event(type: String, sessionId: String, payload: String, seq: Long? = null) = frames.tryEmit(
             InboundFrame.Event(type, sessionId, HermesJson.parseToJsonElement(payload) as JsonObject, seq = seq, replayEpoch = "e"),
         )
@@ -285,6 +287,30 @@ class ChatFeedTest {
             waitUntil { seen.value?.problem != null }
             assertFalse(seen.value!!.loaded)
             assertEquals(emptySet<String>(), resumed.snapshot(1))
+        }
+    }
+
+    @Test
+    fun aSudoRequestIsTakenOnlyWhenNoOtherProfileHasTheSameSessionIdOnThisSocket() {
+        val resumed = ResumedSessions()
+        val link = FakeLink { fullSnapshot }
+        fun sudo(id: String) = link.frames.tryEmit(
+            InboundFrame.ServerRequest(id, "sudo", HermesJson.parseToJsonElement("""{"session_id":"s1","command":"sudo ls"}""") as JsonObject),
+        )
+        run(link, resumed) { seen ->
+            link.state.value = LinkState.Online(endpoint, 1)
+            waitUntil { seen.value?.loaded == true }
+            // Session ids repeat across profiles on a host-scoped socket: once profile pm's own "s1" is attached
+            // here too, a request naming "s1" may be pm's, so this chat (the launch profile's) does not show it.
+            assertTrue(resumed.claim(1, session, profile = "pm"))
+            sudo("srq-aaaaaaaaaaaa")
+            link.event("message.delta", session, """{"text":"marker"}""", seq = 11)
+            waitUntil { seen.value?.chat?.items?.size == 2 }
+            assertTrue(seen.value!!.chat.prompts.isEmpty())
+            assertTrue(resumed.release(1, session, profile = "pm"))
+            sudo("srq-bbbbbbbbbbbb")
+            waitUntil { seen.value?.chat?.prompts?.isNotEmpty() == true }
+            assertEquals(listOf("srq-bbbbbbbbbbbb"), seen.value!!.chat.prompts.map { it.key })
         }
     }
 }

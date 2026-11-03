@@ -46,6 +46,9 @@ enum class PairNotice {
     PairAgain,
 }
 
+/** A notification asked to show [sessionId]'s chat; [showPrompt]: with the prompt sheet up (T12). */
+data class OpenChat(val sessionId: String, val title: String?, val showPrompt: Boolean)
+
 /** The app's long-lived objects, built once per process. No DI framework. */
 class AppContainer(context: Context) {
     /** Process-lifetime work (credential reads and wipes); the store moves it off the main thread. */
@@ -80,6 +83,9 @@ class AppContainer(context: Context) {
 
     /** The session open on screen; the chat screen (T11) sets it. No notification is posted for it. */
     val openSession = MutableStateFlow<String?>(null)
+
+    /** Set by a notification tap, taken (set back to null) by the screen that shows the chat. */
+    val openChat = MutableStateFlow<OpenChat?>(null)
 
     /** Sessions the current relay socket has resumed: the watcher and the chat screen share it (one resume each). */
     val resumedSessions = ResumedSessions()

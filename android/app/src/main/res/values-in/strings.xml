@@ -174,4 +174,42 @@
     <string name="chat_link_hermes_down">Hermes tidak berjalan</string>
     <string name="chat_link_hermes_updated">Hermes diperbarui</string>
     <string name="chat_link_stopped">Koneksi dihentikan</string>
+
+    <!-- T12: prompt sheet (approval, clarify, sudo/secret) -->
+    <string name="notify_needs_secret">Membutuhkan kata sandi atau rahasia. Buka Aristotle untuk menjawab.</string>
+    <string name="notify_needs_on_pc">Membutuhkan jawaban di PC.</string>
+    <string name="prompt_approval_title">Jalankan perintah ini?</string>
+    <string name="prompt_approval_action_title">Izinkan tindakan ini?</string>
+    <string name="prompt_reason">Alasan dari Hermes</string>
+    <string name="prompt_waits">Menunggu %1$s lagi</string>
+    <string name="prompt_deny">Tolak</string>
+    <string name="prompt_allow_once">Izinkan sekali</string>
+    <string name="prompt_allow_session">Untuk sesi ini</string>
+    <string name="prompt_allow_always">Selalu izinkan</string>
+    <string name="prompt_always_note">Selalu: Hermes tidak akan bertanya lagi untuk perintah ini.</string>
+    <string name="prompt_always_confirm_title">Selalu izinkan perintah ini?</string>
+    <string name="prompt_always_confirm_body">Mulai sekarang Hermes tidak akan bertanya lagi untuk perintah ini, di semua sesi.</string>
+    <string name="prompt_cancel">Batal</string>
+    <string name="prompt_clarify_title">Hermes bertanya</string>
+    <string name="prompt_other">Jawaban lain</string>
+    <string name="prompt_your_answer">Jawaban Anda</string>
+    <string name="prompt_answer">Jawab</string>
+    <string name="prompt_sudo_title">Hermes membutuhkan kata sandi sudo Anda</string>
+    <string name="prompt_secret_title">Hermes membutuhkan nilai rahasia</string>
+    <string name="prompt_sudo_for">Untuk perintah ini</string>
+    <string name="prompt_secret_for">Untuk pengaturan ini</string>
+    <string name="prompt_sudo_field">Kata sandi sudo</string>
+    <string name="prompt_secret_field">Nilai rahasia</string>
+    <string name="prompt_show_value">Tampilkan</string>
+    <string name="prompt_hide_value">Sembunyikan</string>
+    <string name="prompt_secret_note">Dikirim sekali ke Hermes di PC. Aristotle tidak menyimpannya.</string>
+    <string name="prompt_send">Kirim</string>
+    <string name="prompt_on_pc_title">Jawab ini di PC</string>
+    <string name="prompt_on_pc_body">Hermes meminta login atau kode pengelola kata sandi. Aristotle tidak menanganinya; jawab di Hermes pada PC.</string>
+    <string name="prompt_close">Tutup</string>
+    <string name="prompt_withdrawn_title">Sudah dijawab di tempat lain</string>
+    <string name="prompt_withdrawn_body">Sudah dijawab di perangkat lain, habis waktunya, atau giliran sudah selesai. Tidak perlu tindakan.</string>
+    <string name="prompt_answered_first">Sudah dijawab lebih dulu di perangkat lain</string>
+    <string name="prompt_not_sent">Tidak terkirim: PC tidak tersambung. Coba lagi.</string>
+    <string name="prompt_refused">Hermes menolak jawaban: %1$s</string>
 </resources>

@@ -114,6 +114,8 @@ Rules that hold everywhere:
 | Q47 | Loading-screen quotes: all 24 in `docs/quotes.json` approved as they are (period translations kept verbatim). | User 2026-11-03. |
 | Q48 | Session list shows live sessions on top and stored history below (`session.list` scope live + stored), matching the Desktop sidebar. | User 2026-11-03. Built in T14. |
 | Q49 | Every phone-facing listener (LAN and Tailscale) serves HTTPS with the same pinned self-signed certificate; no cleartext anywhere. The phone pins one fingerprint per PC for all its addresses. Replaces "plain HTTP inside Tailscale". | User chose (a) 2026-11-03 after the third cleartext finding (T05, T07, T07b). Resolves D23. |
+| Q50 | No prompt (approval, clarify, sudo, secret) can be answered from the lock screen or a notification action; the "Hermes needs you" notification only opens the app. | User 2026-11-03 ("no approve from lock screen"). T12. |
+| Q51 | The phone answers sudo password and secret requests (flexibility). Safeguards: masked field with show/hide, no autofill/suggestions, value held only in the sheet's state, sent once over the pinned TLS relay then cleared, never logged, persisted or shown in a notification; FLAG_SECURE while the sheet is open; decline button. Replaces the PM's proposed "answer on the PC only". | User 2026-11-03 ("i want sudo password and secret from phone, i want flexibility"). T12. |
 
 ## 4. Risks
 

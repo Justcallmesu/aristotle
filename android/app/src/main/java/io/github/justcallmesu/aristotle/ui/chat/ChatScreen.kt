@@ -30,6 +30,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,7 +65,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.LinkState
+import io.github.justcallmesu.aristotle.data.chat.ApprovalChoice
 import io.github.justcallmesu.aristotle.data.chat.ChatItem
+import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
 import io.github.justcallmesu.aristotle.data.chat.ChatState
 import io.github.justcallmesu.aristotle.data.chat.ToolStatus
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
@@ -76,37 +80,94 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    ChatContentView(state = state, fallbackTitle = fallbackTitle, onBack = onBack, onRetry = viewModel::retry)
+    val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
+    ChatContentView(
+        state = state,
+        fallbackTitle = fallbackTitle,
+        onBack = onBack,
+        onRetry = viewModel::retry,
+        onOpenSheet = viewModel::openSheet,
+        onMessageShown = viewModel::messageShown,
+        actions = actions,
+    )
+}
+
+private class ViewModelPromptActions(private val vm: ChatViewModel) : PromptActions {
+    override fun hide() = vm.hideSheet()
+    override fun closeWithdrawn() = vm.closeWithdrawn()
+    override fun choose(key: String, choice: ApprovalChoice) = vm.choose(key, choice)
+    override fun confirmAlways(key: String) = vm.confirmAlways(key)
+    override fun cancelAlways() = vm.cancelAlways()
+    override fun answerClarify(key: String, answers: Map<String, ClarifyAnswer>) = vm.answerClarify(key, answers)
+    override fun answerSecret(key: String, field: SecretField) = vm.answerSecret(key, field)
+    override fun declineSecret(key: String, field: SecretField) = vm.declineSecret(key, field)
 }
 
 /**
- * design.md §5 chat, mockup screen 3 (read-only until T13): top bar with the session, the transcript, and a
- * placeholder chip while a prompt waits (T12). Edge-to-edge: the list scrolls under the navigation bar.
+ * design.md §5 chat, mockup screen 3 (read-only until T13): top bar with the session, the transcript, the waiting
+ * chip and the prompt sheet (T12). Edge-to-edge: the list scrolls under the navigation bar.
  */
 @Composable
-fun ChatContentView(state: ChatUiState, fallbackTitle: String?, onBack: () -> Unit, onRetry: () -> Unit) {
+fun ChatContentView(
+    state: ChatUiState,
+    fallbackTitle: String?,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onOpenSheet: () -> Unit,
+    onMessageShown: () -> Unit,
+    actions: PromptActions,
+) {
     val feed = state.feed
     val chat = feed.chat
     val live = ChatLive.of(feed, state.link)
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
-            ChatTopBar(chat, state.link, live, fallbackTitle, onBack)
-            if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry)
-            val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal).asPaddingValues()
-            when {
-                feed.loaded && chat.items.isEmpty() && !chat.running && chat.openPrompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
-                feed.loaded -> Transcript(chat, live = live, insets = bottom)
-                feed.problem != null -> LoadFailed(feed.problem, onRetry)
-                else -> QuietLine(stringResource(R.string.chat_loading))
-            }
+    val snackbar = remember { SnackbarHostState() }
+    val message = state.sheet.message
+    val messageText = message?.let { promptMessage(it) }
+    LaunchedEffect(message) {
+        if (messageText != null) {
+            snackbar.showSnackbar(messageText)
+            onMessageShown()
         }
+    }
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
+            Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
+                val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                ChatTopBar(chat, state.link, live, fallbackTitle, onBack, sides)
+                if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
+                val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal).asPaddingValues()
+                when {
+                    feed.loaded && chat.items.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
+                    // The chip only when tapping it opens something: not while this phone's own answer is on its way (T12b).
+                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, insets = bottom, onOpenSheet = onOpenSheet)
+                    feed.problem != null -> LoadFailed(feed.problem, onRetry)
+                    else -> QuietLine(stringResource(R.string.chat_loading))
+                }
+            }
+            SnackbarHost(
+                hostState = snackbar,
+                modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)),
+            )
+        }
+    }
+    if (state.sheet.visible(chat)) {
+        val context = listOfNotNull(chat.title ?: fallbackTitle, chat.profileName).joinToString(" · ")
+        PromptSheet(state.sheet.current(chat).takeIf { state.sheet.open }, state.sheet, context, actions)
     }
 }
 
 @Composable
-private fun ChatTopBar(chat: ChatState, link: LinkState, live: Boolean, fallbackTitle: String?, onBack: () -> Unit) {
+private fun promptMessage(message: PromptMessage): String = when (message) {
+    PromptMessage.AnsweredFirst -> stringResource(R.string.prompt_answered_first)
+    PromptMessage.NotSent -> stringResource(R.string.prompt_not_sent)
+    is PromptMessage.Refused -> stringResource(R.string.prompt_refused, message.reason)
+}
+
+@Composable
+private fun ChatTopBar(chat: ChatState, link: LinkState, live: Boolean, fallbackTitle: String?, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.topBarHeight).padding(horizontal = Spacing.xs),
+        modifier = modifier.fillMaxWidth().heightIn(min = Sizes.topBarHeight).padding(horizontal = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
@@ -189,14 +250,13 @@ private fun LinkChip(label: String, offline: Boolean) {
  * shows "Jump to latest". Stable keys: a delta recomposes only the last row.
  */
 @Composable
-private fun Transcript(chat: ChatState, live: Boolean, insets: PaddingValues) {
+private fun Transcript(chat: ChatState, live: Boolean, waiting: Boolean, insets: PaddingValues, onOpenSheet: () -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val follow = remember { mutableStateOf(true) }
     val folds = rememberFolds()
     val lastFailed = remember(chat.items) { chat.items.lastOrNull { it is ChatItem.Tool && it.status == ToolStatus.Failed }?.key }
     val thinking = live && chat.running && chat.thinking && !chat.streaming
-    val waiting = chat.openPrompts.isNotEmpty()
     val userScroll = remember(listState) { UserScrollUp(listState, follow) }
     LaunchedEffect(listState) {
         // At the bottom: follow again. Content grew under a follower (a new chunk, a Markdown block that finished
@@ -223,7 +283,7 @@ private fun Transcript(chat: ChatState, live: Boolean, insets: PaddingValues) {
         ) {
             items(chat.items, key = { it.key }, contentType = { it::class }) { item -> ChatRow(item, folds, lastFailed, live) }
             if (thinking) item(key = "thinking") { ThinkingLine() }
-            if (waiting) item(key = "waiting") { WaitingChip() }
+            if (waiting) item(key = "waiting") { WaitingChip(onOpenSheet) }
         }
         if (!follow.value && listState.canScrollForward) {
             FilledTonalButton(
@@ -293,11 +353,11 @@ private fun QuietLine(text: String) {
  * transcript below is what was loaded and no longer follows the session. Retry subscribes again.
  */
 @Composable
-private fun ReattachBanner(onRetry: () -> Unit) {
+private fun ReattachBanner(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.m, vertical = Spacing.xs),
+        modifier = modifier.fillMaxWidth().padding(horizontal = Spacing.m, vertical = Spacing.xs),
     ) {
         Column {
             Row(modifier = Modifier.padding(start = Spacing.l, end = Spacing.m, top = Spacing.m)) {

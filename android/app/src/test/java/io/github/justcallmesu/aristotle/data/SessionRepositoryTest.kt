@@ -35,6 +35,8 @@ class SessionRepositoryTest {
 
         override fun retryNow() = Unit
 
+        override fun respond(requestId: String, result: JsonObject): Boolean = false
+
         fun sessionsChanged() = frames.tryEmit(InboundFrame.Event(RpcFrames.SESSIONS_CHANGED, "", null))
     }
 

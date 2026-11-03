@@ -32,6 +32,9 @@ class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis:
         }
     }
 
+    /** Answers a Hermes -> client request; false when the socket is not open. No reply comes back. */
+    fun respond(requestId: String, result: JsonObject): Boolean = send(RpcFrames.response(requestId, result))
+
     /** Routes a response frame to its waiting call; unknown ids are ignored. */
     fun onResponse(frame: InboundFrame.Response) {
         pending[frame.id]?.complete(frame)

@@ -248,16 +248,17 @@ fun ThinkingLine() {
     Text(text = stringResource(R.string.chat_thinking), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** Placeholder until the approval sheet (T12): an approval or clarify prompt is open. */
+/** An approval, clarify or password prompt is open (design.md §5): a tap brings the prompt sheet up. */
 @Composable
-fun WaitingChip() {
+fun WaitingChip(onClick: () -> Unit) {
     Surface(
+        onClick = onClick,
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
     ) {
         Row(
-            modifier = Modifier.heightIn(min = Sizes.chipHeight).padding(start = 10.dp, end = 14.dp),
+            modifier = Modifier.heightIn(min = Sizes.minTouchTarget).padding(start = 10.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
         ) {

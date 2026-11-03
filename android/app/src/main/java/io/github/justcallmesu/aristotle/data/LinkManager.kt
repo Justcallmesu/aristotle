@@ -34,6 +34,12 @@ interface RelayLink {
     /** A JSON-RPC call on the live relay; throws [RpcException] (`linkClosed`) when there is none. */
     suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap())): JsonElement
 
+    /**
+     * Answers a Hermes -> client request (`srq-…`) on the live relay; false when there is none. Used only for the
+     * prompts the user answers (sudo, secret): a response settles the request for every viewer (protocol §6).
+     */
+    fun respond(requestId: String, result: JsonObject): Boolean
+
     /** The user asked to try now (Retry now, Check again). */
     fun retryNow()
 }
@@ -134,6 +140,8 @@ class LinkManager(
 
     override suspend fun call(method: String, params: JsonObject): JsonElement =
         (live ?: throw RpcException(null, "$method: not connected", linkClosed = true)).call(method, params)
+
+    override fun respond(requestId: String, result: JsonObject): Boolean = live?.respond(requestId, result) ?: false
 
     /** One paired PC, from pairing (or start) until it is forgotten. */
     private inner class PcSession(private val paired: PcCredentials) {

@@ -30,12 +30,14 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T07c | HTTPS + pin on the Tailscale listener too; remove all cleartext paths in server and app (Q49, D23) | T07b | server, android, docs | DONE |
 | T10b | SessionWatcher: re-resume on session.replay_gap (MAJOR), no repeated alerts, approval wording, §2 note | T10 | android, docs §2 | DONE (re-check in T11 review) |
 | T11b | T11 fix: frames lost at events.since/resume seam (MAJOR), D33 close old socket on switch, chat minors (mid-turn final text, refused-resume banner, offline cursor, http(s)-only links) | T11 | android | DONE (re-check in T12 review) |
+| T14s | Server: new socket on another listener supersedes the device's older sockets (close 4409) — D34 | T11b | server, protocol §12 | DONE |
+| T12b | T12 fix: 600 ms tap-through guard (MAJOR), dead waiting chip, non-exported open-session target, NITs | T12 | android | DONE (focused re-review running) |
 | T08 | Pairing by QR (server prints QR; app scans) | T07c | server, android | TODO |
 | T09 | App connection core: all PC addresses stored + refreshed, endpoint choice + switch on network change, one process-wide socket, reconnect with backoff, "PC offline since"; D24, D26, D27, D28 | T07c | android, server | DONE |
 | T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | DONE |
 | T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | DONE |
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | DONE |
-| T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
+| T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | DONE |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | TODO ⟳ |
 | T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
 | T15 | Model + reasoning switch; slash commands | T13 | android | TODO ⟳ |
@@ -100,6 +102,8 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D33 | Close old socket on endpoint switch: done in T11b (phone side). | T11b | DONE |
 | D34 | Server: a new relay socket from the same device on a different listener should retire that device's older sockets (phone cannot close a socket whose network is gone; protects the 4-per-device cap) (T11b) | T14 | OPEN |
 | D35 | Running turn's user prompt missing in a chat opened before Hermes saves it (turn_context.py:1076-1090); T11 review NITs (T11 review) | T13 | OPEN |
+| D36 | App maps close 4409 (superseded) to 'lost connection' and reconnects; should treat it as do-not-reconnect-this-socket (T14s report) | T13 | OPEN |
+| D37 | Relay method allow-list lacks `clarify.lock` (logged as "other"); `relay superseded` log under hub.mu (T12/T14s reviews) | T22 | OPEN |
 | D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
@@ -258,3 +262,9 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 22:37 T11 built (210 Android tests). PM gate GREEN runs/pm-gate-16. Debug APK of the T11 tree installed on the Poco (launch 1964 ms, no crash in logcat); screen was locked so no UI check yet. Second session.resume on one socket: PM read gateway/session_authority.py:355-375 (same actor reuses its subscription key) — reviewer confirms fanout attach idempotence. Deep review dispatched.
 - 2026-11-03 T11 review CHANGES-REQUIRED (MAJOR-1: reducer jumps lastSeq to snapshot after events.since -> frames N+1..M dropped). Second resume on one socket confirmed safe (transport.py:168-180). No remote image loading. T11b dispatched (deep) with D33 + same-area minors.
 - 2026-11-03 T11b PM gate GREEN (runs/pm-gate-17, 223 tests); mutation lastSeq->snapshot fails 3 tests, restored. Committed T11+T11b; T12 review re-checks the T11b diff.
+- 2026-11-03 T12 dispatched (deep). PM security call: phone v1 never collects sudo passwords or secrets (shows answer-on-PC); never approve from the lock screen.
+- 2026-11-03 T12 built (Q50/Q51), PM gate GREEN runs/pm-gate-18 (265 tests). Deep security review dispatched (also re-checks T11b). T14s (D34, server-only) dispatched in parallel (std). Device checks for T12 batched.
+- 2026-11-03 T14s built; PM gate GREEN runs/pm-gate-19 (257 Go); mutation never-supersede fails 2 tests, restored. std review dispatched. protocol.md stays uncommitted until T12 (it also carries T12's §6 edit).
+- 2026-11-03 T14s review PASS-WITH-FINDINGS (MINOR: superseded log under hub.mu) -> committed (server only; its protocol.md §12 4409 row ships with T12). D36 already on the board.
+- 2026-11-03 T12 review CHANGES-REQUIRED (MAJOR: double tap approves an unseen queued command). Frames, Q50, Q51 safeguards (FLAG_SECURE reaches the sheet window) PASS. PM corrected protocol.md §12 per review (never decline window bridges/vault). T12b dispatched (deep).
+- 2026-11-04 T12b PM gate GREEN runs/pm-gate-20 (281 tests); mutation (drop the 600 ms arm check) fails 7 tests, restored. Committed T12+T12b with protocol.md (§6 T12, §12 PM correction, §12 4409 row from T14s). Focused deep re-review of T12b runs against the commit, in parallel with T13.

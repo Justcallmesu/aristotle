@@ -36,7 +36,8 @@ data class ChatFeedState(val chat: ChatState, val loaded: Boolean = false, val p
  *   `truncated`, no `snapshot_required`), then `session.resume {omit_messages}` only if nobody resumed it on the
  *   new socket yet; otherwise the full resume above.
  * Frames are queued the moment they arrive (they keep flowing during a call) and reduced where the flow is
- * collected; the caller runs it on a background dispatcher (protocol §12).
+ * collected; the caller runs it on a background dispatcher (protocol §12). The session is the launch profile's
+ * (calls without `profile`; [ResumedSessions] entries with profile null).
  */
 class ChatFeed(
     private val link: RelayLink,
@@ -64,9 +65,16 @@ class ChatFeed(
     private inner class Feed(private val out: SendChannel<ChatFeedState>, private var current: ChatFeedState) {
 
         suspend fun connection(generation: Long) = coroutineScope {
-            val inbox = Channel<ChatFrame>(Channel.UNLIMITED)
+            val inbox = Channel<Inbound>(Channel.UNLIMITED)
             val collector = launch(start = CoroutineStart.UNDISPATCHED) {
-                link.events.collect { frame -> if (frame is InboundFrame.Event && frame.sessionId.isNotEmpty()) inbox.send(ChatFrame(frame, clock())) }
+                link.events.collect { frame ->
+                    when {
+                        frame is InboundFrame.Event && frame.sessionId.isNotEmpty() -> inbox.send(Inbound.Event(ChatFrame(frame, clock())))
+                        // Matched by profile and session id: ids repeat across profiles on the host-scoped socket.
+                        frame is InboundFrame.ServerRequest && frame.sessionId == sessionId && resumed.requestFor(generation, sessionId) ->
+                            inbox.send(Inbound.Request(frame))
+                    }
+                }
             }
             var rebuild = false
             while (subscribe(generation, rebuild)) {
@@ -77,10 +85,15 @@ class ChatFeed(
         }
 
         /** Applies queued and live frames until Hermes ends this session's subscription (a replay gap). */
-        private suspend fun applyUntilGap(inbox: ReceiveChannel<ChatFrame>) {
-            for (frame in inbox) {
-                if (frame.event.type == REPLAY_GAP && frame.event.sessionId == current.chat.sessionId) return
-                val next = ChatReducer.reduce(current.chat, frame)
+        private suspend fun applyUntilGap(inbox: ReceiveChannel<Inbound>) {
+            for (item in inbox) {
+                val next = when (item) {
+                    is Inbound.Event -> {
+                        if (item.frame.event.type == REPLAY_GAP && item.frame.event.sessionId == current.chat.sessionId) return
+                        ChatReducer.reduce(current.chat, item.frame)
+                    }
+                    is Inbound.Request -> ChatReducer.request(current.chat, item.request)
+                }
                 if (next !== current.chat) publish(current.copy(chat = next))
             }
         }
@@ -128,15 +141,22 @@ class ChatFeed(
             } ?: return null
             if (result.flag("truncated") == true || result.flag("snapshot_required") == true) return null
             val at = clock()
-            return (result["events"] as? JsonArray).orEmpty()
+            val replayed = (result["events"] as? JsonArray).orEmpty()
                 .mapNotNull { element -> element.asObject()?.let { it["params"].asObject() ?: it }?.let(RpcFrames::eventOf) }
                 .fold(state) { chat, event -> ChatReducer.reduce(chat, ChatFrame(event, at)) }
+            return ChatReducer.withOpenRequests(replayed, result["open_requests"] as? JsonArray)
         }
 
         private suspend fun publish(state: ChatFeedState) {
             current = state
             out.send(state)
         }
+    }
+
+    /** What the feed queues: a session event, or a Hermes -> client request of this session (no `seq`). */
+    private sealed interface Inbound {
+        data class Event(val frame: ChatFrame) : Inbound
+        data class Request(val request: InboundFrame.ServerRequest) : Inbound
     }
 
     private companion object {

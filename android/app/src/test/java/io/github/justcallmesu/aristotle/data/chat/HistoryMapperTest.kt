@@ -69,7 +69,7 @@ class HistoryMapperTest {
             """{"session_id":"s","messages":[{"role":"user","content":"Count to ten.","row_id":10}],"running":true,
                "replay_epoch":"e","last_sequence":40,"revision":2,"execution_generation":3,
                "pending":[{"admission_id":"adm","status":"started","text":"Count to ten."}],
-               "prompts":[{"kind":"approval","prompt_id":"p1"}],
+               "prompts":[{"kind":"approval","prompt_id":"p1","execution_generation":3}],
                "info":{"title":"Counting","model":"m","system_prompt":"secret","credential_hint":"sk-…"}}""",
         ) as JsonObject
         val stale = ChatState("s", items = listOf(ChatItem.Assistant("a-0", "old", streaming = true)))

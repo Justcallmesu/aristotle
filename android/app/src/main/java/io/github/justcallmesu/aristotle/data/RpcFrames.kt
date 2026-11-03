@@ -40,8 +40,13 @@ sealed interface InboundFrame {
         val admissionId: String? = null,
     ) : InboundFrame
 
-    /** A Hermes -> client request (`srq-…` id). */
-    data class ServerRequest(val id: String, val method: String) : InboundFrame
+    /**
+     * A Hermes -> client request (`srq-…` id, protocol §6): `sudo`, `secret`, batch `clarify`, vault prompts and
+     * window bridges. [params] carries the `session_id` the request belongs to.
+     */
+    data class ServerRequest(val id: String, val method: String, val params: JsonObject = JsonObject(emptyMap())) : InboundFrame {
+        val sessionId: String get() = (params["session_id"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull.orEmpty()
+    }
     data object Unknown : InboundFrame
 }
 
@@ -57,13 +62,25 @@ object RpcFrames {
             put("params", params)
         }.toString()
 
+    /**
+     * The answer to a Hermes -> client request: `{"jsonrpc":"2.0","id":"srq-…","result":{…}}` (no `method`,
+     * `gateway/session_server_requests.py:72-75`). Hermes sends no reply to it.
+     */
+    fun response(requestId: String, result: JsonObject): String =
+        buildJsonObject {
+            put("jsonrpc", "2.0")
+            put("id", requestId)
+            put("result", result)
+        }.toString()
+
     fun parse(text: String): InboundFrame {
         val obj = runCatching { HermesJson.parseToJsonElement(text).jsonObject }.getOrNull() ?: return InboundFrame.Unknown
         val method = obj.stringOrNull("method")
         val id = obj["id"] as? JsonPrimitive
         return when {
             method == "event" -> event(obj)
-            method != null && id != null && id.isString -> InboundFrame.ServerRequest(id.content, method)
+            method != null && id != null && id.isString ->
+                InboundFrame.ServerRequest(id.content, method, obj["params"] as? JsonObject ?: JsonObject(emptyMap()))
             // Our ids are JSON numbers; a string id "5" is not an answer to call 5.
             method == null && id != null && !id.isString && id.longOrNull != null -> response(id.longOrNull!!, obj)
             else -> InboundFrame.Unknown

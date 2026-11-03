@@ -179,4 +179,42 @@
     <string name="chat_link_hermes_down">Hermes not running</string>
     <string name="chat_link_hermes_updated">Hermes updated</string>
     <string name="chat_link_stopped">Link stopped</string>
+
+    <!-- T12: prompt sheet (approval, clarify, sudo/secret) -->
+    <string name="notify_needs_secret">Needs a password or secret. Open Aristotle to answer.</string>
+    <string name="notify_needs_on_pc">Needs an answer on the PC.</string>
+    <string name="prompt_approval_title">Run this command?</string>
+    <string name="prompt_approval_action_title">Allow this action?</string>
+    <string name="prompt_reason">Reason Hermes gave</string>
+    <string name="prompt_waits">Waits %1$s more</string>
+    <string name="prompt_deny">Deny</string>
+    <string name="prompt_allow_once">Allow once</string>
+    <string name="prompt_allow_session">For this session</string>
+    <string name="prompt_allow_always">Always allow</string>
+    <string name="prompt_always_note">Always: Hermes stops asking for this command.</string>
+    <string name="prompt_always_confirm_title">Always allow this command?</string>
+    <string name="prompt_always_confirm_body">Hermes will stop asking for this command from now on, in every session.</string>
+    <string name="prompt_cancel">Cancel</string>
+    <string name="prompt_clarify_title">Hermes is asking</string>
+    <string name="prompt_other">Other answer</string>
+    <string name="prompt_your_answer">Your answer</string>
+    <string name="prompt_answer">Answer</string>
+    <string name="prompt_sudo_title">Hermes needs your sudo password</string>
+    <string name="prompt_secret_title">Hermes needs a secret value</string>
+    <string name="prompt_sudo_for">For this command</string>
+    <string name="prompt_secret_for">For this setting</string>
+    <string name="prompt_sudo_field">Sudo password</string>
+    <string name="prompt_secret_field">Secret value</string>
+    <string name="prompt_show_value">Show</string>
+    <string name="prompt_hide_value">Hide</string>
+    <string name="prompt_secret_note">Sent once to Hermes on the PC. Aristotle does not keep it.</string>
+    <string name="prompt_send">Send</string>
+    <string name="prompt_on_pc_title">Answer this on the PC</string>
+    <string name="prompt_on_pc_body">Hermes asks for a password-manager login or code. Aristotle does not handle those; answer in Hermes on the PC.</string>
+    <string name="prompt_close">Close</string>
+    <string name="prompt_withdrawn_title">Answered elsewhere</string>
+    <string name="prompt_withdrawn_body">It was answered on another device, timed out, or the turn ended. Nothing to do here.</string>
+    <string name="prompt_answered_first">Answered on another device first</string>
+    <string name="prompt_not_sent">Not sent: the PC is not connected. Try again.</string>
+    <string name="prompt_refused">Hermes refused the answer: %1$s</string>
 </resources>

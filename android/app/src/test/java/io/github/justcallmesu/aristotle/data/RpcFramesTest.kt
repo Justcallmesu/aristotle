@@ -51,6 +51,9 @@ class RpcFramesTest {
 
         assertEquals(InboundFrame.ServerRequest("srq-0123456789ab", "sudo"),
             RpcFrames.parse("""{"jsonrpc":"2.0","id":"srq-0123456789ab","method":"sudo","params":{}}"""))
+        val sudo = RpcFrames.parse("""{"jsonrpc":"2.0","id":"srq-0123456789ab","method":"sudo","params":{"session_id":"s1","command":"sudo ls"}}""")
+        assertEquals("s1", (sudo as InboundFrame.ServerRequest).sessionId)
+        assertEquals("sudo ls", sudo.params["command"]?.jsonPrimitive?.content)
         assertEquals(InboundFrame.Unknown, RpcFrames.parse("not json"))
         // Our call ids are numbers: a string id "5" must not answer pending call 5.
         assertEquals(InboundFrame.Unknown, RpcFrames.parse("""{"jsonrpc":"2.0","id":"5","result":{}}"""))
