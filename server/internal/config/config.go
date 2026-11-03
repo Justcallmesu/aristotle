@@ -7,10 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 )
 
 const (
@@ -48,6 +52,12 @@ func (c Config) Validate() error {
 
 // Parse decodes JSON onto the defaults, rejecting unknown keys and trailing data.
 func Parse(data []byte) (Config, error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return Config{}, errors.New("invalid config: config file is empty")
+	}
+	if err := checkKeys(data); err != nil {
+		return Config{}, fmt.Errorf("invalid config: %w", err)
+	}
 	cfg := Default()
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -61,6 +71,49 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+var knownKeys = map[string]bool{"host": true, "port": true}
+
+// checkKeys requires top-level keys to match exactly (case-sensitive) and
+// rejects duplicates. Non-object input is left to the JSON decoder to report.
+func checkKeys(data []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return nil
+	}
+	seen := map[string]bool{}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil
+		}
+		key, _ := tok.(string)
+		if err := checkKey(key, seen); err != nil {
+			return err
+		}
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return nil
+		}
+	}
+	return nil
+}
+
+func checkKey(key string, seen map[string]bool) error {
+	if !knownKeys[key] {
+		for known := range knownKeys {
+			if strings.EqualFold(key, known) {
+				return fmt.Errorf("key %q must be written exactly as %q", key, known)
+			}
+		}
+		return fmt.Errorf("unknown field %q", key)
+	}
+	if seen[key] {
+		return fmt.Errorf("duplicate key %q", key)
+	}
+	seen[key] = true
+	return nil
 }
 
 // Load reads the config file at path. A missing file yields the defaults.
@@ -94,16 +147,54 @@ func StateDir() (string, error) {
 	return xdgDir("XDG_STATE_HOME", filepath.Join(".local", "state"))
 }
 
-// EnsureStateDir creates the state directory with mode 0700.
-func EnsureStateDir() (string, error) {
+// EnsureStateDir creates the state directory and enforces mode 0700. A
+// pre-existing directory owned by the current user is chmod'ed (and logged);
+// a symlink or a directory owned by another user is refused. A nil log is allowed.
+func EnsureStateDir(log *slog.Logger) (string, error) {
 	dir, err := StateDir()
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("create state dir: %w", err)
+	if err := ensureDir(dir, log); err != nil {
+		return "", err
 	}
 	return dir, nil
+}
+
+func ensureDir(dir string, log *slog.Logger) error {
+	if log == nil {
+		log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create state dir: %w", err)
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("stat state dir: %w", err)
+	}
+	if err := checkDirSafe(dir, info); err != nil {
+		return err
+	}
+	if perm := info.Mode().Perm(); perm != 0o700 {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return fmt.Errorf("chmod state dir %s: %w", dir, err)
+		}
+		log.Info("state dir permissions tightened", "dir", dir, "from", perm.String(), "to", "-rwx------")
+	}
+	return nil
+}
+
+func checkDirSafe(dir string, info fs.FileInfo) error {
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("state dir %s is a symlink: refused", dir)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("state dir %s is not a directory", dir)
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok && int(st.Uid) != os.Getuid() {
+		return fmt.Errorf("state dir %s is owned by uid %d, not the current user: refused", dir, st.Uid)
+	}
+	return nil
 }
 
 func xdgDir(env, homeRel string) (string, error) {

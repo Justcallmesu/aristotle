@@ -54,3 +54,12 @@ func TestLogsOmitBodyAndAuth(t *testing.T) {
 		t.Fatalf("log leaked: %s", buf.String())
 	}
 }
+
+func TestLogUsesRouteWithoutQuery(t *testing.T) {
+	var buf bytes.Buffer
+	h := NewRouter("x", slog.New(slog.NewTextHandler(&buf, nil)))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz?a=b", nil))
+	if !strings.Contains(buf.String(), "route=\"GET /healthz\"") || strings.Contains(buf.String(), "a=b") {
+		t.Fatalf("log = %s", buf.String())
+	}
+}

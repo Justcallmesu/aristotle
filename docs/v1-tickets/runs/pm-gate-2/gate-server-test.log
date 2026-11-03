@@ -1,0 +1,67 @@
+?   	github.com/justcallmesu/aristotle/server/cmd/aristotle-server	[no test files]
+=== RUN   TestRunDispatch
+=== RUN   TestRunDispatch/no_args
+=== RUN   TestRunDispatch/unknown
+=== RUN   TestRunDispatch/version
+=== RUN   TestRunDispatch/help
+--- PASS: TestRunDispatch (0.00s)
+    --- PASS: TestRunDispatch/no_args (0.00s)
+    --- PASS: TestRunDispatch/unknown (0.00s)
+    --- PASS: TestRunDispatch/version (0.00s)
+    --- PASS: TestRunDispatch/help (0.00s)
+=== RUN   TestServeListenerGracefulShutdown
+--- PASS: TestServeListenerGracefulShutdown (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/app	0.005s
+=== RUN   TestDefaults
+--- PASS: TestDefaults (0.00s)
+=== RUN   TestParse
+=== RUN   TestParse/port_override
+=== RUN   TestParse/ipv6_loopback
+=== RUN   TestParse/invalid_json
+=== RUN   TestParse/unknown_key
+=== RUN   TestParse/trailing_data
+=== RUN   TestParse/wildcard_refused
+=== RUN   TestParse/empty_host_refused
+=== RUN   TestParse/lan_host_refused
+=== RUN   TestParse/upper-case_key
+=== RUN   TestParse/mixed-case_key
+=== RUN   TestParse/duplicate_key
+=== RUN   TestParse/empty_file
+=== RUN   TestParse/bad_port
+--- PASS: TestParse (0.00s)
+    --- PASS: TestParse/port_override (0.00s)
+    --- PASS: TestParse/ipv6_loopback (0.00s)
+    --- PASS: TestParse/invalid_json (0.00s)
+    --- PASS: TestParse/unknown_key (0.00s)
+    --- PASS: TestParse/trailing_data (0.00s)
+    --- PASS: TestParse/wildcard_refused (0.00s)
+    --- PASS: TestParse/empty_host_refused (0.00s)
+    --- PASS: TestParse/lan_host_refused (0.00s)
+    --- PASS: TestParse/upper-case_key (0.00s)
+    --- PASS: TestParse/mixed-case_key (0.00s)
+    --- PASS: TestParse/duplicate_key (0.00s)
+    --- PASS: TestParse/empty_file (0.00s)
+    --- PASS: TestParse/bad_port (0.00s)
+=== RUN   TestLoadInvalidFileNamesPath
+--- PASS: TestLoadInvalidFileNamesPath (0.00s)
+=== RUN   TestPathsHonourXDG
+--- PASS: TestPathsHonourXDG (0.00s)
+=== RUN   TestEnsureDirNewIs0700
+--- PASS: TestEnsureDirNewIs0700 (0.00s)
+=== RUN   TestEnsureDirTightensExisting
+--- PASS: TestEnsureDirTightensExisting (0.00s)
+=== RUN   TestEnsureDirRefusesSymlink
+--- PASS: TestEnsureDirRefusesSymlink (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/config	0.008s
+=== RUN   TestHealthz
+--- PASS: TestHealthz (0.00s)
+=== RUN   TestMethodAndUnknownPath
+--- PASS: TestMethodAndUnknownPath (0.00s)
+=== RUN   TestLogsOmitBodyAndAuth
+--- PASS: TestLogsOmitBodyAndAuth (0.00s)
+=== RUN   TestLogUsesRouteWithoutQuery
+--- PASS: TestLogUsesRouteWithoutQuery (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/httpapi	0.004s

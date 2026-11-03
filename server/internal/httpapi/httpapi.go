@@ -31,10 +31,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// logRequests logs method and path only: never bodies, queries or headers.
+// logRequests logs method and route pattern (path if no route matched): never
+// bodies, queries or headers. Secrets must never go in URL paths.
 func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Info("request", "method", r.Method, "path", r.URL.Path)
 		next.ServeHTTP(w, r)
+		log.Info("request", "method", r.Method, "route", routeLabel(r))
 	})
+}
+
+func routeLabel(r *http.Request) string {
+	if r.Pattern != "" {
+		return r.Pattern
+	}
+	return r.URL.Path
 }

@@ -70,7 +70,7 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	stateDir, err := config.EnsureStateDir()
+	stateDir, err := config.EnsureStateDir(log)
 	if err != nil {
 		return err
 	}

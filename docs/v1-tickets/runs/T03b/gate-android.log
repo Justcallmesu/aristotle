@@ -1,0 +1,173 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:generateDebugRFile UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:checkDebugAarMetadata FAILED
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugKotlin
+
+[Incubating] Problems report is available at: file:///home/justcallmesu/project/personal/Aristotle/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:checkDebugAarMetadata' (registered by plugin 'com.android.internal.application').
+> A failure occurred while executing com.android.build.gradle.internal.tasks.CheckAarMetadataWorkAction
+   > 9 issues were found when checking AAR metadata:
+     
+       1.  Dependency 'androidx.compose.material:material-ripple-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       2.  Dependency 'androidx.compose.foundation:foundation-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       3.  Dependency 'androidx.compose.animation:animation-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       4.  Dependency 'androidx.compose.foundation:foundation-layout-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       5.  Dependency 'androidx.compose.animation:animation-core-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       6.  Dependency 'androidx.compose.ui:ui-graphics-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       7.  Dependency 'androidx.compose.ui:ui-text-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       8.  Dependency 'androidx.compose.ui:ui-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       9.  Dependency 'androidx.compose.runtime:runtime-saveable-android:1.12.1' requires libraries and applications that
+           depend on it to compile against version 37 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-36.
+     
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 37, for example 37.2.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 2m 12s
+10 actionable tasks: 2 executed, 8 up-to-date

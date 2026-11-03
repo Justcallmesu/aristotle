@@ -39,13 +39,18 @@ if [[ -d "$ROOT/server" ]]; then
   run_step server-test "$RUN_DIR/gate-server-test.log" go test -count=1 -v ./...
   tests=$(grep -c '^\s*--- PASS' "$RUN_DIR/gate-server-test.log" || true)
   fails=$(grep -c '^\s*--- FAIL' "$RUN_DIR/gate-server-test.log" || true)
-  echo "go-tests passed=$tests failed=$fails" >> "$SUMMARY"
+  if grep -Eq '^FAIL\s.*\[(build|setup) failed\]' "$RUN_DIR/gate-server-test.log"; then
+    echo "go-tests: unknown (build failed)" >> "$SUMMARY"
+  else
+    echo "go-tests passed=$tests failed=$fails" >> "$SUMMARY"
+  fi
 else
   record SKIP server 0
 fi
 
-if [[ -x "$ROOT/android/gradlew" ]]; then
+if [[ -f "$ROOT/android/gradlew" ]]; then
   cd "$ROOT/android"
+  # Not executable -> the run fails (FAIL), never a silent skip.
   run_step android "$RUN_DIR/gate-android.log" ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug
 else
   record SKIP android 0
