@@ -18,6 +18,7 @@
     <string name="pair_pairing">Pairing…</string>
     <string name="pair_try_again">Try again</string>
     <string name="pair_notice_revoked">This phone was removed from the laptop. Pair it again.</string>
+    <string name="pair_notice_pair_again">The pairing stored on this phone can\'t be used any more. Pair it again.</string>
 
     <string name="fp_title">Compare the certificate fingerprint</string>
     <string name="fp_body">The laptop at %1$s answered with this certificate. All 16 groups must match what pair shows on the laptop.</string>
@@ -44,8 +45,9 @@
     <string name="pair_message_rejected">The laptop refused the request (HTTP %1$d).</string>
 
     <!-- Sessions screen -->
-    <string name="sessions_via_wifi">%1$s · Wi-Fi</string>
-    <string name="sessions_via_tailscale">%1$s · Tailscale</string>
+    <string name="sessions_via_wifi">%1$s · via Wi-Fi</string>
+    <string name="sessions_via_tailscale">%1$s · via Tailscale</string>
+    <string name="sessions_offline_line">%1$s · offline</string>
     <string name="sessions_profile_label">Profile</string>
     <string name="sessions_profile_description">Hermes profile: %1$s</string>
     <string name="sessions_connecting">Connecting to %1$s…</string>
@@ -53,6 +55,7 @@
     <string name="sessions_section_yesterday">Yesterday</string>
     <string name="sessions_section_earlier">Earlier</string>
     <string name="session_running">Running</string>
+    <string name="session_was_running">Was running at %1$s</string>
     <string name="session_now">now</string>
     <string name="session_untitled">Untitled session</string>
     <plurals name="session_messages">
@@ -68,13 +71,25 @@
     <string name="conn_check_again">Check again</string>
     <string name="conn_pair_again">Pair again</string>
     <string name="conn_4503_title">Hermes isn\'t running</string>
-    <string name="conn_4503_body">aristotle-server on %1$s answered, but Hermes is not running there. Start Hermes on the laptop, then retry.</string>
+    <string name="conn_4503_body">aristotle-server on %1$s answered, but Hermes is not running there. Start Hermes on the laptop; Aristotle reconnects by itself.</string>
     <string name="conn_4505_title">Hermes was updated</string>
     <string name="conn_4505_body">Hermes on %1$s now speaks a newer protocol than this aristotle-server knows, so the server stopped relaying to stay safe. Update aristotle-server on the laptop.</string>
-    <string name="conn_generic_title">Can\'t reach Hermes</string>
-    <string name="conn_generic_body">The connection to aristotle-server on %1$s ended or could not start. Check that the laptop is awake and on the same network, then retry.</string>
+    <string name="conn_list_title">Can\'t load the sessions</string>
+    <string name="conn_list_body">Hermes on %1$s answered, but the session list failed. Retry; if it keeps failing, check Hermes on the laptop.</string>
     <string name="conn_cert_title">The laptop\'s certificate changed</string>
     <string name="conn_cert_body">Aristotle refused to connect: %1$s answered with a different certificate than the one you confirmed when pairing. If aristotle-server\'s key was deleted, pair again. Otherwise another device may be answering at this address.</string>
+
+    <!-- Offline banner (T09) -->
+    <string name="offline_title">PC offline since %1$s</string>
+    <string name="offline_cause_unreachable">The laptop at %1$s doesn\'t answer on Wi-Fi or Tailscale. Check that it\'s awake and that aristotle-server is running.</string>
+    <string name="offline_cause_tailscale">Tailscale may be off on this phone. Away from your Wi-Fi, Aristotle reaches the laptop only through Tailscale.</string>
+    <string name="offline_cause_lost">The laptop at %1$s answered, then the connection ended.</string>
+    <string name="offline_list_from">This list is from %1$s.</string>
+    <string name="offline_trying">Trying again…</string>
+    <plurals name="offline_next_try">
+        <item quantity="one">Try %1$d failed · next in %2$d second</item>
+        <item quantity="other">Try %1$d failed · next in %2$d seconds</item>
+    </plurals>
 
     <!-- Stored pairing unreadable for now -->
     <string name="creds_unavailable_title">Can\'t open the pairing</string>

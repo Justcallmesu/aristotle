@@ -31,7 +31,7 @@ class PinnedConnectionTest {
     fun pinnedClientConnectsAlthoughTheCertificateNamesAnotherHost() {
         startServer(held).use { server ->
             server.enqueue(MockResponse.Builder().code(200).body("ok").build())
-            val client = testClients().pinnedTo(pinOf(held))
+            val client = testClients().pinnedTo(pinOf(held), Network.Lan)
             get(client, "https://127.0.0.1:${server.port}/healthz").use { assertEquals(200, it.code) }
         }
     }
@@ -40,7 +40,7 @@ class PinnedConnectionTest {
     fun aDifferentServerKeyIsRefusedBeforeAnyRequest() {
         startServer(held).use { server ->
             server.enqueue(MockResponse.Builder().code(200).build())
-            val client = testClients().pinnedTo(pinOf(lanCertificate()))
+            val client = testClients().pinnedTo(pinOf(lanCertificate()), Network.Lan)
             val error = assertThrows(IOException::class.java) { get(client, "https://127.0.0.1:${server.port}/healthz") }
             assertEquals(ConnectionProblem.CertificateChanged, connectionProblemOf(error))
             assertEquals(0, server.requestCount)
@@ -55,10 +55,10 @@ class PinnedConnectionTest {
         startServer(held).use { server ->
             server.enqueue(MockResponse.Builder().code(200).body("ok").build())
             val sockets = redirectTo(server)
-            get(testClients(sockets).pinnedTo(pinOf(held)), "${tailnet.baseUrl}/healthz").use { assertEquals(200, it.code) }
+            get(testClients(sockets).pinnedTo(pinOf(held), Network.Tailscale), "${tailnet.baseUrl}/healthz").use { assertEquals(200, it.code) }
             assertEquals(listOf<SocketAddress?>(InetSocketAddress(tailnet.inetAddress, 8760)), sockets.dialed)
 
-            val wrongPin = testClients(redirectTo(server)).pinnedTo(pinOf(lanCertificate()))
+            val wrongPin = testClients(redirectTo(server)).pinnedTo(pinOf(lanCertificate()), Network.Tailscale)
             val error = assertThrows(IOException::class.java) { get(wrongPin, "${tailnet.baseUrl}/v1/me") }
             assertEquals(ConnectionProblem.CertificateChanged, connectionProblemOf(error))
             assertEquals(1, server.requestCount)
@@ -71,7 +71,7 @@ class PinnedConnectionTest {
         startServer().use { server ->
             server.enqueue(MockResponse.Builder().code(200).build())
             val sockets = redirectTo(server)
-            val client = testClients(sockets).pinnedTo(pinOf(held))
+            val client = testClients(sockets).pinnedTo(pinOf(held), Network.Lan)
             for (url in listOf("http://127.0.0.1:${server.port}/healthz", "http://100.101.102.103:8760/v1/me")) {
                 assertThrows(UnknownServiceException::class.java) { get(client, url) }
             }
@@ -83,7 +83,7 @@ class PinnedConnectionTest {
     @Test
     fun noClientConsultsTheSystemProxy() {
         val clients = testClients()
-        assertEquals(Proxy.NO_PROXY, clients.pinnedTo(ByteArray(32)).proxy)
+        assertEquals(Proxy.NO_PROXY, clients.pinnedTo(ByteArray(32), Network.Lan).proxy)
         val asked = mutableListOf<URI>()
         val previous = ProxySelector.getDefault()
         ProxySelector.setDefault(object : ProxySelector() {
@@ -93,7 +93,7 @@ class PinnedConnectionTest {
         try {
             startServer(held).use { server ->
                 server.enqueue(MockResponse.Builder().code(200).build())
-                get(clients.pinnedTo(pinOf(held)), "${localEndpoint(server).baseUrl}/healthz").use { assertEquals(200, it.code) }
+                get(clients.pinnedTo(pinOf(held), Network.Lan), "${localEndpoint(server).baseUrl}/healthz").use { assertEquals(200, it.code) }
             }
         } finally {
             ProxySelector.setDefault(previous)
@@ -121,5 +121,19 @@ class PinnedConnectionTest {
     fun probeReportsAClosedPortAsUnreachable() = runBlocking {
         val port = ServerSocket(0).use { it.localPort }
         assertEquals(ProbeResult.Unreachable, CertificateProbe().fetch(ServerEndpoint("127.0.0.1", port, Network.Lan)))
+    }
+
+    // D26 + T09: LAN and Tailscale clients never share a pool; connecting gives up after 3 s; no client ping.
+    @Test
+    fun eachAddressKindHasItsOwnPoolAndNoClientPings() {
+        val clients = testClients()
+        val lan = clients.pinnedTo(ByteArray(32), Network.Lan)
+        val tailnet = clients.pinnedTo(ByteArray(32), Network.Tailscale)
+        assertTrue(lan.connectionPool !== tailnet.connectionPool)
+        assertTrue(lan.connectionPool === clients.pinnedTo(ByteArray(32) { 1 }, Network.Lan).connectionPool)
+        for (client in listOf(lan, tailnet)) {
+            assertEquals(3_000, client.connectTimeoutMillis)
+            assertEquals(0, client.pingIntervalMillis)
+        }
     }
 }

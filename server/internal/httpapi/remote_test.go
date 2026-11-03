@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,40 @@ func TestPairThenMe(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &me)
 	if me.DeviceID != p.DeviceID || me.Name != "Poco X5" {
 		t.Fatalf("me = %+v", me)
+	}
+}
+
+// The pair response and GET /v1/addresses carry the listener list (an array, never null); the list needs
+// a device token.
+func TestPairAndAddressesListTheListeners(t *testing.T) {
+	rm := newRemote(t)
+	if body := rm.pair(t, "", "").Addresses; body == nil || len(body) != 0 {
+		t.Fatalf("pair addresses without a provider = %#v, want []", body)
+	}
+
+	list := []Address{
+		{URL: "https://192.168.1.61:8760", Kind: "lan", Iface: "wlan0"},
+		{URL: "https://100.74.61.96:8760", Kind: "tailscale", Iface: "tailscale0"},
+	}
+	rm.h = NewRemoteRouter("t", slog.New(slog.NewTextHandler(rm.logs, nil)),
+		Deps{Codes: rm.codes, Devices: rm.store, Addresses: func() []Address { return list }})
+	p := rm.pair(t, "", "")
+	if !slices.Equal(p.Addresses, list) {
+		t.Fatalf("pair addresses %v, want %v", p.Addresses, list)
+	}
+	if rec := rm.do(http.MethodGet, "/v1/addresses", "", ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("addresses without a token = %d", rec.Code)
+	}
+	rec := rm.do(http.MethodGet, "/v1/addresses", "", p.Token)
+	var got addressesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("addresses = %d %s", rec.Code, rec.Body.String())
+	}
+	if !slices.Equal(got.Addresses, list) || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("addresses = %v (%q)", got.Addresses, rec.Header().Get("Cache-Control"))
+	}
+	if rm.do(http.MethodPost, "/v1/addresses", "", p.Token).Code != http.StatusNotFound {
+		t.Fatal("POST /v1/addresses accepted")
 	}
 }
 

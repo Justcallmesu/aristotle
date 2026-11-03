@@ -88,9 +88,9 @@ fun PairContent(state: PairUiState, notice: PairNotice?, actions: PairActions) {
                 style = AristotleTextStyles.wordmarkSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (notice == PairNotice.Revoked) {
+            notice?.let {
                 Spacer(Modifier.height(Spacing.l))
-                NoticeBanner(stringResource(R.string.pair_notice_revoked))
+                NoticeBanner(stringResource(noticeText(it)))
             }
             Spacer(Modifier.height(Spacing.xl))
             Text(text = stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineSmall)
@@ -222,6 +222,12 @@ private fun PrimaryRow(@StringRes label: Int, enabled: Boolean, onClick: () -> U
             Text(stringResource(label))
         }
     }
+}
+
+@StringRes
+private fun noticeText(notice: PairNotice): Int = when (notice) {
+    PairNotice.Revoked -> R.string.pair_notice_revoked
+    PairNotice.PairAgain -> R.string.pair_notice_pair_again
 }
 
 @Composable

@@ -30,8 +30,9 @@ type pairRequest struct {
 }
 
 type pairResponse struct {
-	DeviceID string `json:"device_id"`
-	Token    string `json:"token"`
+	DeviceID  string    `json:"device_id"`
+	Token     string    `json:"token"`
+	Addresses []Address `json:"addresses"` // every listener now, as `pair` prints them
 }
 
 // pairHandler redeems the one-time code from the body (never the URL) and
@@ -62,7 +63,7 @@ func pairHandler(d Deps, log *slog.Logger, rejects *RejectLog) http.Handler {
 			return
 		}
 		log.Info("device paired", "device_id", dev.ID, "name", dev.Name)
-		writeJSON(w, http.StatusCreated, pairResponse{DeviceID: dev.ID, Token: token})
+		writeJSON(w, http.StatusCreated, pairResponse{DeviceID: dev.ID, Token: token, Addresses: d.addresses()})
 	})
 }
 

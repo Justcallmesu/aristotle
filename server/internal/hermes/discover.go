@@ -18,9 +18,10 @@ var hermesHomeMarkers = []string{"config.yaml", ".env", "state.db"}
 // (multiplexer_root_for) with hermes_constants.py:323-357 (_is_hermes_profiles_root, named_profile_home):
 // the name must not start with "." and <root> must provably be a Hermes home. Hermes also accepts
 // <root> == get_default_hermes_root(); that root is ~/.hermes, which the ".hermes" name rule already covers
-// unless HERMES_DATA_DIR_SUFFIX is set.
+// unless HERMES_DATA_DIR_SUFFIX is set. Like Hermes (_canonical_home), the home is resolved first, so a
+// HERMES_HOME that is a symlink to a profile home finds that profile's root.
 func multiplexerRootFor(home string) string {
-	home = filepath.Clean(home)
+	home = canonicalHome(home)
 	profiles := filepath.Dir(home)
 	if filepath.Base(profiles) != "profiles" || strings.HasPrefix(filepath.Base(home), ".") {
 		return ""
@@ -40,7 +41,8 @@ func isProfilesRoot(root, profiles string) bool {
 		return true
 	}
 	for _, marker := range hermesHomeMarkers {
-		if _, err := os.Lstat(filepath.Join(root, marker)); err == nil {
+		// Stat, not Lstat: Hermes uses Path.exists(), which follows links (a dangling link is no marker).
+		if _, err := os.Stat(filepath.Join(root, marker)); err == nil {
 			return true
 		}
 	}
@@ -67,15 +69,20 @@ func (c *Connector) identifyServedProfile(ctx context.Context, ownErr error) (Id
 	return id, nil
 }
 
-// serves reports whether exactly one served profile has home as its home.
+// serves reports whether exactly one served profile has home as its home and that one has an id, as
+// Hermes' _endpoint counts every entry for the home before it checks the id (gateway_runtime.py:106-110).
 func (id Identity) serves(home string) bool {
-	matches := 0
-	for _, p := range id.ServedProfiles {
-		if p.ProfileID != "" && sameHome(p.Home, home) {
-			matches++
+	var match *ServedProfile
+	for i, p := range id.ServedProfiles {
+		if !sameHome(p.Home, home) {
+			continue
 		}
+		if match != nil {
+			return false
+		}
+		match = &id.ServedProfiles[i]
 	}
-	return matches == 1
+	return match != nil && match.ProfileID != ""
 }
 
 // sameHome compares two home paths the way Hermes does (Path.resolve on both sides,

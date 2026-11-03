@@ -29,6 +29,31 @@ type Deps struct {
 	Relay RelayServer
 	// Listener is the listener kind ("lan", "tailscale") for the relay's audit line.
 	Listener string
+	// Addresses lists the listeners bound right now, for the pair response and GET /v1/addresses;
+	// nil means none.
+	Addresses func() []Address
+}
+
+// Address is one listener URL the phone can use (docs/protocol.md §11.2). Every URL is https://.
+type Address struct {
+	URL   string `json:"url"`
+	Kind  string `json:"kind"` // "lan" or "tailscale"
+	Iface string `json:"iface"`
+}
+
+type addressesResponse struct {
+	Addresses []Address `json:"addresses"`
+}
+
+// addresses never returns nil, so the JSON is always an array.
+func (d Deps) addresses() []Address {
+	if d.Addresses == nil {
+		return []Address{}
+	}
+	if list := d.Addresses(); list != nil {
+		return list
+	}
+	return []Address{}
 }
 
 // RelayServer upgrades an authenticated /v1/ws request and relays it to Hermes (package relay).
@@ -50,6 +75,7 @@ func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 	}
 	mux.Handle("POST /v1/pair", pairHandler(d, log, d.Rejects))
 	mux.Handle("GET /v1/me", requireDevice(d.Devices, http.HandlerFunc(meHandler)))
+	mux.Handle("GET /v1/addresses", requireDevice(d.Devices, addressesHandler(d)))
 	if d.Relay != nil {
 		mux.Handle("GET /v1/ws", requireDevice(d.Devices, relayHandler(d.Relay, d.Listener)))
 	}
@@ -78,6 +104,14 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, errorResponse{Error: msg})
+}
+
+// addressesHandler lists the current listeners, so a paired phone learns new addresses (DHCP, Tailscale
+// turned on) without pairing again.
+func addressesHandler(d Deps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, addressesResponse{Addresses: d.addresses()})
+	})
 }
 
 func relayHandler(relay RelayServer, listener string) http.Handler {

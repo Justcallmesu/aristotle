@@ -523,3 +523,45 @@ func TestRelayPingsPhoneWhileForwardingWaitsForHermes(t *testing.T) {
 		t.Fatalf("relay closed %d %s while waiting for Hermes", why.code, why.reason)
 	}
 }
+
+// D28: transportOf unwraps NetConn layers to the bottom, and stops on a layer that returns itself or on
+// a cycle instead of hanging the hijack.
+func TestTransportOfIsBounded(t *testing.T) {
+	a, b := net.Pipe()
+	defer a.Close()
+	defer b.Close()
+	if got := transportOf(layered{layered{a}}); got != a {
+		t.Fatalf("two layers: got %T, want the bottom connection", got)
+	}
+	self := &selfLayer{Conn: a}
+	done := make(chan net.Conn, 1)
+	go func() { done <- transportOf(self) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("transportOf loops on a layer that returns itself")
+	}
+	x, y := &cycleLayer{Conn: a}, &cycleLayer{Conn: a}
+	x.next, y.next = y, x
+	go func() { done <- transportOf(x) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("transportOf loops on a cycle of layers")
+	}
+}
+
+type layered struct{ net.Conn }
+
+func (l layered) NetConn() net.Conn { return l.Conn }
+
+type selfLayer struct{ net.Conn }
+
+func (l *selfLayer) NetConn() net.Conn { return l }
+
+type cycleLayer struct {
+	net.Conn
+	next net.Conn
+}
+
+func (l *cycleLayer) NetConn() net.Conn { return l.next }

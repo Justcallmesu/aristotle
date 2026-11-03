@@ -3,8 +3,11 @@
 package relay
 
 import (
+	"bytes"
+	"errors"
 	"io"
 	"net"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,7 +37,7 @@ func TestTrackedConnReportsOnlyWritesThatWaited(t *testing.T) {
 	if !ok {
 		t.Fatalf("accepted %T, want *trackedConn", c)
 	}
-	_ = tc.SetWriteBuffer(socketBuffer)
+	_ = tc.Conn.(*net.TCPConn).SetWriteBuffer(socketBuffer)
 	var drains atomic.Int32
 	tc.notifyDrain(func() { drains.Add(1) })
 
@@ -74,6 +77,91 @@ func TestTrackedConnReportsOnlyWritesThatWaited(t *testing.T) {
 		t.Fatal("no drain reported for a write that waited for the peer")
 	}
 }
+
+// D27: the write paths *net.TCPConn has besides Write (ReadFrom: sendfile/splice; net.Buffers: writev)
+// are not reachable on the wrapper. io.Copy and net.Buffers.WriteTo then fall back to Write, so a write
+// that had to wait for the peer still reports its drain.
+func TestTrackedConnCopyAndWritevGoThroughDrainTracking(t *testing.T) {
+	if _, ok := any(&trackedConn{}).(io.ReaderFrom); ok {
+		t.Fatal("trackedConn implements io.ReaderFrom: io.Copy would bypass Write")
+	}
+	for name, write := range map[string]func(net.Conn, []byte) error{
+		"io.Copy": func(c net.Conn, p []byte) error {
+			_, err := io.Copy(c, onlyReader{bytes.NewReader(p)})
+			return err
+		},
+		"net.Buffers": func(c net.Conn, p []byte) error {
+			half := len(p) / 2
+			bufs := net.Buffers{p[:half], p[half:]}
+			_, err := bufs.WriteTo(c)
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc, peer := trackedPair(t)
+			var drains atomic.Int32
+			tc.notifyDrain(func() { drains.Add(1) })
+			const big = 4 << 20 // far beyond both 128 KiB buffers: the write must wait for the peer
+			wrote := make(chan error, 1)
+			go func() { wrote <- write(tc, make([]byte, big)) }()
+			time.Sleep(200 * time.Millisecond) // both buffers fill and a write waits (EAGAIN) before the peer reads
+			if _, err := io.CopyN(io.Discard, peer, big); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-wrote; err != nil {
+				t.Fatal(err)
+			}
+			if drains.Load() == 0 {
+				t.Fatalf("%s: no drain reported for a write that waited for the peer", name)
+			}
+		})
+	}
+}
+
+// D27: a deadline, a Close and a syscall error all read "write tcp …", like net.TCPConn's own errors.
+func TestTrackedConnWriteErrorsLookLikeTCPConns(t *testing.T) {
+	tc, _ := trackedPair(t)
+	_ = tc.SetWriteDeadline(time.Now().Add(-time.Second))
+	_, err := tc.Write([]byte("x"))
+	var op *net.OpError
+	if !errors.As(err, &op) || op.Op != "write" || !op.Timeout() {
+		t.Fatalf("past deadline: %v, want a write timeout", err)
+	}
+	if strings.Contains(err.Error(), "raw-write") || !strings.HasPrefix(err.Error(), "write tcp ") {
+		t.Fatalf("deadline error text %q", err)
+	}
+	_ = tc.Close()
+	if _, err := tc.Write([]byte("x")); !errors.Is(err, net.ErrClosed) || !strings.HasPrefix(err.Error(), "write tcp ") {
+		t.Fatalf("after Close: %v", err)
+	}
+}
+
+// trackedPair returns an accepted, wrapped connection and its peer, both with 128 KiB buffers.
+func trackedPair(t *testing.T) (*trackedConn, net.Conn) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	peer, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { peer.Close() })
+	_ = peer.(*net.TCPConn).SetReadBuffer(socketBuffer)
+	c, err := WrapListener(ln).Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	tc := c.(*trackedConn)
+	_ = tc.Conn.(*net.TCPConn).SetWriteBuffer(socketBuffer)
+	return tc, peer
+}
+
+// onlyReader hides bytes.Reader's WriteTo, so io.Copy asks the destination for ReadFrom.
+type onlyReader struct{ io.Reader }
 
 // A write that waits for a peer that never reads ends on the write deadline (without a drain: the
 // kernel refused the bytes and never took them) and on Close.

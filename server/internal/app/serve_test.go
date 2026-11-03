@@ -28,6 +28,7 @@ import (
 
 	"github.com/justcallmesu/aristotle/server/internal/config"
 	"github.com/justcallmesu/aristotle/server/internal/hermes/hermestest"
+	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
 	"github.com/justcallmesu/aristotle/server/internal/tlscert"
@@ -248,9 +249,9 @@ func TestPrintPairing(t *testing.T) {
 	printPairing(&buf, pairStartResult{
 		Code: "ABCD2345", ExpiresAt: now.Add(pairing.TTL), Fingerprint: "AAAA BBBB",
 		Addresses: []pairAddr{
-			{URL: "https://192.168.1.61:8760", Kind: "lan", Iface: "wlan0", DefaultRoute: true},
-			{URL: "https://10.0.0.2:8760", Kind: "lan", Iface: "eth0"},
-			{URL: "https://100.74.61.96:8760", Kind: "tailscale", Iface: "tailscale0"},
+			{Address: httpapi.Address{URL: "https://192.168.1.61:8760", Kind: "lan", Iface: "wlan0"}, DefaultRoute: true},
+			{Address: httpapi.Address{URL: "https://10.0.0.2:8760", Kind: "lan", Iface: "eth0"}},
+			{Address: httpapi.Address{URL: "https://100.74.61.96:8760", Kind: "tailscale", Iface: "tailscale0"}},
 		},
 	}, now)
 	out := buf.String()
@@ -332,6 +333,60 @@ func TestPairOutputOrderAndInterfaces(t *testing.T) {
 	}
 	if !strings.Contains(out, "default route") {
 		t.Fatalf("default route not marked:\n%s", out)
+	}
+}
+
+// The phone gets the list pair prints, in the same order: in the pair response and from GET /v1/addresses
+// (Bearer), so it can switch between Wi-Fi and Tailscale and learn new addresses later.
+func TestPhoneGetsEveryAddressPairPrints(t *testing.T) {
+	ifaces := []listen.Iface{
+		{Name: "tailscale0", Up: true, Tun: true, Addrs: prefixes("100.74.61.96/32")},
+		{Name: "eth0", Up: true, Physical: true, Addrs: prefixes("10.0.0.2/24")},
+		{Name: "wlan0", Up: true, Physical: true, DefaultRoute: true, Addrs: prefixes("192.168.1.61/24")},
+	}
+	srv, _ := startTestServerWith(t, func() ([]listen.Iface, error) { return ifaces, nil })
+	for deadline := time.Now().Add(5 * time.Second); len(srv.listen.Active()) < 3 && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	want := []httpapi.Address{
+		{URL: "https://192.168.1.61:0", Kind: "lan", Iface: "wlan0"},
+		{URL: "https://10.0.0.2:0", Kind: "lan", Iface: "eth0"},
+		{URL: "https://100.74.61.96:0", Kind: "tailscale", Iface: "tailscale0"},
+	}
+	iss, err := srv.codes.Start("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := func(method, path, body, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.RemoteAddr = "100.101.102.103:40000"
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		srv.listen.Handler(listen.Tailscale).ServeHTTP(rec, req)
+		return rec
+	}
+	var paired struct {
+		Token     string            `json:"token"`
+		Addresses []httpapi.Address `json:"addresses"`
+	}
+	rec := call(http.MethodPost, "/v1/pair", `{"code":"`+iss.Code+`"}`, "")
+	if err := json.Unmarshal(rec.Body.Bytes(), &paired); err != nil || rec.Code != http.StatusCreated {
+		t.Fatalf("pair = %d %s", rec.Code, rec.Body.String())
+	}
+	if !slices.Equal(paired.Addresses, want) {
+		t.Fatalf("pair addresses %v\nwant %v", paired.Addresses, want)
+	}
+	var listed struct {
+		Addresses []httpapi.Address `json:"addresses"`
+	}
+	rec = call(http.MethodGet, "/v1/addresses", "", paired.Token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("addresses = %d %s", rec.Code, rec.Body.String())
+	}
+	if !slices.Equal(listed.Addresses, want) {
+		t.Fatalf("GET /v1/addresses %v\nwant %v", listed.Addresses, want)
 	}
 }
 

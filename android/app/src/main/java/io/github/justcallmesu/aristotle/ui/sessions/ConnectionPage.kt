@@ -18,26 +18,28 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import io.github.justcallmesu.aristotle.R
-import io.github.justcallmesu.aristotle.data.ConnectionIssue
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
+
+/** The states that replace the session list (design.md §5 connection pages). */
+enum class PageKind { HermesDown, HermesUpdated, CertificateChanged, ListFailed }
 
 private enum class PageAction { RetryNow, CheckAgain, PairAgain }
 
 private class PageCopy(@StringRes val title: Int, @StringRes val body: Int, val action: PageAction)
 
-private fun copyOf(issue: ConnectionIssue): PageCopy = when (issue) {
-    is ConnectionIssue.HermesNotRunning -> PageCopy(R.string.conn_4503_title, R.string.conn_4503_body, PageAction.RetryNow)
-    is ConnectionIssue.HermesUpdated -> PageCopy(R.string.conn_4505_title, R.string.conn_4505_body, PageAction.CheckAgain)
-    is ConnectionIssue.CertificateChanged -> PageCopy(R.string.conn_cert_title, R.string.conn_cert_body, PageAction.PairAgain)
-    is ConnectionIssue.Generic -> PageCopy(R.string.conn_generic_title, R.string.conn_generic_body, PageAction.RetryNow)
+private fun copyOf(kind: PageKind): PageCopy = when (kind) {
+    PageKind.HermesDown -> PageCopy(R.string.conn_4503_title, R.string.conn_4503_body, PageAction.RetryNow)
+    PageKind.HermesUpdated -> PageCopy(R.string.conn_4505_title, R.string.conn_4505_body, PageAction.CheckAgain)
+    PageKind.CertificateChanged -> PageCopy(R.string.conn_cert_title, R.string.conn_cert_body, PageAction.PairAgain)
+    PageKind.ListFailed -> PageCopy(R.string.conn_list_title, R.string.conn_list_body, PageAction.RetryNow)
 }
 
-/** design.md §5 connection page: left-aligned headline, one paragraph, mono details, one button. */
+/** design.md §5 connection page: left-aligned headline, one paragraph, mono [details], one button. */
 @Composable
-fun ConnectionPage(issue: ConnectionIssue, address: String, onRetry: () -> Unit, onPairAgain: () -> Unit) {
-    val copy = copyOf(issue)
+fun ConnectionPage(kind: PageKind, details: String, address: String, onRetry: () -> Unit, onPairAgain: () -> Unit) {
+    val copy = copyOf(kind)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -55,7 +57,7 @@ fun ConnectionPage(issue: ConnectionIssue, address: String, onRetry: () -> Unit,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        DetailsBlock(issue.details)
+        DetailsBlock(details)
         PageButton(copy.action, onRetry, onPairAgain)
     }
 }

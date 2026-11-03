@@ -7,3 +7,4 @@
 - 2026-11-03 T01 may create ONE new Hermes session titled `aristotle-spike` in the default profile and send benign prompts to it; it never posts into existing sessions. The live Desktop demo with the user happens after the worker report.
 - 2026-11-03 User approved installing Android platform 36 (PM ran sdkmanager). User said "that's all" for now: no new dispatch beyond the running wave-1 reviews until he says go; the T01 Desktop demo waits for him.
 - 2026-11-03 User granted the PM commit and push rights ("hereby i grant you to commit and push"). Rules in PROJECT.md Hard rules; PM SOUL.md updated to allow it only where PROJECT.md grants it.
+- 2026-11-03 User: do T09 before T08 (QR). Tailscale device test 2/3 postponed until T09 stores all PC addresses.

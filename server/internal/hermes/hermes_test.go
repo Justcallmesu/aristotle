@@ -642,3 +642,51 @@ func TestProfileHomeWithoutAnyGatewayIsNotRunning(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// D26: a HERMES_HOME that is a symlink to a profile home is resolved first (Hermes' _canonical_home), so
+// its root is the real one; a marker counts only when it exists behind its link (Path.exists).
+func TestRootFallbackResolvesLinksLikeHermes(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "data", "profiles", "pm")
+	if err := os.MkdirAll(real, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "pm-link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(base, "data")
+	if err := os.Symlink(filepath.Join(base, "missing.yaml"), filepath.Join(root, "config.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if got := multiplexerRootFor(link); got != "" {
+		t.Fatalf("root %q from a dangling marker link, want none", got)
+	}
+	if err := os.WriteFile(filepath.Join(base, "missing.yaml"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := multiplexerRootFor(link), canonicalHome(root); got != want {
+		t.Fatalf("root via the link = %q, want %q", got, want)
+	}
+}
+
+// D26: the profile home must be listed exactly once and with an id; a second entry for the same home
+// (even one without an id) makes it ambiguous, as in Hermes.
+func TestServesNeedsExactlyOneEntryWithAnID(t *testing.T) {
+	home := t.TempDir()
+	for _, tc := range []struct {
+		name   string
+		served []ServedProfile
+		want   bool
+	}{
+		{"one with id", []ServedProfile{{ProfileID: "pm", Home: home}}, true},
+		{"one without id", []ServedProfile{{Home: home}}, false},
+		{"duplicate, one id empty", []ServedProfile{{ProfileID: "pm", Home: home}, {Home: home}}, false},
+		{"duplicate, empty id first", []ServedProfile{{Home: home}, {ProfileID: "pm", Home: home}}, false},
+		{"other home only", []ServedProfile{{ProfileID: "x", Home: home + "-other"}}, false},
+	} {
+		if got := (Identity{ServedProfiles: tc.served}).serves(home); got != tc.want {
+			t.Errorf("%s: serves = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -31,7 +35,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.Network
+import io.github.justcallmesu.aristotle.data.OfflineCause
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
@@ -40,26 +46,50 @@ import io.github.justcallmesu.aristotle.ui.theme.Spacing
 @Composable
 fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    SessionsContentView(state = state, onRetry = viewModel::retry, onPairAgain = onPairAgain)
+    SessionsContentView(state = state, timeText = viewModel::timeText, onRetry = viewModel::retry, onPairAgain = onPairAgain)
 }
 
 @Composable
-fun SessionsContentView(state: SessionsUiState, onRetry: () -> Unit, onPairAgain: () -> Unit) {
+fun SessionsContentView(state: SessionsUiState, timeText: (Long) -> String, onRetry: () -> Unit, onPairAgain: () -> Unit) {
+    val address = state.address?.hostForUrl.orEmpty()
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            TopBar(state)
-            when (val content = state.content) {
-                SessionsContent.Connecting -> ConnectingBody(state.address)
-                is SessionsContent.Loaded ->
-                    if (content.items.isEmpty()) EmptyBody() else SessionList(content.items)
-                is SessionsContent.Problem -> ConnectionPage(content.issue, state.address, onRetry, onPairAgain)
+            TopBar(state, address)
+            val page = pageFor(state)
+            if (page != null) {
+                ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain)
+            } else {
+                val offline = state.link as? LinkState.Offline
+                offline?.let { OfflineBanner(it, address, state.listedAt, timeText, onRetry) }
+                ListBody(state, address, offlineAt = state.listedAt.takeIf { offline != null })
             }
         }
     }
 }
 
+private class Page(val kind: PageKind, val details: String)
+
+/** design.md §5: Hermes down / updated and a changed certificate replace the list; everything else keeps it. */
+private fun pageFor(state: SessionsUiState): Page? = when (val link = state.link) {
+    is LinkState.HermesDown -> Page(PageKind.HermesDown, link.details)
+    is LinkState.HermesUpdated -> Page(PageKind.HermesUpdated, link.details)
+    is LinkState.Offline -> if (link.cause == OfflineCause.CertificateChanged) Page(PageKind.CertificateChanged, link.details) else null
+    is LinkState.Online -> state.listProblem?.let { Page(PageKind.ListFailed, it) }
+    else -> null
+}
+
 @Composable
-private fun TopBar(state: SessionsUiState) {
+private fun ListBody(state: SessionsUiState, address: String, offlineAt: String?) {
+    val items = state.items
+    when {
+        items == null -> if (state.link !is LinkState.Offline) ConnectingBody(address)
+        items.isEmpty() -> EmptyBody()
+        else -> SessionList(items, offlineAt)
+    }
+}
+
+@Composable
+private fun TopBar(state: SessionsUiState, address: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -69,23 +99,39 @@ private fun TopBar(state: SessionsUiState) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = stringResource(R.string.app_name), style = AristotleTextStyles.wordmark)
-            Text(
-                text = connectionLine(state),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            ConnectionLine(state.link, address)
         }
         state.profileName?.let { ProfileLabel(it) }
     }
 }
 
+/** "192.168.1.23 · via Wi-Fi", "… · via Tailscale", or "… · offline" with the cloud-off icon. */
 @Composable
-private fun connectionLine(state: SessionsUiState): String = when (state.network) {
-    Network.Tailscale -> stringResource(R.string.sessions_via_tailscale, state.address)
-    Network.Lan -> stringResource(R.string.sessions_via_wifi, state.address)
-    null -> state.address
+private fun ConnectionLine(link: LinkState, address: String) {
+    val offline = link is LinkState.Offline
+    val text = when {
+        link is LinkState.Online && link.endpoint.network == Network.Tailscale -> stringResource(R.string.sessions_via_tailscale, address)
+        link is LinkState.Online -> stringResource(R.string.sessions_via_wifi, address)
+        offline -> stringResource(R.string.sessions_offline_line, address)
+        else -> address
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        if (offline) {
+            Icon(
+                painter = painterResource(R.drawable.ic_cloud_off),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Sizes.lineIcon),
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 /** The launch profile as text; the switcher chip comes with T14. */
@@ -128,13 +174,14 @@ private fun EmptyBody() {
     }
 }
 
+/** [offlineAt]: the list is from that time and the PC is offline, so nothing reads as live (design.md §5). */
 @Composable
-private fun SessionList(items: List<SessionListItem>) {
+private fun SessionList(items: List<SessionListItem>, offlineAt: String?) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(items, key = ::itemKey) { item ->
             when (item) {
                 is SessionListItem.Header -> SectionHeader(item.section)
-                is SessionListItem.Row -> SessionRowItem(item.row)
+                is SessionListItem.Row -> SessionRowItem(item.row, offlineAt)
             }
         }
     }
@@ -165,7 +212,7 @@ private fun SectionHeader(section: DaySection) {
 
 /** design.md §5 session row: 72 dp, title + one status line, trailing time. */
 @Composable
-private fun SessionRowItem(row: SessionRow) {
+private fun SessionRowItem(row: SessionRow, offlineAt: String?) {
     ListItem(
         modifier = Modifier.heightIn(min = Sizes.sessionRowHeight),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
@@ -177,14 +224,21 @@ private fun SessionRowItem(row: SessionRow) {
                 overflow = TextOverflow.Ellipsis,
             )
         },
-        supportingContent = { RowStatus(row) },
-        trailingContent = row.time?.let { time -> { RowTimeText(time) } },
+        supportingContent = { RowStatus(row, offlineAt) },
+        trailingContent = row.time?.let { time -> { RowTimeText(time, offlineAt) } },
     )
 }
 
 @Composable
-private fun RowStatus(row: SessionRow) {
-    if (row.running) {
+private fun RowStatus(row: SessionRow, offlineAt: String?) {
+    if (row.running && offlineAt != null) {
+        Text(
+            text = stringResource(R.string.session_was_running, offlineAt),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    } else if (row.running) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
             RunningSpinner()
             Text(
@@ -205,10 +259,10 @@ private fun RowStatus(row: SessionRow) {
 }
 
 @Composable
-private fun RowTimeText(time: RowTime) {
+private fun RowTimeText(time: RowTime, offlineAt: String?) {
     Text(
         text = when (time) {
-            RowTime.Now -> stringResource(R.string.session_now)
+            RowTime.Now -> offlineAt ?: stringResource(R.string.session_now)
             is RowTime.At -> time.text
         },
         style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),

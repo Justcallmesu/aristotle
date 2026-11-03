@@ -18,7 +18,7 @@ class RelaySocketTest {
 
     private fun relay(server: mockwebserver3.MockWebServer, token: String = "tok"): RelaySocket {
         val endpoint = localEndpoint(server)
-        return RelaySocket(testClients().pinnedTo(pinOf(held)), endpoint.baseUrl, DeviceToken(token))
+        return RelaySocket(testClients().pinnedTo(pinOf(held), Network.Lan), endpoint.baseUrl, DeviceToken(token))
     }
 
     @Test
@@ -50,7 +50,7 @@ class RelaySocketTest {
         startServer(held).use { server ->
             server.enqueue(MockResponse.Builder().code(101).build())
             val endpoint = localEndpoint(server)
-            val relay = RelaySocket(testClients().pinnedTo(pinOf(lanCertificate())), endpoint.baseUrl, DeviceToken("secret"))
+            val relay = RelaySocket(testClients().pinnedTo(pinOf(lanCertificate()), Network.Lan), endpoint.baseUrl, DeviceToken("secret"))
             val events = withTimeout(10_000) { relay.events().toList() }
             assertEquals(listOf(RelayEvent.Failed(null, ConnectionProblem.CertificateChanged)), events)
             assertEquals(0, server.requestCount)
@@ -70,7 +70,7 @@ class RelaySocketTest {
             )
             val tailnet = ServerEndpoint("100.101.102.103", 8760, Network.Tailscale)
             val sockets = RedirectingSockets(InetSocketAddress(InetAddress.getByName("127.0.0.1"), server.port))
-            val relay = RelaySocket(testClients(sockets).pinnedTo(pinOf(held)), tailnet.baseUrl, DeviceToken("secret"))
+            val relay = RelaySocket(testClients(sockets).pinnedTo(pinOf(held), Network.Lan), tailnet.baseUrl, DeviceToken("secret"))
             val events = withTimeout(10_000) { relay.events().toList() }
             assertEquals(RelayEvent.Opened, events.first())
             assertEquals(listOf<SocketAddress?>(InetSocketAddress(tailnet.inetAddress, 8760)), sockets.dialed)

@@ -389,8 +389,9 @@ All listeners use the same port (config `port`, default 8760). The server never 
 | Method, path | Auth | Success | Errors |
 |---|---|---|---|
 | `GET /healthz` | none | `200 {"status":"ok","version":"…"}` | — |
-| `POST /v1/pair` | none (one-time code in the body) | `201 {"device_id":"dev_<12 hex>","token":"<43 chars>"}` | `400`, `401`, `500` (below) |
+| `POST /v1/pair` | none (one-time code in the body) | `201 {"device_id":"dev_<12 hex>","token":"<43 chars>","addresses":[…]}` | `400`, `401`, `500` (below) |
 | `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…"}` | `401` |
+| `GET /v1/addresses` | Bearer | `200 {"addresses":[…]}` | `401` |
 | any other `/v1/*` | Bearer | `404` with a valid token | `401` without one |
 
 All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"<message>"}`.
@@ -410,6 +411,14 @@ All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"
 - Code rules: one active code at a time (a new `pair` replaces it), single use, expires 5 minutes after issue.
   Wrong attempts are counted per peer IP: after 5 that IP cannot redeem this code, other IPs still can. After 20
   wrong attempts in total the code is invalidated.
+
+**Addresses** (`addresses` in the pair response and in `GET /v1/addresses`): every listener bound right now, in the
+order `pair` prints them (default-route LAN first, other LAN next, Tailscale last), each
+`{"url":"https://<ip>:<port>","kind":"lan"|"tailscale","iface":"<interface>"}`; IPv6 hosts are bracketed. Always a
+JSON array (`[]` when nothing is bound). One pin covers all of them (§11.3). The phone stores the whole list at
+pairing and refreshes it with `GET /v1/addresses` after each connect, so a DHCP change or a Tailscale address
+added later reaches it without pairing again. The phone checks each entry itself (HTTPS, an RFC1918 or tailnet IP
+literal whose range matches `kind`) and drops any other.
 
 **Bearer auth.** Every `/v1/*` route except `POST /v1/pair` needs `Authorization: Bearer <token>` (scheme
 case-insensitive). The token is 32 random bytes, base64url without padding (43 chars). The server stores only its
@@ -504,8 +513,10 @@ OkHttp reassembles them), so pings and close frames are not stuck behind one lar
 **Keepalive.** aristotle-server sends the phone a WebSocket ping every 25 s, whatever the traffic (at most 4 unanswered
 pings outstanding). It closes the phone `1011` when, within 15 s of a ping, neither of these happened: a byte arrived
 from the phone (the pong, a frame, part of a frame), or a write to the phone that had to wait for it got bytes out. A
-write counts only when the kernel refused it for a full send buffer (`EAGAIN`) and later took its bytes, which needs the
-phone's TCP to acknowledge data: a frame the kernel takes into a free buffer proves nothing, so a phone that is gone is
+write counts only when the kernel refused it (`EAGAIN`) and later took its bytes. That normally needs the phone's TCP
+to acknowledge data; with `TCP_NOTSENT_LOWAT` (below) a refused write can also clear when unsent bytes go out into a
+window the phone opened earlier, which lasts about one round trip after it dies (so a phone that dies just before a
+ping can earn one more round). A frame the kernel takes into a free buffer proves nothing, so a phone that is gone is
 closed within 40 s even while Hermes streams events to it, however loaded the PC is. (On non-Unix builds the server
 cannot see `EAGAIN` and counts a write that took at least 10 ms instead; a scheduling stall can then cost a dead phone
 one more round.) A slow phone downloading a large message keeps its socket while those writes keep completing, even
@@ -523,6 +534,11 @@ Client obligations (the phone app):
 - **Keep reading.** WebSocket clients answer pings only while they read. OkHttp reads, and answers pings, on one
   thread that also runs `onMessage`: the app must hand each incoming frame off (queue/channel to another thread) and
   never block that callback; a callback blocked for more than 15 s delays the pong and the socket is closed `1011`.
+- **Reconnect by close code** (the app, T09): `4401` or an HTTP `401` at upgrade: stop, wipe the pairing, pair
+  again. `4505`: stop until the user checks again. `4503`: retry quietly every 10 s. `1000`, `1001`, `1011`, `1013`,
+  `4502` and the rest: retry with exponential backoff and jitter (1 s doubling to a 30 s cap, reset once a relay
+  delivers `gateway.ready`), and at once when the phone's network changes or the app comes to the foreground. No
+  client ping (`pingInterval`); the server's pings are the keepalive.
 
 **Redaction.** Hermes -> phone only, exactly §10: `system_prompt` -> `system_prompt_chars`, `credential_hint` removed,
 at `params.payload`, `result`, `result.info` and every `result.events[].params.payload`. Frames without either field

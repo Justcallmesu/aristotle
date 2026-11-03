@@ -44,9 +44,9 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 	return srv.run(ctx)
 }
 
-// server is one running aristotle-server: loopback listener (plain HTTP,
-// /healthz only), LAN/Tailscale HTTPS listener manager, control socket and the /v1/ws relay hub, sharing the
-// pairing codes and devices.
+// server is one running aristotle-server: loopback listener (plain HTTP, /healthz only), the
+// LAN/Tailscale HTTPS listener manager, control socket and the /v1/ws relay hub, sharing the pairing
+// codes and devices.
 type server struct {
 	cfg      config.Config
 	stateDir string
@@ -122,7 +122,8 @@ func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, e
 }
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
-	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Listener: string(kind)}
+	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Listener: string(kind),
+		Addresses: s.addresses}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 

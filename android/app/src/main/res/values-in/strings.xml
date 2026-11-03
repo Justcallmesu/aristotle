@@ -15,6 +15,7 @@
     <string name="pair_pairing">Menyandingkan…</string>
     <string name="pair_try_again">Coba lagi</string>
     <string name="pair_notice_revoked">Ponsel ini dihapus dari laptop. Sandingkan lagi.</string>
+    <string name="pair_notice_pair_again">Penyandingan yang tersimpan di ponsel ini tidak bisa dipakai lagi. Sandingkan lagi.</string>
 
     <string name="fp_title">Cocokkan sidik jari sertifikat</string>
     <string name="fp_body">Laptop di %1$s menjawab dengan sertifikat ini. Ke-16 kelompok harus sama persis dengan yang ditampilkan pair di laptop.</string>
@@ -41,8 +42,9 @@
     <string name="pair_message_rejected">Laptop menolak permintaan ini (HTTP %1$d).</string>
 
     <!-- Sessions screen -->
-    <string name="sessions_via_wifi">%1$s · Wi-Fi</string>
-    <string name="sessions_via_tailscale">%1$s · Tailscale</string>
+    <string name="sessions_via_wifi">%1$s · lewat Wi-Fi</string>
+    <string name="sessions_via_tailscale">%1$s · lewat Tailscale</string>
+    <string name="sessions_offline_line">%1$s · offline</string>
     <string name="sessions_profile_label">Profil</string>
     <string name="sessions_profile_description">Profil Hermes: %1$s</string>
     <string name="sessions_connecting">Menghubungkan ke %1$s…</string>
@@ -50,6 +52,7 @@
     <string name="sessions_section_yesterday">Kemarin</string>
     <string name="sessions_section_earlier">Sebelumnya</string>
     <string name="session_running">Berjalan</string>
+    <string name="session_was_running">Sedang berjalan pukul %1$s</string>
     <string name="session_now">baru saja</string>
     <string name="session_untitled">Sesi tanpa judul</string>
     <plurals name="session_messages">
@@ -64,13 +67,24 @@
     <string name="conn_check_again">Periksa lagi</string>
     <string name="conn_pair_again">Sandingkan lagi</string>
     <string name="conn_4503_title">Hermes tidak berjalan</string>
-    <string name="conn_4503_body">aristotle-server di %1$s menjawab, tetapi Hermes tidak berjalan di sana. Jalankan Hermes di laptop, lalu coba lagi.</string>
+    <string name="conn_4503_body">aristotle-server di %1$s menjawab, tetapi Hermes tidak berjalan di sana. Jalankan Hermes di laptop; Aristotle akan tersambung lagi sendiri.</string>
     <string name="conn_4505_title">Hermes diperbarui</string>
     <string name="conn_4505_body">Hermes di %1$s sekarang memakai protokol yang lebih baru dari yang dikenal aristotle-server ini, jadi server berhenti meneruskan demi keamanan. Perbarui aristotle-server di laptop.</string>
-    <string name="conn_generic_title">Tidak bisa menjangkau Hermes</string>
-    <string name="conn_generic_body">Koneksi ke aristotle-server di %1$s terputus atau tidak bisa dimulai. Pastikan laptop menyala dan ada di jaringan yang sama, lalu coba lagi.</string>
+    <string name="conn_list_title">Daftar sesi tidak bisa dimuat</string>
+    <string name="conn_list_body">Hermes di %1$s menjawab, tetapi daftar sesi gagal dimuat. Coba lagi; jika terus gagal, periksa Hermes di laptop.</string>
     <string name="conn_cert_title">Sertifikat laptop berubah</string>
     <string name="conn_cert_body">Aristotle menolak tersambung: %1$s menjawab dengan sertifikat yang berbeda dari yang Anda cocokkan saat penyandingan. Jika kunci aristotle-server dihapus, sandingkan lagi. Jika tidak, mungkin perangkat lain yang menjawab di alamat ini.</string>
+
+    <!-- Banner offline (T09) -->
+    <string name="offline_title">PC offline sejak %1$s</string>
+    <string name="offline_cause_unreachable">Laptop di %1$s tidak menjawab lewat Wi-Fi maupun Tailscale. Pastikan laptop menyala dan aristotle-server berjalan.</string>
+    <string name="offline_cause_tailscale">Tailscale mungkin mati di ponsel ini. Di luar Wi-Fi Anda, Aristotle hanya bisa menjangkau laptop lewat Tailscale.</string>
+    <string name="offline_cause_lost">Laptop di %1$s menjawab, lalu koneksinya terputus.</string>
+    <string name="offline_list_from">Daftar ini dari pukul %1$s.</string>
+    <string name="offline_trying">Mencoba lagi…</string>
+    <plurals name="offline_next_try">
+        <item quantity="other">Percobaan %1$d gagal · lagi dalam %2$d detik</item>
+    </plurals>
 
     <!-- Stored pairing unreadable for now -->
     <string name="creds_unavailable_title">Penyandingan tidak bisa dibuka</string>

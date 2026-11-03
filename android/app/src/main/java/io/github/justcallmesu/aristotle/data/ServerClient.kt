@@ -1,6 +1,7 @@
 package io.github.justcallmesu.aristotle.data
 
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -16,7 +17,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
 sealed interface PairResult {
-    data class Paired(val deviceId: String, val token: DeviceToken) : PairResult
+    /** [addresses]: every listener the PC reported, already checked ([PcAddresses]); may be empty. */
+    data class Paired(val deviceId: String, val token: DeviceToken, val addresses: List<ServerEndpoint>) : PairResult
 
     /** 401: wrong, expired, used or locked out; the server does not say which. */
     data object InvalidCode : PairResult
@@ -32,19 +34,15 @@ sealed interface PairResult {
     data class Failed(val problem: ConnectionProblem) : PairResult
 }
 
-sealed interface MeResult {
-    data class Ok(val deviceId: String, val name: String) : MeResult
-    data object Unauthorized : MeResult
-    data object Forbidden : MeResult
-    data class Rejected(val status: Int) : MeResult
-    data class Failed(val problem: ConnectionProblem) : MeResult
-}
+@Serializable
+private data class PairBody(
+    @SerialName("device_id") val deviceId: String,
+    val token: String,
+    val addresses: List<WireAddress> = emptyList(),
+)
 
 @Serializable
-private data class PairBody(@SerialName("device_id") val deviceId: String, val token: String)
-
-@Serializable
-private data class MeBody(@SerialName("device_id") val deviceId: String, val name: String = "")
+private data class AddressesBody(val addresses: List<WireAddress>)
 
 /** `POST /v1/pair` with the client pinned to [pin]; a seam so the pair screen can be tested without a server. */
 fun interface PairingApi {
@@ -53,7 +51,23 @@ fun interface PairingApi {
 
 class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
     override suspend fun pair(endpoint: ServerEndpoint, pin: ByteArray, code: String, deviceName: String): PairResult =
-        ServerClient(httpClients.pinnedTo(pin), endpoint.baseUrl).pair(code, deviceName)
+        ServerClient(httpClients.pinnedTo(pin, endpoint.network), endpoint.baseUrl).pair(code, deviceName)
+}
+
+/** The link's calls over HTTPS with the PC's pin; one client per pin and address kind ([HttpClients]). */
+class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer {
+    private val clients = ConcurrentHashMap<Pair<String, Network>, OkHttpClient>()
+
+    override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
+        RelaySocket(clientFor(pc, endpoint), endpoint.baseUrl, pc.token)
+
+    override suspend fun addresses(pc: PcCredentials, endpoint: ServerEndpoint): List<ServerEndpoint>? =
+        ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).addresses(pc.token)
+
+    override fun networkChanged() = httpClients.evictIdle()
+
+    private fun clientFor(pc: PcCredentials, endpoint: ServerEndpoint): OkHttpClient =
+        clients.getOrPut(pc.fingerprint to endpoint.network) { httpClients.pinnedTo(pc.pin, endpoint.network) }
 }
 
 /** aristotle-server's REST API (docs/protocol.md §11.2). Nothing here logs; tokens and codes stay in memory. */
@@ -69,25 +83,22 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
         return execute(request, PairResult::Failed) { response -> pairResult(response) }
     }
 
-    suspend fun me(token: DeviceToken): MeResult {
-        val request = Request.Builder().url(base.resolve("/v1/me")!!).header("Authorization", "Bearer ${token.value}").build()
-        return execute(request, MeResult::Failed) { response -> meResult(response) }
+    /** `GET /v1/addresses`: the PC's listeners now, checked; null on any failure (the stored list stays). */
+    suspend fun addresses(token: DeviceToken): List<ServerEndpoint>? {
+        val request = Request.Builder().url(base.resolve("/v1/addresses")!!).header("Authorization", "Bearer ${token.value}").build()
+        return execute(request, { null }) { response ->
+            if (response.code != 200) null else decode(response, AddressesBody.serializer())?.let { PcAddresses.endpointsOf(it.addresses) }
+        }
     }
 
     private fun pairResult(response: Response): PairResult = when (response.code) {
-        201 -> decode(response, PairBody.serializer())?.let { PairResult.Paired(it.deviceId, DeviceToken(it.token)) }
+        201 -> decode(response, PairBody.serializer())
+            ?.let { PairResult.Paired(it.deviceId, DeviceToken(it.token), PcAddresses.endpointsOf(it.addresses)) }
             ?: PairResult.Rejected(response.code)
         401 -> PairResult.InvalidCode
         403 -> PairResult.Forbidden
         500 -> PairResult.ServerError
         else -> PairResult.Rejected(response.code)
-    }
-
-    private fun meResult(response: Response): MeResult = when (response.code) {
-        200 -> decode(response, MeBody.serializer())?.let { MeResult.Ok(it.deviceId, it.name) } ?: MeResult.Rejected(200)
-        401 -> MeResult.Unauthorized
-        403 -> MeResult.Forbidden
-        else -> MeResult.Rejected(response.code)
     }
 
     private fun <T> decode(response: Response, serializer: kotlinx.serialization.KSerializer<T>): T? =

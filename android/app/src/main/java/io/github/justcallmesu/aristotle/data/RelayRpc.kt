@@ -8,7 +8,8 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-class RpcException(val error: RpcError?, message: String) : Exception(message)
+/** A failed call. [linkClosed]: the relay was gone or went away (the link state reports that, not the caller). */
+class RpcException(val error: RpcError?, message: String, val linkClosed: Boolean = false) : Exception(message)
 
 /** JSON-RPC calls over the relay: integer ids, responses matched by id (protocol §1.3). */
 class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis: Long = 15_000) {
@@ -20,7 +21,7 @@ class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis:
         val answer = CompletableDeferred<InboundFrame.Response>()
         pending[id] = answer
         try {
-            if (!send(RpcFrames.request(id, method, params))) throw RpcException(null, "$method: socket not open")
+            if (!send(RpcFrames.request(id, method, params))) throw RpcException(null, "$method: socket not open", linkClosed = true)
             val response = withTimeout(timeoutMillis) { answer.await() }
             response.error?.let { throw RpcException(it, "$method failed: ${it.code}") }
             return response.result ?: throw RpcException(null, "$method: empty result")
@@ -39,6 +40,6 @@ class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis:
     fun failAll(reason: String) {
         val waiting = pending.values.toList()
         pending.clear()
-        waiting.forEach { it.completeExceptionally(RpcException(null, reason)) }
+        waiting.forEach { it.completeExceptionally(RpcException(null, reason, linkClosed = true)) }
     }
 }

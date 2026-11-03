@@ -25,5 +25,7 @@ object Sizes {
     val runningSpinner: Dp = 14.dp
     val runningSpinnerStroke: Dp = 2.dp
     val fieldIcon: Dp = 24.dp
+    val lineIcon: Dp = 14.dp
+    val progressLine: Dp = 4.dp
     val divider: Dp = 1.dp
 }

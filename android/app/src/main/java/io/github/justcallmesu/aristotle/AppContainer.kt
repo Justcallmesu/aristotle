@@ -6,8 +6,12 @@ import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
 import io.github.justcallmesu.aristotle.data.CertificateProbe
 import io.github.justcallmesu.aristotle.data.CredentialCodec
 import io.github.justcallmesu.aristotle.data.CredentialStore
+import io.github.justcallmesu.aristotle.data.AndroidNetworkWatch
 import io.github.justcallmesu.aristotle.data.HttpClients
+import io.github.justcallmesu.aristotle.data.HttpLinkDialer
 import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
+import io.github.justcallmesu.aristotle.data.LinkManager
+import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,7 +22,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /** Why the app went back to the pair screen on its own. */
-enum class PairNotice { Revoked }
+enum class PairNotice {
+    /** The laptop refused the token (revoked). */
+    Revoked,
+
+    /** The stored pairing could never be used again (no pin from an old build, lost key) and was removed (D28). */
+    PairAgain,
+}
 
 /** The app's long-lived objects, built once per process. No DI framework. */
 class AppContainer(context: Context) {
@@ -32,6 +42,15 @@ class AppContainer(context: Context) {
     val httpClients = HttpClients()
     val certificateProbe = CertificateProbe()
 
+    /** The one link to the paired PC (T09), for every screen; it runs off the main thread. */
+    val link = LinkManager(
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        credentials = credentials.state,
+        dialer = HttpLinkDialer(httpClients),
+        network = AndroidNetworkWatch(context),
+        memory = credentials,
+    )
+
     private val notice = MutableStateFlow<PairNotice?>(null)
     val pairNotice: StateFlow<PairNotice?> = notice.asStateFlow()
 
@@ -41,11 +60,13 @@ class AppContainer(context: Context) {
 
     init {
         reloadCredentials()
+        link.start()
+        scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
     }
 
     /** Reads the stored pairing again (at start, and Retry after the Keystore was unavailable). */
     fun reloadCredentials() {
-        scope.launch { credentials.load() }
+        scope.launch { if (credentials.load()) notice.value = PairNotice.PairAgain }
     }
 
     /** Forgets the active PC and returns to pairing, optionally telling the user why. */

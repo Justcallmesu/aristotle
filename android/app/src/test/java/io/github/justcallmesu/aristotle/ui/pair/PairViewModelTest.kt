@@ -9,6 +9,7 @@ import io.github.justcallmesu.aristotle.data.CredentialStore
 import io.github.justcallmesu.aristotle.data.DeviceToken
 import io.github.justcallmesu.aristotle.data.Fingerprint
 import io.github.justcallmesu.aristotle.data.MemoryStore
+import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.PairResult
 import io.github.justcallmesu.aristotle.data.PairingApi
 import io.github.justcallmesu.aristotle.data.ProbeResult
@@ -30,7 +31,12 @@ class PairViewModelTest {
     private class Call(val endpoint: ServerEndpoint, val pin: ByteArray, val code: String, val name: String)
 
     private val calls = mutableListOf<Call>()
-    private var answer: PairResult = PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n"))
+    private val reported = listOf(
+        ServerEndpoint("192.168.1.61", 8760, Network.Lan),
+        ServerEndpoint("192.168.1.23", 8760, Network.Lan),
+        ServerEndpoint("100.74.61.96", 8760, Network.Tailscale),
+    )
+    private var answer: PairResult = PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n"), reported)
     private val pairing = PairingApi { endpoint, pin, code, name ->
         calls += Call(endpoint, pin.copyOf(), code, name)
         answer
@@ -66,7 +72,12 @@ class PairViewModelTest {
         assertEquals("POCO X5 Pro 5G", call.name)
         val saved = (credentials.state.value as CredentialState.Paired).credentials
         assertEquals(Fingerprint.format(probedPin), saved.fingerprint)
-        assertEquals(listOf("https://192.168.1.23:8760"), saved.baseUrls)
+        // T09: the typed address first (it just worked), then every other address the PC reported.
+        assertEquals(
+            listOf("https://192.168.1.23:8760", "https://192.168.1.61:8760", "https://100.74.61.96:8760"),
+            saved.addresses.map { it.baseUrl },
+        )
+        assertEquals("https://192.168.1.23:8760", saved.lastGood?.baseUrl)
     }
 
     @Test
@@ -94,7 +105,7 @@ class PairViewModelTest {
         vm.onFingerprintMatches()
         assertArrayEquals(probedPin, calls.single().pin)
         val saved = (credentials.state.value as CredentialState.Paired).credentials
-        assertEquals(listOf("https://100.101.102.103:8760"), saved.baseUrls)
+        assertEquals("https://100.101.102.103:8760", saved.addresses.first().baseUrl)
         assertEquals(Fingerprint.format(probedPin), saved.fingerprint)
     }
 

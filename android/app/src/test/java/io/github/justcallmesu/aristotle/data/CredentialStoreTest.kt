@@ -59,12 +59,15 @@ class TokenCipherTest {
 class CredentialStoreTest {
     private val key = softwareKey()
     private val codec = CredentialCodec(AesGcmTokenCipher { key })
+    private val lan = ServerEndpoint("192.168.1.23", 8760, Network.Lan)
+    private val tailnet = ServerEndpoint("100.101.102.103", 8760, Network.Tailscale)
     private val creds = PcCredentials(
         pcId = "dev_0123456789ab",
         deviceId = "dev_0123456789ab",
-        baseUrls = listOf("https://192.168.1.23:8760"),
+        addresses = listOf(lan, tailnet),
         fingerprint = "7E54 D87B 19C0 A4F2 5B3E 0D96 C1A8 72FE 3E09 B6D4 8A15 F0C3 62D9 4E7A BCA7 EAA7",
         token = DeviceToken("very-secret-token-value"),
+        lastGood = tailnet,
     )
 
     private fun store(storage: KeyValueStore, codec: CredentialCodec = this.codec) =
@@ -139,47 +142,87 @@ class CredentialStoreTest {
         assertEquals(emptyMap<String, String>(), storage.map)
     }
 
-    /** The entry an earlier build stored: [creds] with [baseUrl] and, when given, [fingerprint]. */
+    private fun entryOf(storage: MemoryStore) = Json.parseToJsonElement(storage.map.getValue(ENTRY)).jsonObject
+
+    /** The entry an earlier build stored: one `base_urls` entry with [baseUrl] and, when given, [fingerprint]. */
     private fun legacyStorage(baseUrl: String, fingerprint: String?): MemoryStore {
         val storage = savedStorage()
-        val entry = Json.parseToJsonElement(storage.map.getValue("pc.dev_0123456789ab")).jsonObject
+        val entry = entryOf(storage)
         val legacy = JsonObject(
-            entry.filterKeys { it != "fingerprint" } + ("base_urls" to JsonArray(listOf(JsonPrimitive(baseUrl)))) +
+            entry.filterKeys { it !in setOf("fingerprint", "addresses", "last_good") } +
+                ("base_urls" to JsonArray(listOf(JsonPrimitive(baseUrl)))) +
                 (fingerprint?.let { mapOf("fingerprint" to JsonPrimitive(it)) } ?: emptyMap()),
         )
-        storage.map["pc.dev_0123456789ab"] = legacy.toString()
+        storage.map[ENTRY] = legacy.toString()
         return storage
+    }
+
+    // T09 migration: a T07c entry's one URL becomes the only address (kind from its range); the pin and the
+    // sealed token stay byte for byte; the entry is rewritten in the new form.
+    @Test
+    fun aT07cEntryKeepsItsOneAddressUntilTheListArrives() {
+        val storage = legacyStorage("https://192.168.1.23:8760", creds.fingerprint)
+        val sealedBefore = entryOf(storage)["token_sealed"]
+        val expected = creds.copy(addresses = listOf(lan), lastGood = null)
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
+        val stored = entryOf(storage)
+        assertNull(stored["base_urls"])
+        assertEquals("""[{"url":"https://192.168.1.23:8760","kind":"lan"}]""", stored["addresses"].toString())
+        assertEquals(sealedBefore, stored["token_sealed"])
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
     }
 
     // Q49: an http:// base URL from an earlier build becomes https:// on the same host and port; the pin stays.
     @Test
     fun aStoredHttpUrlIsMigratedToHttpsAndKeepsThePin() {
         val storage = legacyStorage("http://100.101.102.103:8760", creds.fingerprint)
-        val sealedBefore = Json.parseToJsonElement(storage.map.getValue("pc.dev_0123456789ab")).jsonObject["token_sealed"]
-        val expected = creds.copy(baseUrls = listOf("https://100.101.102.103:8760"))
+        val expected = creds.copy(addresses = listOf(tailnet), lastGood = null)
         assertEquals(CredentialState.Paired(expected), loaded(storage))
-        val stored = Json.parseToJsonElement(storage.map.getValue("pc.dev_0123456789ab")).jsonObject
-        assertEquals(JsonArray(listOf(JsonPrimitive("https://100.101.102.103:8760"))), stored["base_urls"])
-        assertEquals(sealedBefore, stored["token_sealed"])
-        assertEquals(CredentialState.Paired(expected), loaded(storage))
+        assertEquals("""[{"url":"https://100.101.102.103:8760","kind":"tailscale"}]""", entryOf(storage)["addresses"].toString())
     }
 
-    // Q49: a pairing without a pin (Tailscale, earlier build) cannot be used over HTTPS: pair again.
+    // Q49 + D28: a pairing without a pin (Tailscale, earlier build) must pair again; it is removed without
+    // being rewritten first, and load() reports the removal so the pair screen can say so.
     @Test
     fun aStoredPairingWithoutAPinMustPairAgain() {
         val storage = legacyStorage("http://100.101.102.103:8760", fingerprint = null)
-        assertEquals(CredentialState.Unpaired, loaded(storage))
+        val writes = mutableListOf<String>()
+        val watched = object : KeyValueStore by storage {
+            override fun put(key: String, value: String) {
+                writes += key
+                storage.put(key, value)
+            }
+        }
+        val store = store(watched)
+        assertTrue(runBlocking { store.load() })
+        assertEquals(CredentialState.Unpaired, store.state.value)
         assertEquals(emptyMap<String, String>(), storage.map)
+        assertEquals(emptyList<String>(), writes)
+        assertFalse(runBlocking { store(MemoryStore()).load() })
     }
 
-    // Q49: one pin per PC, used for its tailnet address as for the LAN.
+    // T09: what the link learnt is stored without a Keystore call; the token stays sealed as it was.
     @Test
-    fun thePcPinAppliesToItsTailnetAddress() {
-        val target = PcTarget.of(creds.copy(baseUrls = listOf("https://100.101.102.103:8760")))!!
-        assertEquals(Network.Tailscale, target.endpoint.network)
-        assertEquals("https://100.101.102.103:8760", target.endpoint.baseUrl)
-        assertArrayEquals(Fingerprint.parse(creds.fingerprint), target.pin)
-        assertNull(PcTarget.of(creds.copy(fingerprint = "not a pin")))
+    fun rememberStoresTheAddressesAndTheLastGoodOne() = runBlocking {
+        val storage = savedStorage()
+        val sealedBefore = entryOf(storage)["token_sealed"]
+        val noKeystore = CredentialCodec(AesGcmTokenCipher({ error("encrypt") }, { key }))
+        val store = store(storage, noKeystore).also { it.load() }
+        val wifi = ServerEndpoint("192.168.1.61", 8760, Network.Lan)
+        store.remember(creds.pcId, listOf(wifi, tailnet), wifi)
+        val expected = creds.copy(addresses = listOf(wifi, tailnet), lastGood = wifi)
+        assertEquals(CredentialState.Paired(expected), store.state.value)
+        assertEquals(sealedBefore, entryOf(storage)["token_sealed"])
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
+        store.remember("dev_other", listOf(wifi), wifi) // not stored: ignored
+        assertEquals(CredentialState.Paired(expected), store.state.value)
+    }
+
+    @Test
+    fun anEntryWithoutAUsableAddressIsRemoved() {
+        val storage = legacyStorage("https://8.8.8.8:8760", creds.fingerprint)
+        assertEquals(CredentialState.Unpaired, loaded(storage))
+        assertEquals(emptyMap<String, String>(), storage.map)
     }
 
     @Test
@@ -192,6 +235,8 @@ class CredentialStoreTest {
 
 // The Keystore daemon case (UnrecoverableKeyException caused by android.security.KeyStoreException) needs
 // the real class, which the JVM test android.jar cannot construct; it is covered only by reading the code.
+private const val ENTRY = "pc.dev_0123456789ab"
+
 class KeystoreFailuresTest {
     @Test
     fun permanentFailures() {
@@ -206,5 +251,44 @@ class KeystoreFailuresTest {
         assertFalse(KeystoreFailures.isPermanent(KeyStoreException("busy")))
         assertFalse(KeystoreFailures.isPermanent(ProviderException("keystore2 down")))
         assertFalse(KeystoreFailures.isPermanent(IllegalStateException("not initialised")))
+    }
+}
+
+// D24: on Android 10-11 a key lookup that finds nothing may be a Keystore daemon hiccup, so the first miss
+// keeps the pairing (transient) and only a second miss in a row wipes it. Android 12+ trusts the first miss.
+class MissingKeyPolicyTest {
+    @Test
+    fun keystore1ExcusesOneMissUntilTheKeyIsFoundAgain() {
+        val policy = MissingKeyPolicy(sdkInt = 29)
+        assertFalse(KeystoreFailures.isPermanent(policy.onMissing()))
+        assertTrue(KeystoreFailures.isPermanent(policy.onMissing()))
+        policy.onFound()
+        assertFalse(KeystoreFailures.isPermanent(policy.onMissing()))
+        assertFalse(KeystoreFailures.isPermanent(MissingKeyPolicy(sdkInt = 30).onMissing()))
+    }
+
+    @Test
+    fun keystore2MissIsPermanentAtOnce() {
+        assertTrue(KeystoreFailures.isPermanent(MissingKeyPolicy(sdkInt = 31).onMissing()))
+        assertTrue(KeystoreFailures.isPermanent(MissingKeyPolicy(sdkInt = 34).onMissing()))
+    }
+
+    @Test
+    fun aFirstMissOnAndroid11KeepsThePairingForARetry() {
+        val key = softwareKey()
+        val policy = MissingKeyPolicy(sdkInt = 30)
+        val codec = CredentialCodec(AesGcmTokenCipher({ key }, { throw policy.onMissing() }))
+        val creds = PcCredentials(
+            "dev_1", "dev_1", listOf(ServerEndpoint("192.168.1.23", 8760, Network.Lan)),
+            "7E54 D87B 19C0 A4F2 5B3E 0D96 C1A8 72FE 3E09 B6D4 8A15 F0C3 62D9 4E7A BCA7 EAA7", DeviceToken("t"),
+        )
+        val storage = MemoryStore()
+        val store = CredentialStore(storage, codec, io = Dispatchers.Unconfined)
+        runBlocking { store.save(creds) }
+        assertFalse(runBlocking { store.load() })
+        assertEquals(CredentialState.Unavailable, store.state.value)
+        assertTrue(storage.map.isNotEmpty())
+        assertTrue(runBlocking { store.load() }) // the second miss in a row: the key is really gone
+        assertEquals(CredentialState.Unpaired, store.state.value)
     }
 }

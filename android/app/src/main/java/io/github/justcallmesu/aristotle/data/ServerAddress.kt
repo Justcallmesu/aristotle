@@ -2,8 +2,8 @@ package io.github.justcallmesu.aristotle.data
 
 import java.net.InetAddress
 
-/** Which aristotle-server listener an address belongs to (docs/protocol.md §11.1). */
-enum class Network { Lan, Tailscale }
+/** Which aristotle-server listener an address belongs to (docs/protocol.md §11.1); [wire] is its `kind` (§11.2). */
+enum class Network(val wire: String) { Lan("lan"), Tailscale("tailscale") }
 
 /**
  * A validated server address. [host] is an IP literal (IPv6 without brackets). Every network is HTTPS

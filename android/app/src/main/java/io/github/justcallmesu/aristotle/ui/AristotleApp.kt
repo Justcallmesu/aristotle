@@ -12,7 +12,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.justcallmesu.aristotle.AppContainer
-import io.github.justcallmesu.aristotle.PairNotice
 import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.HttpPairingApi
 import io.github.justcallmesu.aristotle.ui.pair.PairScreen
@@ -43,9 +42,7 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
             val pc = current.credentials
             LaunchedEffect(pc.pcId) { container.clearPairNotice() }
             RouteScope(routes, "sessions-${pc.pcId}") {
-                val sessionsViewModel = viewModel {
-                    SessionsViewModel(pc, container.httpClients, onRevoked = { container.forgetPc(PairNotice.Revoked) })
-                }
+                val sessionsViewModel = viewModel { SessionsViewModel(pc, container.link) }
                 SessionsScreen(sessionsViewModel, onPairAgain = { container.forgetPc(reason = null) })
             }
         }

@@ -29,12 +29,10 @@ type pairStartResult struct {
 	Addresses   []pairAddr `json:"addresses"` // default-route LAN first, Tailscale last
 }
 
-// pairAddr is one listener the phone can use.
+// pairAddr is one listener the phone can use, as the phone also gets it (POST /v1/pair, GET /v1/addresses).
 type pairAddr struct {
-	URL          string `json:"url"`
-	Kind         string `json:"kind"` // "lan" (HTTPS) or "tailscale" (HTTP)
-	Iface        string `json:"iface"`
-	DefaultRoute bool   `json:"default_route"`
+	httpapi.Address
+	DefaultRoute bool `json:"default_route"`
 }
 
 type revokeArgs struct {
@@ -65,13 +63,20 @@ func (s *server) pairStart(raw json.RawMessage) (any, error) {
 	s.log.Info("pairing code issued", "expires_at", iss.ExpiresAt.Format(time.RFC3339))
 	res := pairStartResult{Code: iss.Code, ExpiresAt: iss.ExpiresAt, Fingerprint: s.cert.Fingerprint}
 	def := s.listen.DefaultRouteIface()
-	for _, e := range s.listen.Active() {
-		res.Addresses = append(res.Addresses, pairAddr{
-			URL: e.URL(s.cfg.Port), Kind: string(e.Kind), Iface: e.Iface,
-			DefaultRoute: e.Kind == listen.LAN && e.Iface == def,
-		})
+	for _, a := range s.addresses() {
+		res.Addresses = append(res.Addresses, pairAddr{Address: a, DefaultRoute: a.Kind == string(listen.LAN) && a.Iface == def})
 	}
 	return res, nil
+}
+
+// addresses lists the bound listeners, all https://: default-route LAN first, other LAN next, Tailscale last.
+func (s *server) addresses() []httpapi.Address {
+	active := s.listen.Active()
+	out := make([]httpapi.Address, 0, len(active))
+	for _, e := range active {
+		out = append(out, httpapi.Address{URL: e.URL(s.cfg.Port), Kind: string(e.Kind), Iface: e.Iface})
+	}
+	return out
 }
 
 func (s *server) revoke(raw json.RawMessage) (any, error) {

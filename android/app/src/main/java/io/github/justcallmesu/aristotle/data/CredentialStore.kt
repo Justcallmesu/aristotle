@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -43,13 +44,20 @@ class CredentialStore(
     private val storage: KeyValueStore,
     private val codec: CredentialCodec,
     private val io: CoroutineDispatcher = Dispatchers.IO,
-) {
+) : LinkMemory {
     private val mutex = Mutex()
     private val current = MutableStateFlow<CredentialState>(CredentialState.Loading)
     val state: StateFlow<CredentialState> = current.asStateFlow()
 
-    /** Reads the active PC. Call at start and again to retry after [CredentialState.Unavailable]. */
-    suspend fun load() = locked { current.value = readActive() }
+    /**
+     * Reads the active PC. Call at start and again to retry after [CredentialState.Unavailable]. Returns true
+     * when a stored pairing could never be used again and was removed, so the pair screen can say why (D28).
+     */
+    suspend fun load(): Boolean = locked {
+        val (state, wiped) = readActive()
+        current.value = state
+        wiped
+    }
 
     /** Throws when the Keystore cannot seal the token; nothing is stored then. */
     suspend fun save(credentials: PcCredentials) = locked {
@@ -67,22 +75,42 @@ class CredentialStore(
 
     private suspend fun <T> locked(block: () -> T): T = withContext(io) { mutex.withLock { block() } }
 
-    private fun readActive(): CredentialState {
-        val pcId = storage.get(ACTIVE_KEY) ?: return CredentialState.Unpaired
-        val entry = storage.get(entryKey(pcId))?.let { upgraded(entryKey(pcId), it) }
-        val decoded = if (entry == null) DecodeResult.Unreadable else codec.decode(entry)
-        return when (decoded) {
-            is DecodeResult.Ok -> CredentialState.Paired(decoded.credentials)
-            DecodeResult.Unavailable -> CredentialState.Unavailable
-            DecodeResult.Unreadable -> {
-                removeActive()
-                CredentialState.Unpaired
-            }
+    /**
+     * Stores what the link learnt (T09): the PC's current addresses and the one that worked. No Keystore
+     * call; the sealed token is kept. Ignored when [pcId] is no longer stored.
+     */
+    override suspend fun remember(pcId: String, addresses: List<ServerEndpoint>, lastGood: ServerEndpoint) = locked {
+        val key = entryKey(pcId)
+        val updated = storage.get(key)?.let { codec.withLink(it, addresses, lastGood) } ?: return@locked
+        storage.put(key, updated)
+        current.update { state ->
+            val paired = (state as? CredentialState.Paired)?.credentials
+            if (paired?.pcId == pcId) CredentialState.Paired(paired.copy(addresses = addresses, lastGood = lastGood)) else state
         }
     }
 
-    /** Stores an entry from an earlier build in its current form (spec Q49 `https://` URLs) and returns it. */
-    private fun upgraded(key: String, entry: String): String = codec.upgrade(entry)?.also { storage.put(key, it) } ?: entry
+    /**
+     * The active PC and whether an entry was removed. An entry from an earlier build is upgraded in memory and
+     * written back only once it decodes, so a pairing that must be wiped is never rewritten first (D28).
+     */
+    private fun readActive(): Pair<CredentialState, Boolean> {
+        val pcId = storage.get(ACTIVE_KEY) ?: return CredentialState.Unpaired to false
+        val key = entryKey(pcId)
+        val stored = storage.get(key)
+        val upgraded = stored?.let(codec::upgrade)
+        val decoded = (upgraded ?: stored)?.let(codec::decode) ?: DecodeResult.Unreadable
+        return when (decoded) {
+            is DecodeResult.Ok -> {
+                upgraded?.let { storage.put(key, it) }
+                CredentialState.Paired(decoded.credentials) to false
+            }
+            DecodeResult.Unavailable -> CredentialState.Unavailable to false
+            DecodeResult.Unreadable -> {
+                removeActive()
+                CredentialState.Unpaired to (stored != null)
+            }
+        }
+    }
 
     private fun removeActive() {
         storage.get(ACTIVE_KEY)?.let { storage.remove(entryKey(it)) }

@@ -46,11 +46,11 @@ func (s *session) writePhone(msg []byte) error {
 
 // keepalive sends a ping every PingInterval, whatever the traffic, and closes the phone 1011 when,
 // within PongTimeout of the ping, the phone sent no byte (pong or frame) and no write to it that had
-// to wait for it got bytes out (sock_unix.go; drainWait where that cannot be seen). A slow phone downloading a large message keeps its socket
-// while those writes keep completing, even when its pong waits behind the data. Once the last bytes
-// are in the kernel nothing waits any more: the phone must then read what is buffered for it and
-// answer a ping within PongTimeout. While a phone frame waits for Hermes the phone is not read, so a
-// missing pong is not held against it then.
+// to wait for it got bytes out (sock_unix.go; drainWait where that cannot be seen). A slow phone
+// downloading a large message keeps its socket while those writes keep completing, even when its pong
+// waits behind the data. Once the last bytes are in the kernel nothing waits any more: the phone must
+// then read what is buffered for it and answer a ping within PongTimeout. While a phone frame waits
+// for Hermes the phone is not read, so a missing pong is not held against it then.
 func (s *session) keepalive() {
 	t := time.NewTicker(s.hub.opts.PingInterval)
 	defer t.Stop()
@@ -141,16 +141,25 @@ func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 // transportOf returns the connection under every layer that exposes one (tls.Conn.NetConn on the LAN and
 // Tailscale listeners, and any listener wrapper above WrapListener): the accepted TCP connection, which is
-// the WrapListener wrapper when there is one.
+// the WrapListener wrapper when there is one. It stops after maxConnLayers, so a layer that returns itself
+// (or a cycle) cannot hang the hijack.
 func transportOf(c net.Conn) net.Conn {
-	for {
+	for range maxConnLayers {
 		layer, ok := c.(interface{ NetConn() net.Conn })
 		if !ok {
 			return c
 		}
-		c = layer.NetConn()
+		next := layer.NetConn()
+		if next == nil {
+			return c
+		}
+		c = next
 	}
+	return c
 }
+
+// maxConnLayers bounds transportOf; production has two (tls.Conn over the WrapListener wrapper).
+const maxConnLayers = 8
 
 // drained records that a write which had to wait for the phone got bytes out.
 func (s *session) drained() { s.lastDrain.Store(s.now()) }

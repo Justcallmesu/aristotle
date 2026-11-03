@@ -146,13 +146,15 @@ class PairViewModel(
 
     private suspend fun onPairResult(step: PairStep.Confirmed, result: PairResult) {
         when (result) {
+            // Every address the PC reported, the one the user typed first; it just worked (T09).
             is PairResult.Paired -> store(
                 PcCredentials(
                     pcId = result.deviceId,
                     deviceId = result.deviceId,
-                    baseUrls = listOf(step.endpoint.baseUrl),
+                    addresses = (listOf(step.endpoint) + result.addresses).distinct(),
                     fingerprint = Fingerprint.format(step.fingerprint),
                     token = result.token,
+                    lastGood = step.endpoint,
                 ),
             )
             PairResult.InvalidCode -> state.update { it.copy(busy = false, codeError = CodeFieldError.Invalid) }

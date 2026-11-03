@@ -17,7 +17,7 @@ class ServerClientTest {
     private val held = lanCertificate()
     private val server: MockWebServer = startServer(held)
     private val endpoint = localEndpoint(server)
-    private val client = ServerClient(testClients().pinnedTo(pinOf(held)), endpoint.baseUrl)
+    private val client = ServerClient(testClients().pinnedTo(pinOf(held), Network.Lan), endpoint.baseUrl)
 
     @After
     fun stop() = server.close()
@@ -28,7 +28,7 @@ class ServerClientTest {
     fun pairSendsTheNormalisedCodeInTheBodyAndReturnsTheToken() = runBlocking {
         respond(201, """{"device_id":"dev_0123456789ab","token":"t0k3n-t0k3n"}""")
         val result = client.pair("k7q2-m9xd", " Poco ")
-        assertEquals(PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n-t0k3n")), result)
+        assertEquals(PairResult.Paired("dev_0123456789ab", DeviceToken("t0k3n-t0k3n"), emptyList()), result)
         val request = server.takeRequest()
         assertEquals("POST", request.method)
         assertEquals("/v1/pair", request.url.encodedPath)
@@ -61,29 +61,50 @@ class ServerClientTest {
         assertEquals(PairResult.Rejected(201), client.pair("K7Q2M9XD", ""))
     }
 
+    // T09: the pair response lists every PC address; only HTTPS private-range ones of the named kind are kept.
     @Test
-    fun meSendsTheBearerToken() = runBlocking {
-        respond(200, """{"device_id":"dev_1","name":"poco"}""")
-        assertEquals(MeResult.Ok("dev_1", "poco"), client.me(DeviceToken("secret-token")))
+    fun pairReturnsThePcAddresses() = runBlocking {
+        respond(
+            201,
+            """{"device_id":"dev_1","token":"x","addresses":[
+                {"url":"https://192.168.1.61:8760","kind":"lan","iface":"wlan0"},
+                {"url":"https://[fd7a:115c:a1e0::d628:3d61]:8760","kind":"tailscale","iface":"tailscale0"},
+                {"url":"https://100.74.61.96:8760","kind":"tailscale","iface":"tailscale0"},
+                {"url":"http://10.0.0.2:8760","kind":"lan","iface":"eth0"},
+                {"url":"https://8.8.8.8:8760","kind":"lan","iface":"eth0"},
+                {"url":"https://100.74.61.97:8760","kind":"lan","iface":"eth0"}]}""",
+        )
+        val paired = client.pair("K7Q2M9XD", "") as PairResult.Paired
+        val expected = listOf("https://192.168.1.61:8760", "https://[fd7a:115c:a1e0::d628:3d61]:8760", "https://100.74.61.96:8760")
+        assertEquals(expected.map { (ServerAddress.parse(it) as AddressCheck.Ok).endpoint }, paired.addresses)
+        assertEquals(listOf(Network.Lan, Network.Tailscale, Network.Tailscale), paired.addresses.map { it.network })
+    }
+
+    @Test
+    fun addressesSendsTheBearerTokenAndReadsTheList() = runBlocking {
+        respond(200, """{"addresses":[{"url":"https://100.74.61.96:8760","kind":"tailscale","iface":"tailscale0"}]}""")
+        val list = client.addresses(DeviceToken("secret-token"))
+        assertEquals(listOf(ServerEndpoint("100.74.61.96", 8760, Network.Tailscale)), list)
         val request = server.takeRequest()
-        assertEquals("/v1/me", request.url.encodedPath)
+        assertEquals("GET", request.method)
+        assertEquals("/v1/addresses", request.url.encodedPath)
         assertEquals("Bearer secret-token", request.headers["Authorization"])
     }
 
     @Test
-    fun meUnauthorizedAndForbidden() = runBlocking {
+    fun addressesIsNullWhenRefusedOrUnreadable() = runBlocking {
         respond(401, """{"error":"unauthorized"}""")
-        assertEquals(MeResult.Unauthorized, client.me(DeviceToken("revoked")))
-        respond(403, "forbidden")
-        assertEquals(MeResult.Forbidden, client.me(DeviceToken("t")))
+        assertNull(client.addresses(DeviceToken("revoked")))
+        respond(200, "not json")
+        assertNull(client.addresses(DeviceToken("t")))
     }
 
     @Test
     fun unreachableServer() = runBlocking {
         val port = ServerSocket(0).use { it.localPort }
         val gone = ServerEndpoint("127.0.0.1", port, Network.Lan)
-        val offline = ServerClient(testClients().pinnedTo(pinOf(held)), gone.baseUrl)
+        val offline = ServerClient(testClients().pinnedTo(pinOf(held), Network.Lan), gone.baseUrl)
         assertEquals(PairResult.Failed(ConnectionProblem.Unreachable), offline.pair("K7Q2M9XD", ""))
-        assertEquals(MeResult.Failed(ConnectionProblem.Unreachable), offline.me(DeviceToken("t")))
+        assertNull(offline.addresses(DeviceToken("t")))
     }
 }

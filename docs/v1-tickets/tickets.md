@@ -29,8 +29,9 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | DONE |
 | T07c | HTTPS + pin on the Tailscale listener too; remove all cleartext paths in server and app (Q49, D23) | T07b | server, android, docs | DONE |
 | T08 | Pairing by QR (server prints QR; app scans) | T07c | server, android | TODO |
-| T09 | App connection core: one process-wide socket, reconnect, Wi-Fi vs Tailscale endpoint, "PC offline since" | T07c | android | TODO |
-| T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09 | android | TODO |
+| T09 | App connection core: all PC addresses stored + refreshed, endpoint choice + switch on network change, one process-wide socket, reconnect with backoff, "PC offline since"; D24, D26, D27, D28 | T07c | android, server | DONE |
+| T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | BUILDING |
+| T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | TODO |
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | TODO ⟳ |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | TODO ⟳ |
@@ -74,11 +75,11 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D21 | App: Tailscale cleartext only over the VPN `Network` (refuse when Tailscale is off) + `Proxy.NO_PROXY` on every client (T07 review MAJOR, unproven) | T07b | DONE |
 | D22 | App: transient Keystore decrypt error must not wipe pairing; Keystore off the main thread; `parseIpv6` never resolves DNS; move relay logic from SessionsViewModel to `data/` with tests; 3 missing security tests; 4 NITs (T07 review MINORs) | T07b | DONE |
 | D23 | App: a non-Tailscale full-tunnel VPN (0.0.0.0/0) passes the tailnet route check; cleartext would go through it. Fix depends on Q49 (TLS on Tailscale) (T07b review MAJOR, unproven) | Q49 | DONE (T07c) |
-| D24 | Android 10-11: transient keystore daemon failure looks like a missing key and wipes pairing (T07b review) | T09 | OPEN |
+| D24 | Android 10-11: transient keystore daemon failure looks like a missing key and wipes pairing (T07b review) | T09 | DONE (T09) |
 | D25 | With HERMES_HOME=profile, the profile name "default" resolves to that profile, not the root; document or fix before profile switching (T07b review) | T14 | OPEN |
-| D26 | Shared OkHttp pool does not compare socket factories (safe today via forEndpoint); discover.go symlinks; duplicate served entry; "Tailscale is off" wording when VPN has no route (T07b NITs) | T09 | OPEN |
-| D27 | trackedConn inherits ReadFrom/writev from embedded *net.TCPConn, bypassing drain tracking; error text; protocol.md:497 wording; long line (T06d review) | T09 | OPEN |
-| D28 | Unpinned old pairing is wiped silently (show a one-line 'please pair again' notice); unwrap loop depth limit; specific 'Tailscale may be off' hint on a 100.x unreachable; migration writes before wipe; long comment (T07c review) | T09 | OPEN |
+| D26 | Shared OkHttp pool does not compare socket factories (safe today via forEndpoint); discover.go symlinks; duplicate served entry; "Tailscale is off" wording when VPN has no route (T07b NITs) | T09 | DONE (T09) |
+| D27 | trackedConn inherits ReadFrom/writev from embedded *net.TCPConn, bypassing drain tracking; error text; protocol.md:497 wording; long line (T06d review) | T09 | DONE (T09) |
+| D28 | Unpinned old pairing is wiped silently (show a one-line 'please pair again' notice); unwrap loop depth limit; specific 'Tailscale may be off' hint on a 100.x unreachable; migration writes before wipe; long comment (T07c review) | T09 | DONE (T09) |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
 ## Tickets
@@ -216,3 +217,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 User chose Q49 (a): TLS everywhere. T07c dispatched (deep).
 - 2026-11-03 T07c built. PM gates GREEN (runs/pm-gate-10: 225 Go tests, android 87 tests); network security config cleartext=false, all remote listeners ServeTLS. Worker's own mutations (Tailscale back to HTTP; TLS-only off; migration off) each fail tests. Review dispatched (deep).
 - 2026-11-03 T07c review PASS-WITH-FINDINGS, committed. D23 done; D28 -> T09. Demo server restarted on the T07c build for device tests.
+- 2026-11-03 User reordered: T09 before T08. T09 dispatched (deep).
+- 2026-11-03 T09 built. Device: Wi-Fi off + Tailscale -> session list 'via Tailscale' (user paired over Tailscale at 14:39, /v1/pair 201 on the tailscale TLS listener). PM gates GREEN (runs/pm-gate-11: 234 Go, 111 android). Mutation: endpoint order forced LAN-first -> 4 tests fail. Review dispatched (deep).
+- 2026-11-03 T09 review PASS-WITH-FINDINGS (MAJOR unproven: /v1/addresses replaces the stored list, forgetting the home LAN address). Committed. T09b dispatched (deep).
