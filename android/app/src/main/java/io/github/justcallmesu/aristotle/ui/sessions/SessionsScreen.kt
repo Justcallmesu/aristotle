@@ -1,6 +1,12 @@
 package io.github.justcallmesu.aristotle.ui.sessions
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,9 +50,16 @@ import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 
 @Composable
-fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit, onSettings: () -> Unit) {
+fun SessionsScreen(viewModel: SessionsViewModel, onPairAgain: () -> Unit, onSettings: () -> Unit, onOpen: (SessionRow) -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    SessionsContentView(state = state, timeText = viewModel::timeText, onRetry = viewModel::retry, onPairAgain = onPairAgain, onSettings = onSettings)
+    SessionsContentView(
+        state = state,
+        timeText = viewModel::timeText,
+        onRetry = viewModel::retry,
+        onPairAgain = onPairAgain,
+        onSettings = onSettings,
+        onOpen = onOpen,
+    )
 }
 
 @Composable
@@ -56,18 +69,21 @@ fun SessionsContentView(
     onRetry: () -> Unit,
     onPairAgain: () -> Unit,
     onSettings: () -> Unit,
+    onOpen: (SessionRow) -> Unit = {},
 ) {
     val address = state.address?.hostForUrl.orEmpty()
+    // Edge-to-edge (D8): the surface runs under both system bars; only the list scrolls under the navigation bar.
+    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
             TopBar(state, address, onSettings)
             val page = pageFor(state)
             if (page != null) {
-                ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain)
+                Box(modifier = Modifier.windowInsetsPadding(bottom)) { ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) }
             } else {
                 val offline = state.link as? LinkState.Offline
                 offline?.let { OfflineBanner(it, address, state.listedAt, timeText, onRetry) }
-                ListBody(state, address)
+                ListBody(state, address, bottom.asPaddingValues(), onOpen)
             }
         }
     }
@@ -85,12 +101,12 @@ private fun pageFor(state: SessionsUiState): Page? = when (val link = state.link
 }
 
 @Composable
-private fun ListBody(state: SessionsUiState, address: String) {
+private fun ListBody(state: SessionsUiState, address: String, insets: PaddingValues, onOpen: (SessionRow) -> Unit) {
     val items = state.items
     when {
         items == null -> if (state.link !is LinkState.Offline) ConnectingBody(address)
         items.isEmpty() -> EmptyBody()
-        else -> SessionList(items, state.staleAt)
+        else -> SessionList(items, state.staleAt, insets, onOpen)
     }
 }
 
@@ -185,12 +201,12 @@ private fun EmptyBody() {
 
 /** [staleAt]: the list is from that time and the link is not up, so nothing reads as live (design.md §5). */
 @Composable
-private fun SessionList(items: List<SessionListItem>, staleAt: String?) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+private fun SessionList(items: List<SessionListItem>, staleAt: String?, insets: PaddingValues, onOpen: (SessionRow) -> Unit) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = insets) {
         items(items, key = ::itemKey) { item ->
             when (item) {
                 is SessionListItem.Header -> SectionHeader(item.section)
-                is SessionListItem.Row -> SessionRowItem(item.row, staleAt)
+                is SessionListItem.Row -> SessionRowItem(item.row, staleAt, onOpen)
             }
         }
     }
@@ -221,9 +237,9 @@ private fun SectionHeader(section: DaySection) {
 
 /** design.md §5 session row: 72 dp, title + one status line, trailing time. */
 @Composable
-private fun SessionRowItem(row: SessionRow, staleAt: String?) {
+private fun SessionRowItem(row: SessionRow, staleAt: String?, onOpen: (SessionRow) -> Unit) {
     ListItem(
-        modifier = Modifier.heightIn(min = Sizes.sessionRowHeight),
+        modifier = Modifier.clickable { onOpen(row) }.heightIn(min = Sizes.sessionRowHeight),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
         headlineContent = {
             Text(

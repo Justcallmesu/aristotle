@@ -13,6 +13,8 @@ import io.github.justcallmesu.aristotle.ui.theme.AristotleTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Transparent bars whose icons follow the system light/dark mode, as AristotleTheme does (D8); the
+        // screens pad their content by the window insets. The launch theme paints the same colours before this.
         enableEdgeToEdge()
         val container = (application as AristotleApplication).container
         // The name the user gave the phone ("POCO X5 Pro 5G"), not the model code ("22101320G").

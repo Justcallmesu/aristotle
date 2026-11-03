@@ -29,11 +29,12 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T07 | First end-to-end: manual pairing in the app, pinned connection, read-only session list; network security config for Tailscale cleartext; `dataExtractionRules` so the token never leaves the device (T02 review) | T02b, T06b, TD1 approved | android | DONE |
 | T07c | HTTPS + pin on the Tailscale listener too; remove all cleartext paths in server and app (Q49, D23) | T07b | server, android, docs | DONE |
 | T10b | SessionWatcher: re-resume on session.replay_gap (MAJOR), no repeated alerts, approval wording, §2 note | T10 | android, docs §2 | DONE (re-check in T11 review) |
+| T11b | T11 fix: frames lost at events.since/resume seam (MAJOR), D33 close old socket on switch, chat minors (mid-turn final text, refused-resume banner, offline cursor, http(s)-only links) | T11 | android | DONE (re-check in T12 review) |
 | T08 | Pairing by QR (server prints QR; app scans) | T07c | server, android | TODO |
 | T09 | App connection core: all PC addresses stored + refreshed, endpoint choice + switch on network change, one process-wide socket, reconnect with backoff, "PC offline since"; D24, D26, D27, D28 | T07c | android, server | DONE |
 | T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | DONE |
 | T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | DONE |
-| T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | BUILDING |
+| T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | DONE |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | TODO ⟳ |
 | T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | TODO ⟳ |
 | T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
@@ -58,7 +59,7 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | DC2 | Light-mode launch has no dark flash; launcher icon placeholder | T02b |
 | DC4 | App closed / swiped away for hours: persistent notification stays, 'Turn finished' and 'Hermes needs you' still arrive (T10) | T10 |
 | DC5 | Notification permission dialog on first background; Stop action; settings switch (T10) | T10 |
-| DC6 | Xiaomi guide: battery / Autostart intents open the right HyperOS screens (T10) | T10 |
+| DC6 | Xiaomi guide: battery / Autostart intents open the right HyperOS screens (T10) | T10 | PASSED 2026-11-03 (user: "correct all") |
 | DC3 | Wi-Fi to another Wi-Fi with Tailscale on reconnects at once | T09b |
 
 ## Deferred review findings
@@ -96,6 +97,10 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D30 | slog bridge for net/http errors covers only the loopback server; LAN/Tailscale servers in internal/listen still log via stdlib (T21) | T14 | OPEN |
 | D31 | `install --force` does not restart a running service; symlinked unit replaced by a file; `status` exit 0 when inactive (T21 review) | T22 | OPEN |
 | D32 | srq- server requests (sudo, secret, batch clarify) reach the phone for watched sessions and are neither notified nor declined; background traffic of every running session (~170 frames/min worst) — measure in DC5 (T10 review) | T12 | OPEN |
+| D33 | Close old socket on endpoint switch: done in T11b (phone side). | T11b | DONE |
+| D34 | Server: a new relay socket from the same device on a different listener should retire that device's older sockets (phone cannot close a socket whose network is gone; protects the 4-per-device cap) (T11b) | T14 | OPEN |
+| D35 | Running turn's user prompt missing in a chat opened before Hermes saves it (turn_context.py:1076-1090); T11 review NITs (T11 review) | T13 | OPEN |
+| D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
 ## Tickets
@@ -247,3 +252,9 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 T21 review PASS-WITH-FINDINGS -> committed 1d4f868. T10 built (android gate GREEN, runs/pm-gate-14, 157 tests); review dispatched (deep). T11 must set AppContainer.openSession and reuse SessionWatcher subscriptions (T10 report).
 - 2026-11-03 T10 review CHANGES-REQUIRED (MAJOR: replay_gap silently drops a watched session). T10b dispatched (std). Order decision (PM): T11 chat before T08 QR.
 - 2026-11-03 T10b PM gate GREEN (runs/pm-gate-15, 163 tests); mutation replay_gap->no-op fails 1 test, restored. Committed T10+T10b without a separate re-review (small, mutation-proven fix); T11's deep review also re-checks the T10b diff. T11 dispatched (deep).
+- 2026-11-03 21:58 T11 attempt 1 was interrupted by the runtime after 2 min of reading (no files changed, tree clean at 1c9bec4). Re-dispatched (deep); not counted as a retry.
+- 2026-11-03 Device test with the user (phone attached again): DC1 PASSED. T10b build from a git worktree of HEAD (scratch/wt-head) so T11's in-progress tree was not used.
+- 2026-11-03 User confirmed DC6 (Xiaomi guide screens) "correct all". D33 found in the DC1 server log.
+- 2026-11-03 22:37 T11 built (210 Android tests). PM gate GREEN runs/pm-gate-16. Debug APK of the T11 tree installed on the Poco (launch 1964 ms, no crash in logcat); screen was locked so no UI check yet. Second session.resume on one socket: PM read gateway/session_authority.py:355-375 (same actor reuses its subscription key) — reviewer confirms fanout attach idempotence. Deep review dispatched.
+- 2026-11-03 T11 review CHANGES-REQUIRED (MAJOR-1: reducer jumps lastSeq to snapshot after events.since -> frames N+1..M dropped). Second resume on one socket confirmed safe (transport.py:168-180). No remote image loading. T11b dispatched (deep) with D33 + same-area minors.
+- 2026-11-03 T11b PM gate GREEN (runs/pm-gate-17, 223 tests); mutation lastSeq->snapshot fails 3 tests, restored. Committed T11+T11b; T12 review re-checks the T11b diff.

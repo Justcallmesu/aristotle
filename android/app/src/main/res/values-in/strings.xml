@@ -140,4 +140,38 @@
     <string name="guide_open_settings">Buka pengaturan</string>
     <string name="guide_marked">Sudah saya atur</string>
     <string name="guide_step_number">Langkah %1$d</string>
+
+    <!-- Chat (T11) -->
+    <string name="chat_loading">Memuat percakapan…</string>
+    <string name="chat_load_failed_title">Percakapan ini tidak bisa dibuka</string>
+    <string name="chat_load_failed_body">Hermes menjawab, tetapi percakapan gagal dimuat. Coba lagi; jika terus gagal, periksa sesi ini di Hermes pada laptop.</string>
+    <string name="chat_reattach_failed_title">Tidak bisa menyambung ulang ke sesi ini</string>
+    <string name="chat_reattach_failed_body">Percakapan di bawah berhenti diperbarui setelah koneksi tersambung ulang. Coba lagi untuk mengikutinya lagi.</string>
+    <string name="chat_reattach_retry">Coba lagi</string>
+    <string name="chat_empty">Belum ada pesan.</string>
+    <string name="chat_running_step">Berjalan · langkah %1$d</string>
+    <string name="chat_thinking">Berpikir…</string>
+    <string name="chat_thought_for">Berpikir %1$d dtk</string>
+    <string name="chat_reasoning">Penalaran</string>
+    <string name="chat_tool_failed">Gagal</string>
+    <string name="chat_tool_running">Berjalan</string>
+    <string name="chat_tool_no_output">Tidak ada keluaran</string>
+    <string name="chat_tool_seconds">%1$s dtk</string>
+    <plurals name="chat_tool_show_all">
+        <item quantity="other">Tampilkan %d baris</item>
+    </plurals>
+    <string name="chat_expand">Tampilkan detail</string>
+    <string name="chat_collapse">Sembunyikan detail</string>
+    <string name="chat_waiting">Hermes menunggu Anda</string>
+    <string name="chat_jump_latest">Ke pesan terbaru</string>
+    <string name="chat_turn_stopped">Giliran dihentikan</string>
+    <string name="chat_turn_failed">Giliran ini gagal</string>
+    <string name="chat_session_error">Hermes melaporkan galat</string>
+    <string name="chat_streaming">Sedang menulis…</string>
+    <string name="chat_link_connecting">Menghubungkan…</string>
+    <string name="chat_link_reconnecting">Menyambung ulang…</string>
+    <string name="chat_link_offline">Offline</string>
+    <string name="chat_link_hermes_down">Hermes tidak berjalan</string>
+    <string name="chat_link_hermes_updated">Hermes diperbarui</string>
+    <string name="chat_link_stopped">Koneksi dihentikan</string>
 </resources>

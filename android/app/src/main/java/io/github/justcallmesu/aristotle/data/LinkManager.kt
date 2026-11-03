@@ -210,15 +210,27 @@ class LinkManager(
                 ended.complete(SocketEnd.Closed(ABNORMAL_CLOSURE, ""))
             }
             val start: Start = withTimeoutOrNull(timings.readyTimeoutMillis) {
-                select<Start> { ready.onAwait { Start.Ready }; ended.onAwait { Start.Ended(it) } }
+                var started: Start? = null
+                while (started == null) {
+                    started = select<Start?> {
+                        ready.onAwait { Start.Ready }
+                        ended.onAwait { Start.Ended(it) }
+                        // The network changed while connecting: this address may now be the wrong one.
+                        wakes.onReceive { wake -> if (wake == Wake.Network) Start.Switched else null }
+                    }
+                }
+                started
             } ?: Start.TimedOut(opened.get())
             val result = when (start) {
                 Start.Ready -> Attempt.Ended(online(pc, endpoint, rpc, ended))
+                Start.Switched -> Attempt.Ended(RoundEnd.Switch)
                 is Start.Ended -> notReady(endpoint, start.end)
                 is Start.TimedOut -> timedOut(endpoint, start.opened)
             }
-            if ((result as? Attempt.Ended)?.end == RoundEnd.Switch) socket.cancel() // its network is gone: no handshake
-            pump.cancel() // closes the socket (1000) if it is open, drops it if it is still connecting
+            // Before the next socket opens, whatever the reason this one ends (D33): an open socket is closed
+            // with 1000, so the PC drops it at once when that still reaches it; one still connecting is dropped.
+            // Never left for the server to reap after its ping timeout, nor counted against the device's sockets.
+            pump.cancel()
             result
         }
 
@@ -325,6 +337,7 @@ class LinkManager(
 
     private sealed interface Start {
         data object Ready : Start
+        data object Switched : Start
         data class Ended(val end: SocketEnd) : Start
         data class TimedOut(val opened: Boolean) : Start
     }

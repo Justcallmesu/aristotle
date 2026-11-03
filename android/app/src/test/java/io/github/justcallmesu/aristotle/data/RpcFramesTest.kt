@@ -33,6 +33,15 @@ class RpcFramesTest {
         val changed = RpcFrames.parse("""{"jsonrpc":"2.0","method":"event","params":{"type":"sessions.changed","session_id":"","payload":{}}}""")
         assertEquals(InboundFrame.Event("sessions.changed", "", JsonObject(emptyMap())), changed)
 
+        // A session event carries its stream position and admission (protocol §2).
+        val delta = RpcFrames.parse(
+            """{"jsonrpc":"2.0","method":"event","params":{"authority_epoch":1,"execution_generation":6,"admission_id":"7ba9",""" +
+                """"type":"message.delta","session_id":"local-1","payload":{"text":"one"},"replay_epoch":"509e","seq":138}}""",
+        )
+        assertEquals(
+            InboundFrame.Event("message.delta", "local-1", JsonObject(mapOf("text" to JsonPrimitive("one"))), seq = 138, replayEpoch = "509e", admissionId = "7ba9"),
+            delta,
+        )
         val ok = RpcFrames.parse("""{"jsonrpc":"2.0","id":3,"result":{"sessions":[]}}""") as InboundFrame.Response
         assertEquals(3L, ok.id)
         assertNull(ok.error)

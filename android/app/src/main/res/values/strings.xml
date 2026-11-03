@@ -144,4 +144,39 @@
     <string name="guide_open_settings">Open settings</string>
     <string name="guide_marked">I\'ve done this</string>
     <string name="guide_step_number">Step %1$d</string>
+
+    <!-- Chat (T11) -->
+    <string name="chat_loading">Loading the conversation…</string>
+    <string name="chat_load_failed_title">Can\'t open this conversation</string>
+    <string name="chat_load_failed_body">Hermes answered, but the conversation did not load. Retry; if it keeps failing, check the session in Hermes on the laptop.</string>
+    <string name="chat_reattach_failed_title">Couldn\'t reattach to this session</string>
+    <string name="chat_reattach_failed_body">The conversation below stopped updating after the link reconnected. Retry to follow it again.</string>
+    <string name="chat_reattach_retry">Retry</string>
+    <string name="chat_empty">No messages yet.</string>
+    <string name="chat_running_step">Running · step %1$d</string>
+    <string name="chat_thinking">Thinking…</string>
+    <string name="chat_thought_for">Thought for %1$d s</string>
+    <string name="chat_reasoning">Reasoning</string>
+    <string name="chat_tool_failed">Failed</string>
+    <string name="chat_tool_running">Running</string>
+    <string name="chat_tool_no_output">No output</string>
+    <string name="chat_tool_seconds">%1$s s</string>
+    <plurals name="chat_tool_show_all">
+        <item quantity="one">Show all %d line</item>
+        <item quantity="other">Show all %d lines</item>
+    </plurals>
+    <string name="chat_expand">Show details</string>
+    <string name="chat_collapse">Hide details</string>
+    <string name="chat_waiting">Hermes is waiting for you</string>
+    <string name="chat_jump_latest">Jump to latest</string>
+    <string name="chat_turn_stopped">Turn stopped</string>
+    <string name="chat_turn_failed">The turn failed</string>
+    <string name="chat_session_error">Hermes reported an error</string>
+    <string name="chat_streaming">Writing…</string>
+    <string name="chat_link_connecting">Connecting…</string>
+    <string name="chat_link_reconnecting">Reconnecting…</string>
+    <string name="chat_link_offline">Offline</string>
+    <string name="chat_link_hermes_down">Hermes not running</string>
+    <string name="chat_link_hermes_updated">Hermes updated</string>
+    <string name="chat_link_stopped">Link stopped</string>
 </resources>

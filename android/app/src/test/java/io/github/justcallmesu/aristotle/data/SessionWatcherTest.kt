@@ -53,9 +53,13 @@ class SessionWatcherTest {
     private val emptySnapshot = json("""{"session_id":"x","running":true,"prompts":[],"info":{}}""")
 
     /** Collects alerts while [script] drives the link. */
-    private fun run(link: FakeLink, script: suspend (StateFlow<List<SessionAlert>>) -> Unit): List<SessionAlert> = runBlocking {
+    private fun run(
+        link: FakeLink,
+        resumed: ResumedSessions = ResumedSessions(),
+        script: suspend (StateFlow<List<SessionAlert>>) -> Unit,
+    ): List<SessionAlert> = runBlocking {
         val seen = MutableStateFlow<List<SessionAlert>>(emptyList())
-        val job = launch { SessionWatcher(link, fast).alerts().collect { seen.value = seen.value + it } }
+        val job = launch { SessionWatcher(link, fast, resumed).alerts().collect { seen.value = seen.value + it } }
         withTimeout(10_000) { script(seen) }
         job.cancel()
         seen.value
@@ -222,5 +226,48 @@ class SessionWatcherTest {
         }
         assertTrue(alerts.isEmpty())
         assertTrue(link.calls.isEmpty())
+    }
+
+    @Test
+    fun aSessionTheChatAlreadyResumedOnThisSocketIsNotResumedAgain() {
+        val resumed = ResumedSessions()
+        assertTrue(resumed.claim(1, "a")) // the chat screen, first on this socket
+        val link = FakeLink { call -> if (call.method == "session.list") list("a" to true, "b" to true) else emptySnapshot }
+        run(link, resumed) {
+            link.state.value = LinkState.Online(endpoint, 1)
+            waitUntil { link.resumed() == listOf("b") }
+            delay(100)
+        }
+        assertEquals(listOf("b"), link.resumed())
+        assertEquals(setOf("a", "b"), resumed.snapshot(1))
+    }
+
+    @Test
+    fun aReplayGapOfTheSessionOpenInTheChatIsLeftToTheChat() {
+        val resumed = ResumedSessions()
+        val link = FakeLink { call -> if (call.method == "session.list") list("a" to true) else emptySnapshot }
+        run(link, resumed) {
+            link.state.value = LinkState.Online(endpoint, 1)
+            waitUntil { link.resumed() == listOf("a") }
+            resumed.openChat("a")
+            link.event("session.replay_gap", "a", "{}")
+            delay(150)
+        }
+        assertEquals(listOf("a"), link.resumed())
+        assertEquals(setOf("a"), resumed.snapshot(1))
+    }
+
+    @Test
+    fun aRefusedResumeIsReleasedForTheNextPass() {
+        val resumed = ResumedSessions()
+        val link = FakeLink { call ->
+            if (call.method == "session.list") list("a" to true) else throw RpcException(RpcError(4001, "busy"), "session.resume failed: 4001")
+        }
+        run(link, resumed) {
+            link.state.value = LinkState.Online(endpoint, 1)
+            waitUntil { link.resumed() == listOf("a") }
+            delay(50)
+        }
+        assertEquals(emptySet<String>(), resumed.snapshot(1))
     }
 }

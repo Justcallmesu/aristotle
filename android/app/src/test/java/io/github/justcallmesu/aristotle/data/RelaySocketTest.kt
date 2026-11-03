@@ -130,6 +130,33 @@ class RelaySocketTest {
         }
     }
 
+    // D33: when the link moves on from an open socket (a switch, a timeout), the collector goes and the PC gets
+    // a 1000 close frame at once, not a socket left for its ping timeout to reap.
+    @Test
+    fun anOpenSocketWhoseCollectorGoesIsClosedWith1000() = runBlocking {
+        startServer(held).use { server ->
+            val serverSide = CompletableDeferred<String>()
+            server.enqueue(
+                MockResponse.Builder().webSocketUpgrade(object : WebSocketListener() {
+                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                        webSocket.close(1000, null) // completes the handshake, so the server shuts down at once
+                        serverSide.complete("close frame $code")
+                    }
+
+                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        serverSide.complete("dropped")
+                    }
+                }).build(),
+            )
+            val relay = relay(server)
+            val events = Channel<RelayEvent>(Channel.UNLIMITED)
+            val collector = launch(Dispatchers.Default) { relay.events().collect { events.send(it) } }
+            assertEquals(RelayEvent.Opened, withTimeout(10_000) { events.receive() })
+            collector.cancelAndJoin()
+            assertEquals("close frame 1000", withTimeout(10_000) { serverSide.await() })
+        }
+    }
+
     @Test
     fun refusedUpgradeReportsTheHttpStatus() = runBlocking {
         startServer(held).use { server ->

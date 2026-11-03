@@ -62,22 +62,25 @@ object Subscriptions {
 /**
  * Watches the paired PC's running sessions over the process-wide link and reports [SessionAlert]s.
  * Only the launch profile's sessions (`session.list` without `profile`, protocol §3). Event collection
- * never waits for a call, so frames keep flowing while a resume is in flight.
+ * never waits for a call, so frames keep flowing while a resume is in flight. [resumed] is shared with the
+ * chat screen: a session either of them resumed on this socket is not resumed again.
  */
-class SessionWatcher(private val link: RelayLink, private val timings: FeedTimings = FeedTimings()) {
+class SessionWatcher(
+    private val link: RelayLink,
+    private val timings: FeedTimings = FeedTimings(),
+    private val resumed: ResumedSessions = ResumedSessions(),
+) {
 
     /** Runs until cancelled; starts over on every new relay. */
     fun alerts(): Flow<SessionAlert> = channelFlow {
         link.state
             .map { (it as? LinkState.Online)?.generation }
             .distinctUntilChanged()
-            .collectLatest { generation -> if (generation != null) Connection(channel).run() }
+            .collectLatest { generation -> if (generation != null) Connection(channel, generation).run() }
     }
 
-    private inner class Connection(private val out: SendChannel<SessionAlert>) {
-        private val resumed = ConcurrentHashMap.newKeySet<String>()
+    private inner class Connection(private val out: SendChannel<SessionAlert>, private val generation: Long) {
         private val titles = ConcurrentHashMap<String, String>()
-        private val resuming = ConcurrentHashMap.newKeySet<String>()
         private val relist = Channel<Unit>(Channel.CONFLATED)
 
         suspend fun run() = coroutineScope {
@@ -101,8 +104,9 @@ class SessionWatcher(private val link: RelayLink, private val timings: FeedTimin
             }
             val id = event.sessionId.ifEmpty { return }
             when (event.type) {
-                // The subscription ended but the socket is up: resume again (snapshot rebuild), without blocking frames.
-                SESSION_REPLAY_GAP -> if (resumed.remove(id)) scope.launch { resume(id) }
+                // The subscription ended but the socket is up: resume again (snapshot rebuild), without blocking
+                // frames. An open chat rebuilds its own session (with the transcript), so it is left to it.
+                SESSION_REPLAY_GAP -> if (!resumed.chatOpen(id) && resumed.release(generation, id)) scope.launch { resume(id) }
                 SESSION_INFO -> payload.text("title")?.takeIf { it.isNotBlank() }?.let { titles[id] = it }
                 MESSAGE_COMPLETE -> if (payload.text("outcome") != OUTCOME_CANCELLED) {
                     out.send(SessionAlert.TurnFinished(id, titles[id], payload.text("text").orEmpty()))
@@ -123,30 +127,23 @@ class SessionWatcher(private val link: RelayLink, private val timings: FeedTimin
                 return // SerializationException: an answer of another shape
             }
             sessions.forEach { if (it.title.isNotBlank()) titles[it.key] = it.title }
-            for (id in Subscriptions.toResume(sessions, resumed)) {
+            for (id in Subscriptions.toResume(sessions, resumed.snapshot(generation))) {
                 if (!resume(id)) return
             }
         }
 
-        /** False when the link closed. A refusal leaves the session for the next pass; a timeout may have subscribed, so it counts. */
+        /**
+         * False when the link closed. Claimed before the call, so a resume in flight (here or in the chat) is
+         * never doubled. A refusal leaves the session for the next pass; a timeout may have subscribed, so it counts.
+         */
         private suspend fun resume(id: String): Boolean {
-            if (!resuming.add(id)) return true
-            try {
-                return resumeOnce(id)
-            } finally {
-                resuming.remove(id)
-            }
-        }
-
-        private suspend fun resumeOnce(id: String): Boolean {
+            if (!resumed.claim(generation, id)) return true
             val result = try {
                 link.call("session.resume", buildJsonObject { put("session_id", id); put("omit_messages", true) })
             } catch (e: RpcException) {
-                if (e.linkClosed) return false
-                if (e.error == null) resumed += id
-                return true
+                if (e.linkClosed || e.error != null) resumed.release(generation, id)
+                return !e.linkClosed
             }
-            resumed += id
             val snapshot = result as? JsonObject ?: return true
             (snapshot["info"] as? JsonObject)?.text("title")?.takeIf { it.isNotBlank() }?.let { titles[id] = it }
             val prompts = snapshot["prompts"] as? JsonArray ?: return true

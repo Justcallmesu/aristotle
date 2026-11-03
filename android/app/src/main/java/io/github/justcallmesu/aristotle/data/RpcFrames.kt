@@ -26,7 +26,19 @@ data class RpcError(val code: Int, val message: String)
 /** One JSON-RPC 2.0 text frame from the relay, classified (docs/protocol.md §1.3, §2). */
 sealed interface InboundFrame {
     data class Response(val id: Long, val result: JsonElement?, val error: RpcError?) : InboundFrame
-    data class Event(val type: String, val sessionId: String, val payload: JsonObject?) : InboundFrame
+
+    /**
+     * A session event (protocol §2). [seq] is per session and monotonic within [replayEpoch]; [admissionId]
+     * names the prompt a turn's frames belong to. Process-wide broadcasts carry neither.
+     */
+    data class Event(
+        val type: String,
+        val sessionId: String,
+        val payload: JsonObject?,
+        val seq: Long? = null,
+        val replayEpoch: String? = null,
+        val admissionId: String? = null,
+    ) : InboundFrame
 
     /** A Hermes -> client request (`srq-…` id). */
     data class ServerRequest(val id: String, val method: String) : InboundFrame
@@ -58,10 +70,19 @@ object RpcFrames {
         }
     }
 
-    private fun event(obj: JsonObject): InboundFrame {
-        val params = obj["params"] as? JsonObject ?: return InboundFrame.Unknown
-        val type = params.stringOrNull("type") ?: return InboundFrame.Unknown
-        return InboundFrame.Event(type, params.stringOrNull("session_id").orEmpty(), params["payload"] as? JsonObject)
+    private fun event(obj: JsonObject): InboundFrame = (obj["params"] as? JsonObject)?.let(::eventOf) ?: InboundFrame.Unknown
+
+    /** An event from its `params` object (also the shape of `session.events.since` replays); null without a type. */
+    fun eventOf(params: JsonObject): InboundFrame.Event? {
+        val type = params.stringOrNull("type") ?: return null
+        return InboundFrame.Event(
+            type = type,
+            sessionId = params.stringOrNull("session_id").orEmpty(),
+            payload = params["payload"] as? JsonObject,
+            seq = (params["seq"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull,
+            replayEpoch = (params["replay_epoch"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull,
+            admissionId = (params["admission_id"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull,
+        )
     }
 
     private fun response(id: Long, obj: JsonObject): InboundFrame {

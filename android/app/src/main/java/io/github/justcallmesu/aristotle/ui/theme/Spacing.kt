@@ -30,4 +30,8 @@ object Sizes {
     val divider: Dp = 1.dp
     val stepBadge: Dp = 28.dp
     val stepIcon: Dp = 18.dp
+    val toolIcon: Dp = 20.dp
+    val chipIcon: Dp = 18.dp
+    val chipHeight: Dp = 36.dp
+    val reasoningRow: Dp = 32.dp
 }

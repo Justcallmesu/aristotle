@@ -12,6 +12,7 @@ import io.github.justcallmesu.aristotle.data.AlertRouter
 import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
 import io.github.justcallmesu.aristotle.data.DeviceMaker
+import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.ScreenFocus
 import io.github.justcallmesu.aristotle.data.SessionWatcher
 import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
@@ -79,6 +80,9 @@ class AppContainer(context: Context) {
 
     /** The session open on screen; the chat screen (T11) sets it. No notification is posted for it. */
     val openSession = MutableStateFlow<String?>(null)
+
+    /** Sessions the current relay socket has resumed: the watcher and the chat screen share it (one resume each). */
+    val resumedSessions = ResumedSessions()
     private val alerts = AlertRouter()
 
     private val notice = MutableStateFlow<PairNotice?>(null)
@@ -99,7 +103,7 @@ class AppContainer(context: Context) {
     /** Notifications from the watched sessions (T10); router and notifier run on the main thread. */
     private fun watchSessions() {
         scope.launch {
-            SessionWatcher(link).alerts().flowOn(Dispatchers.Default).collect { alert ->
+            SessionWatcher(link, resumed = resumedSessions).alerts().flowOn(Dispatchers.Default).collect { alert ->
                 alerts.onAlert(alert, ScreenFocus(background.appVisible.value, openSession.value)).forEach(notifier::apply)
             }
         }

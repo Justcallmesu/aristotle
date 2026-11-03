@@ -68,6 +68,22 @@ object AristotleTextStyles {
     /** The live status line of a session row ("Running · step N"): bodyMedium at 600. */
     val liveStatus: TextStyle = style(AtkinsonFamily, 14f, 20f, FontWeight.W600)
 
+    /** The chat top bar's subtitle while a turn runs: bodySmall at 600. */
+    val liveStatusSmall: TextStyle = style(AtkinsonFamily, 12f, 16f, FontWeight.W600)
+
+    /** Chat top bar title (design.md §2: titleLarge at 18 / 24). */
+    val chatTitle: TextStyle = style(LiterataFamily, 18f, 24f, FontWeight.W500)
+
+    /** Message text, user and assistant (design.md §2 "chat text"). */
+    val chatText: TextStyle = style(AtkinsonFamily, 15f, 23f, FontWeight.W400)
+
+    /** Tool card header: the tool name, then its one-line argument summary. */
+    val toolName: TextStyle = style(AtkinsonMonoFamily, 13f, 18f, FontWeight.W600)
+    val toolSummary: TextStyle = style(AtkinsonMonoFamily, 13f, 18f, FontWeight.W400)
+
+    /** Tool output and Markdown code blocks (design.md §2 "code tool output"). */
+    val toolOutput: TextStyle = style(AtkinsonMonoFamily, 11.5f, 17f, FontWeight.W400)
+
     /** Times and durations use tabular figures. */
     fun tabular(base: TextStyle): TextStyle = base.copy(fontFeatureSettings = "tnum")
 }

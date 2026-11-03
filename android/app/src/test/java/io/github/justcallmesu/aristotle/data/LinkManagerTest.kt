@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -61,7 +62,16 @@ class LinkManagerTest {
         @Volatile
         var cancelled = false
 
-        override fun events(): Flow<RelayEvent> = incoming.receiveAsFlow().onCompletion { closedByPhone = true }
+        /** Collected and not ended: the socket is open or connecting ([RelaySocket] closes or drops it on cancel). */
+        @Volatile
+        var active = false
+
+        override fun events(): Flow<RelayEvent> = incoming.receiveAsFlow()
+            .onStart { active = true }
+            .onCompletion {
+                active = false
+                closedByPhone = true
+            }
 
         override fun cancel() {
             cancelled = true
@@ -105,7 +115,12 @@ class LinkManagerTest {
         @Volatile
         var refreshBlocksMillis = 0L
 
+        /** The most sockets still open or connecting when another one was opened (D33: must stay 0). */
+        @Volatile
+        var mostActiveAtOpen = 0
+
         override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel = synchronized(this) {
+            mostActiveAtOpen = maxOf(mostActiveAtOpen, sockets.count { it.active })
             opened += endpoint
             script(endpoint, opened.size - 1).also { sockets += it }
         }
@@ -141,13 +156,14 @@ class LinkManagerTest {
         backoff: Backoff = Backoff(baseMillis = 40, capMillis = 200, random = { 1.0 }),
         credentials: StateFlow<CredentialState> = this.credentials,
         memory: LinkMemory = LinkMemory { _, addresses, lastGood -> remembered += Remembered(addresses, lastGood) },
+        readyTimeoutMillis: Long = 2_000,
     ): LinkManager = LinkManager(
         scope = scope,
         credentials = credentials,
         dialer = dialer,
         network = network,
         memory = memory,
-        timings = LinkTimings(readyTimeoutMillis = 2_000, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff),
+        timings = LinkTimings(readyTimeoutMillis = readyTimeoutMillis, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff),
     ).also { it.start() }
 
     private fun LinkManager.await(what: String, predicate: (LinkState) -> Boolean): LinkState = runBlocking {
@@ -313,7 +329,45 @@ class LinkManagerTest {
         val onTailnet = manager.await("on tailnet") { it is LinkState.Online && it.endpoint == tailnet }
         assertTrue(onTailnet is LinkState.Online)
         waitFor("old socket closed") { dialer.sockets.first().closedByPhone }
-        assertTrue("the old network's socket is dropped, not closed with a handshake", dialer.sockets.first().cancelled)
+        // D33: the open socket is closed (1000, by RelaySocket when its collector goes), not dropped silently for
+        // the server to reap after its ping timeout; and that happens before the next socket opens.
+        assertFalse("the old socket is closed with 1000, not cancelled", dialer.sockets.first().cancelled)
+        assertEquals(0, dialer.mostActiveAtOpen)
+    }
+
+    // D33: LAN <-> Tailscale back and forth: every switch closes the socket it leaves before it opens the next.
+    @Test
+    fun repeatedSwitchesKeepOneSocketAtATime() {
+        val network = FakeNetwork(lan = true)
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val manager = link(dialer, network)
+        manager.await("on lan") { it is LinkState.Online && it.endpoint == lan }
+        for (preferLan in listOf(false, true, false, true)) {
+            val expected = if (preferLan) lan else tailnet
+            val before = dialer.sockets.size
+            network.change(preferLan)
+            manager.await("on $expected") { it is LinkState.Online && it.endpoint == expected && dialer.sockets.size > before }
+        }
+        waitFor("only the live socket is open") { dialer.sockets.count { it.active } == 1 }
+        assertEquals(0, dialer.mostActiveAtOpen)
+        assertEquals(listOf(lan, tailnet, lan, tailnet, lan), dialer.opened)
+        assertTrue("an open socket is closed, never cancelled", dialer.sockets.none { it.cancelled })
+        assertTrue(dialer.sockets.dropLast(1).all { it.closedByPhone })
+    }
+
+    // D33: a network change while a socket is still connecting drops it and starts over at once, instead of
+    // waiting out the ready timeout and then switching away from a socket that has just opened.
+    @Test
+    fun aNetworkChangeWhileConnectingDropsThatSocketAndStartsOver() {
+        val network = FakeNetwork(lan = true)
+        val dialer = FakeDialer { endpoint, _ -> if (endpoint == lan) FakeSocket() else FakeSocket().ready() } // LAN never answers
+        val manager = link(dialer, network, readyTimeoutMillis = 30_000)
+        waitFor("connecting on lan") { dialer.sockets.singleOrNull()?.active == true }
+        network.change(preferLan = false)
+        manager.await("on tailnet") { it is LinkState.Online && it.endpoint == tailnet }
+        assertTrue(dialer.sockets.first().closedByPhone)
+        assertEquals(0, dialer.mostActiveAtOpen)
+        assertEquals(listOf(lan, tailnet), dialer.opened)
     }
 
     // T09b: a socket that ends the usual way (the server closed it) is not cancelled on top.
