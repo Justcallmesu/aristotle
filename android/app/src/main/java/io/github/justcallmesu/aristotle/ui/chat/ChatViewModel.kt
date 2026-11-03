@@ -7,6 +7,7 @@ import io.github.justcallmesu.aristotle.data.RelayLink
 import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.RpcException
 import io.github.justcallmesu.aristotle.data.chat.ApprovalChoice
+import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.chat.ChatFeed
 import io.github.justcallmesu.aristotle.data.chat.ChatFeedState
 import io.github.justcallmesu.aristotle.data.chat.ChatState
@@ -14,6 +15,7 @@ import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
 import io.github.justcallmesu.aristotle.data.chat.PromptAnswer
 import io.github.justcallmesu.aristotle.data.chat.PromptReplies
 import io.github.justcallmesu.aristotle.data.chat.PromptReply
+import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,29 +32,41 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-data class ChatUiState(val feed: ChatFeedState, val link: LinkState, val sheet: PromptSheetState = PromptSheetState())
+data class ChatUiState(
+    val feed: ChatFeedState,
+    val link: LinkState,
+    val sheet: PromptSheetState = PromptSheetState(),
+    val composer: ComposerState = ComposerState(),
+)
 
 /**
  * The chat screen's state: one [ChatFeed] for the session, run on [background] (frames are parsed and reduced
- * off the main thread, protocol §12), the link state for the top bar, and the prompt sheet (T12). [scope] is the
- * ViewModel's own unless a test passes one.
+ * off the main thread, protocol §12), the link state for the top bar, the prompt sheet (T12) and the composer
+ * (T13, [drafts] keeps the unsent text per session). [scope] is the ViewModel's own unless a test passes one.
  */
 class ChatViewModel(
     private val sessionId: String,
     private val link: RelayLink,
     resumed: ResumedSessions,
+    drafts: ChatDrafts? = null,
     private val background: CoroutineDispatcher = Dispatchers.Default,
     scope: CoroutineScope? = null,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
+    newId: () -> String = { UUID.randomUUID().toString().replace("-", "") },
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     private val feed = ChatFeed(link, resumed, sessionId)
-    private val state = MutableStateFlow(ChatUiState(ChatFeedState(ChatState(sessionId)), link.state.value))
+    private val state = MutableStateFlow(
+        ChatUiState(ChatFeedState(ChatState(sessionId)), link.state.value, composer = ComposerState(draft = drafts?.get(sessionId).orEmpty())),
+    )
     val uiState: StateFlow<ChatUiState> = state.asStateFlow()
+    private val composer = ChatComposer(sessionId, link, drafts, clock, newId, work, state::value, ::change)
 
     private var job: Job? = null
     private var arming: Job? = null
     private var armingFor: Shown? = null
+    private var composerArming: Job? = null
+    private var composerArmingFor: ComposerShown? = null
 
     init {
         work.launch {
@@ -206,25 +220,63 @@ class ChatViewModel(
         return Outcome.Resolved
     }
 
+    // ── composer (T13) ────────────────────────────────────────────────────────────────────────────
+
+    fun editDraft(text: String) = composer.edit(text)
+
+    fun send() = composer.send()
+
+    fun queue() = composer.queue()
+
+    fun steer() = composer.steer()
+
+    fun stop() = composer.stop()
+
+    fun cancelQueued(admissionId: String) = composer.cancelQueued(admissionId)
+
+    fun retrySend(id: String) = composer.retry(id)
+
+    fun dismissFailed(id: String) = composer.dismiss(id)
+
+    fun composerMessageShown() = composer.messageShown()
+
     private fun updateSheet(transform: (PromptSheetState) -> PromptSheetState) = change { it.copy(sheet = transform(it.sheet)) }
 
     /**
-     * Every state change goes through here: it re-reads what the sheet has on screen ([PromptSheetLogic.track]) and,
-     * for a newly shown prompt, turns its buttons on after [PromptSheetLogic.ARM_MS].
+     * Every state change goes through here: it re-reads what the sheet has on screen ([PromptSheetLogic.track]),
+     * drops the echoes Hermes now shows itself ([Outbox.reconcile]) and re-reads what the composer's controls mean
+     * ([ComposerLogic.track]); a newly shown prompt or control turns its buttons on after the arming time.
      */
     private fun change(transform: (ChatUiState) -> ChatUiState) {
         val now = clock()
         val next = state.updateAndGet { current ->
             val changed = transform(current)
-            changed.copy(sheet = PromptSheetLogic.track(changed.sheet, changed.feed.chat, now))
+            val sheet = PromptSheetLogic.track(changed.sheet, changed.feed.chat, now)
+            val outbox = Outbox.reconcile(changed.composer.outbox, changed.feed.chat)
+            val key = ComposerLogic.key(changed.link, changed.feed, sheet, outbox)
+            changed.copy(sheet = sheet, composer = ComposerLogic.track(changed.composer.copy(outbox = outbox), key, now))
         }
-        val shown = next.sheet.shown ?: return
-        if (shown.armed || shown == armingFor) return
+        armSheet(next.sheet.shown)
+        armComposer(next.composer.shown)
+    }
+
+    private fun armSheet(shown: Shown?) {
+        if (shown == null || shown.armed || shown == armingFor) return
         armingFor = shown
         arming?.cancel()
         arming = work.launch {
             delay(PromptSheetLogic.ARM_MS)
             state.update { ui -> if (ui.sheet.shown == shown) ui.copy(sheet = ui.sheet.copy(shown = shown.copy(armed = true))) else ui }
+        }
+    }
+
+    private fun armComposer(shown: ComposerShown?) {
+        if (shown == null || shown.armed || shown == composerArmingFor) return
+        composerArmingFor = shown
+        composerArming?.cancel()
+        composerArming = work.launch {
+            delay(ComposerLogic.ARM_MS)
+            state.update { ui -> if (ui.composer.shown == shown) ui.copy(composer = ui.composer.copy(shown = shown.copy(armed = true))) else ui }
         }
     }
 }

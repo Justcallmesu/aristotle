@@ -17,6 +17,11 @@ class LinkEndsTest {
             RoundEnd.HermesUpdated("close 4505 hermes_protocol_unsupported (unsupported hermes runtime protocol: 2)"),
             LinkEnds.ofClose(4505, "hermes_protocol_unsupported (unsupported hermes runtime protocol: 2)", lan),
         )
+        // D36: a newer socket of this device replaced this one; not a loss to retry (protocol §12).
+        assertEquals(
+            RoundEnd.Superseded("close 4409 superseded by a newer connection", lan),
+            LinkEnds.ofClose(4409, "superseded by a newer connection", lan),
+        )
     }
 
     @Test

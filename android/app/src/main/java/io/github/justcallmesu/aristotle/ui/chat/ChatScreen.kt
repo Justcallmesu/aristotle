@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -81,6 +82,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
+    val composer = remember(viewModel) { ViewModelComposerActions(viewModel) }
     ChatContentView(
         state = state,
         fallbackTitle = fallbackTitle,
@@ -89,8 +91,22 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
         onOpenSheet = viewModel::openSheet,
         onMessageShown = viewModel::messageShown,
         actions = actions,
+        composer = composer,
+        echoes = EchoActions(onRetry = viewModel::retrySend, onDismiss = viewModel::dismissFailed, onMessageShown = viewModel::composerMessageShown),
     )
 }
+
+private class ViewModelComposerActions(private val vm: ChatViewModel) : ComposerActions {
+    override fun edit(text: String) = vm.editDraft(text)
+    override fun send() = vm.send()
+    override fun queue() = vm.queue()
+    override fun steer() = vm.steer()
+    override fun stop() = vm.stop()
+    override fun cancelQueued(admissionId: String) = vm.cancelQueued(admissionId)
+}
+
+/** What a sent message's row can do: Retry, remove a failed one, and clear the composer's snackbar. */
+class EchoActions(val onRetry: (String) -> Unit, val onDismiss: (String) -> Unit, val onMessageShown: () -> Unit)
 
 private class ViewModelPromptActions(private val vm: ChatViewModel) : PromptActions {
     override fun hide() = vm.hideSheet()
@@ -104,8 +120,9 @@ private class ViewModelPromptActions(private val vm: ChatViewModel) : PromptActi
 }
 
 /**
- * design.md §5 chat, mockup screen 3 (read-only until T13): top bar with the session, the transcript, the waiting
- * chip and the prompt sheet (T12). Edge-to-edge: the list scrolls under the navigation bar.
+ * design.md §5 chat, mockup screen 3: top bar with the session, the transcript with this phone's own messages until
+ * Hermes shows them, the waiting chip, the composer (T13) and the prompt sheet (T12). Edge-to-edge: the composer
+ * carries the bottom insets (navigation bar, keyboard).
  */
 @Composable
 fun ChatContentView(
@@ -116,6 +133,8 @@ fun ChatContentView(
     onOpenSheet: () -> Unit,
     onMessageShown: () -> Unit,
     actions: PromptActions,
+    composer: ComposerActions,
+    echoes: EchoActions,
 ) {
     val feed = state.feed
     val chat = feed.chat
@@ -129,32 +148,47 @@ fun ChatContentView(
             onMessageShown()
         }
     }
+    val composerMessage = state.composer.message
+    val composerText = composerMessage?.let { composerMessage(it) }
+    LaunchedEffect(composerMessage) {
+        if (composerText != null) {
+            snackbar.showSnackbar(composerText)
+            echoes.onMessageShown()
+        }
+    }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
-            Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
-                val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                ChatTopBar(chat, state.link, live, fallbackTitle, onBack, sides)
-                if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
-                val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal).asPaddingValues()
+        // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
+            val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            ChatTopBar(chat, state.link, live, fallbackTitle, onBack, sides)
+            if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
+            // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
+            val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+            val insets = WindowInsets.safeDrawing.only(edge).asPaddingValues()
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val outbox = state.composer.outbox
                 when {
-                    feed.loaded && chat.items.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
+                    feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
                     // The chip only when tapping it opens something: not while this phone's own answer is on its way (T12b).
-                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, insets = bottom, onOpenSheet = onOpenSheet)
+                    feed.loaded -> Transcript(chat, live = live, waiting = state.sheet.current(chat) != null, outbox = outbox, insets = insets, onOpenSheet = onOpenSheet, echoes = echoes)
                     feed.problem != null -> LoadFailed(feed.problem, onRetry)
                     else -> QuietLine(stringResource(R.string.chat_loading))
                 }
+                SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
             }
-            SnackbarHost(
-                hostState = snackbar,
-                modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)),
-            )
+            if (feed.loaded) Composer(state.composer, running = chat.running, queued = ComposerLogic.queuedRows(feed, state.composer.outbox), actions = composer)
         }
     }
     if (state.sheet.visible(chat)) {
         val context = listOfNotNull(chat.title ?: fallbackTitle, chat.profileName).joinToString(" · ")
         PromptSheet(state.sheet.current(chat).takeIf { state.sheet.open }, state.sheet, context, actions)
     }
+}
+
+@Composable
+private fun composerMessage(message: ComposerMessage): String = when (message) {
+    is ComposerMessage.StopFailed -> stringResource(R.string.composer_stop_failed, message.reason)
+    is ComposerMessage.CancelFailed -> stringResource(R.string.composer_cancel_failed, message.reason)
 }
 
 @Composable
@@ -250,7 +284,15 @@ private fun LinkChip(label: String, offline: Boolean) {
  * shows "Jump to latest". Stable keys: a delta recomposes only the last row.
  */
 @Composable
-private fun Transcript(chat: ChatState, live: Boolean, waiting: Boolean, insets: PaddingValues, onOpenSheet: () -> Unit) {
+private fun Transcript(
+    chat: ChatState,
+    live: Boolean,
+    waiting: Boolean,
+    outbox: List<Outgoing>,
+    insets: PaddingValues,
+    onOpenSheet: () -> Unit,
+    echoes: EchoActions,
+) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val follow = remember { mutableStateOf(true) }
@@ -265,7 +307,9 @@ private fun Transcript(chat: ChatState, live: Boolean, waiting: Boolean, insets:
             if (!more) follow.value = true else if (follow.value) listState.scrollToEnd()
         }
     }
-    LaunchedEffect(chat.items.size, chat.items.lastOrNull(), thinking, waiting) {
+    val tail = remember(outbox) { ComposerLogic.tail(outbox) }
+    val anchored = remember(outbox) { ComposerLogic.anchored(outbox) }
+    LaunchedEffect(chat.items.size, chat.items.lastOrNull(), thinking, waiting, outbox) {
         if (follow.value) listState.scrollToEnd()
     }
     val direction = LocalLayoutDirection.current
@@ -281,7 +325,12 @@ private fun Transcript(chat: ChatState, live: Boolean, waiting: Boolean, insets:
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
-            items(chat.items, key = { it.key }, contentType = { it::class }) { item -> ChatRow(item, folds, lastFailed, live) }
+            echoItems(anchored[null].orEmpty(), echoes)
+            for (chatItem in chat.items) {
+                item(key = chatItem.key, contentType = chatItem::class) { ChatRow(chatItem, folds, lastFailed, live) }
+                anchored[chatItem.key]?.let { echoItems(it, echoes) }
+            }
+            echoItems(tail, echoes)
             if (thinking) item(key = "thinking") { ThinkingLine() }
             if (waiting) item(key = "waiting") { WaitingChip(onOpenSheet) }
         }
@@ -300,6 +349,11 @@ private fun Transcript(chat: ChatState, live: Boolean, waiting: Boolean, insets:
             }
         }
     }
+}
+
+/** This phone's own messages (T13 optimistic echo); keyed apart from Hermes' rows. */
+private fun LazyListScope.echoItems(items: List<Outgoing>, echoes: EchoActions) {
+    items(items, key = { "echo-${it.id}" }, contentType = { "echo" }) { item -> EchoRow(item, echoes.onRetry, echoes.onDismiss) }
 }
 
 /** A drag or fling towards older messages (only the user's, programmatic scrolls do not pass here). */

@@ -68,24 +68,28 @@ object ChatReducer {
             keepTurn -> previous
             else -> settled(previous)
         }
-        val started = pendingEntries(snapshot["pending"]).filter { it.text("status") == "started" }.mapNotNull { it.text("admission_id") }
+        val startedEntries = pendingEntries(snapshot["pending"]).filter { it.text("status") == "started" }
+        val started = startedEntries.mapNotNull { it.text("admission_id") }
+        val omitted = snapshot.flag("messages_omitted") == true
         val state = base.copy(
             sessionId = snapshot.text("session_id")?.ifEmpty { null } ?: sessionId,
-            items = if (snapshot.flag("messages_omitted") == true) base.items else HistoryMapper.items(snapshot["messages"] as? JsonArray),
+            items = if (omitted) base.items else withRunningPrompt(HistoryMapper.items(snapshot["messages"] as? JsonArray), startedEntries),
             running = running,
             step = if (keepTurn) base.step else null,
             thinking = keepTurn && base.thinking,
             replayEpoch = caughtUp?.replayEpoch ?: snapshot.text("replay_epoch"),
             lastSeq = caughtUp?.lastSeq ?: last,
             turn = if (keepTurn) base.turn ?: TurnCursor().takeIf { running } else TurnCursor().takeIf { running },
-            // The stored history already holds the prompt of the turn now running (ASSUMED: the user row is
-            // committed when the turn starts), so its admission is not shown again from `pending`. Behind, the
-            // turn's own frames show the prompt where it belongs.
+            // A full snapshot shows the running turn's prompt itself ([withRunningPrompt], D35), so its admission is not
+            // shown again from `pending`. Behind, the turn's own frames show the prompt where it belongs.
             shownAdmissions = when {
                 caughtUp == null -> started.toSet()
                 behind -> base.shownAdmissions
                 else -> base.shownAdmissions + started
             },
+            // The snapshot's own fence, not a max: a new authority may count from 1 again (merged below).
+            generation = null,
+            snapshots = base.snapshots + 1,
         )
         val stateKeys = JsonObject(SNAPSHOT_STATE_KEYS.mapNotNull { key -> snapshot[key]?.let { key to it } }.toMap())
         val merged = mergeInfo(mergeInfo(state, snapshot["info"].asObject() ?: EMPTY, showStarted = false), stateKeys, showStarted = false)
@@ -93,6 +97,22 @@ object ChatReducer {
             requestPrompts(snapshot["open_requests"] as? JsonArray)
         val withPrompts = replacePrompts(merged, prompts)
         return if (behind) withPrompts.copy(running = base.running) else withPrompts
+    }
+
+    /**
+     * D35: the running turn's prompt reaches the stored history only when `_persist_turn_start` runs, after the system
+     * prompt is built and preflight compaction ran (`agent/turn_context.py:1076-1090`, called at `:1285`). A chat
+     * opened before that would miss it, so the `pending` text of the started admission (its `steering` entries are
+     * steers, not the prompt) is added unless the history already ends its user rows with that same text (a
+     * text-only prompt is stored as typed, `agent/session_persistence.py:122-127`).
+     */
+    private fun withRunningPrompt(history: List<ChatItem>, started: List<JsonObject>): List<ChatItem> {
+        val lastUser = history.lastOrNull { it is ChatItem.User } as? ChatItem.User
+        return started.filter { it.flag("steering") != true }.fold(history) { items, admission ->
+            val id = admission.text("admission_id") ?: return@fold items
+            val text = admission.text("text")?.takeIf { it.isNotBlank() } ?: return@fold items
+            if (lastUser?.text?.trim() == text.trim()) items else items + ChatItem.User("user-$id", text)
+        }
     }
 
     // ── prompts (protocol §6) ─────────────────────────────────────────────────────────────────────
@@ -160,10 +180,18 @@ object ChatReducer {
     }
 
     private fun ChatState.at(event: InboundFrame.Event): ChatState {
-        val seq = event.seq ?: return this
+        val fenced = withGeneration(event.executionGeneration)
+        val seq = event.seq ?: return fenced
         val newEpoch = event.replayEpoch != null && replayEpoch != null && event.replayEpoch != replayEpoch
         val last = lastSeq
-        return copy(lastSeq = if (newEpoch || last == null) seq else maxOf(last, seq), replayEpoch = event.replayEpoch ?: replayEpoch)
+        return fenced.copy(lastSeq = if (newEpoch || last == null) seq else maxOf(last, seq), replayEpoch = event.replayEpoch ?: replayEpoch)
+    }
+
+    /** The newest claim seen; an older frame never moves it back (as the Desktop's `canonical-protocol.ts:605-612`). */
+    private fun ChatState.withGeneration(seen: Long?): ChatState {
+        if (seen == null) return this
+        val current = generation
+        return if (current != null && current >= seen) this else copy(generation = seen)
     }
 
     // ── session.info ──────────────────────────────────────────────────────────────────────────────
@@ -172,8 +200,13 @@ object ChatReducer {
     private fun mergeInfo(state: ChatState, payload: JsonObject, showStarted: Boolean = true): ChatState {
         val kept = payload.filterKeys { it !in DROPPED_INFO_KEYS }
         if (kept.isEmpty()) return state
-        var next = state.copy(info = JsonObject(state.info + kept))
+        var next = state.copy(info = JsonObject(state.info + kept)).withGeneration(payload.number("execution_generation")?.toLong())
         payload.flag("running")?.let { next = next.copy(running = it) }
+        val inputs = pendingEntries(payload["pending"]).mapNotNull { entry ->
+            val input = entry.text("input_id") ?: return@mapNotNull null
+            entry.text("admission_id")?.let { input to it }
+        }
+        if (inputs.isNotEmpty()) next = next.copy(inputs = next.inputs + inputs)
         if (showStarted) {
             pendingEntries(payload["pending"]).filter { it.text("status") == "started" }.forEach { next = showUser(next, it) }
         }

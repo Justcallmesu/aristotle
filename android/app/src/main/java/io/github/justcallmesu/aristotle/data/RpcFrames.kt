@@ -29,7 +29,8 @@ sealed interface InboundFrame {
 
     /**
      * A session event (protocol §2). [seq] is per session and monotonic within [replayEpoch]; [admissionId]
-     * names the prompt a turn's frames belong to. Process-wide broadcasts carry neither.
+     * names the prompt a turn's frames belong to, [executionGeneration] the claim that runs it (the fence Steer and
+     * Stop name, `tui_gateway/contracts/canonical_sessions.py:301-309`). Process-wide broadcasts carry none of them.
      */
     data class Event(
         val type: String,
@@ -38,6 +39,7 @@ sealed interface InboundFrame {
         val seq: Long? = null,
         val replayEpoch: String? = null,
         val admissionId: String? = null,
+        val executionGeneration: Long? = null,
     ) : InboundFrame
 
     /**
@@ -99,6 +101,7 @@ object RpcFrames {
             seq = (params["seq"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull,
             replayEpoch = (params["replay_epoch"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull,
             admissionId = (params["admission_id"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull,
+            executionGeneration = (params["execution_generation"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull,
         )
     }
 

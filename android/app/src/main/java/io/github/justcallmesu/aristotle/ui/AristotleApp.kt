@@ -134,7 +134,7 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, sessionI
         }
     }
     RouteScope(chatRoutes, "chat-$sessionId") {
-        val chatViewModel = viewModel { ChatViewModel(sessionId, container.link, container.resumedSessions) }
+        val chatViewModel = viewModel { ChatViewModel(sessionId, container.link, container.resumedSessions, container.drafts) }
         val openRequest by container.openChat.collectAsStateWithLifecycle()
         LaunchedEffect(openRequest) {
             val request = openRequest?.takeIf { it.sessionId == sessionId } ?: return@LaunchedEffect

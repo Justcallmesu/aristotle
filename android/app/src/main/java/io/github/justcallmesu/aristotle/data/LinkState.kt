@@ -15,6 +15,8 @@ sealed interface LinkState {
      * No relay since [sinceMillis]. [address] is the address the cause is about (the first one tried, or the
      * one with a different certificate). [nextAttemptAtMillis] is when the next round starts; null while a
      * round is running ([trying]). [details] is protocol data for the mono block, never translated.
+     * [waiting]: no round is planned; the link waits for a network change, the app coming to the front or
+     * Retry now (a superseded socket, D36).
      */
     data class Offline(
         val sinceMillis: Long,
@@ -23,8 +25,9 @@ sealed interface LinkState {
         val address: ServerEndpoint?,
         val attempt: Int,
         val nextAttemptAtMillis: Long?,
+        val waiting: Boolean = false,
     ) : LinkState {
-        val trying: Boolean get() = nextAttemptAtMillis == null
+        val trying: Boolean get() = nextAttemptAtMillis == null && !waiting
     }
 
     /** The user stopped the link from the background notification; it starts again when the app is opened. */
@@ -55,6 +58,12 @@ enum class OfflineCause {
 
     /** Something in the app failed unexpectedly (a bug, a store that throws); the link tries again. */
     AppError,
+
+    /**
+     * `4409`: this phone opened a newer relay on the PC's other listener (LAN vs Tailscale), and the server closed
+     * this one. Not retried on a timer, so two of the device's sockets never take turns closing each other (D36).
+     */
+    Superseded,
 }
 
 /** How one round over a PC's addresses ended. */
@@ -66,6 +75,9 @@ sealed interface RoundEnd {
     /** The phone's network changed while online: connect again at once, best address first. */
     data object Switch : RoundEnd
     data class Lost(val cause: OfflineCause, val details: String, val address: ServerEndpoint?) : RoundEnd
+
+    /** `4409`: a newer socket of this device replaced this one; do not reconnect this socket (protocol §12). */
+    data class Superseded(val details: String, val address: ServerEndpoint?) : RoundEnd
 }
 
 /** Why one address did not lead to the PC (the round goes on to the next address). */
@@ -78,11 +90,13 @@ object LinkEnds {
     const val CLOSE_REVOKED = 4401
     const val CLOSE_HERMES_NOT_RUNNING = 4503
     const val CLOSE_HERMES_PROTOCOL_UNSUPPORTED = 4505
+    const val CLOSE_SUPERSEDED = 4409
     const val HTTP_UNAUTHORIZED = 401
 
     /**
-     * A close frame from the server: `4401` ends the pairing, `4503` and `4505` have their own pages, every
-     * other code (`1000`, `1001`, `1011`, `1013`, `4502`, …) is a lost connection retried with backoff.
+     * A close frame from the server: `4401` ends the pairing, `4503` and `4505` have their own pages, `4409` is not
+     * reconnected by itself (D36), every other code (`1000`, `1001`, `1011`, `1013`, `4502`, …) is a lost connection
+     * retried with backoff.
      */
     fun ofClose(code: Int, reason: String, address: ServerEndpoint?): RoundEnd {
         val details = closeDetails(code, reason)
@@ -90,6 +104,7 @@ object LinkEnds {
             CLOSE_REVOKED -> RoundEnd.Revoked
             CLOSE_HERMES_NOT_RUNNING -> RoundEnd.HermesDown(details)
             CLOSE_HERMES_PROTOCOL_UNSUPPORTED -> RoundEnd.HermesUpdated(details)
+            CLOSE_SUPERSEDED -> RoundEnd.Superseded(details, address)
             else -> RoundEnd.Lost(OfflineCause.ConnectionLost, details, address)
         }
     }

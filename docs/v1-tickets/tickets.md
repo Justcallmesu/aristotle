@@ -31,14 +31,15 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T10b | SessionWatcher: re-resume on session.replay_gap (MAJOR), no repeated alerts, approval wording, §2 note | T10 | android, docs §2 | DONE (re-check in T11 review) |
 | T11b | T11 fix: frames lost at events.since/resume seam (MAJOR), D33 close old socket on switch, chat minors (mid-turn final text, refused-resume banner, offline cursor, http(s)-only links) | T11 | android | DONE (re-check in T12 review) |
 | T14s | Server: new socket on another listener supersedes the device's older sockets (close 4409) — D34 | T11b | server, protocol §12 | DONE |
-| T12b | T12 fix: 600 ms tap-through guard (MAJOR), dead waiting chip, non-exported open-session target, NITs | T12 | android | DONE (focused re-review running) |
+| T12b | T12 fix: 600 ms tap-through guard (MAJOR), dead waiting chip, non-exported open-session target, NITs | T12 | android | DONE (re-review PASS-WITH-FINDINGS) |
+| T13b | Minors: 4409 backstop retry 60 s (background notifications), D35 skip steer rows, steer Retry only on 4001, D38 (confirm-step buttons, re-arm on resume, launched-from-history), NITs | T13 | android | BUILDING |
 | T08 | Pairing by QR (server prints QR; app scans) | T07c | server, android | TODO |
 | T09 | App connection core: all PC addresses stored + refreshed, endpoint choice + switch on network change, one process-wide socket, reconnect with backoff, "PC offline since"; D24, D26, D27, D28 | T07c | android, server | DONE |
 | T09b | T09 review fixes: merge refreshed addresses (never forget the typed/home LAN address), cancel blocking /v1/addresses on link end, cancel() unfinished sockets, scope exception handler, Wi-Fi->Wi-Fi switch, flaky sleep test, 7 NITs | T09 | android, server test | DONE |
 | T10 | Foreground service (`specialUse`) + notifications + Xiaomi battery/autostart guide | T09b | android | DONE |
 | T11 | Chat view: history + live streaming + tool cards (event reducer unit-tested on frames from T01) | T09 | android | DONE |
 | T12 | Approvals and clarify prompts: in chat + notification actions, withdrawn when answered elsewhere | T10, T11 | android | DONE |
-| T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | TODO ⟳ |
+| T13 | Composer: send; Steer / Queue / Stop while busy | T11 | android | DONE |
 | T14 | Sessions: live on top + stored history below (Q48), search, pin, rename, new session; profile switch | T09 | android (+server if REST) | TODO ⟳ |
 | T15 | Model + reasoning switch; slash commands | T13 | android | TODO ⟳ |
 | T16 | Send pictures and files | T13 | android (+server) | TODO ⟳ |
@@ -104,6 +105,7 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D35 | Running turn's user prompt missing in a chat opened before Hermes saves it (turn_context.py:1076-1090); T11 review NITs (T11 review) | T13 | OPEN |
 | D36 | App maps close 4409 (superseded) to 'lost connection' and reconnects; should treat it as do-not-reconnect-this-socket (T14s report) | T13 | OPEN |
 | D37 | Relay method allow-list lacks `clarify.lock` (logged as "other"); `relay superseded` log under hub.mu (T12/T14s reviews) | T22 | OPEN |
+| D38 | T12b re-review: in the Always-allow confirm step Deny/Allow once arm but are dropped (hide or re-arm); arm timer should restart on screen resume; resolved sudo may look answerable right after reconnect; ignore FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY | T13b/T22 | OPEN |
 | D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
@@ -268,3 +270,5 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 T14s review PASS-WITH-FINDINGS (MINOR: superseded log under hub.mu) -> committed (server only; its protocol.md §12 4409 row ships with T12). D36 already on the board.
 - 2026-11-03 T12 review CHANGES-REQUIRED (MAJOR: double tap approves an unseen queued command). Frames, Q50, Q51 safeguards (FLAG_SECURE reaches the sheet window) PASS. PM corrected protocol.md §12 per review (never decline window bridges/vault). T12b dispatched (deep).
 - 2026-11-04 T12b PM gate GREEN runs/pm-gate-20 (281 tests); mutation (drop the 600 ms arm check) fails 7 tests, restored. Committed T12+T12b with protocol.md (§6 T12, §12 PM correction, §12 4409 row from T14s). Focused deep re-review of T12b runs against the commit, in parallel with T13.
+- 2026-11-04 T12b re-review PASS-WITH-FINDINGS (D38). T13 built (307 tests), PM gate GREEN runs/pm-gate-21, mutation (composer arm check) fails 3 tests. Deep review dispatched. Pending prompt: phone matches Desktop (Steer off, Queue on) — reviewer verifies.
+- 2026-11-04 T13 review PASS-WITH-FINDINGS (pending-prompt deviation confirmed correct: Desktop also queues, submit never answers prompts). Committed. T13b dispatched (std): MINOR-2 matters (background link could stay down after 4409 -> no approval notifications), so the minors are fixed now rather than parked.

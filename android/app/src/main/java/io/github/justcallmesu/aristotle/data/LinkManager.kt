@@ -74,7 +74,8 @@ data class LinkTimings(
  * The process-wide link to the paired PC (T09), owned by the Application: one relay socket at a time.
  * Tries the PC's addresses in [EndpointChoice] order, reconnects after a loss with [Backoff] (reset once a
  * relay delivers `gateway.ready`), and at once when the phone's network changes, the app returns to the
- * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s.
+ * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s; after `4409`
+ * only a network change, the foreground or the user starts the next round (D36).
  * [stop] (the background notification's Stop, T10) closes the relay until [onForeground].
  * Frames are handed off OkHttp's reader thread at once ([RelaySocket]) and parsed here (protocol §12).
  * An unexpected error in a round shows as [OfflineCause.AppError] and the next round runs: the link never dies.
@@ -139,7 +140,7 @@ class LinkManager(
     }
 
     override suspend fun call(method: String, params: JsonObject): JsonElement =
-        (live ?: throw RpcException(null, "$method: not connected", linkClosed = true)).call(method, params)
+        (live ?: throw RpcException(null, "$method: not connected", linkClosed = true, written = false)).call(method, params)
 
     override fun respond(requestId: String, result: JsonObject): Boolean = live?.respond(requestId, result) ?: false
 
@@ -168,6 +169,7 @@ class LinkManager(
                     }
                     RoundEnd.Switch -> current.value = LinkState.Connecting
                     is RoundEnd.Lost -> backOff(end)
+                    is RoundEnd.Superseded -> standDown(end)
                 }
             }
         }
@@ -319,6 +321,18 @@ class LinkManager(
             current.value = LinkState.Offline(since, end.cause, end.details, end.address, failures, clock() + delay)
             sleep(delay)
             current.update { if (it is LinkState.Offline) it.copy(nextAttemptAtMillis = null) else it }
+        }
+
+        /**
+         * `4409` (D36): the server replaced this socket with a newer one of this device on its other listener. This
+         * socket is not reconnected on a timer, or the two would keep closing each other; the next round waits for a
+         * network change, the app coming to the front, or Retry now.
+         */
+        private suspend fun standDown(end: RoundEnd.Superseded) {
+            reached()
+            val since = clock().also { offlineSince = it }
+            current.value = LinkState.Offline(since, OfflineCause.Superseded, end.details, end.address, attempt = 0, nextAttemptAtMillis = null, waiting = true)
+            wakes.receive()
         }
 
         /** The PC answered: it is not offline (whatever Hermes said), and a later loss backs off from the start. */

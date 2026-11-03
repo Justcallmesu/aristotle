@@ -8,8 +8,11 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-/** A failed call. [linkClosed]: the relay was gone or went away (the link state reports that, not the caller). */
-class RpcException(val error: RpcError?, message: String, val linkClosed: Boolean = false) : Exception(message)
+/**
+ * A failed call. [linkClosed]: the relay was gone or went away (the link state reports that, not the caller).
+ * [written]: a socket took the request; false only when none did, so Hermes surely never saw it.
+ */
+class RpcException(val error: RpcError?, message: String, val linkClosed: Boolean = false, val written: Boolean = true) : Exception(message)
 
 /** JSON-RPC calls over the relay: integer ids, responses matched by id (protocol §1.3). */
 class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis: Long = 15_000) {
@@ -21,7 +24,7 @@ class RelayRpc(private val send: (String) -> Boolean, private val timeoutMillis:
         val answer = CompletableDeferred<InboundFrame.Response>()
         pending[id] = answer
         try {
-            if (!send(RpcFrames.request(id, method, params))) throw RpcException(null, "$method: socket not open", linkClosed = true)
+            if (!send(RpcFrames.request(id, method, params))) throw RpcException(null, "$method: socket not open", linkClosed = true, written = false)
             val response = withTimeout(timeoutMillis) { answer.await() }
             response.error?.let { throw RpcException(it, "$method failed: ${it.code}") }
             return response.result ?: throw RpcException(null, "$method: empty result")

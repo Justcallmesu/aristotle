@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.data.chat
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -90,9 +91,30 @@ data class ChatState(
     val turn: TurnCursor? = null,
     /** Admissions already shown as a user message (or already in the stored history). */
     val shownAdmissions: Set<String> = emptySet(),
+    /**
+     * The execution generation of the latest claim (event envelopes and `session.info`; never moves back within a
+     * snapshot). Steer and Stop name it (`gateway/session_busy_controls.py:176-191`, `session_controls.py:903-907`).
+     */
+    val generation: Long? = null,
+    /** Every `pending` admission seen, by its `input_id` (the `submission_id` it was sent with): `admission_id`. */
+    val inputs: Map<String, String> = emptyMap(),
+    /** How many snapshots built this state: after one, the stored history is the truth for what came before. */
+    val snapshots: Int = 0,
     val nextKey: Long = 0,
 ) {
     val title: String? get() = infoText("title")
+
+    /** Hermes' queue for this session (`session.info.pending`, status `queued`), oldest first: the Desktop shows the same. */
+    val queued: List<QueuedPrompt>
+        get() = (info["pending"] as? JsonArray).orEmpty().mapNotNull { element ->
+            val entry = element.asObject()?.takeIf { it.text("status") == "queued" } ?: return@mapNotNull null
+            val id = entry.text("admission_id") ?: return@mapNotNull null
+            QueuedPrompt(id, entry.text("input_id"), entry.text("text").orEmpty())
+        }
+
+    /** Admission ids Hermes lists as pending now (queued, started or steering). */
+    val pendingAdmissions: Set<String>
+        get() = (info["pending"] as? JsonArray).orEmpty().mapNotNullTo(HashSet()) { it.asObject()?.text("admission_id") }
     val openPrompts: Set<String> get() = prompts.mapTo(LinkedHashSet()) { it.key }
     val model: String? get() = infoText("model")
     val profileName: String? get() = infoText("profile_name")
@@ -104,6 +126,9 @@ data class ChatState(
     private fun infoText(key: String): String? =
         (info[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.trim()?.ifEmpty { null }
 }
+
+/** One queued admission: [inputId] is the `submission_id` its sender used (ours or the Desktop's). */
+data class QueuedPrompt(val admissionId: String, val inputId: String?, val text: String)
 
 internal fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 

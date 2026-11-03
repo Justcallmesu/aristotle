@@ -26,6 +26,7 @@ import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
 import io.github.justcallmesu.aristotle.data.LinkManager
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
+import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,9 @@ class AppContainer(context: Context) {
     )
 
     val settings = AppSettings(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
+
+    /** Unsent composer text per session (T13): this phone only, written in the background as the user types. */
+    val drafts = ChatDrafts(ApplyingPreferencesStore(context.getSharedPreferences(DRAFTS_FILE, Context.MODE_PRIVATE)))
     val notifier = Notifier(context)
     val background = BackgroundController(context, link, credentials.state, settings, scope)
 
@@ -138,6 +142,7 @@ class AppContainer(context: Context) {
     private companion object {
         const val CREDENTIALS_FILE = "credentials"
         const val SETTINGS_FILE = "settings"
+        const val DRAFTS_FILE = "drafts"
         const val TAG = "Aristotle"
     }
 }

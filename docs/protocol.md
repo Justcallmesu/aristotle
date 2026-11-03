@@ -262,7 +262,7 @@ the running turn.
 
 | Method | Params | Result | Status |
 |---|---|---|---|
-| `session.steer` | `{session_id, execution_generation, text}` | `{status:"queued"|"redirected"|"rejected", text, execution_generation, authority_epoch}` | EXERCISED: `queued`, text reached the running turn ("steered" appended) |
+| `session.steer` | `{session_id, execution_generation, text}` (+ `profile`; any other key, a blank `text` or a non-int generation → `invalid_params`) | `{status:"queued"|"redirected"|"rejected", text, execution_generation, authority_epoch, delivered?}` or `{voice_stopped:true}`. `rejected` with `delivered:false` = no agent saw it (safe to send as the next prompt); a plain `rejected` may follow delivery, never re-send it. No idempotency key (T13: `gateway/session_busy_controls.py:175-217`, `tui_gateway/contracts/canonical_sessions.py:273-287`) | EXERCISED: `queued`, text reached the running turn ("steered" appended) |
 | `session.redirect` | same | same | from source, not exercised |
 | `session.interrupt` | `{session_id, execution_generation}` | handle `{ref, instance_id, authority_epoch, revision, execution_generation, execution_state}` | EXERCISED: turn ended `outcome:"cancelled", status:"interrupted"` |
 | `prompt.steer_queued` | `{session_id, admission_id}` | admission | from source, not exercised |

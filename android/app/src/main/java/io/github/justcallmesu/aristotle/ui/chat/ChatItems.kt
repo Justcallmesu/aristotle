@@ -82,8 +82,9 @@ fun ChatRow(item: ChatItem, folds: FoldState, lastFailedTool: String?, live: Boo
     }
 }
 
+/** The user's own message (design.md §5): right-aligned `secondaryContainer` bubble, at most 82 % wide. */
 @Composable
-private fun UserBubble(text: String) {
+internal fun UserBubble(text: String) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         Surface(
             color = MaterialTheme.colorScheme.secondaryContainer,

@@ -212,4 +212,31 @@
     <string name="prompt_answered_first">Sudah dijawab lebih dulu di perangkat lain</string>
     <string name="prompt_not_sent">Tidak terkirim: PC tidak tersambung. Coba lagi.</string>
     <string name="prompt_refused">Hermes menolak jawaban: %1$s</string>
+
+    <!-- T13: composer, busy actions, sent messages; D36 -->
+    <string name="composer_field">Pesan untuk Hermes</string>
+    <string name="composer_placeholder">Kirim pesan ke Hermes</string>
+    <string name="composer_offline">Bisa mengirim setelah tersambung lagi</string>
+    <string name="composer_send">Kirim</string>
+    <string name="composer_steer">Arahkan</string>
+    <string name="composer_queue">Antrekan</string>
+    <string name="composer_stop">Hentikan</string>
+    <string name="composer_steer_hint">Arahkan: masuk ke giliran yang sedang berjalan. Antrekan: dikirim setelahnya.</string>
+    <string name="composer_blocked_hint">Hermes menunggu jawabanmu, jadi Arahkan tidak tersedia. Antrekan mengirim pesan ini setelah giliran selesai.</string>
+    <string name="composer_blocked_idle_hint">Jawab Hermes dulu; setelah itu kamu bisa mengirim.</string>
+    <string name="composer_queued">Antrean · %1$d</string>
+    <string name="composer_queue_remove">Hapus dari antrean</string>
+    <string name="composer_sending">Mengirim…</string>
+    <string name="composer_stop_failed">Gagal menghentikan: %1$s</string>
+    <string name="composer_cancel_failed">Tidak bisa menghapus dari antrean: %1$s</string>
+    <string name="echo_steered">Diarahkan ke giliran ini</string>
+    <string name="echo_not_sent">Tidak terkirim: PC tidak tersambung.</string>
+    <string name="echo_no_answer">Hermes tidak menjawab. Mungkin pesan sudah sampai.</string>
+    <string name="echo_refused">Hermes menolaknya: %1$s</string>
+    <string name="echo_turn_ended">Giliran selesai sebelum arahan sampai.</string>
+    <string name="echo_not_taken">Giliran tidak menerima arahan ini.</string>
+    <string name="echo_retry">Coba lagi</string>
+    <string name="echo_dismiss">Hapus; teksnya kembali ke kolom pesan</string>
+    <string name="offline_cause_superseded">Ponsel ini membuka koneksi baru ke laptop lewat alamat lainnya, jadi koneksi ke %1$s ditutup.</string>
+    <string name="offline_waiting">Tidak menyambung ulang sendiri. Ketuk Coba sekarang untuk tersambung di sini.</string>
 </resources>

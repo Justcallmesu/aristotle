@@ -248,6 +248,38 @@ class LinkManagerTest {
         waitFor("checked again") { dialer.opened.size == 2 }
     }
 
+    // D36: 4409 = this device's newer socket on the PC's other listener replaced this one. Reconnecting on a timer
+    // would supersede that one in turn (flip-flop); only a network change, the foreground or the user starts a round.
+    @Test
+    fun aSupersededSocketIsNotReconnectedByItself() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val network = FakeNetwork(lan = true)
+        val manager = link(dialer, network)
+        val first = manager.await("online") { it is LinkState.Online } as LinkState.Online
+        dialer.sockets.single().close(4409, "superseded by a newer connection")
+        val offline = manager.await("superseded") { it is LinkState.Offline } as LinkState.Offline
+        assertEquals(OfflineCause.Superseded, offline.cause)
+        assertEquals("close 4409 superseded by a newer connection", offline.details)
+        assertTrue(offline.waiting)
+        assertFalse(offline.trying)
+        assertEquals(null, offline.nextAttemptAtMillis)
+        runBlocking { delay(500) } // well past the 40 ms backoff a lost connection would take
+        assertEquals(1, dialer.opened.size)
+        assertEquals(offline, manager.state.value)
+
+        network.change(preferLan = true)
+        val again = manager.await("back after a network change") { it is LinkState.Online && it.generation != first.generation } as LinkState.Online
+        assertEquals(2, dialer.opened.size)
+        // A second supersede waits again; Retry now (or the foreground) is what brings it back.
+        dialer.sockets.last().close(4409, "superseded by a newer connection")
+        manager.await("superseded again") { it is LinkState.Offline && it.waiting }
+        runBlocking { delay(300) }
+        assertEquals(2, dialer.opened.size)
+        manager.retryNow()
+        manager.await("back after Retry now") { it is LinkState.Online && it.generation != again.generation }
+        assertEquals(3, dialer.opened.size)
+    }
+
     @Test
     fun hermesDownRetriesQuietlyEveryFewSeconds() {
         val dialer = FakeDialer { _, n -> if (n < 2) FakeSocket().close(4503, "hermes_not_running") else FakeSocket().ready() }

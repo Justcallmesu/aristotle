@@ -90,6 +90,7 @@ private fun causeText(cause: OfflineCause, address: String): String = when (caus
     OfflineCause.ConnectionLost -> stringResource(R.string.offline_cause_lost, address)
     OfflineCause.Unreachable, OfflineCause.CertificateChanged -> stringResource(R.string.offline_cause_unreachable, address)
     OfflineCause.AppError -> stringResource(R.string.offline_cause_app_error, address)
+    OfflineCause.Superseded -> stringResource(R.string.offline_cause_superseded, address)
 }
 
 @Composable
@@ -100,12 +101,15 @@ private fun BodyLine(text: String) {
 /**
  * "Reconnecting… try N" during a round, else "Reconnecting… try N, next in S s" counting down (whole
  * seconds, tabular). N is the try that runs or runs next: [LinkState.Offline.attempt] tries have failed.
+ * A link that waits for the user (D36) says so instead.
  */
 @Composable
 private fun RetryStatus(offline: LinkState.Offline) {
     val next = offline.nextAttemptAtMillis
     val tryNumber = offline.attempt + 1
-    val text = if (next == null) {
+    val text = if (offline.waiting) {
+        stringResource(R.string.offline_waiting)
+    } else if (next == null) {
         stringResource(R.string.offline_reconnecting, tryNumber)
     } else {
         val left by produceState(secondsUntil(next), next) {
