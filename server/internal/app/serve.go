@@ -13,9 +13,11 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/config"
 	"github.com/justcallmesu/aristotle/server/internal/control"
 	"github.com/justcallmesu/aristotle/server/internal/devices"
+	"github.com/justcallmesu/aristotle/server/internal/hermes"
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/relay"
 	"github.com/justcallmesu/aristotle/server/internal/tlscert"
 )
 
@@ -43,7 +45,8 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 }
 
 // server is one running aristotle-server: loopback listener, LAN/Tailscale
-// listener manager and control socket, sharing the pairing codes and devices.
+// listener manager, control socket and the /v1/ws relay hub, sharing the
+// pairing codes and devices.
 type server struct {
 	cfg      config.Config
 	stateDir string
@@ -55,6 +58,7 @@ type server struct {
 	listen   *listen.Manager
 	control  *control.Server
 	rejects  *httpapi.RejectLog // one limiter for every listener
+	relay    *relay.Hub
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -79,8 +83,14 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		ctl.Unlock()
 		return nil, err
 	}
+	connector, err := hermes.New(hermes.Options{Logger: log})
+	if err != nil {
+		ctl.Unlock()
+		return nil, err
+	}
 	s := &server{cfg: cfg, stateDir: stateDir, version: version, log: log, cert: cert, codes: &pairing.Codes{}, devices: store,
-		rejects: httpapi.NewRejectLog(log), control: ctl}
+		rejects: httpapi.NewRejectLog(log), control: ctl,
+		relay: relay.New(relay.Options{Dialer: connector, Devices: store, Log: log})}
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
@@ -109,7 +119,7 @@ func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, e
 }
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
-	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects}
+	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Listener: string(kind)}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 
@@ -132,8 +142,19 @@ func (s *server) run(ctx context.Context) error {
 	wg.Go(func() { s.listen.Run(ctx) })
 	err = serveListener(ctx, ln, httpapi.NewRouter(s.version, s.log), s.log)
 	cancel()
+	s.closeRelays()
 	wg.Wait()
 	return err
+}
+
+// closeRelays ends every /v1/ws relay with 1001. http.Server.Shutdown does
+// not track hijacked (WebSocket) connections, so the hub does it, bounded.
+func (s *server) closeRelays() {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := s.relay.Shutdown(ctx); err != nil {
+		s.log.Warn("relays did not close in time; cut", "err", err)
+	}
 }
 
 func serveListener(ctx context.Context, ln net.Listener, h http.Handler, log *slog.Logger) error {

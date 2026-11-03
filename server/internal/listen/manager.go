@@ -218,6 +218,10 @@ func BindTCP(e Endpoint, port int) (net.Listener, error) {
 }
 
 func checkBindable(e Endpoint) error {
+	if e.Iface == "" {
+		// An empty name would mean "no device" to SO_BINDTODEVICE: an unpinned socket.
+		return fmt.Errorf("bind %v refused: no interface name", e.Addr)
+	}
 	if !e.Addr.IsValid() || e.Addr.IsUnspecified() {
 		return fmt.Errorf("bind %v refused: wildcard address", e.Addr)
 	}

@@ -25,6 +25,15 @@ type Deps struct {
 	Devices *devices.Store
 	// Rejects limits the "pairing attempts rejected" log line; share one across listeners.
 	Rejects *RejectLog
+	// Relay serves GET /v1/ws; nil leaves the route out (404 with a valid token).
+	Relay RelayServer
+	// Listener is the listener kind ("lan", "tailscale") for the relay's audit line.
+	Listener string
+}
+
+// RelayServer upgrades an authenticated /v1/ws request and relays it to Hermes (package relay).
+type RelayServer interface {
+	ServeRelay(w http.ResponseWriter, r *http.Request, deviceID, listener string)
 }
 
 // NewRouter returns the loopback handler: health only.
@@ -41,6 +50,9 @@ func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 	}
 	mux.Handle("POST /v1/pair", pairHandler(d, log, d.Rejects))
 	mux.Handle("GET /v1/me", requireDevice(d.Devices, http.HandlerFunc(meHandler)))
+	if d.Relay != nil {
+		mux.Handle("GET /v1/ws", requireDevice(d.Devices, relayHandler(d.Relay, d.Listener)))
+	}
 	mux.Handle("/v1/", requireDevice(d.Devices, http.NotFoundHandler()))
 	return logRequests(log, mux)
 }
@@ -66,4 +78,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, errorResponse{Error: msg})
+}
+
+func relayHandler(relay RelayServer, listener string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dev, _ := DeviceFrom(r.Context())
+		relay.ServeRelay(w, r, dev.ID, listener)
+	})
 }

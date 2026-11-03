@@ -156,3 +156,28 @@ func TestOpenRefusesUnknownFields(t *testing.T) {
 		t.Fatal("unknown field accepted")
 	}
 }
+
+func TestOnRevokeRunsAfterRemovalOnly(t *testing.T) {
+	s := open(t, t.TempDir(), newClock())
+	keep, _, _ := s.Add("keep")
+	gone, _, _ := s.Add("gone")
+	var got []string
+	var hasDuringHook bool
+	s.OnRevoke(func(id string) { got = append(got, id); hasDuringHook = s.Has(id) })
+	s.OnRevoke(func(id string) { got = append(got, "second:"+id) })
+	if !s.Has(gone.ID) || !s.Has(keep.ID) {
+		t.Fatal("Has is false for a paired device")
+	}
+	if _, err := s.Revoke(gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Revoke("dev_unknown"); err != ErrNotFound {
+		t.Fatalf("unknown revoke err = %v", err)
+	}
+	if len(got) != 2 || got[0] != gone.ID || got[1] != "second:"+gone.ID {
+		t.Fatalf("hook calls = %v, want one per hook for %s only", got, gone.ID)
+	}
+	if hasDuringHook || s.Has(gone.ID) || !s.Has(keep.ID) {
+		t.Fatalf("Has during hook=%v after=%v keep=%v", hasDuringHook, s.Has(gone.ID), s.Has(keep.ID))
+	}
+}

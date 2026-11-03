@@ -15,9 +15,10 @@ import (
 // exactly this profile.
 //
 // Do re-identifies, rewrites the request to api_origin, mints a single-use native-http ticket and sets
-// the ticket header. Only Accept, Accept-Encoding, Content-Type, Content-Length and User-Agent are
-// forwarded; every other header (credentials, X-Forwarded-*, X-Hermes-*, ...) is dropped. Redirects are not followed: the 3xx response is returned. The caller closes
-// the response body; req.Body is closed on every path.
+// the ticket header. Only Accept, Accept-Encoding, Content-Type and User-Agent are forwarded; every
+// other header (credentials, X-Forwarded-*, X-Hermes-*, ...) is dropped. The body length comes from
+// req.ContentLength (the client ignores a Content-Length header). Redirects are not followed: the
+// 3xx response is returned. The caller closes the response body; req.Body is closed on every path.
 func (c *Connector) Do(ctx context.Context, profile string, req *http.Request) (*http.Response, error) {
 	resp, err := c.do(ctx, profile, req)
 	if err != nil && req.Body != nil {
@@ -57,7 +58,7 @@ func (c *Connector) do(ctx context.Context, profile string, req *http.Request) (
 }
 
 // forwardedHeaders are the only request headers that reach Hermes (canonical names).
-var forwardedHeaders = []string{"Accept", "Accept-Encoding", "Content-Type", "Content-Length", "User-Agent"}
+var forwardedHeaders = []string{"Accept", "Accept-Encoding", "Content-Type", "User-Agent"}
 
 // dropUnlisted deletes every header not in forwardedHeaders. It deletes by the exact map key, so a key
 // set without canonicalisation ("authorization") is removed too.

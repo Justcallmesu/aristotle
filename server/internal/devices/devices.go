@@ -67,6 +67,7 @@ type Store struct {
 	mu        sync.Mutex
 	devices   []Device
 	persisted map[string]time.Time // last_seen_at as last written
+	onRevoke  []func(id string)
 }
 
 // Open loads <dir>/devices.json (missing file = no devices).
@@ -167,22 +168,48 @@ func (s *Store) List() []Public {
 	return out
 }
 
-// Revoke deletes a device; its token stops working on the next request.
+// Has reports whether a device id is paired (not revoked).
+func (s *Store) Has(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.ContainsFunc(s.devices, func(d Device) bool { return d.ID == id })
+}
+
+// OnRevoke registers fn to run after each successful Revoke, with the revoked id. fn runs on the
+// revoking goroutine after the device is gone (Has is already false), so it must not block.
+func (s *Store) OnRevoke(fn func(id string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onRevoke = append(s.onRevoke, fn)
+}
+
+// Revoke deletes a device; its token stops working on the next request and every OnRevoke func runs.
 func (s *Store) Revoke(id string) (Public, error) {
+	gone, hooks, err := s.remove(id)
+	if err != nil {
+		return Public{}, err
+	}
+	for _, fn := range hooks {
+		fn(id)
+	}
+	return gone, nil
+}
+
+func (s *Store) remove(id string) (Public, []func(string), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	i := slices.IndexFunc(s.devices, func(d Device) bool { return d.ID == id })
 	if i < 0 {
-		return Public{}, ErrNotFound
+		return Public{}, nil, ErrNotFound
 	}
 	gone := s.devices[i]
 	next := slices.Delete(slices.Clone(s.devices), i, i+1)
 	if err := s.save(next); err != nil {
-		return Public{}, err
+		return Public{}, nil, err
 	}
 	s.devices = next
 	delete(s.persisted, id)
-	return gone.public(), nil
+	return gone.public(), slices.Clone(s.onRevoke), nil
 }
 
 // save writes list to disk. Caller holds s.mu.

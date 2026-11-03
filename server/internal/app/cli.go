@@ -3,7 +3,6 @@ package app
 import (
 	"flag"
 	"fmt"
-	"github.com/justcallmesu/aristotle/server/internal/pairing"
 	"io"
 	"strings"
 	"text/tabwriter"
@@ -13,6 +12,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/config"
 	"github.com/justcallmesu/aristotle/server/internal/control"
 	"github.com/justcallmesu/aristotle/server/internal/devices"
+	"github.com/justcallmesu/aristotle/server/internal/pairing"
 )
 
 // callServer sends one control command to the running server.

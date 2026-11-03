@@ -19,7 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+
 	"github.com/justcallmesu/aristotle/server/internal/config"
+	"github.com/justcallmesu/aristotle/server/internal/hermes/hermestest"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
 )
@@ -52,6 +55,20 @@ func startTestServer(t *testing.T) (*server, *lockedBuffer) {
 // its LAN/Tailscale listeners bind loopback ports instead of those addresses.
 func startTestServerWith(t *testing.T, scan func() ([]listen.Iface, error)) (*server, *lockedBuffer) {
 	t.Helper()
+	ts := startServer(t, scan, "")
+	return ts.srv, ts.logs
+}
+
+type testServer struct {
+	srv  *server
+	logs *lockedBuffer
+	stop func() // cancels run and waits for it; also runs at cleanup
+}
+
+// startServer runs a test server. hermesHome is the Hermes home its relay
+// dials; "" is an empty temp dir, so no test reaches the real ~/.hermes.
+func startServer(t *testing.T, scan func() ([]listen.Iface, error), hermesHome string) testServer {
+	t.Helper()
 	root, err := os.MkdirTemp("", "ar")
 	if err != nil {
 		t.Fatal(err)
@@ -59,6 +76,10 @@ func startTestServerWith(t *testing.T, scan func() ([]listen.Iface, error)) (*se
 	t.Cleanup(func() { os.RemoveAll(root) })
 	t.Setenv("XDG_STATE_HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", root)
+	if hermesHome == "" {
+		hermesHome = filepath.Join(root, "hermes")
+	}
+	t.Setenv("HERMES_HOME", hermesHome)
 	logs := &lockedBuffer{}
 	log := slog.New(slog.NewTextHandler(logs, nil))
 	stateDir, err := config.EnsureStateDir(log)
@@ -75,17 +96,21 @@ func startTestServerWith(t *testing.T, scan func() ([]listen.Iface, error)) (*se
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- srv.run(ctx) }()
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
-			t.Error(err)
-		}
-		if _, err := os.Lstat(filepath.Join(stateDir, "control.sock")); !os.IsNotExist(err) {
-			t.Errorf("control socket left behind: %v", err)
-		}
-	})
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			if err := <-done; err != nil {
+				t.Error(err)
+			}
+			if _, err := os.Lstat(filepath.Join(stateDir, "control.sock")); !os.IsNotExist(err) {
+				t.Errorf("control socket left behind: %v", err)
+			}
+		})
+	}
+	t.Cleanup(stop)
 	waitForSocket(t, filepath.Join(stateDir, "control.sock"))
-	return srv, logs
+	return testServer{srv: srv, logs: logs, stop: stop}
 }
 
 func waitForSocket(t *testing.T, path string) {
@@ -294,5 +319,58 @@ func TestPairOutputOrderAndInterfaces(t *testing.T) {
 	}
 	if !strings.Contains(out, "default route") {
 		t.Fatalf("default route not marked:\n%s", out)
+	}
+}
+
+// Every listener the manager starts gets the server's one rejection limiter:
+// rejected pairings on a LAN and a Tailscale listener log one line, not two.
+func TestEveryListenerSharesRejectLog(t *testing.T) {
+	srv, logs := startTestServer(t)
+	for _, kind := range []listen.Kind{listen.LAN, listen.Tailscale, listen.LAN} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/pair", strings.NewReader(`{"code":"AAAAAAAA"}`))
+		req.RemoteAddr = "192.168.1.20:40000"
+		rec := httptest.NewRecorder()
+		srv.listen.Handler(kind).ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s pair = %d", kind, rec.Code)
+		}
+	}
+	if n := strings.Count(logs.String(), "pairing attempts rejected"); n != 1 {
+		t.Fatalf("%d rejection lines across listeners, want 1:\n%s", n, logs.String())
+	}
+}
+
+// Stopping the server closes a live /v1/ws relay with 1001 and run returns.
+func TestShutdownClosesRelays(t *testing.T) {
+	fake := hermestest.New(t)
+	ts := startServer(t, func() ([]listen.Iface, error) { return nil, nil }, fake.Home)
+	_, token, err := ts.srv.devices.Add("phone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := httptest.NewServer(ts.srv.remoteHandler(listen.Tailscale))
+	defer api.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	pc, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(api.URL, "http")+"/v1/ws",
+		&websocket.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer " + token}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pc.CloseNow()
+	if _, ready, err := pc.Read(ctx); err != nil || !strings.Contains(string(ready), "gateway.ready") {
+		t.Fatalf("first frame %q, %v", ready, err)
+	}
+	start := time.Now()
+	ts.stop()
+	if d := time.Since(start); d > 6*time.Second {
+		t.Fatalf("shutdown took %v", d)
+	}
+	_, _, err = pc.Read(ctx)
+	if code := websocket.CloseStatus(err); code != websocket.StatusGoingAway {
+		t.Fatalf("relay close = %v (%v), want 1001", code, err)
+	}
+	if !strings.Contains(ts.logs.String(), "close_code=1001") {
+		t.Fatalf("no close line with 1001:\n%s", ts.logs.String())
 	}
 }

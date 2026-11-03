@@ -1,0 +1,2 @@
+?? docs/v1-tickets/runs/T06/pre.txt
+6b827b1 docs: board after T05c, T06 brief

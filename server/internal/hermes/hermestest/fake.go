@@ -1,9 +1,12 @@
-package hermes
+// Package hermestest is a fake Hermes gateway for tests: the control socket in a temp home plus /api/ws and
+// REST routes on an httptest server. It is a test helper; product code never imports it.
+package hermestest
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -16,35 +19,50 @@ import (
 	"github.com/coder/websocket"
 )
 
-// fakeHermes speaks the control protocol on a unix socket in a temp home and serves /api/ws and
+// Wire names, duplicated from package hermes (whose in-package tests import this package, so it cannot
+// import hermes back). Facts: docs/protocol.md §1.1, §1.2, §8.
+const (
+	controlSocketName  = "gateway.sock"
+	gatewaySubprotocol = "hermes-gateway-v1"
+	ticketSubprotocol  = "hermes-gateway-ticket."
+	ticketHTTPHeader   = "X-Hermes-Gateway-Ticket"
+)
+
+// Fake speaks the control protocol on a unix socket in a temp home and serves /api/ws and
 // /api/echo from an httptest server. It enforces what the real gateway enforces: single-use
 // tickets, exact params keys, purpose, subprotocols and no Origin header.
-type fakeHermes struct {
-	t    *testing.T
-	home string
-	ln   net.Listener
+//
+// Set the behaviour fields before dialling; read the recorded fields holding Mu.
+type Fake struct {
+	Home string       // the fake Hermes home; point hermes.Options.Home here
+	Ln   net.Listener // the control socket listener
 
-	mu            sync.Mutex
+	Mu            sync.Mutex
 	srv           *httptest.Server
 	instanceID    string
 	runtime       int
 	generation    int
 	tickets       map[string]string // ticket -> purpose, removed on redeem
-	minted        []mintRequest
-	redeemRefused int
-	originSeen    bool
-	firstFrames   []string
-	restHeaders   []string
-	restSeen      []http.Header        // all headers of each accepted REST request
-	preAck        int                  // frames sent before the ack (default 1: gateway.ready)
-	closeCode     websocket.StatusCode // close instead of acking (during Dial)
-	closeAfterAck websocket.StatusCode // close right after the ack (an established Conn)
-	noAck         bool
+	Minted        []MintRequest
+	RedeemRefused int
+	OriginSeen    bool
+	FirstFrames   []string             // every frame the client sent on /api/ws, in order
+	RestHeaders   []string             // the ticket header of each accepted REST request
+	RestSeen      []http.Header        // all headers of each accepted REST request
+	RestBodies    [][]byte             // the body of each accepted REST request
+	RestLengths   []int64              // the declared Content-Length of each accepted REST request (-1 = none)
+	PreAck        int                  // frames sent before the ack (default 1: gateway.ready)
+	CloseCode     websocket.StatusCode // close instead of acking (during Dial)
+	CloseAfterAck websocket.StatusCode // close right after the ack (an established Conn)
+	NoAck         bool
+	ReadLimit     int64 // /api/ws read limit; 0 = the library default (32 KiB). Real Hermes allows 384 MiB.
 }
 
-type mintRequest struct{ Purpose, Scope, ProfileID string }
+// MintRequest is one ticket the fake minted.
+type MintRequest struct{ Purpose, Scope, ProfileID string }
 
-func newFakeHermes(t *testing.T) *fakeHermes {
+// New starts a fake Hermes; everything is torn down by t.Cleanup.
+func New(t testing.TB) *Fake {
 	t.Helper()
 	home, err := os.MkdirTemp("", "fh")
 	if err != nil {
@@ -55,49 +73,49 @@ func newFakeHermes(t *testing.T) *fakeHermes {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeHermes{t: t, home: home, ln: ln, runtime: 1, tickets: map[string]string{}}
+	f := &Fake{Home: home, Ln: ln, runtime: 1, tickets: map[string]string{}}
 	f.startHTTP()
 	go f.serveControl()
 	t.Cleanup(func() { ln.Close(); f.srv.Close() })
 	return f
 }
 
-func (f *fakeHermes) connector() *Connector {
-	c, err := New(Options{Home: f.home})
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	return c
+// URL is the current api_origin.
+func (f *Fake) URL() string {
+	f.Mu.Lock()
+	defer f.Mu.Unlock()
+	return f.srv.URL
 }
 
-// restart simulates a Hermes restart: new instance, new port, old tickets void.
-func (f *fakeHermes) restart() {
-	f.mu.Lock()
+// Restart simulates a Hermes restart: new instance, new port, old tickets void.
+func (f *Fake) Restart() {
+	f.Mu.Lock()
 	old := f.srv
 	f.tickets = map[string]string{}
-	f.mu.Unlock()
+	f.Mu.Unlock()
 	old.Close()
 	f.startHTTP()
 }
 
-func (f *fakeHermes) startHTTP() {
+func (f *Fake) startHTTP() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/ws", f.handleWS)
 	mux.HandleFunc("/api/echo", f.handleREST)
 	mux.HandleFunc("/api/redirect", f.handleRedirect)
 	srv := httptest.NewServer(mux)
-	f.mu.Lock()
+	f.Mu.Lock()
 	f.srv = srv
 	f.generation++
 	f.instanceID = fmt.Sprintf("instance-%d", f.generation)
-	f.mu.Unlock()
+	f.Mu.Unlock()
 }
 
-func (f *fakeHermes) setRuntime(v int) { f.mu.Lock(); f.runtime = v; f.mu.Unlock() }
+// SetRuntime changes the runtime_protocol identify and tickets report.
+func (f *Fake) SetRuntime(v int) { f.Mu.Lock(); f.runtime = v; f.Mu.Unlock() }
 
-func (f *fakeHermes) serveControl() {
+func (f *Fake) serveControl() {
 	for {
-		conn, err := f.ln.Accept()
+		conn, err := f.Ln.Accept()
 		if err != nil {
 			return
 		}
@@ -105,7 +123,7 @@ func (f *fakeHermes) serveControl() {
 	}
 }
 
-func (f *fakeHermes) handleControl(conn net.Conn) {
+func (f *Fake) handleControl(conn net.Conn) {
 	defer conn.Close()
 	line, err := bufio.NewReader(conn).ReadBytes('\n')
 	if err != nil {
@@ -121,8 +139,8 @@ func (f *fakeHermes) handleControl(conn net.Conn) {
 		f.reply(conn, map[string]any{"ok": false, "error": "PermissionError: invalid bootstrap envelope"})
 		return
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.Mu.Lock()
+	defer f.Mu.Unlock()
 	switch req.Verb {
 	case "identify":
 		f.reply(conn, map[string]any{"ok": true, "protocol": 1, "id": req.ID, "result": f.identityLocked()})
@@ -133,19 +151,19 @@ func (f *fakeHermes) handleControl(conn net.Conn) {
 	}
 }
 
-func (f *fakeHermes) identityLocked() map[string]any {
+func (f *Fake) identityLocked() map[string]any {
 	return map[string]any{
 		"runtime_protocol": f.runtime, "state": "ready", "instance_id": f.instanceID,
-		"api_origin": f.srv.URL, "hermes_home": f.home,
+		"api_origin": f.srv.URL, "hermes_home": f.Home,
 		"capabilities": []string{"session-authority-v1"},
 		"served_profiles": []map[string]string{
-			{"profile_id": f.home, "home": f.home},
-			{"profile_id": f.home + "/profiles/pm", "home": f.home + "/profiles/pm"},
+			{"profile_id": f.Home, "home": f.Home},
+			{"profile_id": f.Home + "/profiles/pm", "home": f.Home + "/profiles/pm"},
 		},
 	}
 }
 
-func (f *fakeHermes) replyTicketLocked(conn net.Conn, id int, params map[string]interface{}) {
+func (f *Fake) replyTicketLocked(conn net.Conn, id int, params map[string]interface{}) {
 	deny := func(msg string) {
 		f.reply(conn, map[string]any{"ok": false, "id": id, "error": "PermissionError: " + msg})
 	}
@@ -161,39 +179,39 @@ func (f *fakeHermes) replyTicketLocked(conn net.Conn, id int, params map[string]
 	switch {
 	case params["instance_id"] != f.instanceID:
 		deny("stale runtime instance")
-	case (profileID != f.home && profileID != f.home+"/profiles/pm") || (purpose != "interactive" && purpose != "native-http") || (scope == "host" && purpose != "interactive"):
+	case (profileID != f.Home && profileID != f.Home+"/profiles/pm") || (purpose != "interactive" && purpose != "native-http") || (scope == "host" && purpose != "interactive"):
 		deny("bootstrap binding rejected")
 	default:
-		ticket := fmt.Sprintf("tkt-%d-%d", f.generation, len(f.minted)+1)
+		ticket := fmt.Sprintf("tkt-%d-%d", f.generation, len(f.Minted)+1)
 		f.tickets[ticket] = purpose
-		f.minted = append(f.minted, mintRequest{purpose, scope, profileID})
+		f.Minted = append(f.Minted, MintRequest{purpose, scope, profileID})
 		f.reply(conn, map[string]any{"ok": true, "id": id, "result": map[string]any{
 			"ticket": ticket, "instance_id": f.instanceID, "profile_id": profileID, "runtime_protocol": f.runtime}})
 	}
 }
 
-func (f *fakeHermes) reply(conn net.Conn, v map[string]any) {
+func (f *Fake) reply(conn net.Conn, v map[string]any) {
 	b, _ := json.Marshal(v)
 	_, _ = conn.Write(append(b, '\n'))
 }
 
 // redeem consumes a ticket once; a second redeem is refused like the real store.
-func (f *fakeHermes) redeem(ticket, purpose string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+func (f *Fake) redeem(ticket, purpose string) bool {
+	f.Mu.Lock()
+	defer f.Mu.Unlock()
 	if f.tickets[ticket] != purpose || ticket == "" {
-		f.redeemRefused++
+		f.RedeemRefused++
 		return false
 	}
 	delete(f.tickets, ticket)
 	return true
 }
 
-func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
+func (f *Fake) handleWS(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Origin") != "" {
-		f.mu.Lock()
-		f.originSeen = true
-		f.mu.Unlock()
+		f.Mu.Lock()
+		f.OriginSeen = true
+		f.Mu.Unlock()
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -213,9 +231,12 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.CloseNow()
 	ctx := r.Context()
-	f.mu.Lock()
-	preAck, closeCode, noAck, closeAfterAck := f.preAck, f.closeCode, f.noAck, f.closeAfterAck
-	f.mu.Unlock()
+	f.Mu.Lock()
+	preAck, closeCode, noAck, closeAfterAck, readLimit := f.PreAck, f.CloseCode, f.NoAck, f.CloseAfterAck, f.ReadLimit
+	f.Mu.Unlock()
+	if readLimit != 0 {
+		ws.SetReadLimit(readLimit)
+	}
 	if closeCode != 0 {
 		_ = ws.Close(closeCode, "test close")
 		return
@@ -234,9 +255,9 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		f.mu.Lock()
-		f.firstFrames = append(f.firstFrames, string(data))
-		f.mu.Unlock()
+		f.Mu.Lock()
+		f.FirstFrames = append(f.FirstFrames, string(data))
+		f.Mu.Unlock()
 		reply := data
 		if first && noAck {
 			continue
@@ -254,21 +275,24 @@ func (f *fakeHermes) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (f *fakeHermes) handleREST(w http.ResponseWriter, r *http.Request) {
+func (f *Fake) handleREST(w http.ResponseWriter, r *http.Request) {
 	ticket := r.Header.Get(ticketHTTPHeader)
 	if r.Header.Get("Origin") != "" || !f.redeem(ticket, "native-http") {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	f.mu.Lock()
-	f.restHeaders = append(f.restHeaders, ticket)
-	f.restSeen = append(f.restSeen, r.Header.Clone())
-	f.mu.Unlock()
+	body, _ := io.ReadAll(r.Body)
+	f.Mu.Lock()
+	f.RestHeaders = append(f.RestHeaders, ticket)
+	f.RestSeen = append(f.RestSeen, r.Header.Clone())
+	f.RestBodies = append(f.RestBodies, body)
+	f.RestLengths = append(f.RestLengths, r.ContentLength)
+	f.Mu.Unlock()
 	_, _ = w.Write([]byte(r.URL.RequestURI()))
 }
 
 // handleRedirect redeems the ticket, then answers 307 so a following client would replay it.
-func (f *fakeHermes) handleRedirect(w http.ResponseWriter, r *http.Request) {
+func (f *Fake) handleRedirect(w http.ResponseWriter, r *http.Request) {
 	if !f.redeem(r.Header.Get(ticketHTTPHeader), "native-http") {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

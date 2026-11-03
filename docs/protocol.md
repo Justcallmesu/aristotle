@@ -369,7 +369,7 @@ All listeners use the same port (config `port`, default 8760). The server never 
 | Tailscale | each 100.64.0.0/10 or fd7a:115c:a1e0::/48 address of a TUN interface named `tailscale*` | plain HTTP (WireGuard encrypts) | tailnet peers (same two ranges) |
 | Loopback | config `host` (127.0.0.1 or ::1) | HTTP | local only; serves `/healthz` only |
 
-- Each listener is also pinned to its interface (`SO_BINDTODEVICE`), so a packet arriving on another interface never reaches it.
+- Each listener is also pinned to its interface (`SO_BINDTODEVICE`), so a packet arriving on another interface never reaches it. The interface pin applies on Linux only; elsewhere the peer gate is the only interface check.
 - A LAN interface must be up and running (has carrier) to get a listener; the same holds for Tailscale.
 - The same address ranges on any other interface (a hotel or carrier CGNAT handing out 100.x) get no listener.
 - `aristotle-server pair` prints every listener URL with its interface: the default-route LAN interface first,
@@ -422,3 +422,70 @@ and IP changes. The app trusts it by pin, not by CA or hostname: the IP SANs are
 - On the manual pairing path the app shows this fingerprint for the user to compare with the laptop's, and stores
   it with the device token. The pin changes only if the user deletes the key pair, and then every phone must re-pair.
 - The Tailscale listener has no TLS, so there is no pin there.
+
+## 12. Relay socket (`/v1/ws`)
+The phone's live Hermes session socket, through aristotle-server (T06; code in `server/internal/relay`). One phone
+socket = one fresh Hermes `/api/ws` socket (own ticket, `scope:"host"`, launch profile; §1, §3). Frames pass through
+unchanged both ways, except §10's redaction on the way to the phone. No method allowlist (spec Q7d).
+
+**Upgrade.** `GET /v1/ws` on the LAN (`wss://`, pinned cert §11.3) and Tailscale (`ws://`) listeners, HTTP/1.1
+upgrade (ALPN `http/1.1` on TLS; OkHttp does this). Header `Authorization: Bearer <device token>`, as for every
+`/v1/*` route. No subprotocol, no Origin header needed, no compression. Missing/unknown/revoked token -> HTTP `401`
+before any upgrade (Hermes is not contacted); a peer outside the listener's range -> `403` (§11.2). The request log
+line is written at upgrade time (status 101).
+
+**After accept.** aristotle-server dials Hermes (identify, ticket, upgrade, `client.capabilities
+{"server_requests":true}` and its ack; §1). Then the phone receives, in order, whatever Hermes sent first
+(`gateway.ready`, §1.3) and every later frame. The connector's own `client.capabilities` request (`id` 1) and its
+ack are never shown to the phone.
+
+**Capabilities: the phone need not send any.** Hermes records them per socket (`tui_gateway/methods_voice.py:522-541`):
+each `client.capabilities` call updates only the keys it names and is answered normally, so a phone that sends one
+gets a normal result. Consequences:
+- The socket is already marked `server_requests: true`, so Hermes sends the phone `srq-` server requests (`sudo`,
+  `secret`, `vault.*`, batch `clarify`, window bridges; §6). The phone must answer or decline each (`4404` for
+  window bridges), or the agent waits until the request's deadline. Sending `server_requests:false` makes Hermes
+  fail those requests at once for this socket instead.
+- The phone must NOT send `desktop_local: true`: the relay socket holds a native ticket, so Hermes would treat the
+  phone as the local Desktop app and run its first-boot work (`hermes_cli/process_identity.py:425-431`,
+  `tui_gateway/methods_onboarding.py:107`).
+- JSON-RPC ids are the phone's own; reusing id `1` is safe (the connector's request is answered before the
+  phone's first frame is forwarded).
+
+**Close codes** (sent by aristotle-server to the phone; Hermes' own codes on an established socket pass through):
+
+| Code | Reason text | When | Phone should |
+|---|---|---|---|
+| `1000` | Hermes' reason | Hermes closed normally | reconnect when needed |
+| `1001` | `going_away` | aristotle-server is stopping (also: a new socket during shutdown) | retry with backoff |
+| `1003` | `text_frames_only` | the phone sent a binary frame | fix the client |
+| `1009` | `read limited at …` | a phone frame over 1 MiB (sent by the WebSocket library) | split/shrink; upload files via REST |
+| `1011` | `pong_timeout` | no pong within 15 s of a ping | reconnect |
+| `1013` | `try_again` / Hermes' reason | Hermes draining or not ready, at dial (`ErrDraining`) or later (Hermes sent 1013) | retry with backoff |
+| `4401` | `revoked` | the device was revoked (`devices revoke`); every live socket of it closes within 1 s | re-pair |
+| `4429` | `rate_limited` | more than 600 phone frames in 60 s on this socket | reconnect later, send less |
+| `4430` | `too_many_connections` | the device already has 4 open relay sockets | close one |
+| `4502` | `hermes_unavailable`, `hermes_unavailable: refused (4403)`, `hermes_unavailable: connection lost` | any other dial failure; Hermes closed with 4403; Hermes vanished without a close frame | retry with backoff |
+| `4503` | `hermes_not_running` | the Hermes control socket is missing or refuses connections | show "Hermes is not running on the PC" |
+| `4505` | `hermes_protocol_unsupported (unsupported hermes runtime protocol: N)` | Hermes' `runtime_protocol` is not one this server speaks | update aristotle-server |
+| other | Hermes' reason | Hermes closed an established socket with any other sendable code | treat like 4502 |
+
+Reasons are at most 123 bytes and never contain tickets or tokens. A dial failure is reported only after the upgrade
+succeeded, so the phone always gets a close code instead of a hang or an HTTP error.
+
+**Limits** (per phone socket unless noted): phone frames ≤ 1 MiB each (text only); ≤ 600 phone frames per 60 s
+(sliding); ≤ 4 sockets per device. Frames Hermes -> phone have no relay size limit (a whole-transcript
+`session.resume` can be large; Hermes itself accepts up to 384 MiB, `hermes_cli/web_server_boundary.py:26`).
+
+**Keepalive.** aristotle-server pings the phone every 25 s (WebSocket ping control frame); no pong within 15 s ->
+`1011`. WebSocket clients answer pings automatically while they read. It does not ping Hermes (loopback); the phone
+may still call `gateway.ping` itself (§1.3).
+
+**Redaction.** Hermes -> phone only, exactly §10: `system_prompt` -> `system_prompt_chars`, `credential_hint` removed,
+at `params.payload`, `result`, `result.info` and every `result.events[].params.payload`. Frames without either field
+name pass byte for byte; redacted frames are re-encoded (same fields and values, key order and whitespace may
+differ). A frame that names a field but is not a JSON object is dropped (counted in the close log), never forwarded.
+
+**Audit.** One log line on open (`device_id`, `listener`) and one on close (`device_id`, `listener`, `duration`,
+`close_code`, `closed_by`, `frames_in/out`, `bytes_in/out`, `dropped`, and counts per JSON-RPC `method` name sent by
+the phone; a name that is not a plain dotted identifier is counted as `other`). Never frame bodies, tickets or tokens.

@@ -285,18 +285,29 @@ func TestEndpointURL(t *testing.T) {
 }
 
 func TestBindTCPRefuses(t *testing.T) {
-	tests := []Endpoint{
-		{Kind: LAN, Addr: netip.MustParseAddr("0.0.0.0")},
-		{Kind: Tailscale, Addr: netip.MustParseAddr("::")},
-		{Kind: LAN, Addr: netip.Addr{}},
-		{Kind: LAN, Addr: netip.MustParseAddr("127.0.0.1")},
-		{Kind: LAN, Addr: netip.MustParseAddr("100.74.61.96")},
-		{Kind: Tailscale, Addr: netip.MustParseAddr("8.8.8.8")},
+	tests := []struct {
+		e    Endpoint
+		want string
+	}{
+		{Endpoint{Kind: LAN, Addr: netip.MustParseAddr("0.0.0.0"), Iface: "lo"}, "wildcard"},
+		{Endpoint{Kind: Tailscale, Addr: netip.MustParseAddr("::"), Iface: "lo"}, "wildcard"},
+		{Endpoint{Kind: LAN, Addr: netip.Addr{}, Iface: "lo"}, "wildcard"},
+		{Endpoint{Kind: LAN, Addr: netip.MustParseAddr("127.0.0.1"), Iface: "lo"}, "not a lan address"},
+		{Endpoint{Kind: LAN, Addr: netip.MustParseAddr("100.74.61.96"), Iface: "wlan0"}, "not a lan address"},
+		{Endpoint{Kind: Tailscale, Addr: netip.MustParseAddr("8.8.8.8"), Iface: "tailscale0"}, "not a tailscale address"},
+		// An empty name would leave the socket unpinned.
+		{Endpoint{Kind: LAN, Addr: netip.MustParseAddr("192.168.1.61")}, "no interface name"},
+		{Endpoint{Kind: Tailscale, Addr: netip.MustParseAddr("100.74.61.96")}, "no interface name"},
 	}
-	for _, e := range tests {
-		if ln, err := BindTCP(e, 0); err == nil {
+	for _, tc := range tests {
+		ln, err := BindTCP(tc.e, 0)
+		if err == nil {
 			ln.Close()
-			t.Errorf("BindTCP(%v) succeeded, want refusal", e)
+			t.Errorf("BindTCP(%v) succeeded, want refusal", tc.e)
+			continue
+		}
+		if !strings.Contains(strings.ToLower(err.Error()), tc.want) {
+			t.Errorf("BindTCP(%v) err = %v, want %q", tc.e, err, tc.want)
 		}
 	}
 }
