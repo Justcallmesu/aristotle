@@ -12,9 +12,9 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T01 | v0 spike: attach to a live Desktop session from Go | — | spikes/, docs | AWAITING-HUMAN (Desktop demo) |
 | T02 | Android toolchain + app shell (name, EN/ID strings, placeholder icon, installs on Poco) | — | android | DONE |
 | T03 | Server skeleton + gate script | — | server, docs | DONE |
-| T02b | compileSdk/targetSdk 36 + current Compose/androidx (Q36); `android.builder.sdkDownload=false`; wrapper `distributionSha256Sum`; DayNight launch theme (no dark flash) — T02 review MAJOR×2, MINOR×2 | T02 | android | TODO |
-| T03b | State dir forced to 0700 (chmod or refuse if group/other readable); android gate fails when `gradlew` exists but is not executable; config keys exact-case, duplicates refused — T03 review MAJOR + MINOR×2 | T03 | server, docs | TODO |
-| T01b | `docs/protocol.md`: `session.info` has two shapes (partial update vs full inventory) — clients merge present keys only; correct system_prompt frequency; document ticket params; fix 403 cite — T01 review MAJOR + MINOR/NITs | T01 | docs | TODO |
+| T02b | compileSdk/targetSdk 36 + current Compose/androidx (Q36); `android.builder.sdkDownload=false`; wrapper `distributionSha256Sum`; DayNight launch theme (no dark flash) — T02 review MAJOR×2, MINOR×2 | T02 | android | DONE |
+| T03b | State dir forced to 0700 (chmod or refuse if group/other readable); android gate fails when `gradlew` exists but is not executable; config keys exact-case, duplicates refused — T03 review MAJOR + MINOR×2 | T03 | server, docs | DONE |
+| T01b | `docs/protocol.md`: `session.info` has two shapes (partial update vs full inventory) — clients merge present keys only; correct system_prompt frequency; document ticket params; fix 403 cite — T01 review MAJOR + MINOR/NITs | T01 | docs | DONE |
 | T04 | Hermes connector package (ticket, dial, capabilities, reconnect, fail closed) + fake Hermes | T01b, T03b | server | TODO |
 | T05 | Listeners + device auth + manual pairing + devices list/revoke (server) | T03b | server | TODO |
 | T06 | `/v1/ws` relay: device-authenticated, one ticket per connection, size/rate caps, audit log, strips system prompt (Q34) | T04, T05 | server | TODO |
@@ -36,6 +36,19 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T22 | v1 QA on the Poco + release signing | all above | all | TODO |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
+
+## Deferred review findings
+
+| # | Finding (source) | Goes to | Status |
+|---|---|---|---|
+| D1 | Unmatched routes log the raw path (`httpapi.go:47`); a secret in a path would leak (T03b review) | T05 | OPEN |
+| D2 | `Lstat`->`Chmod` race on the state dir; open with O_NOFOLLOW and fchmod (T03b review) | T05 | OPEN |
+| D3 | No test for the other-owner refusal; inject file info (T03b review) | T05 | OPEN |
+| D4 | Request log written after the handler returns; long-lived WS logs nothing until close (T03b review) | T06 | OPEN |
+| D5 | Config file containing only `null` accepted as defaults (T03b review) | T05 | OPEN |
+| D6 | `docs/protocol.md` §1.2: a MISSING ticket subprotocol falls through to the web gate (only ill-formed -> 4403) (T01b review) | T04 | OPEN |
+| D7 | Second Ctrl-C ignored during shutdown; net/http errors bypass slog (T03 review) | T21 | OPEN |
+| D8 | Revisit night-theme window colours when edge-to-edge is adopted (T02b review) | T11 | OPEN |
 
 ## Tickets
 
@@ -140,3 +153,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-03 User decided Q34 (strip system prompt), Q36 (platform 36; PM installed `platforms;android-36` via sdkmanager), Q35 (server PTY terminal). Added T02b. T01 stays open for the live Desktop co-viewer demo with the user.
 - 2026-11-03 Wave-1 reviews: T01, T02, T03 all PASS-WITH-FINDINGS, no BLOCKER. Findings became T01b/T02b/T03b and notes on T07. PM redacted `credential_hint` (8 chars of an API key) in 22 places in docs/spikes/frames and in the T01 review report. Spec §2 wording fixed (server never writes Hermes files; phone-sent config.set etc. relayed per Q7d).
 - 2026-11-03 T02, T03 committed and pushed by PM (user grant). T01 committed; ticket stays open only for the Desktop co-viewer demo.
+- 2026-11-03 User: go. T01b, T02b, T03b dispatched in parallel (std each; disjoint files).
+- 2026-11-03 T01b/T02b/T03b built. PM gates GREEN on the full tree (runs/pm-gate-2: 30 Go tests, android lint+test+assemble on SDK 36). T03b mutation (skip chmod of existing dir) fails TestEnsureDirTightensExisting; restored sha256 match. T03b's own android FAIL was a parallel-build collision, not reproduced. Reviews: T01b std, T02b std (config/resources), T03b deep.
+- 2026-11-03 Wave-2 reviews: T01b, T02b, T03b PASS-WITH-FINDINGS, no BLOCKER/MAJOR. All DONE; deferred findings D1-D8 on the board.
