@@ -99,21 +99,35 @@ device fallback: `serif` (Literata), `sans-serif` (Atkinson), `monospace` (Mono)
 
 `display*`, `headlineLarge/Medium` unused. Never use `fontSize` below 11 sp. Honour system font scale; layouts must not clip at 1.3×.
 
-## 3. Shape (Q39)
+## 3. Shape (Q39, replaced by Q75: Soft)
 
-Slightly rounded, **no pills**: nothing uses `CircleShape` or `RoundedCornerShape(50)` except the avatar-free spinner and the
-radio/checkbox controls M3 draws itself.
+Rounded, **no pills**: each radius is below half its control's height. Nothing uses `CircleShape` or `RoundedCornerShape(50)`
+except the avatar-free spinner and the radio/checkbox controls M3 draws itself. Full v2 notes: `docs/design/v2/design-notes.md`
+(board `docs/design/v2/mockups.html`).
 
 | Token | Radius | Use |
 |---|---|---|
-| extraSmall | 4 dp | Text fields |
-| small | 6 dp | Chips (incl. profile chip), inline code, code blocks |
-| medium | 10 dp | Tool cards, banners, fingerprint card |
-| large | 14 dp | FAB, message bubbles |
-| extraLarge | 24 dp | Bottom sheets (top corners), composer panel (top corners) |
-| buttons | 8 dp | Every `Button`/`FilledTonalButton`/`OutlinedButton`/`TextButton`: pass `shape = RoundedCornerShape(8.dp)` explicitly |
+| extraSmall | 4 dp | Inner corners of grouped rows, inline code |
+| small | 12 dp | Chips (profile, model, waiting), code/output blocks, segmented outer |
+| medium | 16 dp | Step list container, cards (delegate, notification, notice), command block, selected model row, menus |
+| large | 20 dp | User bubble, grouped-row outer corners, live cards, New chat button, FABs |
+| extraLarge | 28 dp | `ModalBottomSheet` top corners, dialogs |
+| `ButtonShape` | 12 dp | Every `Button`/`FilledTonalButton`/`OutlinedButton`/`TextButton`: pass `shape = ButtonShape` explicitly |
+| `FieldShape` | 16 dp | Search fields (home, model sheet) |
+| `ComposerShape` | 24 dp, all corners | The floating composer field |
+| `SquareIconButtonShape` | 12 dp | 40 dp Send / Stop square buttons |
 
 Nested rounded blocks within 8 dp of the container edge: inner radius = outer − inset.
+
+**Grouped rows** (`ui/components/GroupedRows.kt`): a list section is a column of `Surface` rows (`surfaceContainerLow`,
+`onSurface`) 2 dp apart. Outer corners `large`, inner corners `extraSmall`: first = top outer, last = bottom outer, middle = all
+inner, a single row = all outer (`groupedRowShape(index, count)`). Used for the live block, Settings and the Connection
+sub-page, choice rows in sheets.
+
+**Slider** (`ui/components/AristotleSlider.kt`): stepped, for ordered levels (reasoning effort: 7 or 8 levels). Active track and
+handle `primary`, inactive track `surfaceContainerHighest`, stops `onSurfaceVariant` (inactive) / `onPrimary` (active). The level
+name is always written as text above the slider (`titleMedium`) and set as `stateDescription`; end labels are optional. Haptic
+tick per level, and the callback fires once per gesture end, only if the level changed (one `config.set` per gesture).
 
 ## 4. Spacing, elevation, motion
 
@@ -128,7 +142,7 @@ visible control with `heightIn(48)`. Visible sizes stay Material's: buttons 40, 
 (tool / reasoning / notice, `Spacing.chatWorkGap`), 12 dp between a message and work (`chatMessageGap`), 20 dp before a user
 bubble (`chatTurnGap`).
 
-**Elevation**: tonal only. Lists/chat = `surface`; cards and sheets = `surfaceContainerLow`; composer = `surfaceContainer`;
+**Elevation**: tonal only. Lists/chat = `surface`; cards and sheets = `surfaceContainerLow`; composer field = `surfaceContainerHigh`; grouped rows = `surfaceContainerLow`;
 banners and code = `surfaceContainerHighest`. Shadows only on the extended FAB (level 3) and `ModalBottomSheet` (default).
 
 **Motion**
@@ -221,7 +235,7 @@ App lock screen (TS2) is the second exception to the no-centred-stack rule: icon
   Exception (Q46): the quote loading screen is a centred stack with the static app icon above the quote, the quote set in
   Literata (a reading text, not UI), and a calm line-by-line fade-in with a `tertiary` progress line.
 - No accent rails/left borders on text blocks.
-- No M3 pill buttons; no `CircleShape` containers.
+- No M3 pill buttons (Soft radii, §3); no `CircleShape` containers.
 - No decorative dots, badges, or status colours that mark nothing.
 - No default Roboto/Material type; no text below 11 sp; no hard-coded hex in composables.
 - No dynamic colour. No animation that is not a live state or an expand/collapse.

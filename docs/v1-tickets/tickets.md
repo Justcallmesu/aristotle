@@ -85,7 +85,14 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TS3 | Nested Settings (Q72): category list with summaries -> sub-pages | TS1 | android | DONE |
 | TH1 | Q73: connection history log + saved-addresses list (source, last success, delete) in Settings › Connection; remove repeated sub-page headers (TS3 leftover) | TL1e, TS3 | android | DONE (via TH1b) |
 | TH1b | TH1 review: deleting the only Tailscale address could only be undone by re-pairing (MAJOR-1) -> remember a deletion only when another address of the same kind remains; per-case confirm text; history NITs | TH1 | android | DONE |
-| TD2 | Redesign mockups (Q74): 3 home options, chat, model sheet (collapsible providers + search, effort slider vs segmented), settings, prompt sheet; light+dark | TU5 | docs/design | BUILDING |
+| TD2 | Redesign mockups (Q74): 3 home options, chat, model sheet (collapsible providers + search, effort slider vs segmented), settings, prompt sheet; light+dark | TU5 | docs/design | DONE (board v2) |
+| TD2b | Profile switcher redesign + Home C updated (no counts) on the v2 board | TD2 | docs/design | DONE |
+| TR1 | v2 theme: Soft shapes, grouped-row helper, stepped slider, design.md | TD2 | android | DONE |
+| TR2 | Home C (bottom app bar, live cards, time-column history, no counts) + chosen profile switcher | TR1, TD2b | android | BUILDING |
+| TR3 | Chat transcript: "N steps" line for every run of work items (Q75), assistant without bubble, cards | TR1 | android | BUILDING |
+| TR4 | Floating composer + model chip + Send/Stop/Queue/Steer | TR1 | android | BUILDING |
+| TR5 | Model sheet: search, collapsible providers, effort slider (one call per gesture) | TR1 | android | BUILDING |
+| TR6 | Settings + Connection grouped rows; prompt sheet shapes | TR1 | android | BUILDING |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -397,3 +404,8 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 User: app looks rough/ugly, wants a redesign (component shapes, not colours), home options as mockups, ChatGPT/Claude as inspiration; model sheet collapsible providers + search; effort slider -> Q74. TD2 mockups (deep) dispatched; build tickets after the user picks.
 - 2026-11-04 TH1 review CHANGES-REQUIRED: migration safe on real data (token byte-for-byte, write after decode), MAJOR-1 deleted Tailscale address never returns. TH1b (std) dispatched.
 - 2026-11-04 TH1b: pm-gate-52 GREEN (859); mutation (deletion remembered regardless of kind) fails 3. Committed TH1+TH1b without a separate re-review (narrow, mutation-proven MAJOR fix; diff folds into the redesign review). Installed on the Poco.
+- 2026-11-04 User picked: Home C (no counts), Soft, slider, N steps for every run, hide counts -> Q75; asked to redesign the profile chip -> TD2b (design) + TR1 (theme) dispatched in parallel; TR2-TR6 after TR1 (TR2 also after TD2b).
+- 2026-11-04 User: profile = user icon top right showing the current profile; same sheet ("drawer") as today -> Q76; TD2b steered to draw only that.
+- 2026-11-04 User: profile name label beside the icon (Q76 updated); TD2b steered.
+- 2026-11-04 TD2b done (avatar top right, name under by default; board Tweak 'Profile label' under/beside/icon). User chose BESIDE (designer preferred under: long names ellipsize earlier beside, e.g. bkm-reports-bot) -> TR2 builds beside with an ellipsized label.
+- 2026-11-04 TR1: pm-gate-53 GREEN (862); mutation (last grouped row gets middle corners) fails 1. Committed with the v2 board + notes. TR2-TR6 dispatched in parallel (disjoint files; TR2 builds the profile label BESIDE per user, ellipsized).

@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aristotle — v2 redesign board (TD2 + TD2b)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500;600&family=Atkinson+Hyperlegible+Next:wght@400;500;600&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=block" rel="stylesheet">
+<style>
+/* ===== Shape scale (M3 Shapes + three custom shapes). Tweak "Corners" switches it. See design-notes.md §3. ===== */
+body{
+  --f-display:"Literata",Georgia,serif;
+  --f-ui:"Atkinson Hyperlegible Next",system-ui,sans-serif;
+  --f-mono:"Atkinson Hyperlegible Mono",ui-monospace,monospace;
+}
+body[data-corners="v1"]   {--r-xs:4px;--r-sm:6px;--r-md:10px;--r-lg:14px;--r-xl:24px;--r-btn:8px;--r-field:4px;--r-composer:14px;--r-icbtn:8px}
+body[data-corners="soft"] {--r-xs:4px;--r-sm:12px;--r-md:16px;--r-lg:20px;--r-xl:28px;--r-btn:12px;--r-field:16px;--r-composer:24px;--r-icbtn:12px}
+body[data-corners="round"]{--r-xs:4px;--r-sm:16px;--r-md:20px;--r-lg:24px;--r-xl:28px;--r-btn:20px;--r-field:24px;--r-composer:28px;--r-icbtn:20px}
+
+/* ===== Palette A (binding, docs/design.md §1) as M3 ColorScheme roles ===== */
+.phone[data-mode="light"],.pal[data-mode="light"]{
+  --surface:#F5EEDF;--surface-lowest:#FFFBF3;--surface-low:#F0E7D5;--surface-c:#EBE1CD;--surface-high:#E5DAC4;--surface-highest:#DFD3BB;
+  --on-surface:#2B2119;--on-surface-variant:#5C4B3C;--outline:#8A7763;--outline-variant:#D3C4AA;
+  --primary:#3B2E23;--on-primary:#F8F0E1;--primary-container:#E7D7BC;--on-primary-container:#2B2119;
+  --secondary:#6E5843;--secondary-container:#EADCC6;--on-secondary-container:#2B2119;
+  --tertiary:#2C6A5C;--on-tertiary:#FFFFFF;--tertiary-container:#BFE3D6;--on-tertiary-container:#0B2A23;
+  --error:#B3261E;--on-error:#FFFFFF;--error-container:#F7D9D2;--on-error-container:#5A110A;
+  --scrim:rgb(0 0 0 / .32);--state:rgb(43 33 25 / .08);
+}
+.phone[data-mode="dark"],.pal[data-mode="dark"]{
+  --surface:#17130F;--surface-lowest:#110E0B;--surface-low:#1F1A15;--surface-c:#231E19;--surface-high:#2D2721;--surface-highest:#38312A;
+  --on-surface:#EDE3D1;--on-surface-variant:#CBBBA4;--outline:#96846F;--outline-variant:#4B4035;
+  --primary:#E8D6B8;--on-primary:#2F241A;--primary-container:#4B3D30;--on-primary-container:#F3E4CA;
+  --secondary:#D6C2A6;--secondary-container:#4A3C2E;--on-secondary-container:#F0E0C8;
+  --tertiary:#8BD0BC;--on-tertiary:#00382D;--tertiary-container:#1C4F43;--on-tertiary-container:#A9EDD8;
+  --error:#FFB4A9;--on-error:#690003;--error-container:#8C1D13;--on-error-container:#FFDAD4;
+  --scrim:rgb(0 0 0 / .5);--state:rgb(237 227 209 / .08);
+}
+
+/* ===== Board chrome (not part of the app) ===== */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:15px/1.5 var(--f-ui);background:#E6E2DA;color:#26221D;-webkit-font-smoothing:antialiased}
+.tweaks{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 24px;
+  background:#E6E2DA;border-bottom:1px solid rgb(0 0 0 / .12)}
+.tweaks b{font:600 14px/1 var(--f-ui)}
+.seg{display:inline-flex;align-items:center;gap:6px}
+.seg>span{font-size:12px;opacity:.7}
+.seg .opts{display:inline-flex;border:1px solid rgb(0 0 0 / .3);border-radius:8px;overflow:hidden}
+.seg button{font:500 13px/1 var(--f-ui);color:inherit;background:transparent;border:0;padding:0 12px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid rgb(0 0 0 / .3)}
+.seg button[aria-pressed="true"]{background:#26221D;color:#F4F1EA}
+.seg button:focus-visible{outline:2px solid #26221D;outline-offset:2px}
+.intro{max-width:1760px;margin:0 auto;padding:28px 24px 0}
+.intro h1{font:600 30px/1.15 var(--f-display);margin:0 0 8px}
+.intro p{margin:0 0 6px;max-width:92ch;opacity:.82;text-wrap:pretty}
+.intro code,.group code,figcaption code{font-family:var(--f-mono);font-size:.9em}
+#board{max-width:1760px;margin:0 auto;padding:4px 24px 96px}
+.group{padding:28px 0 8px;border-top:1px solid rgb(0 0 0 / .12);margin-top:24px}
+.group>h2{font:600 22px/1.2 var(--f-display);margin:0 0 4px}
+.group>p{margin:0 0 18px;max-width:100ch;opacity:.78;font-size:14px;text-wrap:pretty}
+.row{display:flex;flex-wrap:wrap;gap:28px 24px;align-items:flex-start}
+.shot{margin:0;display:flex;flex-direction:column;gap:10px;width:413px}
+.shot figcaption{font-size:13px;line-height:1.45}
+.shot figcaption b{display:block;font-size:14px}
+.shot.flash .phone{outline:3px solid #B5671E;outline-offset:4px}
+body[data-theme="light"] .shot[data-mode="dark"],body[data-theme="dark"] .shot[data-mode="light"]{display:none}
+#proto{display:none;padding:24px 16px 96px;justify-content:center;gap:32px;align-items:flex-start}
+#proto .side{max-width:320px;font-size:14px}
+#proto .side h2{font:600 20px/1.2 var(--f-display);margin:0 0 8px}
+#proto .side ol{padding-left:18px;margin:0}
+body[data-view="proto"] #board,body[data-view="proto"] .intro{display:none}
+body[data-view="proto"] #proto{display:flex}
+
+/* ===== Phone frame: 393 x 873 dp (CSS px = dp) ===== */
+.phone{width:413px;height:893px;padding:10px;border-radius:46px;background:#1A1918;flex:none;
+  box-shadow:0 1px 2px rgb(0 0 0 / .2),0 12px 32px rgb(0 0 0 / .16)}
+.screen{position:relative;width:393px;height:873px;border-radius:36px;overflow:hidden;background:var(--surface);color:var(--on-surface);
+  font:400 14px/20px var(--f-ui);display:flex;flex-direction:column}
+.statusbar{height:32px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;
+  font:500 13px/1 var(--f-ui);font-variant-numeric:tabular-nums}
+.statusbar .si{display:flex;gap:4px;align-items:center}.statusbar .ms{font-size:16px}
+.navbar{height:24px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--surface)}
+.navbar i{width:108px;height:4px;border-radius:2px;background:var(--on-surface);opacity:.5}
+.app{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+.scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+
+/* ===== Type (M3 Typography slots; docs/design.md §2) ===== */
+.ms{font-family:"Material Symbols Outlined";font-weight:400;font-style:normal;font-size:24px;line-height:1;display:inline-block;white-space:nowrap;
+  font-feature-settings:"liga";font-variation-settings:"FILL" 0,"wght" 400,"GRAD" 0,"opsz" 24;flex:none;user-select:none;overflow:hidden;width:1em;letter-spacing:0}
+.ms.fill{font-variation-settings:"FILL" 1,"wght" 400,"GRAD" 0,"opsz" 24}
+.ms.s18{font-size:18px}.ms.s20{font-size:20px}.ms.s16{font-size:16px}
+.headline-s{font:500 24px/32px var(--f-display);margin:0}
+.title-l{font:500 22px/28px var(--f-display);margin:0}
+.title-m{font:600 16px/24px var(--f-ui);margin:0}
+.title-s{font:600 14px/20px var(--f-ui);margin:0}
+.body-l{font:400 16px/24px var(--f-ui);margin:0}
+.body-m{font:400 14px/20px var(--f-ui);margin:0}
+.body-s{font:400 12px/16px var(--f-ui);margin:0}
+.label-l{font:600 14px/20px var(--f-ui)}
+.label-m{font:600 12px/16px var(--f-ui);letter-spacing:.3px}
+.muted{color:var(--on-surface-variant)}
+.live{color:var(--tertiary)}.err{color:var(--error)}
+.mono{font-family:var(--f-mono)}
+.num{font-variant-numeric:tabular-nums}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+/* ===== Components ===== */
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+[data-go],[data-toggle],.tap{cursor:pointer}
+.icbtn{width:48px;height:48px;display:grid;place-items:center;color:var(--on-surface-variant);border-radius:50%;flex:none}
+.icbtn:hover{background:var(--state)}
+.icbtn.on{color:var(--on-surface)}
+.chip{height:32px;display:inline-flex;align-items:center;gap:4px;padding:0 6px 0 12px;border-radius:var(--r-sm);
+  border:1px solid var(--outline-variant);font:600 14px/20px var(--f-ui);color:var(--on-surface);white-space:nowrap;flex:none}
+.chip .ms{font-size:18px;color:var(--on-surface-variant)}
+.chip.mono{font:500 13px/18px var(--f-mono)}
+.btn{height:40px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 20px;border-radius:var(--r-btn);
+  font:600 14px/20px var(--f-ui);white-space:nowrap;flex:none}
+.btn .ms{font-size:18px}
+.btn.filled{background:var(--primary);color:var(--on-primary)}
+.btn.tonal{background:var(--secondary-container);color:var(--on-secondary-container)}
+.btn.outlined{border:1px solid var(--outline-variant);color:var(--on-surface)}
+.btn.outlined.danger{color:var(--error);border-color:var(--outline)}
+.btn.text{padding:0 12px;color:var(--primary)}
+.btn.grow{flex:1}
+.sq{width:40px;height:40px;border-radius:var(--r-icbtn);display:grid;place-items:center;flex:none}
+.sq.send{background:var(--primary);color:var(--on-primary)}
+.sq.send.off{background:color-mix(in srgb,var(--on-surface) 12%,transparent);color:color-mix(in srgb,var(--on-surface) 38%,transparent)}
+.sq.stop{background:var(--error-container);color:var(--on-error-container)}
+.field{height:48px;display:flex;align-items:center;gap:12px;padding:0 4px 0 16px;border-radius:var(--r-field);background:var(--surface-high);
+  color:var(--on-surface-variant);font:400 16px/24px var(--f-ui)}
+.field input{flex:1;min-width:0;border:0;background:transparent;font:inherit;color:var(--on-surface);outline:none;height:100%}
+.field input::placeholder{color:var(--on-surface-variant)}
+.field:focus-within{box-shadow:inset 0 0 0 2px var(--primary)}
+.sec{display:flex;align-items:center;gap:8px;padding:16px 16px 8px;font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant)}
+.sec .n{font-weight:500}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--tertiary);border-right-color:transparent;flex:none;animation:rot 1s linear infinite}
+.spin.lg{width:18px;height:18px}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none;transform:rotate(45deg)}}
+.divider{height:1px;background:var(--outline-variant);margin:0 16px}
+.divider.inset{margin-left:56px}
+
+/* Grouped list ("segmented rows"): each row its own Surface, 2 dp apart; outer corners large, inner extraSmall */
+.glist{display:flex;flex-direction:column;gap:2px;margin:0 16px}
+.glist>.gi{background:var(--surface-low);border-radius:var(--r-xs)}
+.glist>.gi:first-child{border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg)}
+.glist>.gi:last-child{border-bottom-left-radius:var(--r-lg);border-bottom-right-radius:var(--r-lg)}
+.gi{display:flex;align-items:center;gap:16px;min-height:64px;padding:10px 16px}
+.gi:hover,.lrow:hover{background-image:linear-gradient(var(--state),var(--state))}
+.gi .tx{flex:1;min-width:0}
+.gi .ms.lead{color:var(--on-surface-variant)}
+.gi .ms.trail{color:var(--on-surface-variant)}
+
+/* Top bars */
+.topbar{height:64px;flex:none;display:flex;align-items:center;gap:4px;padding:0 4px 0 16px}
+.topbar.back{padding-left:4px}
+.topbar .tt{flex:1;min-width:0}
+.wordmark{font:600 22px/28px var(--f-display)}
+.subline{display:flex;align-items:center;gap:4px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);white-space:nowrap}
+.subline .ms{font-size:14px}
+.subline .retry{color:var(--primary);font-weight:600;margin-left:6px}
+.chat-title{font:500 18px/24px var(--f-display)}
+
+/* Session rows */
+.lrow{display:flex;gap:16px;padding:12px 16px;align-items:flex-start;min-height:72px}
+.lrow .tx{flex:1;min-width:0}
+.lrow .t{font:400 16px/24px var(--f-ui)}
+.lrow .s{display:flex;align-items:center;gap:6px;font:400 14px/20px var(--f-ui);color:var(--on-surface-variant)}
+.lrow .s.err{color:var(--error)}
+.lrow .tm{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums;padding-top:4px}
+.lrow.one{min-height:52px;padding:14px 16px;align-items:center}
+.lrow.one .tm{padding-top:0}
+.lrow .lead{width:24px;display:grid;place-items:center;padding-top:2px;color:var(--on-surface-variant)}
+
+/* Notices (Q63/Q64/offline) — one quiet line each, never a stack of banners */
+.notice{display:flex;align-items:center;gap:12px;margin:4px 16px;padding:8px 8px 8px 12px;min-height:48px;border-radius:var(--r-md);
+  background:var(--surface-highest);color:var(--on-surface);font:400 14px/20px var(--f-ui)}
+.notice .ms{font-size:20px;color:var(--on-surface-variant)}
+.notice .ms.e{color:var(--error)}
+.notice .tx{flex:1;min-width:0}
+.notice.card{background:var(--surface-low)}
+
+/* FAB / big new-chat button */
+.efab{position:absolute;right:16px;bottom:16px;height:56px;display:flex;align-items:center;gap:12px;padding:0 20px 0 16px;border-radius:var(--r-lg);
+  background:var(--primary-container);color:var(--on-primary-container);font:600 14px/20px var(--f-ui);
+  box-shadow:0 1px 3px rgb(0 0 0 / .3),0 4px 8px 3px rgb(0 0 0 / .15)}
+.newchat{display:flex;width:calc(100% - 32px);align-items:center;justify-content:center;gap:10px;height:56px;margin:0 16px;border-radius:var(--r-lg);
+  background:var(--primary);color:var(--on-primary);font:600 16px/24px var(--f-ui)}
+.bottomzone{flex:none;padding:8px 0 12px;background:var(--surface)}
+
+/* Overflow menu (DropdownMenu) */
+.menu{position:absolute;top:56px;right:8px;z-index:5;min-width:200px;padding:8px 0;border-radius:var(--r-md);background:var(--surface-high);
+  border:1px solid var(--outline-variant);box-shadow:0 2px 6px rgb(0 0 0 / .2);display:none}
+.menu.open{display:block}
+.menu .mi{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;font:400 14px/20px var(--f-ui)}
+.menu .mi .ms{color:var(--on-surface-variant)}
+.menu .mi:hover{background:var(--state)}
+.menu.up{top:auto;bottom:88px;right:84px}
+
+/* Home C */
+.cards{display:flex;gap:12px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none;scroll-snap-type:x mandatory}
+.cards::-webkit-scrollbar{display:none}
+.lcard{flex:none;width:300px;min-height:132px;padding:14px 16px;border-radius:var(--r-lg);background:var(--surface-low);display:flex;flex-direction:column;gap:6px;scroll-snap-align:start}
+.lcard .top{display:flex;align-items:center;gap:6px;font:600 12px/16px var(--f-ui)}
+.lcard .top .tm{margin-left:auto;font-weight:400;color:var(--on-surface-variant)}
+.lcard .t{font:500 18px/24px var(--f-display);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lcard .last{font:400 12px/16px var(--f-mono);color:var(--on-surface-variant);margin-top:auto}
+.ledger{display:grid;grid-template-columns:56px 1fr;column-gap:4px;padding:10px 16px;min-height:56px}
+.ledger .tm{font:400 13px/24px var(--f-ui);font-variant-numeric:tabular-nums;color:var(--on-surface-variant)}
+.ledger .t{font:400 16px/24px var(--f-ui)}
+.ledger .s{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.ledger:hover{background:var(--state)}
+.bab{flex:none;height:80px;display:flex;align-items:center;gap:4px;padding:0 16px 0 4px;background:var(--surface-c)}
+.bab .fab{margin-left:auto;width:56px;height:56px;border-radius:var(--r-lg);display:grid;place-items:center;background:var(--primary-container);color:var(--on-primary-container)}
+.bighead{display:flex;align-items:flex-start;gap:8px;padding:12px 8px 4px 16px}
+.bighead .tt{flex:1;min-width:0}
+.bighead .wordmark{font-size:28px;line-height:36px}
+.ledger.one{align-items:center;padding:14px 16px;min-height:52px}
+
+/* ===== Profile avatar (TD2b): Home C top right; opens the profile sheet ===== */
+.avbtn{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:48px;max-width:80px;padding:4px 4px 2px;
+  border-radius:var(--r-md);color:var(--on-surface-variant)}
+.avbtn:hover{background:var(--state)}
+.avbtn:focus-visible{outline:2px solid var(--primary);outline-offset:0}
+.avatar{width:40px;height:40px;flex:none;border-radius:var(--r-md);display:grid;place-items:center;
+  background:var(--secondary-container);color:var(--on-secondary-container);font:600 19px/1 var(--f-display)}
+.avbtn .pl{font:600 11px/14px var(--f-ui);letter-spacing:.3px;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-plabel="beside"] .bighead .avbtn{flex-direction:row-reverse;gap:8px;max-width:168px;padding:4px 4px 4px 12px}
+body[data-plabel="beside"] .bighead .avbtn .pl{font:600 14px/20px var(--f-ui);letter-spacing:0;color:var(--on-surface);max-width:108px}
+body[data-plabel="icon"] .bighead .avbtn .pl{display:none}
+.avbtn[aria-disabled="true"]{opacity:.38;cursor:default}
+.avbtn[aria-disabled="true"]:hover{background:none}
+/* 16 dp mark in the chat subtitle: the same avatar, shrunk; the name next to it carries the meaning */
+.pbadge{display:inline-grid;place-items:center;width:16px;height:16px;flex:none;border-radius:var(--r-xs);
+  background:var(--secondary-container);color:var(--on-secondary-container);font:600 11px/1 var(--f-display)}
+/* Profile sheet: today's content (SessionSheets.kt), Soft shapes */
+.prof .body{display:flex;flex-direction:column;gap:4px;padding:0 24px 24px}
+.prow{display:flex;align-items:center;gap:16px;min-height:56px;margin:0 -12px;padding:0 12px;border-radius:var(--r-md)}
+.prow:hover{background:var(--state)}
+.radio{width:20px;height:20px;flex:none;margin:0 2px;border-radius:50%;border:2px solid var(--on-surface-variant);display:grid;place-items:center}
+.prow[aria-checked="true"] .radio{border-color:var(--primary)}
+.prow[aria-checked="true"] .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--primary)}
+/* Specimen panels on the board (not screens) */
+.pal{width:393px;border-radius:20px;background:var(--surface);color:var(--on-surface);padding:12px 0;font:400 14px/20px var(--f-ui)}
+.pal .cap{padding:4px 16px 8px;font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant)}
+.avrow{display:flex;flex-wrap:wrap;gap:8px 4px;padding:0 12px 8px}
+
+/* ===== Chat ===== */
+.transcript{display:flex;flex-direction:column;padding:4px 16px 16px}
+.msg{font:400 15px/23px var(--f-ui);color:var(--on-surface)}
+.msg p{margin:0 0 12px}.msg p:last-child{margin-bottom:0}
+.msg ul{margin:0 0 12px;padding-left:20px}.msg li{margin:2px 0}
+.msg code{font:400 13px/18px var(--f-mono);background:var(--surface-high);border-radius:var(--r-xs);padding:1px 4px}
+.bubble{align-self:flex-end;max-width:82%;background:var(--secondary-container);color:var(--on-secondary-container);
+  border-radius:var(--r-lg);padding:10px 14px;font:400 15px/23px var(--f-ui)}
+.g4{margin-top:4px}.g12{margin-top:12px}.g20{margin-top:20px}
+.cursor{display:inline-block;width:8px;height:17px;background:var(--tertiary);vertical-align:-3px;margin-left:2px;border-radius:1px}
+/* "N steps" quiet line (reasoning + tool calls of one run, Q68 v2) */
+.steps{display:flex;align-items:center;gap:8px;min-height:36px;color:var(--on-surface-variant);font:600 14px/20px var(--f-ui);align-self:flex-start;
+  padding-right:4px;border-radius:var(--r-sm)}
+.steps .ms.chev{font-size:20px;transition:transform .3s cubic-bezier(.05,.7,.1,1)}
+.steps .last{font:400 13px/18px var(--f-mono)}
+.steps.live .lbl{color:var(--tertiary)}
+.stepwrap.open .steps .ms.chev{transform:rotate(180deg)}
+.steplist{display:none;margin-top:4px;padding:4px 0;border-radius:var(--r-md);background:var(--surface-low)}
+.stepwrap.open .steplist{display:block}
+.step{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px}
+.step .ms{font-size:18px;color:var(--on-surface-variant)}
+.step .nm{font:600 13px/18px var(--f-mono);flex:none}
+.step .ar{font:400 13px/18px var(--f-mono);color:var(--on-surface-variant);flex:1}
+.step .dur{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums;flex:none}
+.step.think .nm{font:italic 400 13px/18px var(--f-ui);color:var(--on-surface-variant)}
+.out{margin:0 12px 8px 40px;padding:8px 12px;border-radius:var(--r-sm);background:var(--surface-highest);font:400 11.5px/17px var(--f-mono);
+  white-space:pre;overflow-x:auto;color:var(--on-surface);scrollbar-width:none}
+.qline{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 12px;border-radius:var(--r-md);background:var(--surface-low);
+  color:var(--on-surface-variant);font:400 13px/18px var(--f-ui)}
+.qline .ms{font-size:18px}
+.dcard{border-radius:var(--r-md);background:var(--surface-low);padding:4px 0}
+.dcard .hd{display:flex;align-items:center;gap:8px;padding:8px 12px 4px;font:600 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.dcard .hd .mono{font-weight:600}
+.drow{display:flex;gap:12px;align-items:flex-start;padding:8px 12px;min-height:56px}
+.drow .gl{width:20px;padding-top:2px;display:grid;place-items:center;color:var(--on-surface-variant)}
+.drow .tx{flex:1;min-width:0}
+.drow .t{font:400 14px/20px var(--f-ui)}
+.drow .m{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.drow .ms.go{color:var(--on-surface-variant);font-size:20px;align-self:center}
+/* Composer: floating rounded field */
+.composer-zone{flex:none;padding:6px 12px 8px;background:var(--surface)}
+.above{display:flex;flex-wrap:wrap;gap:8px;padding:0 4px 8px}
+.wait{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 12px 0 8px;border-radius:var(--r-sm);
+  background:var(--error-container);color:var(--on-error-container);font:600 14px/20px var(--f-ui)}
+.wait .ms{font-size:18px}
+.queued{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 4px 0 12px;border-radius:var(--r-md);background:var(--surface-low);font:400 13px/18px var(--f-ui)}
+.queued .k{font:600 12px/16px var(--f-ui);color:var(--on-surface-variant);flex:none}
+.queued .icbtn{width:40px;height:40px}
+.composer{border-radius:var(--r-composer);background:var(--surface-high);padding:4px}
+.composer .ta{padding:10px 12px 6px;font:400 16px/24px var(--f-ui);color:var(--on-surface-variant);min-height:40px}
+.composer .ta.has{color:var(--on-surface)}
+.composer .ta .caret{display:inline-block;width:2px;height:20px;background:var(--primary);vertical-align:-4px;margin-left:1px}
+.composer .acts{display:flex;align-items:center;gap:8px;padding:0 0 0 0}
+.composer .acts .icbtn{width:40px;height:40px;border-radius:var(--r-icbtn)}
+.composer .acts .sp{flex:1}
+.composer .chip{border-color:transparent;background:var(--surface-highest);max-width:250px;padding:0 4px 0 10px}
+.composer .chip .tx{overflow:hidden;text-overflow:ellipsis}
+.hint{padding:6px 12px 0;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.dis{opacity:.38}
+
+/* Bottom sheet */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:8}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:9;background:var(--surface-low);border-radius:var(--r-xl) var(--r-xl) 0 0;
+  display:flex;flex-direction:column;box-shadow:0 -1px 6px rgb(0 0 0 / .12)}
+.handle{width:32px;height:4px;border-radius:2px;background:var(--on-surface-variant);opacity:.4;margin:16px auto 12px;flex:none}
+.sheet .pad{padding:0 24px}
+/* Model sheet */
+.msheet{top:52px}
+.prov{display:flex;align-items:center;gap:8px;min-height:56px;padding:0 16px 0 24px}
+.prov .nm{font:600 16px/24px var(--f-ui)}
+.prov .ct{font:400 13px/18px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.prov .ms{margin-left:auto;color:var(--on-surface-variant);transition:transform .3s cubic-bezier(.05,.7,.1,1)}
+.pgroup.open .prov .ms{transform:rotate(180deg)}
+.pgroup .models{display:none;padding-bottom:8px}
+.pgroup.open .models{display:block}
+.mrow{display:flex;align-items:center;gap:12px;min-height:48px;margin:0 12px;padding:0 12px;border-radius:var(--r-md);font:400 14px/20px var(--f-mono)}
+.mrow:hover{background:var(--state)}
+.mrow .ms{margin-left:auto;color:var(--primary);visibility:hidden}
+.mrow.cur{background:var(--secondary-container);color:var(--on-secondary-container);font-weight:600}
+.mrow.cur .ms{visibility:visible}
+.mrow.locked{color:var(--on-surface-variant)}
+.mrow .lk{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);margin-left:auto}
+.mrow mark{background:none;color:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.pdivider{height:1px;background:var(--outline-variant);margin:0 24px}
+.effort{flex:none;border-top:1px solid var(--outline-variant);padding:12px 24px 16px}
+.effort .lr{display:flex;align-items:baseline;justify-content:space-between}
+.effort .val{font:600 16px/24px var(--f-ui);color:var(--on-surface)}
+.effort .ends{display:flex;justify-content:space-between;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);margin-top:2px}
+.effort .note{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);margin-top:6px;min-height:16px}
+.effort[hidden]{display:none}
+/* M3 (1.3+) Slider: 16 dp track, 4 x 44 dp handle with 6 dp gaps, stop indicators */
+.slider{position:relative;height:48px;margin:2px 0 0;touch-action:none;cursor:pointer;outline:none}
+.slider .trk{position:absolute;left:0;right:0;top:16px;height:16px}
+.slider .in,.slider .ac{position:absolute;top:0;height:16px}
+.slider .ac{left:0;background:var(--primary);border-radius:8px var(--r-xs) var(--r-xs) 8px}
+.slider .in{right:0;background:var(--surface-highest);border-radius:var(--r-xs) 8px 8px var(--r-xs)}
+.slider .dot{position:absolute;top:6px;width:4px;height:4px;border-radius:2px;margin-left:-2px;background:var(--on-surface-variant)}
+.slider .dot.on{background:var(--on-primary)}
+.slider .hdl{position:absolute;top:2px;width:4px;height:44px;margin-left:-2px;border-radius:2px;background:var(--primary)}
+.slider:focus-visible .hdl{box-shadow:0 0 0 3px var(--surface-low),0 0 0 5px var(--primary)}
+.slider .bubbleval{position:absolute;top:-34px;transform:translateX(-50%);padding:6px 12px;border-radius:var(--r-sm);background:var(--inverse,var(--on-surface));
+  color:var(--surface);font:600 13px/16px var(--f-ui);white-space:nowrap;display:none}
+.slider.drag .bubbleval{display:block}
+/* SegmentedButton alternative */
+.segrow{display:flex;margin-top:8px}
+.segrow button{flex:1;min-width:0;height:40px;border:1px solid var(--outline);margin-left:-1px;font:600 13px/16px var(--f-ui);color:var(--on-surface);
+  display:flex;align-items:center;justify-content:center;gap:4px;padding:0 4px;white-space:nowrap}
+.segrow button:first-child{margin-left:0;border-radius:var(--r-btn) 0 0 var(--r-btn)}
+.segrow button:last-child{border-radius:0 var(--r-btn) var(--r-btn) 0}
+.segrow button[aria-checked="true"]{background:var(--secondary-container);color:var(--on-secondary-container)}
+.segrow button .ms{font-size:16px;display:none}
+.segrow button[aria-checked="true"] .ms{display:inline-block}
+
+/* Prompt sheet */
+.psheet .body{display:flex;flex-direction:column;gap:12px;padding:0 24px 24px}
+.cmd{border-radius:var(--r-md);background:var(--surface-highest);padding:12px;font:400 13px/19px var(--f-mono);white-space:pre;overflow-x:auto;scrollbar-width:none}
+.btnrow{display:flex;gap:12px;padding-top:8px}
+.btnrow2{display:flex;justify-content:space-between}
+.confirm{border-radius:var(--r-md);background:var(--surface-highest);padding:16px;display:none;flex-direction:column;gap:8px}
+.psheet.confirming .confirm{display:flex}
+.psheet.confirming .btnrow,.psheet.confirming .btnrow2,.psheet.confirming .alwaysnote{display:none}
+
+/* Settings */
+.bigtitle{font:500 28px/36px var(--f-display);padding:4px 16px 16px}
+.kv{font:400 13px/18px var(--f-mono);color:var(--on-surface);letter-spacing:.2px}
+.fp{font:500 15px/22px var(--f-mono);color:var(--on-surface);display:grid;grid-template-columns:repeat(4,auto);gap:0 16px;justify-content:start}
+</style>
+</head>
+<body data-theme="both" data-corners="soft" data-link="online" data-view="board" data-plabel="under">
+
+<div class="tweaks" role="toolbar" aria-label="Tweaks">
+  <b>Tweaks</b>
+  <div class="seg"><span>View</span><div class="opts" data-tweak="view">
+    <button data-v="board">Board</button><button data-v="proto">Clickable path</button></div></div>
+  <div class="seg"><span>Theme</span><div class="opts" data-tweak="theme">
+    <button data-v="both">Light + dark</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
+  <div class="seg"><span>Corners</span><div class="opts" data-tweak="corners">
+    <button data-v="v1">v1 (Q39)</button><button data-v="soft">Soft (rec.)</button><button data-v="round">Round</button></div></div>
+  <div class="seg"><span>PC link (homes)</span><div class="opts" data-tweak="link">
+    <button data-v="online">Online</button><button data-v="offline">Offline</button><button data-v="update">Update notices</button></div></div>
+  <div class="seg"><span>Profile label (Home C)</span><div class="opts" data-tweak="plabel">
+    <button data-v="under">Under (rec.)</button><button data-v="beside">Beside</button><button data-v="icon">Icon only</button></div></div>
+</div>
+
+<section class="intro">
+  <h1>Aristotle v2 — redesign board</h1>
+  <p>Chosen (Q75): Home C, Soft corners, effort slider, the “N steps” line; TD2b adds the profile avatar and sheet (section 1b).
+  Spec Q74. Palette A is unchanged; what changes is the <b>component shape language</b>
+  (corners, fields, grouped rows, a floating composer, quiet step lines) and the home layout. Every screen is drawn at
+  393 × 873 dp, light and dark, from Material 3 Compose parts only. Notes and the Compose mapping:
+  <code>docs/design/v2/design-notes.md</code>.</p>
+  <p>Content is real: session titles and message counts from the <code>pm</code> profile, tool names and output from this
+  project's chats, the model catalog Hermes serves (Anthropic 13, OpenRouter 60, GitHub Copilot 44). Day groups are shifted
+  by one day so Today / Yesterday / Earlier all show. State demos, not data: the "Needs a paid plan" lock on one Copilot model, gpt-4o-class models having no reasoning (pick one to see the effort footer disappear), the sample fingerprint and the two invented addresses besides 100.74.61.96. Taps on rows, chips, ⋮ and buttons follow the primary path; on the
+  board they jump to the target screen, in <b>Clickable path</b> they navigate one phone.</p>
+</section>
+
+<main id="board"></main>
+<div id="proto"><div id="protoPhone"></div><aside class="side">
+  <h2>Clickable path</h2>
+  <ol>
+    <li>Home (C, chosen): tap a live card or row, the profile avatar (top right), ⋮ or New chat.</li>
+    <li>Profile sheet: pick a profile; tap the dimmed home to close.</li>
+    <li>Chat: tap the model chip, the "Waiting for your approval" chip, the steps line, or the message field.</li>
+    <li>Model sheet: search, open/close providers, drag the effort slider, pick a model. Tap the dimmed chat to close.</li>
+    <li>Approval: Deny, Allow once, or Always allow (second step).</li>
+    <li>⋮ › Settings › Connection &amp; PCs, then back.</li>
+  </ol>
+  <p class="muted" style="opacity:.7">Theme and Corners tweaks apply here too. Theme "Light + dark" shows light.</p>
+</aside></div>
+
+<script>
+/* ---------------- data (real, from the pm profile and this project's chats) ---------------- */
+const SESS = {
+  aristotle:{t:"Aristotles Android app for Hermes sessions",n:443},
+  s10:{t:"Dry-run delegation plan for S10",n:6},
+  bkm:{t:"Resume BKM FIFO costing ticket orchestration",n:98,date:"14 Oct"},
+  hrd:{t:"Employee blacklist feature for HRD",n:71,time:"08:59"},
+  fuelx:{t:"Fuel filling for contract vehicles exam",n:100,time:"08:50"},
+  fuel3:{t:"Fuel filling for contract vehicles #3",n:91,time:"18:27"},
+  fuel2:{t:"Fuel filling for contract vehicles #2",n:117,time:"18:19"},
+  diesel:{t:"Move diesel between fuel tanks feature",n:63,time:"18:19"},
+  fuel1:{t:"Fuel filling for contract vehicles",n:75,time:"18:12"},
+  recv:{t:"Receive purchased diesel into fuel tanks",n:92,time:"18:05"},
+  s09:{t:"Dry-run delegation plan for S09",n:7,time:"17:57"},
+  commit:{t:"Commit R1, t4A and dispatch ticket 5",n:511,date:"12 Oct"},
+};
+const TODAY=["hrd","fuelx"], YDAY=["fuel3","fuel2","diesel","fuel1","recv","s09"], EARLIER=["commit"];
+const CATALOG=[
+  {slug:"copilot",name:"GitHub Copilot",models:["claude-fable-5.1","claude-fable-5","claude-haiku-5.5","claude-opus-4.8-fast","claude-opus-4.8","claude-opus-5.5","claude-opus-5","claude-sonnet-5.5","claude-sonnet-5","copilot-search-a","copilot-search-b","gemini-3.8-flash","gemini-4-argon","gpt-5.3-codex","gpt-5.4-nano","gpt-5.6-luna","gpt-5.6-sol","gpt-5.6-terra","gpt-6.1-sol","gpt-6-astra","gpt-6-luna","gpt-6-sol","kimi-k3-base","kimi-k3-copilot","kimi-k3","mai-code-1.1-flash","mai-code-1-flash-4th","mai-code-1-flash-secondary","mai-code-1-flash-tertiary","gpt-4o-mini-2024-07-18","gpt-4o-2024-11-20","gpt-4o-2024-08-06","claude-haiku-4.5","gpt-4.1-2025-04-14","gpt-3.5-turbo-0613","gpt-4","gpt-4-0613","gpt-4-0125-preview","gpt-4o-2024-05-13","gpt-4-o-preview","gpt-4.1","gpt-3.5-turbo","gpt-4o-mini","gpt-4o"],total:44,locked:["gpt-6.1-sol"]},
+  {slug:"openrouter",name:"OpenRouter",models:["anthropic/claude-fable-5.1","anthropic/claude-fable-5","anthropic/claude-opus-5.5","anthropic/claude-opus-5","anthropic/claude-opus-4.8","anthropic/claude-sonnet-5.5","anthropic/claude-sonnet-5","anthropic/claude-haiku-5.5","anthropic/claude-haiku-4.5","openai/gpt-6-astra","openai/gpt-6-astra-pro","openai/gpt-6.1-sol","openai/gpt-6.1-sol-pro","openai/gpt-6.1-terra","openai/gpt-6-sol","openai/gpt-6-sol-pro","openai/gpt-6-luna","openai/gpt-6-luna-pro","openai/gpt-5.5","openai/gpt-5.5-pro","openai/gpt-5.4-mini","google/gemini-4-argon","google/gemini-3.1-pro-preview","google/gemini-3.8-flash","google/gemini-3.7-flash","x-ai/grok-4.7","x-ai/grok-4.6","deepseek/deepseek-v4-pro","deepseek/deepseek-v4-pro-0813","deepseek/deepseek-v4.1-flash","deepseek/deepseek-v4.1-flash-1017","deepseek/deepseek-v4-flash-0731","qwen/qwen3.8-max-0902","qwen/qwen3.8-flash","moonshotai/kimi-k3","minimax/minimax-m3","z-ai/glm-5.3","z-ai/glm-5.3-flash","z-ai/glm-5.3-flashx","z-ai/glm-5.2","xiaomi/mimo-v2.6-pro","xiaomi/mimo-v2.6-flash","xiaomi/mimo-v2.6-pro-ultraspeed","xiaomi/mimo-v2.5-pro","tencent/hy4-preview","tencent/hy3","stepfun/step-3.7-flash","nvidia/nemotron-3-super-120b-a12b","meta/muse-spark-1.2","meta/muse-spark-1.2-contributor","meta/muse-spark-1.3","meta/muse-spark-1.3-contributor","sakana/fugu-ultra","upstage/solar-pro4","upstage/solar-mini4","openrouter/pareto-code","thinkingmachines/inkling:free","thinkingmachines/inkling-small:free","nvidia/nemotron-3-ultra-550b-a55b:free","nvidia/nemotron-3.5-lightning:free"],total:60},
+  {slug:"anthropic",name:"Anthropic",models:["claude-opus-4-5-20251101","claude-opus-4-6","claude-opus-4-7","claude-opus-4-8","claude-opus-5","claude-opus-5-5","claude-sonnet-4-6","claude-sonnet-5","claude-sonnet-5-5","claude-haiku-4-5-20251001","claude-haiku-5-5","claude-fable-5","claude-fable-5-1"],total:13},
+];
+const LEVELS=[["none","Off"],["minimal","Minimal"],["low","Low"],["medium","Medium"],["high","High"],["xhigh","Extra high"],["max","Max"],["ultra","Ultra"]];
+const noReasoning = m => /gpt-4|gpt-3\.5|copilot-search/.test(m);
+
+/* ---------------- helpers ---------------- */
+const I=(n,c="")=>`<span class="ms ${c}" aria-hidden="true">${n}</span>`;
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const LINK=()=>document.body.dataset.link;
+function statusbar(){return `<div class="statusbar"><span>14:44</span><span class="si">${I("signal_cellular_alt")}${I("wifi")}${I("battery_5_bar")}</span></div>`}
+function shell(inner){return `<div class="screen">${statusbar()}<div class="app">${inner}</div><div class="navbar"><i></i></div></div>`}
+
+function pcLine(){
+  const l=LINK();
+  if(l==="offline") return `<div class="subline">${I("cloud_off")}<span>Offline since 22:10</span><button class="retry">Retry now</button></div>`;
+  return `<div class="subline"><span>100.74.61.96 · via Tailscale</span></div>`;
+}
+function notices(){
+  const l=LINK();
+  if(l==="offline") return `<div class="notice"><span class="tx muted">little-boy stopped answering. This list is from 22:09.</span></div>`;
+  if(l==="update") return `<div class="notice">${I("error","e")}<span class="tx">PC server is older than this app — update aristotle-server</span></div>
+    <div class="notice card"><span class="tx title-s">What's new in 1.1.0</span><button class="btn text">Dismiss</button><button class="btn text">See</button></div>`;
+  return "";
+}
+function liveStatus(kind,cls=""){
+  const off=LINK()==="offline";
+  if(kind==="run") return off?`<span class="s">Was running at 22:09</span>`:`<span class="s"><span class="spin"></span><span class="live">Running · step 8</span></span>`;
+  return off?`<span class="s">Was waiting at 22:09</span>`:`<span class="s err">${I("front_hand","s16")}<span>Needs your approval</span></span>`;
+}
+function menu(up=false){return `<div class="menu${up?" up":""}" role="menu">
+  <div class="mi" role="menuitem">${I("schedule")}Scheduled</div>
+  <div class="mi" role="menuitem">${I("terminal")}Terminal</div>
+  <div class="mi" role="menuitem" data-go="settings">${I("settings")}Settings</div></div>`}
+/* Hermes profiles on this PC: the directory names under ~/.hermes/profiles/ plus the root home "default". The roster is
+   Hermes' (profiles.list): its own (launch) profile first; which siblings it serves is runtime state. Order after the
+   first row is a guess (alphabetical). */
+const PROFILES=["default","bkm-reports-bot","developer","pm","reviewer","teacher"];
+let CUR="pm";
+const mono=n=>n.charAt(0).toUpperCase();
+const avatarBtn=(n=CUR)=>{const off=LINK()==="offline";
+  return `<button class="avbtn" ${off?'aria-disabled="true"':'data-go="profile-sheet"'} aria-label="Hermes profile: ${esc(n)}. Change profile" title="Hermes profile: ${esc(n)}">
+    <span class="avatar" aria-hidden="true">${mono(n)}</span><span class="pl" aria-hidden="true">${esc(n)}</span></button>`};
+const profileChip=()=>`<button class="chip" aria-label="Hermes profile: pm">pm${I("arrow_drop_down")}</button>`;
+
+/* ---------------- HOME A — conservative: today's list, new parts ---------------- */
+function homeA(){
+  const row=(k,status,lead="")=>{const s=SESS[k];return `<div class="lrow" data-go="chat">${lead}<div class="tx"><div class="t ell">${esc(s.t)}</div>${status}</div><div class="tm">${s.time||s.date||"now"}</div></div>`};
+  const msgs=k=>`<span class="s">${SESS[k].n} messages</span>`;
+  const sec=(t)=>`<div class="sec">${t}</div>`;
+  const list=keys=>keys.map((k,i)=>(i?`<div class="divider"></div>`:"")+row(k,msgs(k))).join("");
+  return shell(`
+  <header class="topbar"><div class="tt"><div class="wordmark">Aristotle</div>${pcLine()}</div>
+    ${profileChip()}<button class="icbtn" aria-label="Search sessions">${I("search")}</button>
+    <button class="icbtn" data-menu aria-label="More actions">${I("more_vert")}</button></header>
+  ${menu()}${notices()}
+  <div class="scroll">
+    ${sec("Pinned on this phone")}${row("bkm",msgs("bkm"),`<div class="lead">${I("push_pin","s20")}</div>`)}
+    ${sec("Live")}${row("aristotle",liveStatus("run"))}<div class="divider"></div>${row("s10",liveStatus("ask"))}
+    ${sec("Today")}${list(TODAY)}
+    ${sec("Yesterday")}${list(YDAY)}
+    ${sec("Earlier")}${list(EARLIER)}
+    <div style="height:88px"></div>
+  </div>
+  <button class="efab" data-go="chat-new">${I("add")}New session</button>`);
+}
+
+/* ---------------- HOME B — strong fit: chat-app home ---------------- */
+function homeB(){
+  const live=(k,kind)=>{const s=SESS[k];return `<div class="gi tap" data-go="chat" style="min-height:64px">
+      <div class="tx"><div class="body-l ell">${esc(s.t)}</div><div class="lrow" style="all:unset">${liveStatus(kind)}</div></div>
+      <span class="body-s muted num" style="align-self:flex-start;padding-top:4px">now</span></div>`};
+  const one=(k,pin)=>{const s=SESS[k];return `<div class="lrow one" data-go="chat">${pin?`<div class="lead" style="padding:0">${I("push_pin","s20")}</div>`:""}<div class="tx"><div class="t ell">${esc(s.t)}</div></div><div class="tm">${s.time||s.date}</div></div>`};
+  return shell(`
+  <header class="topbar"><div class="tt"><div class="wordmark">Aristotle</div>${pcLine()}</div>
+    ${profileChip()}<button class="icbtn" data-menu aria-label="More actions">${I("more_vert")}</button></header>
+  ${menu()}
+  <div style="padding:4px 16px 8px"><label class="field">${I("search")}<input placeholder="Search sessions" aria-label="Search sessions"></label></div>
+  ${notices()}
+  <div class="scroll">
+    <div class="sec">Live <span class="n">· 2</span></div>
+    <div class="glist">${live("aristotle","run")}${live("s10","ask")}</div>
+    <div class="sec" style="padding-top:20px">Pinned on this phone</div>${one("bkm",true)}
+    <div class="sec">Today</div>${TODAY.map(k=>one(k)).join("")}
+    <div class="sec">Yesterday</div>${YDAY.map(k=>one(k)).join("")}
+    <div class="sec">Earlier</div>${EARLIER.map(k=>one(k)).join("")}
+    <div style="height:16px"></div>
+  </div>
+  <div class="bottomzone"><button class="newchat" data-go="chat-new">${I("edit_square")}New chat</button></div>`);
+}
+
+/* ---------------- HOME C — divergent: live cards + ledger, controls at the bottom ---------------- */
+function homeC(){return shell(homeCInner())}
+function homeCInner(){
+  const off=LINK()==="offline";
+  const card=(k,kind,last)=>{const s=SESS[k];
+    const top= off?`<span class="muted">${kind==="run"?"Was running at 22:09":"Was waiting at 22:09"}</span>`
+      : kind==="run"?`<span class="spin"></span><span class="live">Running · step 8</span>`:`<span class="err" style="display:flex;gap:4px;align-items:center">${I("front_hand","s16")}Needs your approval · 4:32</span>`;
+    return `<div class="lcard tap" data-go="chat"><div class="top">${top}<span class="tm">now</span></div><div class="t">${esc(s.t)}</div><div class="last ell">${last}</div></div>`};
+  const led=(k)=>{const s=SESS[k];return `<div class="ledger one tap" data-go="chat"><div class="tm">${s.time||s.date}</div><div class="t ell">${esc(s.t)}</div></div>`};
+  return `
+  <header class="bighead"><div class="tt"><div class="wordmark">Aristotle</div>${pcLine()}</div>${avatarBtn()}</header>
+  ${notices()}
+  <div class="scroll">
+    <div class="sec">Live now</div>
+    <div class="cards">${card("aristotle","run","vision_analyze  ~/…/scratch/ui/61-live.png")}${card("s10","ask","terminal  rm -rf ~/project/bkm/_handoff")}</div>
+    <div class="sec">${I("push_pin","s16")}Pinned on this phone</div>${led("bkm")}
+    <div class="sec">Today · Wed 4 Nov</div>${TODAY.map(led).join("")}
+    <div class="sec">Yesterday · Tue 3 Nov</div>${YDAY.map(led).join("")}
+    <div class="sec">Earlier</div>${EARLIER.map(led).join("")}
+  </div>
+  ${menu(true)}
+  <nav class="bab" aria-label="Session list actions">
+    <button class="icbtn" aria-label="Search sessions">${I("search")}</button>
+    <button class="icbtn" aria-label="Scheduled">${I("schedule")}</button>
+    <button class="icbtn" data-menu aria-label="More actions">${I("more_vert")}</button>
+    <button class="fab" data-go="chat-new" aria-label="New chat">${I("edit_square")}</button>
+  </nav>`;
+}
+
+/* ---------------- PROFILE SHEET (TD2b): today's SessionSheets.kt sheet, Soft shapes ---------------- */
+function profileSheet(failed=false){
+  const rows=PROFILES.map(n=>`<div class="prow tap" role="radio" tabindex="0" aria-checked="${n===CUR}" data-prof="${n}"><span class="radio" aria-hidden="true"></span><span class="body-l ell">${esc(n)}</span></div>`).join("");
+  return `<div class="scrim" data-go="home-c"></div>
+  <div class="sheet prof" role="dialog" aria-label="Hermes profile"><div class="handle"></div><div class="body">
+    <h2 class="title-l">Hermes profile</h2>
+    <p class="body-m muted">Each profile has its own sessions, memory and skills.</p>
+    ${failed?`<p class="body-m" style="margin-top:8px">Couldn't load the profiles: the PC did not answer in time</p>
+      <div style="margin-top:8px"><button class="btn filled">Retry now</button></div>`
+      :`<div role="radiogroup" aria-label="Hermes profile" style="margin-top:8px">${rows}</div>`}
+  </div></div>`;
+}
+function profileScreen(failed){return shell(homeCInner()+profileSheet(failed))}
+
+/* ---------------- CHAT ---------------- */
+function chatTop(running=true,title=SESS.aristotle.t,prof="pm",state=running?"run":"idle"){
+  const p=`<span class="pbadge" aria-hidden="true">${mono(prof)}</span><span>${esc(prof)}</span>`;
+  const sub = state==="run"?`<span class="spin"></span><span class="live">Running · step 8</span><span>·</span>${p}`
+    : state==="ask"?`<span class="err" style="display:flex;gap:4px;align-items:center">${I("front_hand")}Needs your approval</span><span>·</span>${p}`
+    : state==="off"?`${I("cloud_off")}<span>Offline</span><span>·</span>${p}`:p;
+  return `<header class="topbar back"><button class="icbtn on" data-go="home-c" aria-label="Back">${I("arrow_back")}</button>
+    <div class="tt"><div class="chat-title ell">${esc(title)}</div><div class="subline" style="gap:6px">${sub}</div></div>
+    <button class="icbtn" aria-label="Session actions">${I("more_vert")}</button></header>`;
+}
+const STEPS_A=`<div class="steplist">
+  <div class="step think">${I("psychology")}<span class="nm">Thought for 2 s</span></div>
+  <div class="step">${I("terminal")}<span class="nm">terminal</span><span class="ar ell">bash $S tap 300 376 61-live 14</span><span class="dur">0.9 s</span></div>
+  <div class="step">${I("description")}<span class="nm">patch</span><span class="ar ell">ChatText.kt · ~/…/chat</span><span class="dur">0.2 s</span></div>
+  <div class="step">${I("terminal")}<span class="nm">terminal</span><span class="ar ell">$A shell dumpsys window | grep -m1 -o 'i…</span><span class="dur err">Failed</span></div>
+  <div class="out">mOwnerUid=10208
+package=io.github.justcallmesu.aristotle
+mAttrs={(26,1846)(256x354) gr=TOP START CENTER sim={adjust=pan
+exit_code: 1</div>
+  <div class="step">${I("code")}<span class="nm">execute_code</span><span class="ar ell">r='~/…/Aristotle/docs/v1-tickets/runs/TU4b'</span><span class="dur">1.4 s</span></div>
+</div>`;
+function transcript(openSteps=false,withDelegate=false,openLast=false){
+  return `<div class="transcript">
+    <div class="qline">${I("task_alt")}<span class="ell">Subagent Task Completed: Fix ticket TU4b: find with real data why tool-call folding…</span></div>
+    <div class="stepwrap g4${openSteps?" open":""}"><button class="steps" data-toggle="stepwrap">${I("expand_more","chev")}<span class="lbl">5 steps</span><span class="last">· execute_code</span></button>${STEPS_A}</div>
+    <div class="msg g12"><p><b>I was wrong earlier: tool-call folding does work on stored chats.</b> I had said it never happened, but one of my own screenshots shows "4 tool calls · last: execute_code" in the older session.</p>
+      <p><b>TU4b findings:</b></p>
+      <ul><li><b>History:</b> across 113 sessions, 5,649 of 6,098 tool calls fold.</li>
+      <li><b>Live chat is still unexplained.</b> The folded card was likely scrolled off the top.</li>
+      <li><b>Crash check:</b> all 26 text patterns were tested against Android's ICU engine.</li></ul>
+      <p><b>Your phone is locked, so I've stopped there.</b> When you can, unlock it and leave it on the session list.</p></div>
+    <div class="bubble g20">unlocked it</div>
+    ${withDelegate?`<div class="dcard g12"><div class="hd">${I("account_tree","s16")}<span class="mono">delegate_task</span><span>· 2 subagents</span></div>
+      <div class="drow tap"><span class="gl">${I("check_circle","s20")}</span><div class="tx"><div class="t ell">Fix ticket TU4b: find with real data why tool-call folding…</div><div class="m">Done · claude-sonnet-5-5 · 4 m 12 s</div></div>${I("chevron_right","go")}</div>
+      <div class="drow tap"><span class="gl"><span class="spin lg"></span></span><div class="tx"><div class="t ell">TV1b: app version, the version-mismatch banner and the About screen</div><div class="m"><span class="live">Running · 1 m 05 s</span> · claude-sonnet-5-5</div></div>${I("chevron_right","go")}</div></div>`:""}
+    <div class="stepwrap g12${openLast?" open":""}"><button class="steps live" data-toggle="stepwrap"><span class="spin"></span><span class="lbl">Running · 4 steps</span><span class="last">· vision_analyze</span>${I("expand_more","chev")}</button>
+      <div class="steplist">
+        <div class="step think">${I("psychology")}<span class="nm">Thought for 1 s</span></div>
+        <div class="step">${I("terminal")}<span class="nm">terminal</span><span class="ar ell">adb install -r app-debug.apk</span><span class="dur">6.1 s</span></div>
+        <div class="step">${I("terminal")}<span class="nm">terminal</span><span class="ar ell">$A shell dumpsys window | grep -m1 -o 'i…</span><span class="dur err">Failed</span></div>
+        <div class="out">mOwnerUid=10208
+package=io.github.justcallmesu.aristotle
+exit_code: 1</div>
+        <div class="step">${I("image")}<span class="nm">vision_analyze</span><span class="ar ell">~/…/scratch/ui/61-live.png</span><span class="spin"></span></div></div></div>
+    <div class="msg g12">Installed the latest build. Checking the folded card in this live chat now<span class="cursor"></span></div>
+  </div>`;
+}
+function composer({text="",busy=true,waiting=false,queued=false,offline=false}={}){
+  const has=!!text;
+  let acts;
+  if(busy && has) acts=`<button class="icbtn" aria-label="Attach a photo or file">${I("add")}</button><span class="sp"></span>
+      <button class="sq stop" aria-label="Stop">${I("stop","fill")}</button>
+      <button class="btn tonal" style="padding:0 16px">Queue</button><button class="btn filled" style="padding:0 16px">Steer</button>`;
+  else acts=`<button class="icbtn" aria-label="Attach a photo or file">${I("add")}</button>
+      <button class="chip mono" data-go="model" aria-label="Change model and reasoning"><span class="tx">claude-opus-5-5 · Medium</span>${I("expand_more")}</button><span class="sp"></span>
+      ${busy?`<button class="sq stop" aria-label="Stop">${I("stop","fill")}</button>`:`<button class="sq send${has?"":" off"}" aria-label="Send">${I("arrow_upward")}</button>`}`;
+  return `<div class="composer-zone">
+    ${waiting||queued?`<div class="above">${waiting?`<button class="wait" data-go="prompt">${I("front_hand")}Waiting for your approval</button>`:""}
+      ${queued?`<div class="queued"><span class="k">Queued · 1</span><span class="ell" style="flex:1">then re-shoot 19-live-chat with the keyboard down</span><button class="icbtn" aria-label="Remove from queue">${I("close","s20")}</button></div>`:""}</div>`:""}
+    <div class="composer${offline?" dis":""}"><div class="ta${has?" has":""}" ${busy&&!has?'data-go="chat-typing"':""}>${has?esc(text)+'<span class="caret"></span>':(offline?"You can send once reconnected":"Message Hermes")}</div>
+      <div class="acts">${acts}</div></div>
+    ${busy&&has?`<div class="hint">Steer joins the running turn. Queue sends after it.</div>`:""}
+  </div>`;
+}
+function chat(){return shell(`${chatTop()}<div class="scroll">${transcript(false,false)}</div>${composer({waiting:true})}`)}
+function chatTyping(){return shell(`${chatTop()}<div class="scroll" data-scrollend>${transcript(false,true,true)}</div>${composer({text:"check the folded card header stays on screen",queued:true})}`)}
+function chatNew(){return shell(`${chatTop(false,"New session")}
+  <div class="scroll"><div style="padding:24px 16px" class="body-m muted">Hermes on little-boy · profile pm. Ask anything, attach a photo or a file, or type <span class="mono">/</span> for commands.</div></div>
+  ${composer({busy:false,text:"look at the 61-live screenshot and tell me if the steps line fits"})}`)}
+
+/* ---------------- MODEL SHEET ---------------- */
+function modelSheet({variant="slider",query="",current="claude-opus-5-5",prov="anthropic",level="medium"}={}){
+  const q=query.trim().toLowerCase();
+  const groups=CATALOG.map(g=>{
+    const hit=g.models.filter(m=>!q||m.toLowerCase().includes(q));
+    if(q && !hit.length) return "";
+    const open = q ? true : g.slug===prov;
+    const count = q ? `${hit.length} of ${g.total}` : `${g.total} models`;
+    const rows=hit.map(m=>{
+      const name = q? esc(m).replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"i"),x=>`<mark>${x}</mark>`) : esc(m);
+      const locked=(g.locked||[]).includes(m);
+      return `<div class="mrow${m===current&&g.slug===prov?" cur":""}${locked?" locked":""}" role="radio" aria-checked="${m===current&&g.slug===prov}" data-model="${m}" data-prov="${g.slug}" tabindex="0"><span class="ell">${name}</span>${locked?`<span class="lk">Needs a paid plan</span>`:I("check")}</div>`}).join("");
+    return `<div class="pgroup${open?" open":""}"><button class="prov" data-toggle="pgroup" aria-expanded="${open}"><span class="nm">${g.name}</span><span class="ct">· ${count}</span>${I("expand_more")}</button><div class="models">${rows}</div></div>`;
+  }).join(`<div class="pdivider"></div>`);
+  const idx=LEVELS.findIndex(l=>l[0]===level);
+  const slider=`<div class="slider" role="slider" tabindex="0" aria-label="Reasoning effort" aria-valuemin="0" aria-valuemax="${LEVELS.length-1}" aria-valuenow="${idx}" aria-valuetext="${LEVELS[idx][1]}" data-i="${idx}">
+      <div class="trk"><div class="ac"></div><div class="in"></div>${LEVELS.map((_,i)=>`<i class="dot" data-d="${i}"></i>`).join("")}</div><div class="hdl"></div><div class="bubbleval"></div></div>
+      <div class="ends"><span>Off</span><span>Ultra</span></div>`;
+  const seg=`<div role="radiogroup" aria-label="Reasoning effort">${[LEVELS.slice(0,4),LEVELS.slice(4)].map(r=>`<div class="segrow">${r.map(([v,l])=>`<button role="radio" aria-checked="${v===level}" data-lv="${v}">${I("check")}${l}</button>`).join("")}</div>`).join("")}</div>`;
+  return `<div class="scrim" data-go="chat"></div>
+  <div class="sheet msheet" role="dialog" aria-label="Model">
+    <div class="handle"></div>
+    <div class="pad"><h2 class="headline-s">Model</h2>
+      <div class="label-m muted now" style="margin-top:4px">Now: <span class="mono" style="font-weight:500">${current}</span> · ${CATALOG.find(g=>g.slug===prov).name}</div>
+</div>
+    <div style="padding:12px 16px 4px"><label class="field">${I("search")}<input placeholder="Search 117 models" value="${esc(query)}" aria-label="Search models" data-search>${q?`<button class="icbtn" aria-label="Clear search" data-clear>${I("close")}</button>`:""}</label></div>
+    <div class="scroll" data-curscroll>${groups}<div style="height:8px"></div></div>
+    ${q?"":`<div class="effort" data-variant="${variant}"${noReasoning(current)?" hidden":""}><div class="lr"><span class="label-m muted">Reasoning effort</span><span class="val">${LEVELS[idx][1]}</span></div>
+      ${variant==="slider"?slider:seg}
+      <div class="note">Hermes is working: a change applies from your next message.</div></div>`}
+  </div>`;
+}
+function modelScreen(opts){return shell(`${chatTop()}<div class="scroll">${transcript(false,false)}</div>${composer({waiting:false})}${modelSheet(opts)}`)}
+
+/* ---------------- PROMPT SHEET (approval, Q41 order) ---------------- */
+function promptScreen(){return shell(`${chatTop()}<div class="scroll">${transcript(false,false)}</div>${composer({waiting:true})}
+  <div class="scrim"></div>
+  <div class="sheet psheet" role="dialog" aria-label="Run this command?"><div class="handle"></div><div class="body">
+    <div class="label-m muted">Aristotles Android app for Hermes sessions · pm</div>
+    <h2 class="headline-s">Run this command?</h2>
+    <div class="cmd">rm -rf android/app/build</div>
+    <div><div class="label-m muted">Reason Hermes gave</div><p class="body-m" style="margin-top:4px">recursive delete</p></div>
+    <div class="body-m muted num" style="display:flex;align-items:center;gap:8px">${I("schedule","s18")}Waits 4:32 more</div>
+    <div class="btnrow"><button class="btn outlined danger grow" data-go="chat">Deny</button><button class="btn filled grow" data-go="chat">Allow once</button></div>
+    <div class="btnrow2"><button class="btn text" data-go="chat">For this session</button><button class="btn text" data-act="always">Always allow</button></div>
+    <p class="body-s muted alwaysnote">Always: Hermes stops asking for this command.</p>
+    <div class="confirm"><div class="title-s">Always allow this command?</div>
+      <p class="body-m muted">Hermes will stop asking for this command from now on, in every session.</p>
+      <div class="btnrow" style="display:flex;justify-content:flex-end"><button class="btn text" data-act="always-back">Cancel</button><button class="btn filled" data-go="chat">Always allow</button></div></div>
+  </div></div>`)}
+
+/* ---------------- SETTINGS ---------------- */
+function settings(){
+  const gi=(icon,t,s,go="")=>`<div class="gi tap" ${go?`data-go="${go}"`:""}>${I(icon,"lead")}<div class="tx"><div class="body-l">${t}</div><div class="body-m muted ell">${s}</div></div>${I("chevron_right","trail")}</div>`;
+  return shell(`<header class="topbar back"><button class="icbtn on" data-go="home-c" aria-label="Back">${I("arrow_back")}</button><div class="tt"></div></header>
+  <div class="scroll"><div class="bigtitle">Settings</div>
+    <div class="glist">${gi("computer","Connection &amp; PCs","Connected · Tailscale","settings-connection")}${gi("notifications","Notifications","On")}</div>
+    <div style="height:16px"></div>
+    <div class="glist">${gi("palette","Appearance","Same as the phone · Default")}${gi("translate","Language","English")}</div>
+    <div style="height:16px"></div>
+    <div class="glist">${gi("lock","Security","App lock on · 1 minute")}${gi("info","About","Aristotle 1.0.0")}</div>
+  </div>`)}
+function settingsConn(){
+  const addr=(a,src,last,inUse,del=true)=>`<div class="gi" style="padding-right:4px"><div class="tx"><div class="kv">${a}</div><div class="body-s muted" style="margin-top:2px">${src} · ${inUse?`<b style="color:var(--on-surface)">in use now</b>`:last}</div></div>${del?`<button class="icbtn" aria-label="Delete ${a}">${I("delete")}</button>`:""}</div>`;
+  return shell(`<header class="topbar back"><button class="icbtn on" data-go="settings" aria-label="Back">${I("arrow_back")}</button><div class="tt"><div class="chat-title">Connection &amp; PCs</div></div></header>
+  <div class="scroll">
+    <div class="glist" style="margin-top:8px">
+      <div class="gi" style="align-items:flex-start;padding:16px"><div class="tx"><div class="title-m">little-boy</div><div class="body-m muted">Connected · via Tailscale</div></div></div>
+      <div class="gi" style="display:block;padding:14px 16px"><div class="label-m muted">Certificate fingerprint <span style="font-weight:400">(sample)</span></div>
+        <div class="fp" style="margin-top:6px"><span>3F:A1</span><span>9C:04</span><span>E2:7B</span><span>51:D8</span><span>0A:6E</span><span>C3:92</span><span>4D:F0</span><span>17:B5</span><span>88:2C</span><span>E9:41</span><span>6A:D3</span><span>05:7F</span><span>B2:1E</span><span>C8:96</span><span>3D:A0</span><span>74:5B</span></div>
+        <div class="body-s muted" style="margin-top:6px">The PC's key as you confirmed it when pairing. Every address must show this one.</div></div>
+    </div>
+    <div class="sec" style="padding-top:20px">Saved addresses</div>
+    <div class="glist">
+      ${addr("100.74.61.96:8760","Tailscale · from the PC's list","",true)}
+      ${addr("192.168.1.23:8760","Wi-Fi · from pairing","worked 12:03",false)}
+      ${addr("192.168.0.14:8760","Wi-Fi · found on Wi-Fi","worked 3 Nov",false)}
+    </div>
+    <div style="padding:12px 16px 0;display:flex;gap:12px;align-items:center"><button class="btn tonal">${I("wifi_find")}Find PC on this Wi-Fi</button></div>
+    <div class="body-s muted" style="padding:8px 16px 0">Only the PC with the fingerprint above is accepted.</div>
+    <div style="height:20px"></div>
+    <div class="glist"><div class="gi tap">${I("history","lead")}<div class="tx"><div class="body-l">Connection history</div><div class="body-m muted">Connections, switches and searches on this phone, for 7 days</div></div>${I("chevron_right","trail")}</div></div>
+    <div style="height:16px"></div>
+    <div class="glist">
+      <div class="gi tap">${I("qr_code_scanner","lead")}<div class="tx"><div class="body-l">Pair again</div><div class="body-m muted">With this PC or another. The current pairing keeps working until the new one succeeds.</div></div></div>
+      <div class="gi tap">${I("link_off","lead")}<div class="tx"><div class="body-l err">Unpair this PC</div><div class="body-m muted">Forget this PC on this phone.</div></div></div>
+    </div>
+    <div style="height:24px"></div>
+  </div>`)}
+
+/* ---------------- board ---------------- */
+const SCREENS={
+  "home-a":{f:homeA,cap:"Home A — conservative",note:"Today's structure, new parts: 72 dp two-line rows, day groups, inset dividers, extended FAB. Lowest build risk."},
+  "home-b":{f:homeB,cap:"Home B — strong fit (recommended)",note:"Search field always visible; live sessions in one grouped block; history as one-line rows by day; a full-width New chat in the thumb zone. PC status stays a quiet subtitle."},
+  "home-c":{f:homeC,cap:"Home C — chosen (Q75)",note:"Live sessions as wide cards showing their latest step; history as a ledger: time + title, no message count (Q75). The Hermes profile is an avatar top right with its name under it (TD2b); tap it for the profile sheet. Bottom bar: search, Scheduled, ⋮, New chat. Offline: the avatar dims, as the chip did."},
+  "profile-sheet":{f:()=>profileScreen(false),cap:"Profile sheet — over Home C",note:"Today's sheet unchanged in content and behaviour (SessionSheets.kt): title, one line of body, a radio row per profile Hermes serves, its launch profile first. Only the shapes are v2 Soft: 28 dp top corners, 16 dp row press shape. Tap a row (the avatar behind updates; the app re-lists). No per-profile session count: Hermes' roster has none."},
+  "profile-sheet-failed":{f:()=>profileScreen(true),cap:"Profile sheet — roster failed",note:"Today's failure state: the reason in one line and Retry now (ButtonShape 12). Loading is one muted line \"Loading profiles…\" in the same place."},
+  "chat":{f:chat,cap:"Chat — busy, field empty",note:"Assistant text without a bubble, user bubble right. Reasoning and tool calls fold into a quiet \"N steps\" line. Busy + empty field: only Stop (Q69). Approval waiting chip above the field."},
+  "chat-typing":{f:chatTyping,cap:"Chat — busy with text, steps open",note:"Typing while busy swaps the model chip for Stop · Queue · Steer and shows the hint. Steps line opened; a failed step shows its output. delegate_task as a fan-out card. Queued prompt above the field."},
+  "chat-new":{f:chatNew,cap:"Chat — new session, idle composer",note:"Idle: attach, model chip, Send. Send is disabled-looking only when the field is empty."},
+  "model":{f:()=>modelScreen({variant:"slider"}),cap:"Model sheet — slider (recommended)",note:"Search at the top; providers collapse with a model count; the session's provider opens with the current model checked. Effort sits in a footer in the thumb zone: a stepped slider with snapping stops and the level name. Drag it."},
+  "model-seg":{f:()=>modelScreen({variant:"seg"}),cap:"Model sheet — segmented alternative",note:"Same sheet with SegmentedButtons. Hermes gives 8 levels (7 when the model can't turn thinking off), so it needs two rows of four."},
+  "model-search":{f:()=>modelScreen({variant:"slider",query:"sonnet"}),cap:"Model sheet — searching \"sonnet\"",note:"Every provider with a hit opens and shows only the hits (\"3 of 13\"); the effort footer steps aside while searching (keyboard up)."},
+  "prompt":{f:promptScreen,cap:"Approval sheet",note:"Q41 order kept: context, question, command, reason, countdown, Deny + Allow once side by side, then the rarer grants. Try Always allow."},
+  "settings":{f:settings,cap:"Settings (Q72)",note:"Category list as grouped rows: large outer corners, 2 dp gaps, extraSmall inner corners. One-line summary each."},
+  "settings-connection":{f:settingsConn,cap:"Settings › Connection & PCs",note:"PC, fingerprint, saved addresses with source and last success (Q73), Find PC, history, Pair again, Unpair."},
+};
+function specimens(){
+  const av=n=>`<span class="avbtn" style="cursor:default"><span class="avatar">${mono(n)}</span><span class="pl">${esc(n)}</span></span>`;
+  const panel=m=>`<figure class="shot" data-mode="${m}"><div class="pal" data-mode="${m}">
+    <div class="cap">AVATAR + NAME UNDER, every profile on this PC (1 : 1 dp)</div><div class="avrow">${PROFILES.map(av).join("")}</div>
+    <div class="cap" style="padding-top:8px">CHAT TOP BAR — running · waiting · idle · offline</div>
+    ${chatTop(true,SESS.aristotle.t,"pm","run")}${chatTop(true,SESS.s10.t,"pm","ask")}${chatTop(false,SESS.hrd.t,"pm","idle")}${chatTop(false,SESS.hrd.t,"pm","off")}
+  </div><figcaption><b>Avatar and chat top bar · ${m}</b>${m==="light"?"bkm-reports-bot ellipsizes at 72 dp under the avatar; the sheet and TalkBack carry the full name.":""}</figcaption></figure>`;
+  return `<div class="row" style="margin-bottom:28px">${panel("light")}${panel("dark")}</div>`;
+}
+const GROUPS=[
+  {h:"1 · Home — three options (C chosen, Q75)",p:"The user picked <b>C</b> (Q75): no message counts, the profile avatar top right (1b). A and B stay for the record. They differ in composition, not colour. A keeps today's list; B is the chat-app home the user pointed at (ChatGPT / Claude): search on top, live block, one-line history by day, big New chat; C puts live work first as cards and moves every control to the bottom. Use the PC link tweak for offline and update states: each is one quiet line, never a banner stack.",ids:["home-a","home-b","home-c"]},
+  {h:"1b · Profile switcher (TD2b)",p:"The user's call: the profile is an <b>avatar button top right</b> on Home C, opening <b>the same sheet as today</b>. The avatar is a 40 dp Soft square (16 dp corners, below half its side, so no pill) in <code>secondaryContainer</code> with the profile's initial in Literata; its name sits under it in 11 sp. The name is needed: <code>default</code> and <code>developer</code> share the initial D, and names run up to <code>bkm-reports-bot</code>. The Tweak \"Profile label\" compares under (recommended) / beside / icon only. In chat the profile is the last part of the subtitle, a 16 dp copy of the avatar plus the name; a chat cannot switch profile (it keeps the one it was opened in, T14), so it is not a button.",ids:["profile-sheet","profile-sheet-failed"],extra:specimens},
+  {h:"2 · Chat",p:"Transcript as the user asked: assistant text without a bubble, user bubble, steps folded into one quiet line, cards for notifications and subagents, and a floating rounded composer with attach, model chip and Send / Stop. Tap the steps lines.",ids:["chat","chat-typing","chat-new"]},
+  {h:"3 · Model sheet — collapsible providers, search, effort",p:"Slider vs segmented, side by side. Recommendation: <b>slider</b> (design-notes §5.3): Hermes always offers 7 or 8 ordered levels, which do not fit one segmented row, and the slider keeps one control that names the level in text and steps one level per TalkBack swipe or arrow key.",ids:["model","model-seg","model-search"]},
+  {h:"4 · Settings",p:"The category list (Q72) and one sub-page in the grouped-row language.",ids:["settings","settings-connection"]},
+  {h:"5 · Prompt sheet",p:"Approval in the new shapes; information order unchanged (Q41).",ids:["prompt"]},
+];
+function phone(id,mode){return `<div class="phone" data-mode="${mode}" data-screen="${id}">${SCREENS[id].f()}</div>`}
+function renderBoard(){
+  document.getElementById("board").innerHTML=GROUPS.map(g=>`<section class="group"><h2>${g.h}</h2><p>${g.p}</p>
+    ${g.extra?g.extra():""}
+    ${g.ids.map(id=>`<div class="row" style="margin-bottom:28px">${["light","dark"].map(m=>`<figure class="shot" id="${id}-${m}" data-mode="${m}">${phone(id,m)}<figcaption><b>${SCREENS[id].cap} · ${m}</b>${m==="light"?SCREENS[id].note:""}</figcaption></figure>`).join("")}</div>`).join("")}</section>`).join("");
+  initAll(document.getElementById("board"));
+}
+let protoId="home-c";
+function renderProto(id){
+  protoId=id;const mode=document.body.dataset.theme==="dark"?"dark":"light";
+  const el=document.getElementById("protoPhone");el.innerHTML=phone(id,mode);initAll(el);
+}
+function render(){renderBoard();renderProto(protoId)}
+
+/* ---------------- interactions ---------------- */
+function initAll(root){
+  root.querySelectorAll(".slider").forEach(initSlider);
+  // S5: reveal the current model with the least scroll, so collapsed providers above it stay in view
+  root.querySelectorAll("[data-curscroll]").forEach(sc=>{const c=sc.querySelector(".mrow.cur");if(!c)return;const bottom=c.offsetTop-sc.offsetTop+c.offsetHeight+8;if(bottom>sc.clientHeight) sc.scrollTop=bottom-sc.clientHeight});
+  root.querySelectorAll("[data-scrollend]").forEach(sc=>{sc.scrollTop=sc.scrollHeight});
+}
+function setSlider(s,i){
+  const n=LEVELS.length,pct=i/(n-1)*100;s.dataset.i=i;
+  const w=s.clientWidth||345, px=i/(n-1)*w;
+  s.querySelector(".hdl").style.left=px+"px";
+  s.querySelector(".ac").style.width=Math.max(0,px-6)+"px";
+  s.querySelector(".in").style.left=Math.min(w,px+6)+"px";
+  s.querySelectorAll(".dot").forEach(d=>{const k=+d.dataset.d;d.style.left=(k/(n-1)*w)+"px";d.classList.toggle("on",k<i);d.style.display=(k===i||Math.abs(k/(n-1)*w-px)<8)?"none":"";
+    if(k===0||k===n-1){d.style.left=(k===0?6:w-6)+"px"}});
+  const bv=s.querySelector(".bubbleval");bv.textContent=LEVELS[i][1];bv.style.left=px+"px";
+  s.closest(".phone").dataset.level=LEVELS[i][0];s.setAttribute("aria-valuenow",i);s.setAttribute("aria-valuetext",LEVELS[i][1]);
+  const ef=s.closest(".effort");ef.querySelector(".val").textContent=LEVELS[i][1];
+  ef.querySelector(".note").textContent= LEVELS[i][0]==="ultra"?"This route sends Max. Applies from your next message.":"Hermes is working: a change applies from your next message.";
+}
+function initSlider(s){
+  setSlider(s,+s.dataset.i);
+  const at=e=>{const r=s.getBoundingClientRect();const x=Math.min(Math.max(0,(e.clientX-r.left)/r.width),1);return Math.round(x*(LEVELS.length-1))};
+  s.addEventListener("pointerdown",e=>{s.setPointerCapture(e.pointerId);s.classList.add("drag");setSlider(s,at(e))});
+  s.addEventListener("pointermove",e=>{if(s.classList.contains("drag")) setSlider(s,at(e))});
+  const end=()=>s.classList.remove("drag");s.addEventListener("pointerup",end);s.addEventListener("pointercancel",end);
+  s.addEventListener("keydown",e=>{let i=+s.dataset.i;if(["ArrowRight","ArrowUp"].includes(e.key))i++;else if(["ArrowLeft","ArrowDown"].includes(e.key))i--;else if(e.key==="Home")i=0;else if(e.key==="End")i=LEVELS.length-1;else return;
+    e.preventDefault();setSlider(s,Math.min(Math.max(i,0),LEVELS.length-1))});
+}
+function go(target,from){
+  if(target==="home") target="home-c";
+  if(document.body.dataset.view==="proto"){renderProto(target);return}
+  const mode=from.closest(".shot")?.dataset.mode||"light";
+  const shot=document.getElementById(`${target}-${document.body.dataset.theme==="both"?mode:document.body.dataset.theme}`);
+  if(!shot) return;
+  shot.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"});
+  shot.classList.add("flash");setTimeout(()=>shot.classList.remove("flash"),1400);
+}
+document.addEventListener("click",e=>{
+  const t=e.target;
+  const menuBtn=t.closest("[data-menu]");
+  document.querySelectorAll(".menu.open").forEach(m=>{if(!menuBtn||m.parentElement!==menuBtn.closest(".app"))m.classList.remove("open")});
+  if(menuBtn){menuBtn.closest(".app").querySelector(".menu").classList.toggle("open");return}
+  const tog=t.closest("[data-toggle]");
+  if(tog){const w=tog.closest("."+tog.dataset.toggle);w.classList.toggle("open");tog.setAttribute("aria-expanded",w.classList.contains("open"));return}
+  const clr=t.closest("[data-clear]");
+  if(clr){e.preventDefault();rerenderSheet(clr,"");return}
+  const pr=t.closest("[data-prof]");
+  if(pr){pickProfile(pr);return}
+  const mr=t.closest(".mrow");
+  if(mr&&!mr.classList.contains("locked")){pickModel(mr);return}
+  const lv=t.closest("button[data-lv]");
+  if(lv){lv.closest("[role=radiogroup]").querySelectorAll("button").forEach(b=>b.setAttribute("aria-checked",b===lv));lv.closest(".effort").querySelector(".val").textContent=LEVELS.find(l=>l[0]===lv.dataset.lv)[1];lv.closest(".phone").dataset.level=lv.dataset.lv;return}
+  const act=t.closest("[data-act]");
+  if(act){act.closest(".psheet").classList.toggle("confirming",act.dataset.act==="always");return}
+  const g=t.closest("[data-go]");
+  if(g){go(g.dataset.go,g)}
+});
+function pickProfile(pr){
+  const ph=pr.closest(".phone"),n=pr.dataset.prof;
+  ph.querySelectorAll("[data-prof]").forEach(r=>r.setAttribute("aria-checked",r===pr));
+  ph.querySelectorAll(".bighead .avbtn").forEach(b=>{b.outerHTML=avatarBtn(n)});
+}
+function pickModel(mr){
+  const sheet=mr.closest(".sheet");
+  sheet.querySelectorAll(".mrow").forEach(r=>{r.classList.toggle("cur",r===mr);r.setAttribute("aria-checked",r===mr)});
+  const m=mr.dataset.model;sheet.querySelector(".now .mono").textContent=m;
+  const ph=mr.closest(".phone");ph.dataset.cur=m;ph.dataset.prov=mr.dataset.prov;
+  const prov=mr.closest(".pgroup").querySelector(".nm").textContent;sheet.querySelector(".now").lastChild.textContent=" · "+prov;
+  const ef=sheet.querySelector(".effort");if(ef) ef.hidden=noReasoning(m);
+}
+function rerenderSheet(el,q){
+  const ph=el.closest(".phone");const variant=ph.querySelector(".effort")?.dataset.variant||"slider";
+  const sheet=ph.querySelector(".msheet");const scrim=sheet.previousElementSibling;
+  const tmp=document.createElement("div");tmp.innerHTML=modelSheet({variant,query:q,current:ph.dataset.cur||"claude-opus-5-5",prov:ph.dataset.prov||"anthropic",level:ph.dataset.level||"medium"});
+  scrim.remove();sheet.replaceWith(...tmp.children);
+  initAll(ph);
+  const inp=ph.querySelector("[data-search]");inp.focus();inp.setSelectionRange(q.length,q.length);
+}
+document.addEventListener("input",e=>{if(e.target.matches("[data-search]")) rerenderSheet(e.target,e.target.value)});
+
+/* ---------------- tweaks ---------------- */
+const saved=JSON.parse(localStorage.getItem("aristotle-td2")||"{}");
+Object.entries(saved).forEach(([k,v])=>{document.body.dataset[k]=v});
+function syncTweaks(){document.querySelectorAll("[data-tweak]").forEach(g=>g.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",document.body.dataset[g.dataset.tweak]===b.dataset.v)))}
+document.querySelectorAll("[data-tweak]").forEach(g=>g.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  document.body.dataset[g.dataset.tweak]=b.dataset.v;saved[g.dataset.tweak]=b.dataset.v;localStorage.setItem("aristotle-td2",JSON.stringify(saved));syncTweaks();
+  if(["link","theme","view"].includes(g.dataset.tweak)) render(); else document.querySelectorAll(".slider").forEach(s=>setSlider(s,+s.dataset.i));
+}));
+syncTweaks();
+document.fonts?.ready.then(()=>{render()});
+render();
+</script>
+</body>
+</html>
