@@ -29,6 +29,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // T19b: the terminal streams a PC shell; it never starts a process on the phone. Termux's JNI library (pty and
+    // fork for a local shell) is left out of the APK, so TerminalSession's local-process path cannot run at all.
+    packaging {
+        jniLibs.excludes += "**/libtermux.so"
+    }
 }
 
 dependencies {
@@ -43,6 +49,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.markdown.renderer.m3)
     implementation(libs.play.services.code.scanner)
+    implementation(libs.termux.terminal.emulator)
+    implementation(libs.termux.terminal.view)
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.tls)

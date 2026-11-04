@@ -1,5 +1,9 @@
 package io.github.justcallmesu.aristotle.data
 
+import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
+import io.github.justcallmesu.aristotle.data.terminal.TerminalChannel
+import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
+import io.github.justcallmesu.aristotle.data.terminal.TerminalSocket
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
@@ -47,6 +51,12 @@ private data class PairBody(
 @Serializable
 private data class AddressesBody(val addresses: List<WireAddress>)
 
+@Serializable
+private data class MeBody(val terminal: TerminalFlags? = null)
+
+@Serializable
+private data class TerminalFlags(val enabled: Boolean = false, val granted: Boolean = false)
+
 /** `POST /v1/pair` with the client pinned to [pin]; a seam so the pair screen can be tested without a server. */
 fun interface PairingApi {
     suspend fun pair(endpoint: ServerEndpoint, pin: ByteArray, code: String, deviceName: String): PairResult
@@ -58,7 +68,7 @@ class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
 }
 
 /** The link's calls over HTTPS with the PC's pin; one client per pin and address kind ([HttpClients]). */
-class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer {
+class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer {
     private val clients = ConcurrentHashMap<Pair<String, Network>, OkHttpClient>()
 
     override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
@@ -68,6 +78,12 @@ class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer {
         ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).addresses(pc.token)
 
     override fun networkChanged() = httpClients.evictIdle()
+
+    override fun openTerminal(pc: PcCredentials, endpoint: ServerEndpoint): TerminalChannel =
+        TerminalSocket(clientFor(pc, endpoint), endpoint.baseUrl, pc.token)
+
+    override suspend fun terminalAllowed(pc: PcCredentials, endpoint: ServerEndpoint): Boolean? =
+        ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).terminalAllowed(pc.token)
 
     private fun clientFor(pc: PcCredentials, endpoint: ServerEndpoint): OkHttpClient =
         clients.getOrPut(pc.fingerprint to endpoint.network) { httpClients.pinnedTo(pc.pin, endpoint.network) }
@@ -91,6 +107,17 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
         val request = Request.Builder().url(base.resolve("/v1/addresses")!!).header("Authorization", "Bearer ${token.value}").build()
         return execute(request, { null }) { response ->
             if (response.code != 200) null else decode(response, AddressesBody.serializer())?.let { PcAddresses.endpointsOf(it.addresses) }
+        }
+    }
+
+    /**
+     * `GET /v1/me` (protocol §11.2, §14): whether this phone may open a terminal (switch on **and** granted); false
+     * for a server without the `terminal` object; null on any failure.
+     */
+    suspend fun terminalAllowed(token: DeviceToken): Boolean? {
+        val request = Request.Builder().url(base.resolve("/v1/me")!!).header("Authorization", "Bearer ${token.value}").build()
+        return execute(request, { null }) { response ->
+            if (response.code != 200) null else decode(response, MeBody.serializer())?.let { me -> me.terminal?.let { TerminalAccess.visible(it.enabled, it.granted) } ?: false }
         }
     }
 

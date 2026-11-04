@@ -81,6 +81,8 @@ fun SessionsScreen(
     onSettings: () -> Unit,
     onOpen: (OpenRequest) -> Unit,
     onScheduled: (ScheduledRequest) -> Unit,
+    terminalAvailable: Boolean = false,
+    onTerminal: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(state.open) {
@@ -96,6 +98,8 @@ fun SessionsScreen(
         onSettings = onSettings,
         onScheduled = onScheduled,
         actions = remember(viewModel) { ViewModelListActions(viewModel) },
+        terminalAvailable = terminalAvailable,
+        onTerminal = onTerminal,
     )
     SessionSheets(state, remember(viewModel) { ViewModelSheetActions(viewModel) })
 }
@@ -152,6 +156,8 @@ fun SessionsContentView(
     onSettings: () -> Unit,
     actions: ListActions,
     onScheduled: (ScheduledRequest) -> Unit = {},
+    terminalAvailable: Boolean = false,
+    onTerminal: () -> Unit = {},
 ) {
     val address = state.address?.hostForUrl.orEmpty()
     val snackbar = remember { SnackbarHostState() }
@@ -167,7 +173,7 @@ fun SessionsContentView(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-                if (state.searching) SearchBar(state.query, actions) else TopBar(state, address, onSettings, onScheduled, actions)
+                if (state.searching) SearchBar(state.query, actions) else TopBar(state, address, onSettings, onScheduled, actions, terminalAvailable, onTerminal)
                 val page = pageFor(state)
                 if (page != null) {
                     Box(modifier = Modifier.windowInsetsPadding(bottom)) { ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) }
@@ -210,7 +216,15 @@ private fun ListBody(state: SessionsUiState, address: String, insets: PaddingVal
 }
 
 @Composable
-private fun TopBar(state: SessionsUiState, address: String, onSettings: () -> Unit, onScheduled: (ScheduledRequest) -> Unit, actions: ListActions) {
+private fun TopBar(
+    state: SessionsUiState,
+    address: String,
+    onSettings: () -> Unit,
+    onScheduled: (ScheduledRequest) -> Unit,
+    actions: ListActions,
+    terminalAvailable: Boolean,
+    onTerminal: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -223,6 +237,12 @@ private fun TopBar(state: SessionsUiState, address: String, onSettings: () -> Un
             ConnectionLine(state.link, address)
         }
         state.profileName?.let { ProfileChip(it, enabled = state.link is LinkState.Online, onClick = actions::openProfiles) }
+        // T19b: only while /v1/me (read on this connect) says the terminal is on and this phone granted.
+        if (terminalAvailable) {
+            IconButton(onClick = onTerminal) {
+                Icon(painter = painterResource(R.drawable.ic_terminal), contentDescription = stringResource(R.string.terminal_open))
+            }
+        }
         // T18: the listed profile's Hermes cron jobs.
         IconButton(onClick = { onScheduled(ScheduledRequest(state.profile, state.profileName)) }) {
             Icon(painter = painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.cron_open))

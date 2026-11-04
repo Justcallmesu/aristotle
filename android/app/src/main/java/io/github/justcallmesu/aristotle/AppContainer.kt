@@ -33,6 +33,8 @@ import io.github.justcallmesu.aristotle.data.SessionPins
 import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
+import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
+import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,13 +78,24 @@ class AppContainer(context: Context) {
      * its own errors into an offline round; the handler is the last guard, so nothing it starts can crash
      * the app (only the error's type is logged, never a message that could hold a token).
      */
+    private val linkScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.w(TAG, "link: ${e.javaClass.name}") })
+    private val dialer = HttpLinkDialer(httpClients)
+
+    /** The phone's network; the link follows it, and a change ends every open terminal (Q55). */
+    val network = AndroidNetworkWatch(context)
     val link = LinkManager(
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.w(TAG, "link: ${e.javaClass.name}") }),
+        scope = linkScope,
         credentials = credentials.state,
-        dialer = HttpLinkDialer(httpClients),
-        network = AndroidNetworkWatch(context),
+        dialer = dialer,
+        network = network,
         memory = credentials,
     )
+
+    /** T19b: whether the Terminal entry shows (`/v1/me` on every connect), and where a terminal opens. */
+    val terminalAccess = TerminalAccess(linkScope, link.state, credentials.state, dialer)
+
+    /** Opens terminal sockets with the link's pinned clients (never the relay socket). */
+    val terminalDialer: TerminalDialer = dialer
 
     val settings = AppSettings(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
 
@@ -130,6 +143,7 @@ class AppContainer(context: Context) {
         reloadCredentials()
         scope.launch(Dispatchers.Default) { quotes.load() }
         link.start()
+        terminalAccess.start()
         scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
         scope.launch { credentials.state.collect { profileSelection.follow((it as? CredentialState.Paired)?.credentials?.pcId) } }
         notifier.createChannels()

@@ -38,6 +38,11 @@ import io.github.justcallmesu.aristotle.ui.sessions.SessionsViewModel
 import io.github.justcallmesu.aristotle.ui.settings.BatteryGuideScreen
 import io.github.justcallmesu.aristotle.ui.settings.NotificationPermissionPrompt
 import io.github.justcallmesu.aristotle.ui.settings.SettingsScreen
+import io.github.justcallmesu.aristotle.ui.terminal.TerminalScreen
+import io.github.justcallmesu.aristotle.ui.terminal.TerminalViewModel
+import io.github.justcallmesu.aristotle.R
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleStartEffect
 
 /** Top-level route: reading -> blank; no active PC -> pair; paired -> that PC's pages. */
 @Composable
@@ -99,7 +104,7 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
 
 /** The pages under a paired PC. Back from a sub-page goes to [back]. */
 private enum class PairedPage {
-    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled;
+    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal;
 
     val back: PairedPage get() = if (this == SettingsGuide) Settings else Sessions
 }
@@ -111,6 +116,8 @@ private enum class PairedPage {
  */
 @Composable
 private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: RouteStores, chatRoutes: RouteStores, cronRoutes: RouteStores) {
+    val terminalRoutes = viewModel(key = TERMINAL_ROUTES) { RouteStores() }
+    val terminalTarget by container.terminalAccess.target.collectAsStateWithLifecycle()
     val settings = container.settings
     var page by rememberSaveable(pc.pcId) {
         mutableStateOf(if (container.isXiaomiFamily && !settings.batteryGuideShown) PairedPage.FirstRunGuide else PairedPage.Sessions)
@@ -156,6 +163,8 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
                     cronLabel = request.label
                     page = PairedPage.Scheduled
                 },
+                terminalAvailable = terminalTarget != null,
+                onTerminal = { page = PairedPage.Terminal },
             )
             NotificationPermissionPrompt(settings, container.notifier::canPost)
         }
@@ -168,6 +177,7 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
         PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
         PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
+        PairedPage.Terminal -> TerminalRoute(container, terminalRoutes, pc.pcId, onBack = { page = page.back })
         PairedPage.Chat -> {
             val id = chatId
             if (id != null) {
@@ -224,6 +234,31 @@ private fun CronRoute(container: AppContainer, cronRoutes: RouteStores, profile:
     }
 }
 
+/**
+ * The PC's terminal screen (T19b). Its shells live only while it is on screen: leaving the page clears its ViewModel,
+ * and the app going to the background (not a rotation) closes every terminal; the background service keeps none.
+ */
+@Composable
+private fun TerminalRoute(container: AppContainer, terminalRoutes: RouteStores, pcId: String, onBack: () -> Unit) {
+    val activity = LocalActivity.current
+    DisposableEffect(Unit) {
+        onDispose { if (activity?.isChangingConfigurations != true) terminalRoutes.clear() }
+    }
+    RouteScope(terminalRoutes, "terminal-$pcId") {
+        // The application context: the ViewModel outlives a rotated activity.
+        val appContext = LocalContext.current.applicationContext
+        val terminalViewModel = viewModel {
+            TerminalViewModel(container.terminalAccess, container.terminalDialer, container.network) { bytes ->
+                appContext.getString(R.string.terminal_output_skipped, bytes.toString())
+            }
+        }
+        LifecycleStartEffect(terminalViewModel) {
+            onStopOrDispose { if (activity?.isChangingConfigurations != true) terminalViewModel.leave() }
+        }
+        TerminalScreen(terminalViewModel, onBack)
+    }
+}
+
 /** Gives the current route's ViewModels their own store. */
 @Composable
 private fun RouteScope(routes: RouteStores, key: String, content: @Composable () -> Unit) {
@@ -264,3 +299,4 @@ class RouteStores : ViewModel() {
 
 private const val CHAT_ROUTES = "chat-routes"
 private const val CRON_ROUTES = "cron-routes"
+private const val TERMINAL_ROUTES = "terminal-routes"
