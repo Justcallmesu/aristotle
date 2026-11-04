@@ -187,6 +187,17 @@ func TestPairDevicesRevokeEndToEnd(t *testing.T) {
 	if c := me(); c != http.StatusOK {
 		t.Fatalf("me = %d", c)
 	}
+	// The stocks module is wired behind the same token (protocol §20); a read creates no state file.
+	req := httptest.NewRequest("GET", "/v1/stocks/watchlist", nil)
+	req.Header.Set("Authorization", "Bearer "+paired.Token)
+	rec = httptest.NewRecorder()
+	api.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"items":[]}` {
+		t.Fatalf("stocks watchlist = %d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(srv.stateDir, "stocks.json")); !os.IsNotExist(err) {
+		t.Fatalf("stocks.json after a read: %v", err)
+	}
 
 	code, out, _ = run(t, "devices", "list")
 	if code != 0 || !strings.Contains(out, paired.DeviceID) || !strings.Contains(out, "test") {

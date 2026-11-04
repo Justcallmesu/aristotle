@@ -22,6 +22,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/pcstatus"
 	"github.com/justcallmesu/aristotle/server/internal/relay"
 	"github.com/justcallmesu/aristotle/server/internal/service"
+	"github.com/justcallmesu/aristotle/server/internal/stocks"
 	"github.com/justcallmesu/aristotle/server/internal/terminal"
 	"github.com/justcallmesu/aristotle/server/internal/tlscert"
 	protover "github.com/justcallmesu/aristotle/server/internal/version"
@@ -71,6 +72,7 @@ type server struct {
 	grants    *terminal.Grants    // terminal switch and per-device grants (terminal.json)
 	terms     *terminal.Hub       // /v1/terminal shells
 	pcstatus  *pcstatus.Collector // GET /v1/pc-status
+	stocks    *stocks.Service     // /v1/stocks/* (stocks.json)
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -112,6 +114,7 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		grants: grants, terms: terminal.New(terminal.Options{Grants: grants, Devices: store, Log: log,
 			KeepEnv: cfg.Terminal.KeepEnv, DelegatedUnit: delegatedUnit()})}
 	s.pcstatus = &pcstatus.Collector{Log: log, Hermes: hermesRunning(connector), Tailscale: s.tailscaleUp}
+	s.stocks = stocks.New(stocks.Options{StateDir: stateDir, Log: log})
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
@@ -170,7 +173,7 @@ func (s *server) syncDiscovery(eps []listen.Endpoint) {
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
 	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Terminal: s.terms,
-		Listener: string(kind), Addresses: s.addresses, PCStatus: s.pcstatus.Status}
+		Listener: string(kind), Addresses: s.addresses, PCStatus: s.pcstatus.Status, Stocks: s.stocks}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 
@@ -195,6 +198,7 @@ func (s *server) run(ctx context.Context) error {
 	cancel()
 	s.closeRelays()
 	s.closeTerminals()
+	s.stocks.Close()
 	wg.Wait()
 	return err
 }

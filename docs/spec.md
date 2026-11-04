@@ -195,7 +195,7 @@ Paths under `/home/justcallmesu/.hermes/hermes-agent/`.
 
 - Yahoo chart API (`query1.finance.yahoo.com/v8/finance/chart/BBCA.JK?interval=5m&range=1d`): 200 unauthenticated; last bar ~603 s old in session 1 (PM probe). Yahoo lists .JK as 10 min delayed. ToS forbids automated collection. VERIFIED.
 - idx.co.id JSON endpoints: 403 (Cloudflare) to plain clients. VERIFIED (subagent).
-- RSS 200: cnbcindonesia.com/market/rss, kontan.co.id/rss, finance.detik.com/rss, idxchannel.com/rss. Bisnis 403, Kompas 404, Emiten News 500. VERIFIED (status only).
+- RSS 200: cnbcindonesia.com/market/rss, kontan.co.id/rss (STALE 2026-11-05: an HTML page; feed is investasi.kontan.co.id/rss, v2-stocks spec), finance.detik.com/rss, idxchannel.com/rss. Bisnis 403, Kompas 404, Emiten News 500. VERIFIED (status only).
 - No free intraday foreign flow / broker summary; free versions are end of day.
 - IDX hours (Kep-00003/BEI/04-2025, effective 2025-12-15): pre-open 08:45; S1 09:00-12:00 (Fri -11:30); S2 13:30-15:49:59 (Fri 14:00-); pre-close 15:50-16:01:59; post 16:02-16:15 WIB. VERIFIED (subagent). Holiday calendar not yet fetched.
 

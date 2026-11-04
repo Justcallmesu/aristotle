@@ -1,0 +1,805 @@
+{
+ "_sources": {
+  "LQ45": "Peng-00204/BEI.POP/10-2026 + revision Peng-00205/BEI.POP/10-2026, Appendix 1 (45 codes)",
+  "IDX80": "Peng-00205/BEI.POP/10-2026 Appendix 2 (80 codes), read 2026-11-05 from the Stockbit mirror of the IDX PDF (stream-asset.stockbit.com/c06aa638-...pdf); idx.co.id itself answers 403",
+  "names": "hand-written company names (no source fetched; check by eye); rows without tags are search-only extras",
+  "edit": "hand-edit after each quarterly IDX index review; valid_to is the end of the constituent period"
+ },
+ "valid_from": "2026-11-02",
+ "valid_to": "2027-01-29",
+ "stocks": [
+  {
+   "code": "AADI",
+   "name": "Adaro Andalan Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "AALI",
+   "name": "Astra Agro Lestari Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ACES",
+   "name": "Aspirasi Hidup Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ADMR",
+   "name": "Alamtri Minerals Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ADRO",
+   "name": "Alamtri Resources Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "AKRA",
+   "name": "AKR Corporindo Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "AMMN",
+   "name": "Amman Mineral Internasional Tbk",
+   "aliases": [
+    "Amman Mineral"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "AMRT",
+   "name": "Sumber Alfaria Trijaya Tbk",
+   "aliases": [
+    "Alfamart"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ANTM",
+   "name": "Aneka Tambang Tbk",
+   "aliases": [
+    "Antam"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ARTO",
+   "name": "Bank Jago Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ASII",
+   "name": "Astra International Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BBCA",
+   "name": "Bank Central Asia Tbk",
+   "aliases": [
+    "BCA"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BBNI",
+   "name": "Bank Negara Indonesia (Persero) Tbk",
+   "aliases": [
+    "BNI"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BBRI",
+   "name": "Bank Rakyat Indonesia (Persero) Tbk",
+   "aliases": [
+    "BRI"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BBTN",
+   "name": "Bank Tabungan Negara (Persero) Tbk",
+   "aliases": [
+    "BTN"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BFIN",
+   "name": "BFI Finance Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BKSL",
+   "name": "Sentul City Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BMRI",
+   "name": "Bank Mandiri (Persero) Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BREN",
+   "name": "Barito Renewables Energy Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "BRIS",
+   "name": "Bank Syariah Indonesia Tbk",
+   "aliases": [
+    "BSI"
+   ],
+   "tags": []
+  },
+  {
+   "code": "BRMS",
+   "name": "Bumi Resources Minerals Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BRPT",
+   "name": "Barito Pacific Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BSDE",
+   "name": "Bumi Serpong Damai Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BUKA",
+   "name": "Bukalapak.com Tbk",
+   "aliases": [
+    "Bukalapak"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "BUMI",
+   "name": "Bumi Resources Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "CBDK",
+   "name": "Bangun Kosambi Sukses Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "CMRY",
+   "name": "Cisarua Mountain Dairy Tbk",
+   "aliases": [
+    "Cimory"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "CPIN",
+   "name": "Charoen Pokphand Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "CTRA",
+   "name": "Ciputra Development Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "CUAN",
+   "name": "Petrindo Jaya Kreasi Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "DEWA",
+   "name": "Darma Henwa Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "DSNG",
+   "name": "Dharma Satya Nusantara Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ELSA",
+   "name": "Elnusa Tbk",
+   "aliases": [
+    "Elnusa"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "EMTK",
+   "name": "Elang Mahkota Teknologi Tbk",
+   "aliases": [
+    "Emtek"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ENRG",
+   "name": "Energi Mega Persada Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ERAA",
+   "name": "Erajaya Swasembada Tbk",
+   "aliases": [
+    "Erajaya"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ESSA",
+   "name": "ESSA Industries Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "EXCL",
+   "name": "XLSmart Telecom Sejahtera Tbk",
+   "aliases": [
+    "XLSmart"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "GGRM",
+   "name": "Gudang Garam Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "GOTO",
+   "name": "GoTo Gojek Tokopedia Tbk",
+   "aliases": [
+    "GoTo"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "HEAL",
+   "name": "Medikaloka Hermina Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "HRTA",
+   "name": "Hartadinata Abadi Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "HRUM",
+   "name": "Harum Energy Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ICBP",
+   "name": "Indofood CBP Sukses Makmur Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "INCO",
+   "name": "Vale Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "INDF",
+   "name": "Indofood Sukses Makmur Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "INDY",
+   "name": "Indika Energy Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "INKP",
+   "name": "Indah Kiat Pulp & Paper Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "INTP",
+   "name": "Indocement Tunggal Prakarsa Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "ISAT",
+   "name": "Indosat Tbk",
+   "aliases": [
+    "Indosat"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "ITMG",
+   "name": "Indo Tambangraya Megah Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "JPFA",
+   "name": "Japfa Comfeed Indonesia Tbk",
+   "aliases": [
+    "Japfa"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "JSMR",
+   "name": "Jasa Marga (Persero) Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "KIJA",
+   "name": "Kawasan Industri Jababeka Tbk",
+   "aliases": [
+    "Jababeka"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "KLBF",
+   "name": "Kalbe Farma Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "KPIG",
+   "name": "MNC Tourism Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "LSIP",
+   "name": "PP London Sumatra Indonesia Tbk",
+   "aliases": [
+    "Lonsum"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "MAPA",
+   "name": "Map Aktif Adiperkasa Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "MAPI",
+   "name": "Mitra Adiperkasa Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "MBMA",
+   "name": "Merdeka Battery Materials Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "MDKA",
+   "name": "Merdeka Copper Gold Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "MEDC",
+   "name": "Medco Energi Internasional Tbk",
+   "aliases": [
+    "Medco"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "MIKA",
+   "name": "Mitra Keluarga Karyasehat Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "MTEL",
+   "name": "Dayamitra Telekomunikasi Tbk",
+   "aliases": [
+    "Mitratel"
+   ],
+   "tags": []
+  },
+  {
+   "code": "MYOR",
+   "name": "Mayora Indah Tbk",
+   "aliases": [
+    "Mayora"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "NCKL",
+   "name": "Trimegah Bangun Persada Tbk",
+   "aliases": [
+    "Harita Nickel"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "PGAS",
+   "name": "Perusahaan Gas Negara Tbk",
+   "aliases": [
+    "PGN"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "PGEO",
+   "name": "Pertamina Geothermal Energy Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "PNLF",
+   "name": "Panin Financial Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "PTBA",
+   "name": "Bukit Asam Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "PTRO",
+   "name": "Petrosea Tbk",
+   "aliases": [
+    "Petrosea"
+   ],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "PWON",
+   "name": "Pakuwon Jati Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "RAJA",
+   "name": "Rukun Raharja Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "RATU",
+   "name": "Raharja Energi Cepu Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "SCMA",
+   "name": "Surya Citra Media Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "SIDO",
+   "name": "Industri Jamu dan Farmasi Sido Muncul Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "SMDR",
+   "name": "Samudera Indonesia Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "SMGR",
+   "name": "Semen Indonesia (Persero) Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "SMRA",
+   "name": "Summarecon Agung Tbk",
+   "aliases": [],
+   "tags": []
+  },
+  {
+   "code": "SSIA",
+   "name": "Surya Semesta Internusa Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "TAPG",
+   "name": "Triputra Agro Persada Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "TINS",
+   "name": "Timah Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "TKIM",
+   "name": "Pabrik Kertas Tjiwi Kimia Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "TLKM",
+   "name": "Telkom Indonesia (Persero) Tbk",
+   "aliases": [
+    "Telkom"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "TOWR",
+   "name": "Sarana Menara Nusantara Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "TPIA",
+   "name": "Chandra Asri Pacific Tbk",
+   "aliases": [],
+   "tags": [
+    "IDX80"
+   ]
+  },
+  {
+   "code": "UNTR",
+   "name": "United Tractors Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "UNVR",
+   "name": "Unilever Indonesia Tbk",
+   "aliases": [
+    "Unilever"
+   ],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  },
+  {
+   "code": "WIFI",
+   "name": "Solusi Sinergi Digital Tbk",
+   "aliases": [],
+   "tags": [
+    "LQ45",
+    "IDX80"
+   ]
+  }
+ ]
+}

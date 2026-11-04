@@ -1143,3 +1143,72 @@ No new RPC: the phone reads the answer of the `model.options {session_id, explic
 - A multi-entry credential pool sends `usage.accounts[{id,label,windows,state,resets_at}]` and an empty `windows`; the phone shows the first `ready` account with windows (else the first with windows) and says it is one of N.
 - Cold cache: the first call can carry no `usage`. The phone shows "Loading limits…" and calls `model.options` once more after 3 s; if that is empty too the section is hidden. Hermes drops snapshots older than 15 min (`hermes/agent/account_usage_cache.py:26-30`); the phone hides numbers it has shown for 15 min.
 - Home (Q83, TY7): the same answer read without a session, `model.options {profile?}` (no `session_id`, optional: `tui_gateway/contracts/config_free_tier_control.py:451-455`), when Home shows and at most every 5 min while it stays open (each call starts a Hermes refresh); an empty or non-Anthropic answer shows nothing.
+
+## 20. Stocks (`/v1/stocks/*`, v2 slice 1, TS1; contract from `docs/v2-stocks/runs/TS0/report.md` §7)
+
+Code: `server/internal/stocks`. Device-token auth like §16 (`401` without one); every answer is JSON with `Cache-Control: no-store`;
+errors are `{"error":"<code>"}`. New routes only: no `ProtocolVersion` bump (§0). Prices are integer IDR, times RFC 3339 in WIB (`+07:00`).
+
+| Method, path | Body / query | 200 response |
+|---|---|---|
+| `GET /v1/stocks/watchlist` | — | `{"items":[{"code":"BBCA","name":"Bank Central Asia Tbk"}]}` in the user's order |
+| `PUT /v1/stocks/watchlist/{code}` | — | the list; appends, idempotent (a listed code changes nothing) |
+| `DELETE /v1/stocks/watchlist/{code}` | — | the list; `404 not_in_watchlist` |
+| `PUT /v1/stocks/watchlist` | `{"codes":[…]}` | the list in that order; `400 bad_request` unless the same set (no repeats) |
+| `GET /v1/stocks/holdings` | — | holdings object (below) |
+| `PUT /v1/stocks/holdings/{code}` | `{"lots":10,"avg_price":4800}` | holdings object; adds or replaces (idempotent) |
+| `DELETE /v1/stocks/holdings/{code}` | — | holdings object; `404 not_held` |
+| `GET` / `PUT /v1/stocks/settings` | `{"buy_fee_pct":0.15,"sell_fee_pct":0.25}` (both required, each 0..5) | the settings |
+| `GET /v1/stocks/quotes` | `?codes=BBCA,BBRI` (≤ 50, repeats dropped; default: watchlist then the other holdings) | quotes object (below) |
+| `GET /v1/stocks/chart/{code}` | `?range=1d\|5d\|1mo\|6mo\|1y\|5y` (default `1d`) | chart object (below) |
+| `GET /v1/stocks/news` | `?code=BBCA` (optional) `&limit=1..300` (default 50) | news object (below) |
+| `GET /v1/stocks/search` | `?q=` 1..40 characters | `{"results":[{"code","name","in_universe"}]}`, at most 20 |
+
+**Errors.** `400 bad_code`: a code (path, `codes`, `code`, reorder body) is not `^[A-Z]{4}$` after upper-casing (`BBCA.JK` is refused).
+`400 bad_request`: bad JSON (one object ≤ 4 KiB, unknown fields refused), a value out of range, a bad `range`/`limit`/`q`, > 50 codes.
+`404 not_found`: any other path or method under `/v1/stocks/`. `409 limit_reached`: a 51st watchlist entry or holding.
+`422 unknown_symbol`: adding a code outside the bundled list that Yahoo does not know (chart 404); the same for a chart.
+`503 upstream_blocked` + `"retry_after_s":N` and a `Retry-After` header: Yahoo refused us (429) and nothing cached can answer.
+`502 upstream_error`: any other Yahoo failure with nothing cached. `500 state_error`: `stocks.json` is unusable (below) or could not be saved.
+
+**Holdings object.** `{"at","holdings":[{"code","name","lots","avg_price","price","cost","value","pl","pl_pct","today","stale"}],
+"total":{"cost","value","pl","pl_pct","today"}}`. `lots` 1..10 000 000 (integer); `avg_price` > 0 and ≤ 10 000 000, kept to 0.01 IDR.
+P/L after fees (spec Q88): shares = lots × 100; `cost` = avg × shares × (1 + buy %/100); `value` = price × shares × (1 − sell %/100);
+`pl` = value − cost; `pl_pct` = pl / cost × 100 to 2 decimals; each amount rounded half up once from the exact product.
+`today` = (price − prev_close) × shares, no fees. Without a price (Yahoo down, nothing cached) `price`, `value`, `pl`, `pl_pct`, `today`
+are `null` and so are the totals' (cost still sums); a cached price past its TTL has `stale:true`. Example: 10 lots at 4 800, price 4 930,
+fees 0.15/0.25 → cost 4 807 200, value 4 917 675, pl 110 475, pl_pct 2.3.
+
+**Quotes object.** `{"at","market":{"state","session","closes_at","next_open"},"quotes":[…],"errors":[{"code","error"}]}`.
+Quote: `{"code","name","price","prev_close","change","change_pct","high","low","volume","week52_high","week52_low","market_time",
+"spark":[…],"tick","ara","arb","stale"}`. `prev_close` is Yahoo's `previousClose` (`chartPreviousClose` only for range 1d); `change`,
+`change_pct` (2 decimals) are null without it. `spark` = today's 5-minute closes, oldest first (for the watchlist sparkline). `tick` =
+price step at prev_close (IDX bands < 200: 1, < 500: 2, < 2 000: 5, < 5 000: 10, else 25); `ara`/`arb` = auto-reject limits from
+prev_close by the dated server table (upper Kep-00136; lower 7 % / Rp1 set to 2026-12-31, `null` after until the table is edited).
+`errors` names each code without a quote: `unknown_symbol`, `upstream_blocked` or `upstream_error`; if no code has a quote and Yahoo
+failed, the whole call answers 503/502 instead. `market.state` is `open` (sessions: Mon–Thu 09:00–12:00 and 13:30–16:00, Fri
+09:00–11:30 and 14:00–16:00; 16:00 includes the pre-closing auction), `break` (between the sessions) or `closed` (else, weekends and
+the bundled IDX holidays, 2026 rest + 2027). `session` (1|2) and `closes_at` are set while open, `next_open` while not.
+
+**Chart object.** `{"code","range","interval","tz":"Asia/Jakarta","prev_close","stale","bars":[{"t","o","h","l","c","v"}]}`, `t` in
+unix seconds. Range → interval: `1d`→`5m`, `5d`→`15m`, `1mo`→`1h`, `6mo`/`1y`/`5y`→`1d`. Bars without a price (the lunch-break bars)
+are dropped; today's daily bar with a null close takes the last price. `prev_close` as for quotes, else `null`.
+
+**News object.** `{"items":[{"id","source":"cnbc|kontan|idxchannel","title","link","published_at","summary","image_url","codes":[…],
+"match":"strong|weak"|null}],"sources":[{"source","ok","fetched_at","error"}]}`, newest first. Feeds: `cnbcindonesia.com/market/rss`,
+`investasi.kontan.co.id/rss`, `idxchannel.com/rss` (only `MARKET NEWS` and `ECONOMICS` items). `summary` is plain text ≤ 300
+characters; `image_url` the enclosure or first `<img>`, else `null`. `codes` are matched at read time against the watchlist, the
+holdings and `?code`: a token equal to the code (case-sensitive; `K-CASH` is not `CASH`) is `strong` as `(CODE)` or after
+"saham"/"emiten", else `weak`; IHSG, MSCI, BUMN, … never match; codes that are words (BUMI, EMAS, CASH, MINE, …) need the strong form;
+the full company name (no PT/Tbk/(Persero)) is `strong` with ≥ 2 words, else `weak`; a bundled alias ("BCA", "Antam") is `weak`.
+With `?code`, only items matching it. `sources[].fetched_at` is the last successful fetch, `error` the last failure's reason.
+
+**Server behaviour.** State: `stocks.json` in the state dir, `{"version":1,"watchlist":[…],"holdings":[…],"settings":{…}}`, 0600, atomic
+replace; missing = empty lists and fees 0.15/0.25; a file that is not valid version-1 state is left untouched and the state routes answer
+`500 state_error` (quotes with `?codes`, charts, news, search still work). Yahoo (`query1`, browser User-Agent, TS0 §0): quotes from
+`v7/finance/spark` in batches of 20, bars from `v8/finance/chart`, search from `v1/finance/search` kept to `.JK`/`JKT`. Caches: quotes
+60 s, intraday bars 60 s, daily bars 15 min, search 24 h. A 429 starts a backoff (1, 2, 4, 8, then 15 min) in which no Yahoo call
+goes out; cached data is served with `stale:true`. Yahoo is called only when a phone asks. News: polled every 10 min only while some
+device asked in the last 30 min (the first ask after a quiet spell fetches at once); ring of 300 by publish time, deduplicated by link.
+Search lists the bundled universe first (LQ45 + IDX80 of the current index period, `in_universe:true`, plus a few search-only
+names), then Yahoo's IDX hits; an exact bundled code skips Yahoo. Logs carry no holdings values.
