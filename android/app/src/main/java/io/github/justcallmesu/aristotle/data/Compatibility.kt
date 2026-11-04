@@ -33,7 +33,7 @@ object ServerVersions {
         latest.value = info
     }
 
-    /** For tests. */
+    /** Unpair and re-pair (D48: the old PC's version must not linger), and tests. */
     fun clear() {
         latest.value = null
     }

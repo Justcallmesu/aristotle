@@ -81,6 +81,24 @@ fun QuoteLoadingContent(quote: Quote?, reduced: Boolean) {
     }
 }
 
+/**
+ * The quote of a chat that is loading (Q59), inline in the transcript area: the same lines and fade as the launch
+ * screen, no icon, the thin progress line at the bottom. It fills the area and hides what is under it; the caller
+ * fades it out with [alpha].
+ */
+@Composable
+fun InlineQuote(quote: Quote, reduced: Boolean, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.align(Alignment.Center).padding(horizontal = Spacing.xxxl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) { QuoteLines(quote, reduced) }
+            ProgressLine(reduced, Modifier.align(Alignment.BottomCenter))
+        }
+    }
+}
+
 /** The static app icon on its tile; the app lock screen (TS2) shows it too. */
 @Composable
 internal fun LauncherIcon() {
@@ -97,7 +115,7 @@ internal fun LauncherIcon() {
 }
 
 @Composable
-private fun QuoteLines(quote: Quote, reduced: Boolean) {
+internal fun QuoteLines(quote: Quote, reduced: Boolean) {
     val alphas = remember(quote) { List(LINES) { Animatable(if (reduced) 1f else 0f) } }
     LaunchedEffect(quote, reduced) {
         if (reduced) return@LaunchedEffect

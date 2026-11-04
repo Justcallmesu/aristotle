@@ -42,6 +42,9 @@ import io.github.justcallmesu.aristotle.ui.settings.ConnectionRows
 import io.github.justcallmesu.aristotle.ui.settings.SettingsActions
 import io.github.justcallmesu.aristotle.ui.settings.SettingsScreen
 import io.github.justcallmesu.aristotle.ui.settings.SettingsViewModel
+import io.github.justcallmesu.aristotle.ui.settings.WhatsNewScreen
+import io.github.justcallmesu.aristotle.ui.sessions.WhatsNewCard
+import io.github.justcallmesu.aristotle.BuildConfig
 import io.github.justcallmesu.aristotle.background.AppLocales
 import io.github.justcallmesu.aristotle.ui.pair.RepairMode
 import androidx.compose.ui.res.stringResource
@@ -166,9 +169,9 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
 
 /** The pages under a paired PC. Back from a sub-page goes to [back]. */
 private enum class PairedPage {
-    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair;
+    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew;
 
-    val back: PairedPage get() = if (this == SettingsGuide || this == Repair) Settings else Sessions
+    val back: PairedPage get() = if (this == SettingsGuide || this == Repair || this == SettingsWhatsNew) Settings else Sessions
 }
 
 /**
@@ -238,6 +241,19 @@ private fun PairedPages(
                     cronLabel = request.label
                     page = PairedPage.Scheduled
                 },
+                whatsNew = {
+                    val due by container.whatsNew.visible.collectAsStateWithLifecycle()
+                    if (due) {
+                        WhatsNewCard(
+                            version = BuildConfig.VERSION_NAME,
+                            onOpen = {
+                                container.whatsNew.dismiss()
+                                page = PairedPage.WhatsNew
+                            },
+                            onDismiss = container.whatsNew::dismiss,
+                        )
+                    }
+                },
                 terminalAvailable = TerminalEntry.shown(serverAllows = terminalTarget != null, showOnPhone = showTerminal),
                 // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
                 onTerminal = {
@@ -255,6 +271,7 @@ private fun PairedPages(
             pc,
             onBack = { page = page.back },
             onBatteryGuide = { page = PairedPage.SettingsGuide },
+            onWhatsNew = { page = PairedPage.SettingsWhatsNew },
             onRepair = {
                 repairCount += 1
                 page = PairedPage.Repair
@@ -263,6 +280,7 @@ private fun PairedPages(
         PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
         PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
+        PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
         PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
         PairedPage.Terminal -> TerminalRoute(
             container,
@@ -284,7 +302,7 @@ private fun PairedPages(
 
 /** The settings screen (TS1). Its ViewModel lives in the activity's store: it holds only which sheet is open. */
 @Composable
-private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: () -> Unit, onBatteryGuide: () -> Unit, onRepair: () -> Unit) {
+private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: () -> Unit, onBatteryGuide: () -> Unit, onWhatsNew: () -> Unit, onRepair: () -> Unit) {
     val context = LocalContext.current
     val settingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) {
         SettingsViewModel(container.settings, container.link.state, prove = container.auth::prove)
@@ -298,6 +316,7 @@ private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: ()
         SettingsActions(
             onBack = onBack,
             onBatteryGuide = onBatteryGuide,
+            onWhatsNew = onWhatsNew,
             onRepair = onRepair,
             onUnpair = { container.unpair(pc.pcId) },
             canPostNotifications = container.notifier::canPost,
@@ -353,6 +372,7 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
             fallbackProfile = target.profile,
             onBack = onBack,
             focusComposer = target.focusComposer,
+            quotes = container.quotes,
         )
     }
 }

@@ -604,4 +604,9 @@
     <string name="settings_server_unknown">tidak diketahui</string>
     <string name="compat_server_older">Server PC lebih lama dari aplikasi ini — perbarui aristotle-server</string>
     <string name="compat_app_older">Aplikasi ini lebih lama dari server PC — perbarui Aristotle</string>
+    <string name="settings_whats_new_body">Perubahan di versi ini dan sebelumnya</string>
+    <string name="whats_new_card_title">Yang baru di %1$s</string>
+    <string name="whats_new_open">Lihat yang baru</string>
+    <string name="whats_new_dismiss">Tutup</string>
+    <string name="whats_new_empty">Tidak ada catatan perubahan di build ini.</string>
 </resources>

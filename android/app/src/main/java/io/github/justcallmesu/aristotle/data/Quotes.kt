@@ -39,6 +39,12 @@ object QuotePicker {
         val others = quotes.filter { it.id != lastId }
         return (others.ifEmpty { quotes }).random(random)
     }
+
+    /** A random quote whose id is in none of [avoid] (all of them when that leaves nothing); null for an empty list. */
+    fun pickAvoiding(quotes: List<Quote>, avoid: Set<Int>, random: Random = Random.Default): Quote? {
+        if (quotes.isEmpty()) return null
+        return quotes.filter { it.id !in avoid }.ifEmpty { quotes }.random(random)
+    }
 }
 
 /**
@@ -54,6 +60,9 @@ class QuoteSource(private val open: () -> InputStream, private val settings: App
         }
     }
 
+    private var launchId: Int? = null
+    private var inlineId: Int? = null
+
     /** Reads and parses the asset now (blocking; call off the main thread). */
     fun load(): List<Quote> = quotes
 
@@ -61,6 +70,18 @@ class QuoteSource(private val open: () -> InputStream, private val settings: App
     fun next(random: Random = Random.Default): Quote? {
         val quote = QuotePicker.pick(quotes, settings.lastQuoteId, random) ?: return null
         settings.lastQuoteId = quote.id
+        synchronized(this) { if (launchId == null) launchId = quote.id }
+        return quote
+    }
+
+    /**
+     * A quote for a chat that is loading (Q59): never the one shown at launch in this process, and never the one
+     * the previous chat load showed. Does not touch the remembered launch quote. Blocking on first use.
+     */
+    @Synchronized
+    fun nextInline(random: Random = Random.Default): Quote? {
+        val quote = QuotePicker.pickAvoiding(quotes, setOfNotNull(launchId, inlineId), random) ?: return null
+        inlineId = quote.id
         return quote
     }
 }

@@ -120,6 +120,11 @@ class AppSettings(private val store: KeyValueStore) {
         marks.value = if (done) marks.value + step else marks.value - step
     }
 
+    /** The versionCode whose "What's new" the user has seen (Q64, TV2); null on an install that never recorded one. */
+    var lastSeenVersionCode: Int?
+        get() = store.get(LAST_SEEN_VERSION)?.toIntOrNull()
+        set(value) = if (value == null) store.remove(LAST_SEEN_VERSION) else store.put(LAST_SEEN_VERSION, value.toString())
+
     fun markBatteryGuideShown() = store.put(GUIDE_SHOWN, true.toString())
 
     fun markNotificationsAsked() = store.put(NOTIFICATIONS_ASKED, true.toString())
@@ -140,6 +145,7 @@ class AppSettings(private val store: KeyValueStore) {
         const val APP_LOCK = "app_lock"
         const val LOCK_TIMEOUT = "lock_timeout"
         const val SHOW_TERMINAL = "show_terminal"
+        const val LAST_SEEN_VERSION = "last_seen_version_code"
     }
 }
 

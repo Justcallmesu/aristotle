@@ -616,4 +616,9 @@
     <string name="settings_server_unknown">unknown</string>
     <string name="compat_server_older">PC server is older than this app — update aristotle-server</string>
     <string name="compat_app_older">This app is older than the PC server — update Aristotle</string>
+    <string name="settings_whats_new_body">Changes in this version and earlier</string>
+    <string name="whats_new_card_title">What\'s new in %1$s</string>
+    <string name="whats_new_open">See what\'s new</string>
+    <string name="whats_new_dismiss">Dismiss</string>
+    <string name="whats_new_empty">No change log in this build.</string>
 </resources>

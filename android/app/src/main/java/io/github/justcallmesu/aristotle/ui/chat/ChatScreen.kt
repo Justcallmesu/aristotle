@@ -1,5 +1,21 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
+import android.os.SystemClock
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
+import io.github.justcallmesu.aristotle.data.ChatQuoteTiming
+import io.github.justcallmesu.aristotle.data.Quote
+import io.github.justcallmesu.aristotle.data.QuoteMotion
+import io.github.justcallmesu.aristotle.data.QuoteSource
+import io.github.justcallmesu.aristotle.ui.components.reducedMotion
+import io.github.justcallmesu.aristotle.ui.quote.InlineQuote
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -98,6 +114,8 @@ fun ChatScreen(
     focusComposer: Boolean = false,
     /** The opened row's profile, shown until the session says its own (TU1 C4). */
     fallbackProfile: String? = null,
+    /** The quotes shown while the history loads (Q59); null: only the quiet line. */
+    quotes: QuoteSource? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
@@ -127,6 +145,7 @@ fun ChatScreen(
         subagents = subagents,
         onOpenSubagent = viewModel::openSubagent,
         fallbackProfile = fallbackProfile,
+        quotes = quotes,
     )
 }
 
@@ -208,6 +227,8 @@ fun ChatContentView(
     onOpenSubagent: ((String) -> Unit)? = null,
     /** The opened row's profile, shown in the top bar until the session says its own (TU1 C4). */
     fallbackProfile: String? = null,
+    /** The quotes shown while the history loads (Q59); null: only the quiet line. */
+    quotes: QuoteSource? = null,
 ) {
     val feed = state.feed
     val chat = feed.chat
@@ -270,6 +291,7 @@ fun ChatContentView(
                     feed.problem != null -> LoadFailed(feed.problem, onRetry)
                     else -> QuietLine(stringResource(R.string.chat_loading))
                 }
+                if (quotes != null && feed.problem == null) LoadingQuote(quotes, feed.loaded)
                 SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
             }
             if (feed.loaded) {
@@ -292,6 +314,34 @@ fun ChatContentView(
     }
     if (state.model.open) ModelSheet(state.model, chat, models)
     state.model.confirm?.let { ModelConfirmDialog(it, models) }
+}
+
+/**
+ * Q59: after [ChatQuoteTiming.DELAY_MILLIS] of loading a quote covers the transcript area, stays at least
+ * [ChatQuoteTiming.MIN_SHOW_MILLIS], then fades out over the transcript. A history that is quicker never sees it.
+ */
+@Composable
+private fun LoadingQuote(quotes: QuoteSource, loaded: Boolean) {
+    val reduced = reducedMotion()
+    var quote by remember { mutableStateOf<Quote?>(null) }
+    var covering by remember { mutableStateOf(false) }
+    val alpha = remember { Animatable(1f) }
+    val loadedNow by rememberUpdatedState(loaded)
+    LaunchedEffect(Unit) {
+        delay(ChatQuoteTiming.delayBeforeShow(0))
+        if (loadedNow) return@LaunchedEffect
+        val picked = withContext(Dispatchers.Default) { quotes.nextInline() } ?: return@LaunchedEffect
+        if (loadedNow) return@LaunchedEffect
+        quote = picked
+        val shownAt = SystemClock.elapsedRealtime()
+        covering = true
+        snapshotFlow { loadedNow }.first { it }
+        delay(ChatQuoteTiming.holdRemaining(SystemClock.elapsedRealtime() - shownAt))
+        alpha.animateTo(0f, tween(QuoteMotion.durationMillis(reduced)))
+        covering = false
+    }
+    val shown = quote
+    if (covering && shown != null) InlineQuote(shown, reduced, Modifier.alpha(alpha.value))
 }
 
 @Composable

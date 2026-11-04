@@ -7,7 +7,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * Everything this phone keeps about a paired PC, ended together (Q60, TS1): the credential entry (token, pin,
- * addresses), the PC's settings (Hermes profile, pins) and the drafts typed for its sessions. Disk writes run on [io].
+ * addresses), the PC's settings (Hermes profile, pins), the drafts typed for its sessions and the server version
+ * last read from it ([ServerVersions], D48). Disk writes run on [io].
  */
 class PcRecords(
     private val credentials: CredentialStore,
@@ -27,6 +28,7 @@ class PcRecords(
             drafts.clear(durable = true)
         }
         credentials.wipeActive()
+        ServerVersions.clear()
     }
 
     /**
@@ -38,6 +40,8 @@ class PcRecords(
     suspend fun replace(old: String, paired: PcCredentials, wanted: () -> Boolean = { true }): Boolean {
         if (!credentials.save(paired, replacing = old, commitIf = wanted)) return false
         if (old != paired.pcId) withContext(io) { forgetSettings(old, durable = true) }
+        // D48: the version read from the old PC must not stand for the new one before its first /v1/me.
+        ServerVersions.clear()
         return true
     }
 

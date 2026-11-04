@@ -18,6 +18,8 @@ import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
 import io.github.justcallmesu.aristotle.data.DeviceMaker
 import io.github.justcallmesu.aristotle.data.QuoteGate
 import io.github.justcallmesu.aristotle.data.QuoteSource
+import io.github.justcallmesu.aristotle.data.ServerVersions
+import io.github.justcallmesu.aristotle.data.WhatsNewCard
 import io.github.justcallmesu.aristotle.data.ResumedSessions
 import io.github.justcallmesu.aristotle.data.ScreenFocus
 import io.github.justcallmesu.aristotle.data.SessionWatcher
@@ -116,6 +118,9 @@ class AppContainer(context: Context) {
     /** Unsent composer text per session (T13): this phone only, written in the background as the user types. */
     val drafts = ChatDrafts(ApplyingPreferencesStore(context.getSharedPreferences(DRAFTS_FILE, Context.MODE_PRIVATE)))
 
+    /** The one-time "What's new" card after an update (Q64, TV2). */
+    val whatsNew = WhatsNewCard(settings, BuildConfig.VERSION_CODE)
+
     /** The loading-screen quotes (TQ1): `quotes.json` is an asset copied from docs/ at build time; parsed once, off the main thread. */
     val quotes = QuoteSource({ context.assets.open("quotes.json") }, settings)
 
@@ -189,6 +194,7 @@ class AppContainer(context: Context) {
         clearAlerts()
         scope.launch {
             credentials.wipeActive()
+            ServerVersions.clear()
             clearAlerts()
         }
     }

@@ -58,6 +58,7 @@ class SettingsActions(
     val onBack: () -> Unit,
     val onBatteryGuide: () -> Unit,
     val onRepair: () -> Unit,
+    val onWhatsNew: () -> Unit = {},
     val onUnpair: () -> Unit,
     val canPostNotifications: () -> Boolean,
     val channelOn: (AppChannel) -> Boolean,
@@ -93,7 +94,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: Set
                 AppearanceSection(theme, textSize, onOpen = viewModel::show)
                 LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
                 SecuritySection(viewModel, actions.screenLockSet)
-                AboutSection()
+                AboutSection(actions.onWhatsNew)
                 Spacer(Modifier.height(Spacing.xxl))
             }
         }
@@ -257,9 +258,9 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
     },
 )
 
-/** "What's new" is TV2's and the licence notices D45's; both say so until they exist. */
+/** The licence notices are D45's and say so until they exist. */
 @Composable
-private fun AboutSection() {
+private fun AboutSection(onWhatsNew: () -> Unit) {
     SectionHeader(stringResource(R.string.settings_section_about))
     SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline))
     SettingRow(
@@ -274,7 +275,7 @@ private fun AboutSection() {
             stringResource(R.string.settings_server_version_value, info.version ?: unknown, info.protocol)
         } ?: stringResource(R.string.settings_server_unknown),
     )
-    SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_coming_soon), quiet = true)
+    SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_whats_new_body), modifier = Modifier.clickable(onClick = onWhatsNew))
     SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true)
     SettingRow(title = stringResource(R.string.settings_source), body = stringResource(R.string.settings_source_body))
 }

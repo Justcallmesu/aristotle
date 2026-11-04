@@ -74,4 +74,27 @@ class PcRecordsTest {
         assertEquals("fresh", (credentials.state.value as CredentialState.Paired).credentials.token.value)
         assertEquals(setOf("s1"), pins.of(pc.pcId, null))
     }
+
+    // D48: the version read from the old PC must not show for the next one before its first /v1/me.
+    @Test
+    fun unpairAndRepairClearTheServerVersions() {
+        runBlocking { credentials.save(pc) }
+        ServerVersions.record(ServerInfo("1.0.0", 1, 1))
+        runBlocking { records.unpair(pc.pcId) }
+        assertNull(ServerVersions.current.value)
+
+        runBlocking { credentials.save(pc) }
+        ServerVersions.record(ServerInfo("1.0.0", 1, 1))
+        runBlocking { records.replace(pc.pcId, pc.copy(pcId = "dev_ba9876543210", deviceId = "dev_ba9876543210")) }
+        assertNull(ServerVersions.current.value)
+    }
+
+    @Test
+    fun aCancelledRepairKeepsTheServerVersions() {
+        runBlocking { credentials.save(pc) }
+        ServerVersions.record(ServerInfo("1.0.0", 1, 1))
+        runBlocking { records.replace(pc.pcId, pc.copy(token = DeviceToken("fresh")), wanted = { false }) }
+        assertEquals("1.0.0", ServerVersions.current.value?.version)
+        ServerVersions.clear()
+    }
 }
