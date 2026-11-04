@@ -136,6 +136,7 @@ Rules that hold everywhere:
 | Q68 | Chat: 3+ consecutive tool calls fold into one card "N tool calls · last: <name>" (tap to expand); long paths shortened to the part that differs. | User 2026-11-04 (audit D3). |
 | Q69 | Busy composer: Stop always visible; Queue / Steer only when the field has text. | User 2026-11-04 (audit D4). |
 | Q70 | Session-list top bar: wordmark · profile chip · search · ⋮ menu (Scheduled, Terminal, Settings), as the mockup. | User 2026-11-04 (audit D5). |
+| Q71 | Q59 amended: the loading quote shows on a chat's first open only. After a reconnect the transcript stays visible under the reconnecting banner; no quote covers it. | User 2026-11-04 (option A). |
 
 ## 4. Risks
 
