@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.justcallmesu.aristotle.AppContainer
 import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.GateInput
+import io.github.justcallmesu.aristotle.data.HomeLimitsSource
 import io.github.justcallmesu.aristotle.data.HttpPairingApi
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
@@ -202,6 +203,9 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
             else -> Sessions
         }
 
+    /** [back], except Running opened from a chat's "See all" ([runningFrom] = [Chat]) returns to that chat (TY7). */
+    fun backFrom(runningFrom: PairedPage): PairedPage = if (this == Running && runningFrom == Chat) Chat else back
+
     companion object {
         fun of(settingsPage: SettingsPage): PairedPage = entries.first { it.settingsPage == settingsPage }
     }
@@ -235,6 +239,8 @@ private fun PairedPages(
     // The chat's Hermes profile (null = the relay's launch profile): it keeps it whatever the list shows later (T14).
     var chatProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var focusComposer by rememberSaveable(pc.pcId) { mutableStateOf(false) }
+    // Where the Running page was opened from, so its back goes there (Home's ⋮ menu, or a chat's "See all").
+    var runningFrom by rememberSaveable(pc.pcId) { mutableStateOf(PairedPage.Sessions) }
     // The "Scheduled" page's profile (null = launch) and its name, taken from the list when it was opened (T18).
     var cronProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var cronLabel by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
@@ -253,13 +259,16 @@ private fun PairedPages(
     }
     // "Show Terminal on this phone" off (Q62): the terminal page is never shown, whatever was restored.
     LaunchedEffect(page, showTerminal) { if (page == PairedPage.Terminal && !showTerminal) page = PairedPage.Sessions }
-    BackHandler(enabled = page != PairedPage.Sessions) { page = page.back }
+    BackHandler(enabled = page != PairedPage.Sessions) { page = page.backFrom(runningFrom) }
     // TY1: Home's ⋮ menu and a chat's status stack open the Running page.
-    ProvideRunningNav(container.link, onOpen = { page = PairedPage.Running }) {
+    ProvideRunningNav(container.link, onOpen = {
+        runningFrom = if (page == PairedPage.Chat) PairedPage.Chat else PairedPage.Sessions
+        page = PairedPage.Running
+    }) {
         when (page) {
             PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
                 val sessionsViewModel = viewModel {
-                    SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins, views = container.homeViews, statusSource = container.pcStatus)
+                    SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins, views = container.homeViews, statusSource = container.pcStatus, limitsSource = HomeLimitsSource(container.link)::read)
                 }
                 SessionsScreen(
                     sessionsViewModel,
@@ -337,7 +346,7 @@ private fun PairedPages(
             PairedPage.Running -> RunningRoute(
                 container,
                 runningRoutes,
-                onBack = { page = page.back },
+                onBack = { page = page.backFrom(runningFrom) },
                 // A row opens its chat as a Home row does (T14: the chat keeps the row's profile).
                 onOpen = { open ->
                     chatId = open.sessionId

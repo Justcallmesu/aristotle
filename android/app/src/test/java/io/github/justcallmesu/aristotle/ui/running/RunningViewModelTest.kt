@@ -167,6 +167,28 @@ class RunningViewModelTest {
     }
 
     @Test
+    fun `a sessions_changed read waits out the window since the last read`() {
+        val link = link()
+        // Poll 150 ms, window 400 ms: the poll reads at 0 and 150; an event right after must not read before 150 + 400.
+        val vm = viewModel(link, RunningTimings(pollMillis = 150, changeWindowMillis = 400))
+        online(link)
+        vm.setVisible(true)
+        eventually(what = "first read") { link.reads == 1 }
+        eventually(what = "second read") { link.reads == 2 }
+        val secondAt = System.currentTimeMillis()
+        link.events.tryEmit(InboundFrame.Event(RpcFrames.SESSIONS_CHANGED, "", null))
+        eventually(what = "third read") { link.reads >= 3 }
+        // the poll's own cadence (150 ms) is the only thing that may read sooner than the window
+        assertTrue(System.currentTimeMillis() - secondAt >= 100)
+    }
+
+    @Test
+    fun `the default change window is the Desktop's 10 s`() {
+        assertEquals(10_000L, RunningTimings().changeWindowMillis)
+        assertEquals(10_000L, RunningTimings().pollMillis)
+    }
+
+    @Test
     fun `sessions_changed while hidden reads nothing`() {
         val link = link()
         viewModel(link, RunningTimings(pollMillis = 60_000, changeWindowMillis = 20))

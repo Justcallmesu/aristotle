@@ -187,7 +187,7 @@ class RunningWorkTest {
         val profile: String? get() = (params["profile"] as? JsonPrimitive)?.content
     }
 
-    private class FakeLink(val answer: (Call) -> JsonElement) : RelayLink {
+    private class FakeLink(val answer: suspend (Call) -> JsonElement) : RelayLink {
         override val state = MutableStateFlow<LinkState>(LinkState.Connecting)
         override val events = MutableSharedFlow<InboundFrame>(extraBufferCapacity = 64)
         val calls = CopyOnWriteArrayList<Call>()
@@ -254,5 +254,88 @@ class RunningWorkTest {
         val failed = runCatching { RunningWork(link).fetch() }.exceptionOrNull()
         assertTrue(failed is RpcException)
         assertFalse(link.calls.any { it.method != "profiles.list" })
+    }
+
+    // ── TY7: compressed ids, per-profile timeout ──────────────────────────────────────────────────
+
+    @Test
+    fun `a roster id that is a compressed tip of a live session counts for it, once`() {
+        val live = listOf(active("root", "working"))
+        val roster = listOf(RosterEntry("tip", subagents = 2, background = 1))
+        // Without aliases the same work shows twice: the live row with 0 counts and a "not live" row for the tip.
+        assertEquals(2, rows(live, roster).size)
+        val joined = RunningMerge.rows(ProfileRead(own, live, roster, aliases = listOf(setOf("root", "tip"))))
+        val row = joined.single()
+        assertEquals("root", row.sessionId)
+        assertEquals(2, row.subagents)
+        assertEquals(1, row.background)
+        assertTrue(row.live)
+    }
+
+    @Test
+    fun `aliases chain across three segments`() {
+        val live = listOf(active("a", "working"))
+        val roster = listOf(RosterEntry("c", subagents = 1, background = 0))
+        val groups = listOf(setOf("a", "b"), setOf("b", "c"))
+        assertEquals(1, RunningMerge.rows(ProfileRead(own, live, roster, aliases = groups)).single().subagents)
+    }
+
+    @Test
+    fun `lineage fields of session_list make the alias group`() {
+        val row = HermesJson.decodeFromString(SessionSummary.serializer(), """{"id":"root","session_id":"tip","resolved_id":"tip","_lineage_root_id":"root","_lineage_ids":["root","mid","tip"]}""")
+        assertEquals(setOf("root", "mid", "tip"), row.aliasIds)
+        assertEquals(setOf("root", "tip"), row.ids) // the history list's own matching is unchanged
+    }
+
+    @Test
+    fun `session_list is asked only for a profile whose roster names an unmatched session, and joins the tip`() = runBlocking {
+        val link = FakeLink { call ->
+            when (call.method) {
+                "profiles.list" -> json("""{"profiles":[{"name":"default","display_name":"Default"}]}""")
+                "session.active_list" -> json("""{"sessions":[{"id":"root","session_key":"root","title":"Build","status":"working","started_at":1}]}""")
+                "subagent.roster" -> json("""{"sessions":[{"session_id":"tip","subagents":3,"background":0}]}""")
+                "session.list" -> json("""{"sessions":[{"id":"root","session_id":"tip","resolved_id":"tip"}]}""")
+                else -> error(call.method)
+            }
+        }
+        val snapshot = RunningWork(link).fetch()
+        assertEquals(1, snapshot.count)
+        assertEquals(3, snapshot.groups.single().rows.single().subagents)
+        val list = link.calls.single { it.method == "session.list" }
+        assertEquals("stored", (list.params["scope"] as JsonPrimitive).content)
+    }
+
+    @Test
+    fun `a failing session_list leaves the page as before`() = runBlocking {
+        val link = FakeLink { call ->
+            when (call.method) {
+                "profiles.list" -> json("""{"profiles":[{"name":"default","display_name":"Default"}]}""")
+                "session.active_list" -> json("""{"sessions":[{"id":"root","status":"working"}]}""")
+                "subagent.roster" -> json("""{"sessions":[{"session_id":"tip","subagents":1,"background":0}]}""")
+                else -> throw RpcException(null, "session.list failed: 5000")
+            }
+        }
+        val snapshot = RunningWork(link).fetch()
+        assertEquals(2, snapshot.count)
+        assertTrue(snapshot.failed.isEmpty())
+    }
+
+    @Test
+    fun `a hung profile times out as failed and the others still show`() = runBlocking {
+        val link = FakeLink { call ->
+            if (call.profile == "pm" && call.method != "profiles.list") {
+                kotlinx.coroutines.delay(60_000)
+            }
+            when (call.method) {
+                "profiles.list" -> json(profiles)
+                "session.active_list" -> json("""{"sessions":[{"id":"d1","status":"working"}]}""")
+                else -> json("""{"sessions":[]}""")
+            }
+        }
+        val started = System.currentTimeMillis()
+        val snapshot = RunningWork(link, profileTimeoutMillis = 150).fetch()
+        assertTrue(System.currentTimeMillis() - started < 5_000)
+        assertEquals(listOf("d1"), snapshot.groups.flatMap { g -> g.rows.map { it.sessionId } })
+        assertEquals(listOf("PM"), snapshot.failed)
     }
 }

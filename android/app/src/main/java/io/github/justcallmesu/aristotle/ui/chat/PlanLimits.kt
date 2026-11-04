@@ -48,18 +48,19 @@ import kotlinx.coroutines.delay
 /**
  * The Claude plan limits (Q81e) at the top of the model sheet: "Current session", "Current week", "Opus week" and
  * "Sonnet week" as thin meters with their reset time, under a collapsible head. [onRetry] reloads the catalog; it is
- * called once, 3 s after an empty first answer (Hermes fills its cache in the background). Nothing shows when the
- * Anthropic provider is absent, when the retry is empty too, or when the numbers are older than 15 min.
+ * called once, 3 s after an empty first answer (Hermes fills its cache in the background). [retried] lives with the
+ * sheet (not here), so hiding the search field, which leaves and re-enters this composable, does not allow another retry;
+ * after the one empty retry the section stays gone for that sheet session. Nothing shows when the Anthropic provider is
+ * absent, when the retry is empty too, or when the numbers are older than 15 min.
  */
 @Composable
-fun PlanLimits(plan: PlanUsage, onRetry: () -> Unit) {
-    var retried by remember { mutableStateOf(false) }
+fun PlanLimits(plan: PlanUsage, retried: Boolean, onRetried: () -> Unit, onRetry: () -> Unit) {
     var expired by remember(plan) { mutableStateOf(false) }
     var open by remember { mutableStateOf(true) }
     LaunchedEffect(plan) {
         if (PlanLimitsLogic.shouldRetry(plan, retried)) {
             delay(PlanLimitsLogic.RETRY_MS)
-            retried = true
+            onRetried()
             onRetry()
         } else if (plan.windows.isNotEmpty()) {
             delay(PlanUsage.STALE_MS)
@@ -105,7 +106,7 @@ fun PlanLimits(plan: PlanUsage, onRetry: () -> Unit) {
                     if (plan.accounts > 1) {
                         val who = plan.account?.takeIf { it.isNotBlank() }
                         Text(
-                            stringResource(if (who != null) R.string.plan_pool_named else R.string.plan_pool, plan.accounts, who.orEmpty()),
+                            if (who != null) stringResource(R.string.plan_pool_named, plan.accounts, who) else stringResource(R.string.plan_pool, plan.accounts),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                         )
@@ -121,8 +122,9 @@ fun PlanLimits(plan: PlanUsage, onRetry: () -> Unit) {
     }
 }
 
+/** One limit with its percent, bar and reset time; also the expanded list of Home's limits row (Q83). */
 @Composable
-private fun LimitMeter(w: PlanWindow, reset: PlanReset) {
+internal fun LimitMeter(w: PlanWindow, reset: PlanReset) {
     val colors = MaterialTheme.colorScheme
     val name = when (w.label) {
         "Current session" -> stringResource(R.string.plan_session)
@@ -144,16 +146,22 @@ private fun LimitMeter(w: PlanWindow, reset: PlanReset) {
             Text(name, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Text(percent, style = AristotleTextStyles.tabular(MaterialTheme.typography.titleSmall), color = colors.onSurface, maxLines = 1)
         }
-        // The PC card's meter (design-notes §5.7): a 4 dp round bar; the error colour once the window is nearly spent.
-        LinearProgressIndicator(
-            progress = { PlanLimitsLogic.fraction(w) },
-            modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp),
-            color = if (w.usedPercent >= 90) colors.error else colors.primary,
-            trackColor = colors.surfaceContainerHighest,
-            strokeCap = StrokeCap.Round,
-            gapSize = 4.dp,
-            drawStopIndicator = {},
-        )
+        LimitBar(w, Modifier.padding(top = 6.dp).fillMaxWidth())
         resetText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp)) }
     }
+}
+
+/** The PC card's meter (design-notes §5.7): a 4 dp round bar; the error colour once the window is nearly spent (≥ 90%). */
+@Composable
+internal fun LimitBar(w: PlanWindow, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    LinearProgressIndicator(
+        progress = { PlanLimitsLogic.fraction(w) },
+        modifier = modifier.height(4.dp),
+        color = if (w.usedPercent >= PlanLimitsLogic.RED_AT) colors.error else colors.primary,
+        trackColor = colors.surfaceContainerHighest,
+        strokeCap = StrokeCap.Round,
+        gapSize = 4.dp,
+        drawStopIndicator = {},
+    )
 }

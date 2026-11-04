@@ -30,4 +30,12 @@ class PairedPageTest {
         assertEquals(PairedPage.Sessions, PairedPage.WhatsNew.back)
         assertEquals(PairedPage.Sessions, PairedPage.Terminal.back)
     }
+
+    @Test
+    fun `Running opened from a chat goes back to that chat, otherwise to Home`() {
+        assertEquals(PairedPage.Chat, PairedPage.Running.backFrom(PairedPage.Chat))
+        assertEquals(PairedPage.Sessions, PairedPage.Running.backFrom(PairedPage.Sessions))
+        assertEquals(PairedPage.Sessions, PairedPage.Chat.backFrom(PairedPage.Chat)) // only Running is redirected
+        assertEquals(PairedPage.Settings, PairedPage.SettingsAbout.backFrom(PairedPage.Chat))
+    }
 }

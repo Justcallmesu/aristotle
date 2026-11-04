@@ -105,5 +105,8 @@ object PlanLimitsLogic {
 
     fun shouldRetry(usage: PlanUsage, retried: Boolean): Boolean = loading(usage) && !retried
 
+    /** The bar turns red from this percent. */
+    const val RED_AT = 90.0
+
     fun fraction(w: PlanWindow): Float = (w.usedPercent / 100.0).toFloat()
 }

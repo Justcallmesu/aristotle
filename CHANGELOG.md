@@ -19,6 +19,7 @@ file at build time and shows the `Phone:` entries only.
 - Phone: Long-press a message to copy, share, select, quote it or steer with it; every code block has a copy button.
 - Phone: Settings › About › "Send debug log" shares a privacy-filtered log through the share sheet; after a crash the app offers to share a report on the next start. Nothing is sent automatically.
 - Server: Report the PC's battery, CPU, memory, disk, Hermes and Tailscale state to the phone (read-only, `GET /v1/pc-status`).
+- Phone: Home shows your Claude session, week, Opus and Sonnet limits as four thin bars under the PC card (tap for reset times; red from 90%), refreshed at most every 5 minutes while Home is open.
 
 ## [1.0.0] - 2026-11-04
 

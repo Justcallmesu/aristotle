@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.data
 
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -98,7 +99,16 @@ data class RunningSnapshot(val groups: List<RunningGroup>, val failed: List<Stri
 }
 
 /** What one profile answered; null = that call failed. */
-data class ProfileRead(val profile: ProfileOption, val active: List<ActiveSession>?, val roster: List<RosterEntry>?)
+data class ProfileRead(
+    val profile: ProfileOption,
+    val active: List<ActiveSession>?,
+    val roster: List<RosterEntry>?,
+    /**
+     * Groups of ids that name one conversation after compressions (from `session.list`; the Desktop's `lineageAliases`,
+     * `apps/desktop/src/store/session.ts:471-523`, used by `store/live-work-roster.ts:3-14`). Empty when none was read.
+     */
+    val aliases: List<Set<String>> = emptyList(),
+)
 
 /** The Running page's calls (protocol §17), each with only the keys Hermes accepts. [profile] null = launch profile. */
 object RunningFrames {
@@ -114,10 +124,13 @@ object RunningMerge {
     /**
      * [read]'s rows. A roster row counts for the live session that answers to its id on `id`, `session_key` or
      * `resolved_id` (the first such session; a roster id seen twice is summed). Live rows show while their turn runs,
-     * waits or starts; idle ones only with subagents or background work. Roster rows no live session claims still show
+     * waits or starts; idle ones only with subagents or background work. After a compression the roster names the new stored
+     * tip while the live row keeps its id: [ProfileRead.aliases] join them (as the Desktop's `lineageAliases`), so one work
+     * item shows once. Roster rows no live session claims still show
      * (work whose session is not live, e.g. a background process left behind), named by their stored id.
      */
     fun rows(read: ProfileRead): List<RunningRow> {
+        val alias = Aliases(read.aliases)
         val wire = ProfileRoster.wire(read.profile)
         val counts = LinkedHashMap<String, IntArray>()
         read.roster.orEmpty().filter { it.sessionId.isNotEmpty() }.forEach { entry ->
@@ -129,7 +142,7 @@ object RunningMerge {
         val live = read.active.orEmpty().filter { it.id.isNotEmpty() }.distinctBy { it.id }.map { session ->
             var subagents = 0
             var background = 0
-            session.ids.forEach { id ->
+            alias.of(session.ids).forEach { id ->
                 val sum = counts[id]
                 if (sum != null && claimed.add(id)) {
                     subagents += sum[0]
@@ -151,6 +164,22 @@ object RunningMerge {
             RunningRow(read.profile.name, wire, id, null, RunningStatus.Idle, sum[0], sum[1], lastActivity = null, live = false)
         }
         return sort((live + orphans).filter { it.status != RunningStatus.Idle || it.hasWork })
+    }
+
+    /** Union-find over alias groups: [of] gives [ids] plus every id one conversation answers to. */
+    private class Aliases(groups: List<Set<String>>) {
+        private val byId = HashMap<String, Set<String>>()
+
+        init {
+            // Merge groups that share an id (a chain of three or more segments).
+            groups.forEach { group ->
+                val merged = HashSet(group)
+                group.forEach { id -> byId[id]?.let(merged::addAll) }
+                merged.forEach { id -> byId[id] = merged }
+            }
+        }
+
+        fun of(ids: Set<String>): Set<String> = ids.flatMapTo(LinkedHashSet()) { listOf(it) + (byId[it] ?: emptySet()) }
     }
 
     /** Waiting first, then working, starting, idle-with-work; within each, the latest activity first. */
@@ -176,14 +205,18 @@ object RunningMerge {
 
 /**
  * The fan-out (Q82 D1, TX1 §1): `profiles.list`, then per profile `session.active_list` + `subagent.roster` at once,
- * so 1 + 2×P small calls per read. A failed profile call is kept as [RunningSnapshot.failed]; the other profiles still
- * show. Throws [RpcException] (or IllegalArgumentException for an unreadable answer) only when `profiles.list` fails.
+ * so 1 + 2×P small calls per read (plus one `session.list` for a profile whose roster names a session no live row has,
+ * to join compressed ids). A failed profile call is kept as [RunningSnapshot.failed]; the other profiles still show. Each
+ * profile has [profileTimeoutMillis] (one poll tick, as the Desktop's per-source timeout, `use-live-work-roster.ts:72-81`),
+ * so one hung profile cannot hold the snapshot; it reads as failed. Throws [RpcException] (or IllegalArgumentException for an unreadable answer) only when `profiles.list` fails.
  */
-class RunningWork(private val link: RelayLink) {
+class RunningWork(private val link: RelayLink, private val profileTimeoutMillis: Long = PROFILE_TIMEOUT_MS) {
     suspend fun fetch(): RunningSnapshot = coroutineScope {
         val profiles = ProfileRoster.of(link.call("profiles.list", SessionFrames.profiles()))
             .ifEmpty { listOf(ProfileOption(name = "", displayName = "", own = true)) } // a Hermes with no roster: the launch profile
-        val reads = profiles.map { profile -> async { read(profile) } }.awaitAll()
+        val reads = profiles.map { profile ->
+            async { withTimeoutOrNull(profileTimeoutMillis) { read(profile) } ?: ProfileRead(profile, null, null) }
+        }.awaitAll()
         RunningMerge.snapshot(reads)
     }
 
@@ -195,8 +228,23 @@ class RunningWork(private val link: RelayLink) {
         val roster = async {
             attempt { HermesJson.decodeFromJsonElement(RosterResult.serializer(), link.call(ROSTER, RunningFrames.roster(wire))).sessions }
         }
-        ProfileRead(profile, active.await(), roster.await())
+        val live = active.await()
+        val named = roster.await()
+        ProfileRead(profile, live, named, aliases = if (live != null && named != null && needsAliases(live, named)) aliasesOf(wire) else emptyList())
     }
+
+    /** Only a roster id no live row answers to by its own ids can be a compressed tip worth looking up. */
+    private fun needsAliases(active: List<ActiveSession>, roster: List<RosterEntry>): Boolean {
+        if (active.isEmpty()) return false
+        val own = active.flatMapTo(HashSet()) { it.ids }
+        return roster.any { it.sessionId.isNotEmpty() && it.sessionId !in own }
+    }
+
+    /** `session.list` (stored) of the profile as alias groups; empty when it fails (the page then shows as before). */
+    private suspend fun aliasesOf(wire: String?): List<Set<String>> = attempt {
+        HermesJson.decodeFromJsonElement(SessionListResult.serializer(), link.call("session.list", SessionFrames.list(SessionFrames.STORED, SessionFrames.MAX_LIMIT, wire))).sessions
+            .map { it.aliasIds }.filter { it.size > 1 }
+    }.orEmpty()
 
     /** The call's answer, or null when Hermes refused it, it timed out or its answer was unreadable. Cancellation passes. */
     private suspend fun <T> attempt(block: suspend () -> T): T? = try {
@@ -210,14 +258,18 @@ class RunningWork(private val link: RelayLink) {
     companion object {
         const val ACTIVE_LIST = "session.active_list"
         const val ROSTER = "subagent.roster"
+
+        /** One poll tick (the Desktop's per-source roster timeout). */
+        const val PROFILE_TIMEOUT_MS = 10_000L
     }
 }
 
 /**
  * [pollMillis]: the Desktop's roster poll while visible (`use-live-work-roster.ts:118`). [changeWindowMillis]: after
- * `sessions.changed` (it fires on every message-count move), one read per window.
+ * `sessions.changed` (it fires on every message-count move), one read per window, and never sooner than a window after
+ * the last read (10 s, the Desktop's roster cadence; the review found 3 s was a read every 3 s while a turn streams).
  */
-data class RunningTimings(val pollMillis: Long = 10_000, val changeWindowMillis: Long = 3_000)
+data class RunningTimings(val pollMillis: Long = 10_000, val changeWindowMillis: Long = 10_000)
 
 /**
  * When the Running page reads (Q82 D1): only while it is visible AND the link is online. Becoming both reads at once;
@@ -230,6 +282,7 @@ class RunningPoller(
     private val timings: RunningTimings,
     scope: CoroutineScope,
     private val read: suspend () -> Unit,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val visible = MutableStateFlow(false)
     private val kicks = Channel<Unit>(Channel.CONFLATED)
@@ -253,11 +306,15 @@ class RunningPoller(
 
     private suspend fun loop() = coroutineScope {
         var window: Job? = null
+        val lastReadAt = AtomicLong(Long.MIN_VALUE / 2)
         launch(start = CoroutineStart.UNDISPATCHED) {
             link.events.collect { frame ->
                 if (frame is InboundFrame.Event && frame.type == RpcFrames.SESSIONS_CHANGED && window?.isActive != true) {
                     window = launch {
                         delay(timings.changeWindowMillis)
+                        // A read (the poll's own, or a pull) since the event counts: wait out the rest of the gap.
+                        val rest = lastReadAt.get() + timings.changeWindowMillis - clock()
+                        if (rest > 0) delay(rest)
                         kick()
                     }
                 }
@@ -265,6 +322,7 @@ class RunningPoller(
         }
         kicks.tryReceive() // a kick from before is covered by this first read
         while (true) {
+            lastReadAt.set(clock())
             read()
             withTimeoutOrNull(timings.pollMillis) { kicks.receive() }
         }

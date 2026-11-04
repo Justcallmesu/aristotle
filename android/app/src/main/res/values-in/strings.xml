@@ -851,4 +851,10 @@
     <string name="sessions_projects_failed">Proyek gagal dimuat \u00b7</string>
     <string name="sessions_projects_empty">Belum ada proyek yang punya sesi.</string>
     <string name="sessions_projects_capped">Proyek mencakup %1$d sesi terbaru.</string>
+    <string name="plan_short_session">Sesi</string>
+    <string name="plan_short_week">Minggu</string>
+    <string name="plan_short_opus">Opus</string>
+    <string name="plan_short_sonnet">Sonnet</string>
+    <string name="plan_row_open">Waktu reset ditampilkan</string>
+    <string name="plan_row_closed">Ketuk untuk waktu reset</string>
 </resources>

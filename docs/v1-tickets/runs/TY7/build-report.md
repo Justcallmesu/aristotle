@@ -1,0 +1,13 @@
+# TY7 build report: Claude limits row on Home (Q83) + review-TY minors
+
+- Gate: `GATE_ONLY=android bash docs/v1-tickets/gates.sh docs/v1-tickets/runs/TY7` exits 0. One earlier run had a flaky `RepairTest` (pins assertion, unrelated); it passed on the re-run.
+- Home row: `ui/sessions/PlanLimitsRow.kt` under the PC card. Four thin bars ("Session · Week · Opus · Sonnet", `LimitBar` shared with the model sheet), tap expands to `LimitMeter` with "resets in…", red at ≥ 90 (`PlanLimitsLogic.RED_AT`). Absent without usage data or older than 15 min; no loading text. EN + ID strings appended.
+- Data: `data/HomeLimits.kt`. `model.options {profile?}` with no `session_id`. `HomeLimitsPoller` reads only while Home is visible and online. It reads on show if the last read is ≥ 5 min old, then every 5 min. Pull-to-refresh forces one (`SessionsViewModel.refresh`). A failed read still counts as a read. A profile switch drops the old numbers and reads. A cold cache keeps the last good numbers. Pure `LimitsRefresh` rule; 15 tests in `HomeLimitsTest` (fake clock and manual pause).
+- Running (a): `session.list` (stored) is read for a profile only when its roster names an id no live row has. Aliases come from `_lineage_root_id`/`_lineage_ids`/`resolved_id`, chained like the Desktop's `lineageAliases` (`store/session.ts:471-523`, `live-work-roster.ts:3-14`). One work item shows once. Hermes' `session.list` may not send the lineage fields; the `id`/`resolved_id` pair still joins root and tip. Not verified against a real Hermes.
+- Running (b): `withTimeoutOrNull(10 s)` per profile; a hung profile reads as failed, the others show. (c): change window 3 s → 10 s, and no change-read sooner than 10 s after the last read.
+- Running (d): `runningFrom` + `PairedPage.backFrom`: back from Running opened via "See all" returns to the chat.
+- TY6 (e): the retry flag moved from `PlanLimits` to `ModelSheet`, so closing search no longer retries again. After the one empty retry the section stays gone for that sheet session. Not done: the first open of such a sheet still shows "Loading limits…" for 3 s.
+- Nits: `plan_pool` no longer gets an unused argument. The TY6 report's "7 tests" (file has 6) is not edited, since it is outside the allowed files.
+- Docs: protocol §19 one line, CHANGELOG [Unreleased] one Phone line.
+- Tests added: `HomeLimitsTest`, six alias/timeout cases in `RunningWorkTest`, two in `RunningViewModelTest`, one in `PairedPageTest`. No adb, no real Hermes, no commits.
+- Open: the first Home read on a cold Hermes cache is empty and the row stays absent until the next 5-min read or a pull.

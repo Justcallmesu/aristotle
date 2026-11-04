@@ -107,7 +107,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TY1 | Q81a: Running screen across all profiles | TX1 | android | DONE |
 | TY3 | Q81d: Home history grouping by project + Desktop sort keys | TX1 | android | DONE |
 | TY6 | Q81e: Claude plan limits in the model sheet | TX1 | android | DONE |
-| TY7 | Q83: Claude limits row on Home under the PC card (model.options without session; ≤ every 5 min while visible) | TY3, TY6 | android | BUILDING |
+| TY7 | Q83: Claude limits row on Home under the PC card (model.options without session; ≤ every 5 min while visible) | TY3, TY6 | android | DONE |
 | TY2 | Q81b: usage per session (tokens; $ when > 0) in chat header + list | TY3 | android | TODO |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
@@ -177,6 +177,8 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D47 | mDNS responder: interface deleted+recreated with same name/addrs keeps the stale ifindex and goes deaf until a change (fails closed) (TL1b review n2). | TL1b review | TODO |
 | D48 | ServerVersions (TV1b) is process-global and not cleared on unpair/re-pair: About/compat banner can show the previous PC until the next /v1/me. Clear it in PcRecords unpair/repair. | TV1b report | DONE (TV2 + TM1) |
 | D49 | mDNS instance name has no conflict handling: two PCs with the same short hostname share "Aristotle on <host>", so the phone may only see the other one and never find yours. Add the 8-hex fp hint to the instance and target names. | User Q 2026-11-04 | DONE (TL1d) |
+| D50 | RepairTest flaky: a pins assertion failed once in the TR7 gate and once in the TY7 gate, passed on re-run. Prove the cause (flaky-test-triage) before release. | TR7, TY7 gates | TODO (T22) |
+| D51 | Home Claude limits row stays absent for up to 5 min after a cold Hermes cache (first model.options read empty). Add one silent retry after ~3 s. | TY7 report | TODO |
 | D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
@@ -448,3 +450,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TY1/TY3/TY6 built; PM clean gate pm-gate-61 GREEN (1079; TY6's lint crash was a parallel-edit collision). Mutations: project order fails 2, plan clamp fails 1. Installed. Deep review dispatched.
 - 2026-11-04 User: Claude limits on Home too -> Q83 (row of 4 bars under the PC card). PM refresh rule: open + ≤5 min while visible (Hermes refreshes from Anthropic per call). TY7 waits for the TY review/commit (same files).
 - 2026-11-04 Review-TY PASS-WITH-FINDINGS (all RPC names/fields match Hermes; sort rules copied faithfully). Committed TY1+TY3+TY6. Minors folded into TY7.
+- 2026-11-05 TY7: pm-gate-62 GREEN (1103); mutation (Home limits every 10 s) fails 6. Committed (minor round folded; diff reviewed in T22). D50 RepairTest flake, D51 cold-cache retry recorded.

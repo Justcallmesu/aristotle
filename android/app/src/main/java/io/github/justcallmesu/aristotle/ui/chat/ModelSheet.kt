@@ -132,6 +132,8 @@ fun ModelSheet(sheet: ModelSheetState, chat: ChatState, actions: ModelActions) {
         val choices = ReasoningLevels.choices(catalog?.capabilities(provider, model))
         var query by remember { mutableStateOf("") }
         var toggled by remember { mutableStateOf(emptySet<String>()) }
+        // The limits section's one retry is spent per sheet session, whatever the search field does to the section (TY7).
+        var planRetried by remember { mutableStateOf(false) }
         val groups = catalog?.groups.orEmpty()
         val views = ModelFilter.views(groups, query, provider, toggled)
         val searching = ModelFilter.normalize(query).isNotEmpty()
@@ -150,7 +152,7 @@ fun ModelSheet(sheet: ModelSheetState, chat: ChatState, actions: ModelActions) {
             if (groups.isNotEmpty()) {
                 SearchField(query, ModelFilter.modelCount(groups), onChange = { query = it })
             }
-            if (catalog != null && !searching) PlanLimits(catalog.plan, onRetry = actions::retry)
+            if (catalog != null && !searching) PlanLimits(catalog.plan, planRetried, onRetried = { planRetried = true }, onRetry = actions::retry)
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),

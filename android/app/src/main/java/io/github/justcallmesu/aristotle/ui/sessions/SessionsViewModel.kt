@@ -9,9 +9,12 @@ import io.github.justcallmesu.aristotle.data.HomeViewStore
 import io.github.justcallmesu.aristotle.data.InboundFrame
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
+import io.github.justcallmesu.aristotle.data.HomeLimits
+import io.github.justcallmesu.aristotle.data.HomeLimitsPoller
 import io.github.justcallmesu.aristotle.data.PcStatusPoller
 import io.github.justcallmesu.aristotle.data.PcStatusSource
 import io.github.justcallmesu.aristotle.data.PcStatusView
+import io.github.justcallmesu.aristotle.data.chat.PlanUsage
 import io.github.justcallmesu.aristotle.data.ProjectFrames
 import io.github.justcallmesu.aristotle.data.ProjectOrder
 import io.github.justcallmesu.aristotle.data.ProfileOption
@@ -85,6 +88,8 @@ data class SessionsUiState(
     val open: OpenRequest? = null,
     /** The PC's last status reading (Q78); [PcStatusView.None] until the first one. */
     val pcStatus: PcStatusView = PcStatusView.None,
+    /** The Claude limits (Q83); [HomeLimits.None] until a reading with numbers arrives, and then the row is simply absent. */
+    val limits: HomeLimits = HomeLimits.None,
     /** The listed profile's history view on this phone (Q81d): grouping, sort, folded projects, project order. */
     val view: HomeView = HomeView(),
     /** The ledger under the live cards for [view] ([arrangeHistory]); null until the first list. */
@@ -121,6 +126,7 @@ class SessionsViewModel(
     scope: CoroutineScope? = null,
     statusSource: PcStatusSource? = null,
     statusPause: suspend (Long) -> Unit = { delay(it) },
+    limitsSource: (suspend (String?) -> PlanUsage)? = null,
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     private val repository = SessionRepository(link)
@@ -133,6 +139,11 @@ class SessionsViewModel(
     private val homeVisible = MutableStateFlow(false)
     private val poller = statusSource?.let { source ->
         PcStatusPoller(work, link.state, homeVisible, { endpoint -> source.pcStatus(pc, endpoint) }, pause = statusPause)
+    }
+
+    /** The Claude limits row (Q83): `model.options` without a session, read when Home shows and at most every 5 min ([HomeLimitsPoller]). */
+    private val limitsPoller = limitsSource?.let { source ->
+        HomeLimitsPoller(work, link.state, homeVisible, selection.selected, source)
     }
 
     fun homeVisible(visible: Boolean) {
@@ -167,6 +178,10 @@ class SessionsViewModel(
             p.start()
             work.launch { p.view.collect { view -> state.update { it.copy(pcStatus = view) } } }
         }
+        limitsPoller?.let { p ->
+            p.start()
+            work.launch { p.view.collect { view -> state.update { it.copy(limits = view) } } }
+        }
         work.launch { link.events.collect(::onEvent) }
         startFeed()
     }
@@ -184,6 +199,7 @@ class SessionsViewModel(
     fun refresh() {
         if (state.value.link !is LinkState.Online) return link.retryNow()
         state.update { it.copy(refreshing = true, listProblem = null) }
+        limitsPoller?.force()
         repository.reload()
         if (treeWanted()) loadTree()
     }

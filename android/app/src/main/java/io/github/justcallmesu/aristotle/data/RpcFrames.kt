@@ -130,7 +130,17 @@ data class SessionSummary(
     val running: Boolean = false,
     /** Stored rows: the physical (compression tip) id the row resumes (`gateway/session_listing.py:21-24`). */
     @SerialName("resolved_id") val resolvedId: String? = null,
+    /** A compressed lineage: its stable root and every id it answered to (the Desktop's `SessionInfo._lineage_root_id` / `_lineage_ids`). */
+    @SerialName("_lineage_root_id") val lineageRootId: String? = null,
+    @SerialName("_lineage_ids") val lineageIds: List<String>? = null,
 ) {
+    /** Every id of this one conversation across compressions: [ids] plus the lineage (`apps/desktop/src/store/session.ts:479-523`). */
+    val aliasIds: Set<String> get() = buildSet {
+        addAll(ids)
+        lineageRootId?.takeIf { it.isNotEmpty() }?.let(::add)
+        lineageIds?.filter { it.isNotEmpty() }?.let(::addAll)
+    }
+
     /** Seconds since the epoch of the latest known activity; `session.list` only carries `started_at` today. */
     val lastActivitySeconds: Double? get() = lastActive ?: startedAt
     val key: String get() = sessionId.ifEmpty { id }

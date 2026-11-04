@@ -243,6 +243,17 @@ fun SessionsContentView(
                     modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
                 )
             }
+            // Q83: the Claude limits, only with data (no loading text); the clock is read again whenever the reading changes.
+            val limits = state.limits
+            if (!state.searching && page == null && limits.shown(System.currentTimeMillis())) {
+                var limitsExpanded by rememberSaveable { mutableStateOf(false) }
+                PlanLimitsRow(
+                    plan = limits.usage,
+                    expanded = limitsExpanded,
+                    onToggle = { limitsExpanded = !limitsExpanded },
+                    modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
+                )
+            }
             if (page == null) {
                 val offline = state.link as? LinkState.Offline
                 val compatibility = compatibilityText(pcId)
