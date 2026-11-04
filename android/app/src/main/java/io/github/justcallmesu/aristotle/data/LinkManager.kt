@@ -4,7 +4,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -76,12 +78,16 @@ data class LinkTimings(
     val supersededRetryMillis: Long = 60_000,
     val rpcTimeoutMillis: Long = 15_000,
     val backoff: Backoff = Backoff(),
+    /** TL1e: this many drops after `gateway.ready` within [flapWindowMillis] demote a LAN address ([LanFlaps]). */
+    val flapDrops: Int = 3,
+    val flapWindowMillis: Long = 5 * 60_000L,
+    val flapDemoteMillis: Long = 15 * 60_000L,
 )
 
 /**
  * The process-wide link to the paired PC (T09), owned by the Application: one relay socket at a time.
  * Tries the PC's addresses in [EndpointChoice] order, reconnects after a loss with [Backoff] (reset once a
- * relay delivers `gateway.ready`), and at once when the phone's network changes, the app returns to the
+ * relay delivers `gateway.ready`, unless it is a LAN address that keeps dropping after that, [LanFlaps]), and at once when the phone's network changes, the app returns to the
  * foreground or the user asks. No retry after `4401` (wipe) or `4505`; `4503` is retried every 10 s; after `4409`
  * a network change, the foreground or the user starts the next round at once, else a slow backstop (60 s) does (D36,
  * T13b), counted down in [LinkState.Offline.nextAttemptAtMillis] (D39).
@@ -111,7 +117,17 @@ class LinkManager(
     private var live: RelayRpc? = null
     private var generation = 0L
 
-    private enum class Wake { User, Network, Foreground }
+    /**
+     * A LAN address discovery just verified (Q65, [useFound]): a one-shot candidate, tried first by the next round on a
+     * LAN-first network or beside a Tailscale relay. Stored only once a relay connects through it ([refreshAddresses]).
+     */
+    @Volatile
+    private var found: ServerEndpoint? = null
+
+    /** LAN addresses that keep dropping after `gateway.ready` (TL1e); kept across stops and restarts of the session. */
+    private val flaps = LanFlaps(timings.flapDrops, timings.flapWindowMillis, timings.flapDemoteMillis)
+
+    private enum class Wake { User, Network, Foreground, Found }
 
     /** Starts following the stored pairing; call once. */
     fun start(): Job = scope.launch {
@@ -146,6 +162,16 @@ class LinkManager(
 
     override fun retryNow() {
         wakes.trySend(Wake.User)
+    }
+
+    /**
+     * LAN discovery verified [endpoint] with the pin (Q65, [PcFinder]); nothing is stored yet. On a LAN-first network the
+     * next round tries it first and one waiting to retry tries at once; a link online over Tailscale opens a relay to it
+     * beside its own and moves only when that one is ready. A link already online on a LAN address stays where it is.
+     */
+    fun useFound(endpoint: ServerEndpoint) {
+        found = endpoint
+        wakes.trySend(Wake.Found)
     }
 
     override suspend fun call(method: String, params: JsonObject): JsonElement =
@@ -190,7 +216,10 @@ class LinkManager(
         private suspend fun nextRound(): RoundEnd = try {
             drainWakes()
             val pc = latest()
-            round(pc, EndpointChoice.order(pc, network.prefersLan()))
+            val preferLan = network.prefersLan()
+            val hint = found.also { found = null }?.takeIf { preferLan }
+            val order = EndpointChoice.withFound(EndpointChoice.order(pc, preferLan), hint)
+            round(pc, flaps.order(order, network.localNetworks(), clock()))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -215,40 +244,25 @@ class LinkManager(
 
         /** One address: open the relay, wait for `gateway.ready`, then stay online until the relay ends. */
         private suspend fun attempt(pc: PcCredentials, endpoint: ServerEndpoint): Attempt = coroutineScope {
-            val socket = dialer.openRelay(pc, endpoint)
-            val rpc = RelayRpc(socket::send, timings.rpcTimeoutMillis)
-            val ready = CompletableDeferred<Unit>()
-            val ended = CompletableDeferred<SocketEnd>()
-            val opened = AtomicBoolean(false)
-            val pump = launch {
-                socket.events().collect { event ->
-                    when (event) {
-                        RelayEvent.Opened -> opened.set(true)
-                        is RelayEvent.Text -> route(RpcFrames.parse(event.text), rpc, ready)
-                        is RelayEvent.Closed -> ended.complete(SocketEnd.Closed(event.code, event.reason))
-                        is RelayEvent.Failed -> ended.complete(SocketEnd.Failed(event.httpStatus, event.problem))
-                    }
-                }
-                ended.complete(SocketEnd.Closed(ABNORMAL_CLOSURE, ""))
-            }
+            val dial = openDial(pc, endpoint, onTrial = false)
             val start: Start = withTimeoutOrNull(timings.readyTimeoutMillis) {
                 var started: Start? = null
                 while (started == null) {
                     started = select<Start?> {
-                        ready.onAwait { Start.Ready }
-                        ended.onAwait { Start.Ended(it) }
+                        dial.ready.onAwait { Start.Ready }
+                        dial.ended.onAwait { Start.Ended(it) }
                         // The network changed while connecting: this address may now be the wrong one.
-                        wakes.onReceive { wake -> if (wake == Wake.Network) Start.Switched else null }
+                        wakes.onReceive { wake -> if (wake == Wake.Network || connectsToFound(wake, endpoint)) Start.Switched else null }
                     }
                 }
                 started
-            } ?: Start.TimedOut(opened.get())
+            } ?: Start.TimedOut(dial.opened.get())
             val result = when (start) {
                 Start.Ready -> {
                     // D29: a network change raised while this connect was in flight and not taken by the select
                     // above (it lost the race to `gateway.ready`) is about the network this relay just came up on.
                     drainWakes()
-                    Attempt.Ended(online(pc, endpoint, rpc, ended))
+                    Attempt.Ended(online(this, pc, dial))
                 }
                 Start.Switched -> Attempt.Ended(RoundEnd.Switch)
                 is Start.Ended -> notReady(endpoint, start.end)
@@ -257,18 +271,47 @@ class LinkManager(
             // Before the next socket opens, whatever the reason this one ends (D33): an open socket is closed
             // with 1000, so the PC drops it at once when that still reaches it; one still connecting is dropped.
             // Never left for the server to reap after its ping timeout, nor counted against the device's sockets.
-            pump.cancel()
+            dial.pump.cancel()
             result
         }
 
-        private suspend fun route(frame: InboundFrame, rpc: RelayRpc, ready: CompletableDeferred<Unit>) {
+        /**
+         * Opens a relay to [endpoint] and starts reading it in [this] scope. [onTrial]: a found address tried while
+         * another relay is online ([online]); its events reach the screens only once it takes over ([Dial.live]).
+         */
+        private fun CoroutineScope.openDial(pc: PcCredentials, endpoint: ServerEndpoint, onTrial: Boolean): Dial {
+            val socket = dialer.openRelay(pc, endpoint)
+            val rpc = RelayRpc(socket::send, timings.rpcTimeoutMillis)
+            val ready = CompletableDeferred<Unit>()
+            val ended = CompletableDeferred<SocketEnd>()
+            val live = CompletableDeferred<Unit>().apply { if (!onTrial) complete(Unit) }
+            val opened = AtomicBoolean(false)
+            val pump = launch {
+                socket.events().collect { event ->
+                    when (event) {
+                        RelayEvent.Opened -> opened.set(true)
+                        is RelayEvent.Text -> route(RpcFrames.parse(event.text), rpc, ready, live)
+                        is RelayEvent.Closed -> ended.complete(SocketEnd.Closed(event.code, event.reason))
+                        is RelayEvent.Failed -> ended.complete(SocketEnd.Failed(event.httpStatus, event.problem))
+                    }
+                }
+                ended.complete(SocketEnd.Closed(ABNORMAL_CLOSURE, ""))
+            }
+            return Dial(endpoint, rpc, ready, ended, live, opened, pump)
+        }
+
+        private suspend fun route(frame: InboundFrame, rpc: RelayRpc, ready: CompletableDeferred<Unit>, live: CompletableDeferred<Unit>) {
             when (frame) {
                 is InboundFrame.Response -> rpc.onResponse(frame)
                 is InboundFrame.Event -> {
                     if (frame.type == RpcFrames.GATEWAY_READY) ready.complete(Unit)
+                    live.await()
                     frames.emit(frame)
                 }
-                is InboundFrame.ServerRequest -> frames.emit(frame)
+                is InboundFrame.ServerRequest -> {
+                    live.await()
+                    frames.emit(frame)
+                }
                 InboundFrame.Unknown -> Unit
             }
         }
@@ -290,32 +333,122 @@ class LinkManager(
             }
         }
 
-        private suspend fun online(
-            pc: PcCredentials,
-            endpoint: ServerEndpoint,
-            rpc: RelayRpc,
-            ended: CompletableDeferred<SocketEnd>,
-        ): RoundEnd {
-            reached()
-            live = rpc
-            current.value = LinkState.Online(endpoint, ++generation)
-            // Not joined: the link moves on the moment the relay ends, whatever the refresh is doing.
-            val refresh = scope.launch { refreshAddresses(pc, endpoint) }
+        /**
+         * Online on [first] until a relay ends. A found LAN address (Q65) is tried beside a Tailscale relay ([trial]) and
+         * takes over only once it delivers `gateway.ready`; a failed one leaves the working relay alone. Every relay
+         * taken over is read in [within], the attempt's scope, and closed when it is left.
+         */
+        private suspend fun online(within: CoroutineScope, pc: PcCredentials, first: Dial): RoundEnd {
+            var dial = first
             try {
-                var end: RoundEnd? = null
-                while (end == null) {
-                    end = select<RoundEnd?> {
-                        ended.onAwait { socketEnd -> endOf(socketEnd, endpoint) }
-                        wakes.onReceive { wake -> if (wake == Wake.Network) RoundEnd.Switch else null }
+                while (true) {
+                    when (val next = onlineOn(within, pc, dial)) {
+                        is Watch.Over -> {
+                            if (next.end is RoundEnd.Lost) flaps.dropped(dial.endpoint, network.localNetworks(), clock())
+                            return next.end
+                        }
+                        is Watch.TakeOver -> {
+                            dial.pump.cancel() // closed with 1000; the server superseded it already (4409)
+                            dial = next.dial
+                        }
                     }
                 }
-                return end
+            } finally {
+                dial.pump.cancel()
+            }
+        }
+
+        private suspend fun onlineOn(within: CoroutineScope, pc: PcCredentials, dial: Dial): Watch {
+            reachedOn(dial.endpoint)
+            live = dial.rpc
+            current.value = LinkState.Online(dial.endpoint, ++generation)
+            dial.live.complete(Unit)
+            // Not joined: the link moves on the moment the relay ends, whatever the refresh is doing.
+            val refresh = scope.launch { refreshAddresses(pc, dial.endpoint) }
+            var trial: Trial? = null
+            var trialFailedAt: Long? = null
+            var out: Watch? = null
+            try {
+                while (out == null) {
+                    out = select<Watch?> {
+                        dial.ended.onAwait { socketEnd -> endWhileTrying(endOf(socketEnd, dial.endpoint), trial, trialFailedAt) }
+                        wakes.onReceive { wake ->
+                            when {
+                                wake == Wake.Network -> Watch.Over(RoundEnd.Switch)
+                                trial == null && movesToFound(wake, dial.endpoint) -> {
+                                    trial = found.also { found = null }
+                                        ?.takeUnless { flaps.demoted(it, network.localNetworks(), clock()) }
+                                        ?.let { within.trial(pc, it) }
+                                    null
+                                }
+                                else -> null
+                            }
+                        }
+                        trial?.let { tried ->
+                            tried.outcome.onAwait { ok ->
+                                if (ok) {
+                                    Watch.TakeOver(tried.dial)
+                                } else {
+                                    tried.cancel()
+                                    trial = null
+                                    trialFailedAt = clock()
+                                    null
+                                }
+                            }
+                        }
+                    }
+                }
+                return out
             } finally {
                 refresh.cancel()
                 live = null
-                rpc.failAll("relay closed")
+                dial.rpc.failAll("relay closed")
+                if (out !is Watch.TakeOver) trial?.cancel()
             }
         }
+
+        /**
+         * The online relay ended while [trial] was being tried, or shortly after one failed ([trialFailedAt]): the
+         * found address may take over. Opening it is what made the server close the Tailscale relay (4409, protocol
+         * §12), so when it fails, before or after that close arrives, the next round starts at once instead of standing
+         * down. A network change while the trial is still pending ends the wait at once (a new round), not after the
+         * trial's ready timeout.
+         */
+        private suspend fun endWhileTrying(end: RoundEnd, trial: Trial?, trialFailedAt: Long?): Watch {
+            val superseded = if (end is RoundEnd.Superseded) RoundEnd.Switch else end
+            if (trial == null) {
+                val justTried = trialFailedAt != null && clock() - trialFailedAt <= timings.readyTimeoutMillis
+                return Watch.Over(if (justTried) superseded else end)
+            }
+            while (true) {
+                select<Watch?> {
+                    trial.outcome.onAwait { ok -> if (ok) Watch.TakeOver(trial.dial) else Watch.Over(superseded) }
+                    wakes.onReceive { wake -> if (wake == Wake.Network) Watch.Over(RoundEnd.Switch) else null }
+                }?.let { return it }
+            }
+        }
+
+        /** A relay to [candidate] beside the online one: true once it delivers `gateway.ready` within the ready timeout. */
+        private fun CoroutineScope.trial(pc: PcCredentials, candidate: ServerEndpoint): Trial {
+            val dial = openDial(pc, candidate, onTrial = true)
+            val outcome = async {
+                withTimeoutOrNull(timings.readyTimeoutMillis) {
+                    select<Boolean> {
+                        dial.ready.onAwait { true }
+                        dial.ended.onAwait { false }
+                    }
+                } ?: false
+            }
+            return Trial(dial, outcome)
+        }
+
+        /** Online on a non-LAN address: a found LAN address (Q65) is worth a try on a LAN-first network. */
+        private fun movesToFound(wake: Wake, endpoint: ServerEndpoint): Boolean =
+            wake == Wake.Found && endpoint.network != Network.Lan && network.prefersLan()
+
+        /** Still connecting: on a LAN-first network the verified address goes before any other being tried. */
+        private fun connectsToFound(wake: Wake, endpoint: ServerEndpoint): Boolean =
+            wake == Wake.Found && network.prefersLan() && found.let { it != null && it != endpoint }
 
         private fun endOf(end: SocketEnd, endpoint: ServerEndpoint): RoundEnd = when (end) {
             is SocketEnd.Closed -> LinkEnds.ofClose(end.code, end.reason, endpoint)
@@ -325,9 +458,11 @@ class LinkManager(
         /**
          * Remembers the address that worked and merges in the PC's current list (a DHCP change, Tailscale
          * added). Best effort: when it fails the stored list stays, and the working relay is not ended for it.
+         * A found address (Q65) that is not stored yet goes in first: a relay has now connected through it.
          */
         private suspend fun refreshAddresses(pc: PcCredentials, endpoint: ServerEndpoint) = unlessCancelled {
-            val fresh = dialer.addresses(pc, endpoint).orEmpty()
+            val served = dialer.addresses(pc, endpoint).orEmpty()
+            val fresh = if (endpoint in pc.addresses) served else listOf(endpoint) + served
             if (fresh.isNotEmpty() || endpoint != pc.lastGood) memory.remember(pc.pcId, fresh, endpoint)
         }
 
@@ -355,6 +490,14 @@ class LinkManager(
             current.update { if (it is LinkState.Offline) it.copy(nextAttemptAtMillis = null, waiting = false) else it }
         }
 
+        /**
+         * A relay came up on [endpoint]: [reached], except that a LAN address that dropped after `gateway.ready` within
+         * the flap window (TL1e) does not reset the backoff, so a relay that keeps dying there backs off further.
+         */
+        private fun reachedOn(endpoint: ServerEndpoint) {
+            if (flaps.unsettled(endpoint, network.localNetworks(), clock())) offlineSince = null else reached()
+        }
+
         /** The PC answered: it is not offline (whatever Hermes said), and a later loss backs off from the start. */
         private fun reached() {
             offlineSince = null
@@ -376,6 +519,32 @@ class LinkManager(
     }
 
     private data class Target(val pc: PcCredentials?, val stopped: Boolean)
+
+    /** One relay socket, opening or open. [live]: complete once its events may reach the screens. */
+    private class Dial(
+        val endpoint: ServerEndpoint,
+        val rpc: RelayRpc,
+        val ready: CompletableDeferred<Unit>,
+        val ended: CompletableDeferred<SocketEnd>,
+        val live: CompletableDeferred<Unit>,
+        val opened: AtomicBoolean,
+        val pump: Job,
+    )
+
+    /** A found address tried beside the online relay; [outcome] true once it is ready. */
+    private class Trial(val dial: Dial, val outcome: Deferred<Boolean>) {
+        /** Closes the tried relay (1000, or dropped while connecting) and stops waiting for it. */
+        fun cancel() {
+            dial.pump.cancel()
+            outcome.cancel()
+        }
+    }
+
+    /** How a stretch online on one relay ends: the round is over, or a tried relay takes over. */
+    private sealed interface Watch {
+        data class Over(val end: RoundEnd) : Watch
+        data class TakeOver(val dial: Dial) : Watch
+    }
 
     private sealed interface Start {
         data object Ready : Start

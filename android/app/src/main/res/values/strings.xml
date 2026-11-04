@@ -621,4 +621,27 @@
     <string name="whats_new_open">See what\'s new</string>
     <string name="whats_new_dismiss">Dismiss</string>
     <string name="whats_new_empty">No change log in this build.</string>
+    <string name="settings_find_pc">Find PC on this Wi-Fi</string>
+    <string name="settings_find_pc_body">Look for this PC on the Wi-Fi you are on now. Only the PC with the fingerprint above is accepted.</string>
+    <string name="settings_find_pc_looking">Looking for the PC…</string>
+    <string name="settings_find_pc_scanning">Checking every address on this Wi-Fi…</string>
+    <string name="settings_find_pc_found">Found at %1$s</string>
+    <string name="settings_find_pc_not_found">Not found on this Wi-Fi — try Tailscale</string>
+    <string name="settings_find_pc_cant_scan">Can\'t scan this Wi-Fi</string>
+    <!-- TS3: Settings category list summaries (Q72) -->
+    <string name="settings_summary_two">%1$s · %2$s</string>
+    <string name="settings_summary_connected">Connected</string>
+    <string name="settings_summary_connecting">Connecting…</string>
+    <string name="settings_summary_offline">Offline</string>
+    <string name="settings_summary_hermes_down">Hermes isn\'t running</string>
+    <string name="settings_summary_hermes_updated">Hermes updated</string>
+    <string name="settings_summary_stopped">Stopped</string>
+    <string name="settings_summary_revoked">Revoked</string>
+    <string name="settings_summary_wifi">Wi-Fi</string>
+    <string name="settings_summary_notifications_on">On</string>
+    <string name="settings_summary_notifications_off">Off</string>
+    <string name="settings_summary_notifications_some_off">Some off</string>
+    <string name="settings_summary_lock_on">App lock on · %1$s</string>
+    <string name="settings_summary_lock_off">App lock off</string>
+    <string name="settings_summary_about">Aristotle %1$s</string>
 </resources>

@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- T09: follow the default network to switch between Wi-Fi and Tailscale addresses. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- TL1 (Q65): LAN discovery holds a Wi-Fi multicast lock while NSD looks for the PC (normal permission, no prompt).
+         NSD needs no location or nearby-devices permission on API 29-36 (see docs/protocol.md §15, phone side). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- T10: the specialUse foreground service that keeps the link open, and its notifications. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

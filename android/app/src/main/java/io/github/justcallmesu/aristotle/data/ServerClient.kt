@@ -6,6 +6,7 @@ import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
 import io.github.justcallmesu.aristotle.data.terminal.TerminalSocket
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.ConnectionPool
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -61,6 +63,10 @@ private data class ServerBlock(
     @SerialName("min_phone_protocol") val minPhoneProtocol: Int = 1,
 )
 
+/** `GET /healthz` (protocol §11.2); only `status` is read. */
+@Serializable
+private data class HealthBody(val status: String? = null)
+
 @Serializable
 private data class TerminalFlags(val enabled: Boolean = false, val granted: Boolean = false)
 
@@ -75,7 +81,7 @@ class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
 }
 
 /** The link's calls over HTTPS with the PC's pin; one client per pin and address kind ([HttpClients]). */
-class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer {
+class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth {
     private val clients = ConcurrentHashMap<Pair<String, Network>, OkHttpClient>()
 
     override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
@@ -86,11 +92,26 @@ class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, Termina
 
     override fun networkChanged() = httpClients.evictIdle()
 
+    /**
+     * The PC's pinned client (same trust manager, hostname check and pin) with [route]'s sockets (bound to the Wi-Fi
+     * network, or plain under a VPN that routes none of its subnet, TL1e) and names resolved there (TL1c), and a pool of
+     * its own that keeps nothing: a pooled relay connection
+     * (over a VPN, say) is never reused for the check, nor the check's for the relay. No token is sent.
+     */
+    override suspend fun healthy(pc: PcCredentials, endpoint: ServerEndpoint, route: WifiRoute): Boolean {
+        val bound = clientFor(pc, endpoint).newBuilder()
+            .socketFactory(route.sockets)
+            .dns(route.dns)
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
+            .build()
+        return ServerClient(bound, endpoint.baseUrl).healthy()
+    }
+
     override fun openTerminal(pc: PcCredentials, endpoint: ServerEndpoint): TerminalChannel =
         TerminalSocket(clientFor(pc, endpoint), endpoint.baseUrl, pc.token)
 
     override suspend fun terminalAllowed(pc: PcCredentials, endpoint: ServerEndpoint): Boolean? =
-        ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).terminalAllowed(pc.token)
+        ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).terminalAllowed(pc.token, pc.pcId)
 
     private fun clientFor(pc: PcCredentials, endpoint: ServerEndpoint): OkHttpClient =
         clients.getOrPut(pc.fingerprint to endpoint.network) { httpClients.pinnedTo(pc.pin, endpoint.network) }
@@ -118,15 +139,25 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
     }
 
     /**
-     * `GET /v1/me` (protocol §11.2, §14): whether this phone may open a terminal (switch on **and** granted); false
-     * for a server without the `terminal` object; null on any failure.
+     * `GET /healthz` (protocol §11.2) over this pinned client: true only for `200 {"status":"ok"}`. Another certificate
+     * fails the handshake, so a true here is the paired PC itself (LAN discovery, Q65). Any failure is false.
      */
-    suspend fun terminalAllowed(token: DeviceToken): Boolean? {
+    suspend fun healthy(): Boolean {
+        val request = Request.Builder().url(base.resolve("/healthz")!!).build()
+        return execute(request, { false }) { response -> response.code == 200 && decode(response, HealthBody.serializer())?.status == "ok" }
+    }
+
+    /**
+     * `GET /v1/me` (protocol §11.2, §14): whether this phone may open a terminal (switch on **and** granted); false
+     * for a server without the `terminal` object; null on any failure. The `server` block is recorded under [pcId],
+     * the PC the call was made to, even if the caller was cancelled meanwhile.
+     */
+    suspend fun terminalAllowed(token: DeviceToken, pcId: String): Boolean? {
         val request = Request.Builder().url(base.resolve("/v1/me")!!).header("Authorization", "Bearer ${token.value}").build()
         return execute(request, { null }) { response ->
             if (response.code != 200) null else decode(response, MeBody.serializer())?.let { me ->
                 // A missing `server` block is an old server: version unknown, protocol 1 (Q63).
-                ServerVersions.record(me.server?.let { ServerInfo(it.version, it.protocol, it.minPhoneProtocol) } ?: ServerInfo.OLD)
+                ServerVersions.record(pcId, me.server?.let { ServerInfo(it.version, it.protocol, it.minPhoneProtocol) } ?: ServerInfo.OLD)
                 me.terminal?.let { TerminalAccess.visible(it.enabled, it.granted) } ?: false }
         }
     }

@@ -990,15 +990,37 @@ matches the one it stored at pairing; a matching announcement alone proves nothi
   the link up to 8 s to come up there; unless the link is then online on a LAN address inside that Wi-Fi's subnet, it
   browses `_aristotle._tcp` with NSD for at most 10 s. Manual ("Find PC on this Wi-Fi", Settings › Connection, never
   automatic): NSD for 5 s, then, only on Wi-Fi with a /24 or longer prefix around an RFC1918 address, a TCP connect
-  (300 ms timeout, at most 32 at a time) to every other host of that subnet on the PC's stored LAN port(s) (default
-  8760). Each announcement must carry `v=1` and an `fp` of 16-64 hex digits that is a prefix of the stored pin (any case);
-  each candidate, announced or probed, must then answer `GET /healthz` with `200 {"status":"ok"}` through the PC's pinned
-  client (§11.3). Only then is `https://<ipv4>:<port>` merged into the stored addresses (fresh first, cap 8, typed and
-  last-good kept, §11.2) and tried first by the link on a LAN-first network; the first verified PC ends the search. A PC
-  that fails any check is dropped silently; only counts are logged (debug). API 34+ resolves with
-  `registerServiceInfoCallback`, older with `resolveService`, one at a time across the app. A `WifiManager.MulticastLock`
+  (300 ms timeout, at most 32 at a time) to every other host of that subnet on port 8760 and, if it differs, the typed
+  address's port (all listeners share one port, §11.1); never more ports. **Every probe and check goes to the Wi-Fi
+  `Network` itself** (TRANSPORT_WIFI, not a VPN), decided afresh on every search (TL1e). *Bound* when Android allows it:
+  sockets bound with `Network.bindSocket` and names resolved on that network, so nothing follows the default network (a
+  VPN, or cellular beside a Wi-Fi without internet). Android refuses that bind to every app under a VPN that does not
+  allow bypass (Tailscale), whatever the VPN's routes. *Unbound* then, only when the default network is a VPN over Wi-Fi
+  alone (no cellular or Ethernet transport) whose IPv4 routes (`LinkProperties.getRoutes`, longest prefix wins; from API
+  33 RTN_THROW/RTN_UNREACHABLE are excluded routes; no IPv4 route at all = cannot tell) take none of the Wi-Fi's network
+  address, broadcast and first host: plain sockets then leave on the Wi-Fi, as the relay's do. Each unbound probe and
+  check goes only to a host on the Wi-Fi's subnet that no VPN route takes, and names are never resolved. *Unavailable*
+  otherwise (no Wi-Fi; a refused bind under a full tunnel, an exit node without "Allow LAN access", a subnet route over
+  this LAN, a VPN over cellular, or no VPN): nothing is sent, auto-find skips and Settings shows "Can't scan this Wi-Fi".
+  The mode (`bound`, `unbound-vpn-no-route`, `unavailable`) is logged (debug). NSD browses on the Wi-Fi network on API
+  33+ (no network can be named before). Each announcement must carry `v=1` and an `fp` of 16-64 hex digits that is a prefix of the
+  stored pin (any case); an announced address must lie in the Wi-Fi's own subnet (`LinkProperties`), else it is dropped
+  before any connection. Each candidate, announced or probed, must then answer `GET /healthz` with `200 {"status":"ok"}`
+  through the PC's pinned client (§11.3; same pin, no token, a connection pool of its own). Only then does the link get
+  `https://<ipv4>:<port>` as a one-shot candidate, tried first on a LAN-first network; beside a working Tailscale relay
+  it opens a second relay to it and moves only once that one delivers `gateway.ready` (opening it closes the Tailscale
+  one with `4409`; if the candidate fails, before or after that close arrives, or the network changes while it is
+  pending, the next round starts at once). A LAN address whose relay is lost after `gateway.ready` 3 times within
+  5 min on the same Wi-Fi goes below the Tailscale addresses on that Wi-Fi for 15 min (found candidates included), and
+  while it has such a drop within those 5 min a relay coming up on it does not reset the backoff. The address is merged into the stored
+  ones (fresh first, cap 8, typed and last-good kept, §11.2) only after a relay connected through it. The first verified
+  PC ends the search. A PC that fails any check is dropped silently; only counts are logged (debug). API 34+ resolves
+  with `registerServiceInfoCallback`, older with `resolveService`, one at a time across the app; a resolve that never
+  answers gives that slot back after 3 s, so it costs a 5 s or 10 s window at most 3 s (before API 34 the platform
+  cannot stop it, so a later resolve refused with FAILURE_ALREADY_ACTIVE is tried twice more, 500 ms apart). A `WifiManager.MulticastLock`
   (`CHANGE_WIFI_MULTICAST_STATE`, a normal permission) is held only while NSD runs. No location or nearby-devices
   permission is needed on API 29-36: NSD asks for none, the Wi-Fi address comes from `LinkProperties`
   (`ACCESS_NETWORK_STATE`) and no SSID is read. Android 16's local network protection is opt-in only and leaves
   NsdManager alone; a target SDK of 37 or higher makes every LAN connection of the app (the relay too) need
-  `ACCESS_LOCAL_NETWORK`.
+  `ACCESS_LOCAL_NETWORK`, and NSD resolve (`registerServiceInfoCallback`/`resolveService`) then needs that permission
+  too, unless the service was picked by the user in the system picker (`DiscoveryRequest.FLAG_SHOW_PICKER`).

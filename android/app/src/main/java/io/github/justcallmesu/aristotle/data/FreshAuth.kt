@@ -27,7 +27,9 @@ fun interface AuthHost {
 
 /**
  * Hands checks to the activity on screen ([attach]) and tells [lock] about them. One check at a time; with no
- * activity attached nothing can be asked, so the answer is no. A check that passes also unlocks the app.
+ * activity attached nothing can be asked, so the answer is no. A check that passes also unlocks the app. A check
+ * that never calls back stops blocking the next one after [AppLock.CHECK_CAP_MILLIS] ([AppLock.checkRunning]), so
+ * Unlock always works again.
  *
  * If the phone's screen lock was removed while the app lock was on, nothing can be checked any more. Removing it
  * needs the current PIN, so whoever did knows it: the app lock turns itself off ([turnOff]) rather than lock the
@@ -42,7 +44,8 @@ class AuthBroker(
 ) : FreshAuth {
     // Every activity that is attached, the most recent last: a second window that closes leaves the first one asking.
     private val hosts = ArrayList<AuthHost>()
-    private var busy = false
+    /** The running check's id ([AppLock.authStarted]); a check given up at the cap that ends late leaves a newer one's. */
+    private var busy: Long? = null
 
     /** The activity came to the front (onResume); it becomes the one that asks. */
     fun attach(host: AuthHost) {
@@ -71,9 +74,9 @@ class AuthBroker(
     /** Asks whatever the app lock's setting: turning the lock on or off needs a check too. */
     suspend fun prove(purpose: AuthPurpose): AuthResult {
         val current = hosts.lastOrNull() ?: return AuthResult.Failed
-        if (busy) return AuthResult.Failed
-        busy = true
-        lock.authStarted()
+        if (busy != null && lock.checkRunning()) return AuthResult.Failed
+        val check = lock.authStarted()
+        busy = check
         var passed = false
         try {
             val result = current.authenticate(purpose)
@@ -81,8 +84,8 @@ class AuthBroker(
             if (passed) lock.unlocked()
             return result
         } finally {
-            busy = false
-            lock.authEnded(passed)
+            if (busy == check) busy = null
+            lock.authEnded(check, passed)
         }
     }
 }

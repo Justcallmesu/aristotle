@@ -40,6 +40,7 @@ import io.github.justcallmesu.aristotle.ui.settings.BatteryGuideScreen
 import io.github.justcallmesu.aristotle.ui.settings.NotificationPermissionPrompt
 import io.github.justcallmesu.aristotle.ui.settings.ConnectionRows
 import io.github.justcallmesu.aristotle.ui.settings.SettingsActions
+import io.github.justcallmesu.aristotle.ui.settings.SettingsPage
 import io.github.justcallmesu.aristotle.ui.settings.SettingsScreen
 import io.github.justcallmesu.aristotle.ui.settings.SettingsViewModel
 import io.github.justcallmesu.aristotle.ui.settings.WhatsNewScreen
@@ -167,11 +168,32 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
     return visible
 }
 
-/** The pages under a paired PC. Back from a sub-page goes to [back]. */
-private enum class PairedPage {
-    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew;
+/**
+ * The pages under a paired PC. Back from a sub-page goes to [back]. The Settings category list is [Settings]; each
+ * category is its own page ([settingsPage] names it), so a restored page keeps the sub-page open (Q72).
+ */
+internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
+    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew,
+    SettingsConnection(SettingsPage.Connection),
+    SettingsNotifications(SettingsPage.Notifications),
+    SettingsAppearance(SettingsPage.Appearance),
+    SettingsLanguage(SettingsPage.Language),
+    SettingsSecurity(SettingsPage.Security),
+    SettingsAbout(SettingsPage.About);
 
-    val back: PairedPage get() = if (this == SettingsGuide || this == Repair || this == SettingsWhatsNew) Settings else Sessions
+    /** The category page that opens this one (battery guide, \"Pair again\", What's new), or the list. */
+    val back: PairedPage
+        get() = when (this) {
+            SettingsConnection, SettingsNotifications, SettingsAppearance, SettingsLanguage, SettingsSecurity, SettingsAbout -> Settings
+            SettingsGuide -> SettingsNotifications
+            Repair -> SettingsConnection
+            SettingsWhatsNew -> SettingsAbout
+            else -> Sessions
+        }
+
+    companion object {
+        fun of(settingsPage: SettingsPage): PairedPage = entries.first { it.settingsPage == settingsPage }
+    }
 }
 
 /**
@@ -229,6 +251,7 @@ private fun PairedPages(
                 sessionsViewModel,
                 onPairAgain = { container.forgetPc(reason = null) },
                 onSettings = { page = PairedPage.Settings },
+                pcId = pc.pcId,
                 onOpen = { request ->
                     chatId = request.sessionId
                     chatTitle = request.title
@@ -266,12 +289,18 @@ private fun PairedPages(
             )
             NotificationPermissionPrompt(settings, container.notifier::canPost)
         }
-        PairedPage.Settings -> SettingsRoute(
+        PairedPage.Settings, PairedPage.SettingsConnection, PairedPage.SettingsNotifications, PairedPage.SettingsAppearance,
+        PairedPage.SettingsLanguage, PairedPage.SettingsSecurity, PairedPage.SettingsAbout -> SettingsRoute(
             container,
             pc,
+            page = page.settingsPage,
+            onOpen = { page = PairedPage.of(it) },
             onBack = { page = page.back },
             onBatteryGuide = { page = PairedPage.SettingsGuide },
-            onWhatsNew = { page = PairedPage.SettingsWhatsNew },
+            onWhatsNew = {
+                container.whatsNew.dismiss()
+                page = PairedPage.SettingsWhatsNew
+            },
             onRepair = {
                 repairCount += 1
                 page = PairedPage.Repair
@@ -302,10 +331,19 @@ private fun PairedPages(
 
 /** The settings screen (TS1). Its ViewModel lives in the activity's store: it holds only which sheet is open. */
 @Composable
-private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: () -> Unit, onBatteryGuide: () -> Unit, onWhatsNew: () -> Unit, onRepair: () -> Unit) {
+private fun SettingsRoute(
+    container: AppContainer,
+    pc: PcCredentials,
+    page: SettingsPage?,
+    onOpen: (SettingsPage) -> Unit,
+    onBack: () -> Unit,
+    onBatteryGuide: () -> Unit,
+    onWhatsNew: () -> Unit,
+    onRepair: () -> Unit,
+) {
     val context = LocalContext.current
     val settingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) {
-        SettingsViewModel(container.settings, container.link.state, prove = container.auth::prove)
+        SettingsViewModel(container.settings, container.link.state, prove = container.auth::prove, search = container.pcSearch)
     }
     val activity = LocalActivity.current
     // Leaving Settings closes its sheet; a rotation keeps it.
@@ -326,7 +364,7 @@ private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: ()
             screenLockSet = { isScreenLockSet(context) },
         )
     }
-    SettingsScreen(settingsViewModel, pc, actions)
+    SettingsScreen(settingsViewModel, pc, actions, page, onOpen)
 }
 
 /** The chat to show: its session, a title until Hermes sends one, its profile, and whether to focus the composer. */

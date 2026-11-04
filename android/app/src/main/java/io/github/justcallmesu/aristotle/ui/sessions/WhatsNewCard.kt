@@ -23,7 +23,7 @@ import io.github.justcallmesu.aristotle.ui.theme.Spacing
 fun WhatsNewCard(version: String, onOpen: () -> Unit, onDismiss: () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.m, vertical = Spacing.xs),
     ) {
         Column(modifier = Modifier.padding(start = Spacing.m, end = Spacing.xs, top = Spacing.m, bottom = Spacing.xs)) {

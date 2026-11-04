@@ -189,6 +189,8 @@ filled Answer. Multi-select uses checkboxes. Same withdrawn behaviour.
 **Banners** (`Surface`, `medium`, `surfaceContainerHighest`, under the top bar; not snackbars; text `onSurface`):
 - Offline: cloud-off icon, "PC offline since HH:MM", cause line, "Retry now". No spinners anywhere while offline.
 - Reconnecting: `LinearProgressIndicator` (`tertiary`), "Reconnecting… try N, next in S s", cause line. Transcript stays readable.
+- Compatibility (Q63): error-coloured `ic_error` icon (non-text, so the 4.4 trap does not apply), one `onSurface` line, no action; shown while the active PC's server and this app's protocols do not meet.
+- What's new card (Q64, `Surface`, `medium`, `surfaceContainerLow`, sessions list top, after an update): title `titleSmall`, text buttons Dismiss / What's new; opening the page from the card or from About dismisses it.
 
 **Connection pages** (replace the list, keep the top bar): left-aligned `headlineSmall` headline (no icon above it), one
 paragraph = cause + the one fix, mono Details block (close code + reason), one button.

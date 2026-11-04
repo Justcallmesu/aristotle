@@ -41,7 +41,9 @@ import io.github.justcallmesu.aristotle.background.ChannelPage
 import io.github.justcallmesu.aristotle.background.ChannelSwitch
 import io.github.justcallmesu.aristotle.background.SystemSettings
 import io.github.justcallmesu.aristotle.data.AppLanguage
+import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.LockTimeout
+import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.data.TextSize
 import io.github.justcallmesu.aristotle.data.ThemeChoice
@@ -70,11 +72,19 @@ class SettingsActions(
 
 /** The settings screen (Q60, TS1), grouped like Android's own: connection, notifications, appearance, language, security, about. */
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: SettingsActions) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    pc: PcCredentials,
+    actions: SettingsActions,
+    page: SettingsPage? = null,
+    onOpen: (SettingsPage) -> Unit = {},
+) {
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val textSize by viewModel.textSize.collectAsStateWithLifecycle()
     val lockTimeout by viewModel.lockTimeout.collectAsStateWithLifecycle()
+    val appLock by viewModel.appLock.collectAsStateWithLifecycle()
+    val link by viewModel.link.collectAsStateWithLifecycle()
     var notificationsOn by remember { mutableStateOf(actions.canPostNotifications()) }
     var channels by remember { mutableStateOf(AppChannel.entries.associateWith(actions.channelOn)) }
     var language by remember { mutableStateOf(actions.currentLanguage()) }
@@ -87,14 +97,26 @@ fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: Set
     }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            SubPageTopBar(stringResource(R.string.settings_title), actions.onBack)
+            SubPageTopBar(stringResource(page?.title ?: R.string.settings_title), actions.onBack)
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                ConnectionSection(viewModel, pc, actions.onRepair)
-                NotificationsSection(notificationsOn, channels, actions.onBatteryGuide)
-                AppearanceSection(theme, textSize, onOpen = viewModel::show)
-                LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
-                SecuritySection(viewModel, actions.screenLockSet)
-                AboutSection(actions.onWhatsNew)
+                when (page) {
+                    null -> SettingsList(
+                        link = link,
+                        notifications = SettingsSummaries.notifications(notificationsOn, channels),
+                        theme = theme,
+                        textSize = textSize,
+                        language = language,
+                        appLock = appLock,
+                        lockTimeout = lockTimeout,
+                        onOpen = onOpen,
+                    )
+                    SettingsPage.Connection -> ConnectionSection(viewModel, pc, actions.onRepair)
+                    SettingsPage.Notifications -> NotificationsSection(notificationsOn, channels, actions.onBatteryGuide)
+                    SettingsPage.Appearance -> AppearanceSection(theme, textSize, onOpen = viewModel::show)
+                    SettingsPage.Language -> LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
+                    SettingsPage.Security -> SecuritySection(viewModel, actions.screenLockSet)
+                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew)
+                }
                 Spacer(Modifier.height(Spacing.xxl))
             }
         }
@@ -149,6 +171,57 @@ fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: Set
             onDismiss = viewModel::close,
         )
         null -> Unit
+    }
+}
+
+/** The category list with a one-line summary each (Q72); no section headers. */
+@Composable
+private fun SettingsList(
+    link: LinkState,
+    notifications: NotificationsSummary,
+    theme: ThemeChoice,
+    textSize: TextSize,
+    language: AppLanguage,
+    appLock: Boolean,
+    lockTimeout: LockTimeout,
+    onOpen: (SettingsPage) -> Unit,
+) {
+    val two = R.string.settings_summary_two
+    SettingsPage.entries.forEach { page ->
+        val summary = when (page) {
+            SettingsPage.Connection -> {
+                val word = stringResource(
+                    when (SettingsSummaries.linkWord(link)) {
+                        LinkWord.Connected -> R.string.settings_summary_connected
+                        LinkWord.Connecting -> R.string.settings_summary_connecting
+                        LinkWord.Offline -> R.string.settings_summary_offline
+                        LinkWord.HermesDown -> R.string.settings_summary_hermes_down
+                        LinkWord.HermesUpdated -> R.string.settings_summary_hermes_updated
+                        LinkWord.Stopped -> R.string.settings_summary_stopped
+                        LinkWord.Revoked -> R.string.settings_summary_revoked
+                    },
+                )
+                when (SettingsSummaries.linkNetwork(link)) {
+                    null -> word
+                    Network.Lan -> stringResource(two, word, stringResource(R.string.settings_summary_wifi))
+                    Network.Tailscale -> stringResource(two, word, stringResource(R.string.settings_address_tailscale))
+                }
+            }
+            SettingsPage.Notifications -> stringResource(
+                when (notifications) {
+                    NotificationsSummary.On -> R.string.settings_summary_notifications_on
+                    NotificationsSummary.Off -> R.string.settings_summary_notifications_off
+                    NotificationsSummary.SomeOff -> R.string.settings_summary_notifications_some_off
+                },
+            )
+            SettingsPage.Appearance -> stringResource(two, themeLabel(theme), textSizeLabel(textSize))
+            SettingsPage.Language -> languageLabel(language)
+            SettingsPage.Security ->
+                if (appLock) stringResource(R.string.settings_summary_lock_on, lockTimeoutLabel(lockTimeout))
+                else stringResource(R.string.settings_summary_lock_off)
+            SettingsPage.About -> stringResource(R.string.settings_summary_about, BuildConfig.VERSION_NAME)
+        }
+        CategoryRow(page, summary) { onOpen(page) }
     }
 }
 
@@ -260,14 +333,15 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
 
 /** The licence notices are D45's and say so until they exist. */
 @Composable
-private fun AboutSection(onWhatsNew: () -> Unit) {
+private fun AboutSection(pcId: String, onWhatsNew: () -> Unit) {
     SectionHeader(stringResource(R.string.settings_section_about))
     SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline))
     SettingRow(
         title = stringResource(R.string.settings_version),
         body = stringResource(R.string.settings_app_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
     )
-    val server by ServerVersions.current.collectAsStateWithLifecycle()
+    val servers by ServerVersions.all.collectAsStateWithLifecycle()
+    val server = servers[pcId]
     SettingRow(
         title = stringResource(R.string.settings_server_version),
         body = server?.let { info ->

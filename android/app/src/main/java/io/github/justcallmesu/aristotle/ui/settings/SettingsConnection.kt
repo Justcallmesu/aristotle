@@ -20,13 +20,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.FindPhase
+import io.github.justcallmesu.aristotle.data.FindState
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.PcCredentials
+import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
 import io.github.justcallmesu.aristotle.ui.pair.FingerprintGrid
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
@@ -35,12 +40,14 @@ import java.util.Date
 
 /**
  * Connection & PCs (Q60): the paired PC (named by its address: the protocol has no PC name), the link now, the pinned
- * fingerprint as on pairing, every stored address, the background link switch, then Pair again and Unpair.
+ * fingerprint as on pairing, every stored address, "Find PC on this Wi-Fi" (Q65), the background link switch, then
+ * Pair again and Unpair.
  */
 @Composable
 internal fun ConnectionSection(viewModel: SettingsViewModel, pc: PcCredentials, onRepair: () -> Unit) {
     val link by viewModel.link.collectAsStateWithLifecycle()
     val keepConnected by viewModel.keepConnected.collectAsStateWithLifecycle()
+    val find by viewModel.find.collectAsStateWithLifecycle()
     SectionHeader(stringResource(R.string.settings_section_connection))
     SettingRow(title = ConnectionRows.pcLabel(pc), body = linkStatus(link))
     FingerprintBlock(pc)
@@ -48,6 +55,7 @@ internal fun ConnectionSection(viewModel: SettingsViewModel, pc: PcCredentials, 
     ConnectionRows.addresses(pc, link).forEach { row ->
         SettingRow(title = row.endpoint.displayAddress, body = addressLine(row))
     }
+    FindPcRow(find, onFind = viewModel::findPc)
     SwitchRow(
         title = stringResource(R.string.settings_keep_connected),
         body = stringResource(R.string.settings_keep_connected_body),
@@ -87,6 +95,31 @@ private fun FingerprintBlock(pc: PcCredentials) {
             FingerprintGrid(pin)
         }
     }
+}
+
+/** "Find PC on this Wi-Fi" (Q65): only on a tap. The body is the progress, then the result, announced as it changes. */
+@Composable
+private fun FindPcRow(find: FindState, onFind: () -> Unit) {
+    val looking = find is FindState.Looking
+    val body = when (find) {
+        FindState.Idle -> stringResource(R.string.settings_find_pc_body)
+        is FindState.Looking -> stringResource(if (find.phase == FindPhase.Scan) R.string.settings_find_pc_scanning else R.string.settings_find_pc_looking)
+        is FindState.Found -> stringResource(R.string.settings_find_pc_found, find.endpoint.host)
+        FindState.NotFound -> stringResource(R.string.settings_find_pc_not_found)
+        FindState.CantScan -> stringResource(R.string.settings_find_pc_cant_scan)
+    }
+    SettingRow(
+        title = stringResource(R.string.settings_find_pc),
+        body = body,
+        modifier = Modifier
+            .clickable(enabled = !looking, onClick = onFind)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        trailing = if (looking) {
+            { RunningSpinner() }
+        } else {
+            null
+        },
+    )
 }
 
 @Composable

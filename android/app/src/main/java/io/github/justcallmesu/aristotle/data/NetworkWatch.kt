@@ -23,6 +23,12 @@ interface NetworkWatch {
     fun vpnUp(): Boolean
 
     /**
+     * The Wi-Fi and Ethernet networks up now, by handle: what "the same Wi-Fi" means to [LanFlaps] (a new connection
+     * gets a new handle). Empty when unknown.
+     */
+    fun localNetworks(): Set<Long> = emptySet()
+
+    /**
      * Emits when the phone's network changes: another default network, none, Wi-Fi gained or lost, or a
      * Wi-Fi or Ethernet link under the default network changed (Wi-Fi to Wi-Fi under a VPN keeps the VPN).
      */
@@ -79,6 +85,8 @@ class AndroidNetworkWatch(context: Context) : NetworkWatch {
     override fun prefersLan(): Boolean = snapshot.value.prefersLan
 
     override fun vpnUp(): Boolean = snapshot.value.vpn
+
+    override fun localNetworks(): Set<Long> = snapshot.value.localLinks.keys
 
     init {
         connectivity.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {

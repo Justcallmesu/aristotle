@@ -28,7 +28,7 @@ class PcRecords(
             drafts.clear(durable = true)
         }
         credentials.wipeActive()
-        ServerVersions.clear()
+        ServerVersions.clear(pcId)
     }
 
     /**
@@ -40,8 +40,8 @@ class PcRecords(
     suspend fun replace(old: String, paired: PcCredentials, wanted: () -> Boolean = { true }): Boolean {
         if (!credentials.save(paired, replacing = old, commitIf = wanted)) return false
         if (old != paired.pcId) withContext(io) { forgetSettings(old, durable = true) }
-        // D48: the version read from the old PC must not stand for the new one before its first /v1/me.
-        ServerVersions.clear()
+        // D48: the old PC's version goes; the new PC's entry is never touched, so its first /v1/me survives this.
+        if (old != paired.pcId) ServerVersions.clear(old)
         return true
     }
 

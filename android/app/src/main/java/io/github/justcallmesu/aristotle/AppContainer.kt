@@ -5,6 +5,8 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import io.github.justcallmesu.aristotle.background.BackgroundController
@@ -32,6 +34,14 @@ import io.github.justcallmesu.aristotle.data.HttpClients
 import io.github.justcallmesu.aristotle.data.HttpLinkDialer
 import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
 import io.github.justcallmesu.aristotle.data.LinkManager
+import io.github.justcallmesu.aristotle.data.AndroidMulticastGuard
+import io.github.justcallmesu.aristotle.data.AndroidNsdBrowser
+import io.github.justcallmesu.aristotle.data.AndroidWifiWatch
+import io.github.justcallmesu.aristotle.data.FindState
+import io.github.justcallmesu.aristotle.data.LanAutoFind
+import io.github.justcallmesu.aristotle.data.PcFinder
+import io.github.justcallmesu.aristotle.data.PcSearch
+import io.github.justcallmesu.aristotle.data.TcpPortProbe
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcRecords
 import io.github.justcallmesu.aristotle.data.ProfileSelection
@@ -97,6 +107,24 @@ class AppContainer(context: Context) {
         memory = credentials,
     )
 
+    /** The phone's Wi-Fi (Q65): its joins start LAN discovery, its /24 is what "Find PC on this Wi-Fi" probes. */
+    private val wifi = AndroidWifiWatch(context, log = { Log.d(TAG, it) })
+
+    /** LAN discovery (Q65, TL1): finds the paired PC's new Wi-Fi address; trusted only through the pinned `/healthz`. */
+    private val finder = PcFinder(
+        browser = AndroidNsdBrowser(context),
+        multicast = AndroidMulticastGuard(context),
+        health = dialer,
+        ports = TcpPortProbe(),
+        onFound = link::useFound,
+        log = { Log.d(TAG, it) },
+    )
+
+    /** Settings' "Find PC on this Wi-Fi": announcement first, then the /24. Never automatic (Q65). */
+    val pcSearch = PcSearch { onPhase ->
+        (credentials.state.value as? CredentialState.Paired)?.credentials?.let { pc -> finder.findOnWifi(pc, wifi, onPhase) } ?: FindState.NotFound
+    }
+
     /** T19b: whether the Terminal entry shows (`/v1/me` on every connect), and where a terminal opens. */
     val terminalAccess = TerminalAccess(linkScope, link.state, credentials.state, dialer)
 
@@ -109,7 +137,12 @@ class AppContainer(context: Context) {
      * The app lock (Q61, TS2). Built with the process, so a new process starts locked while the lock is on; the
      * activity callbacks below drive it. [auth] asks the activity on screen for a fingerprint or the screen lock.
      */
-    val appLock = AppLock(enabled = { settings.appLock.value }, timeout = { settings.lockTimeout.value }, now = SystemClock::elapsedRealtime)
+    val appLock = AppLock(
+        enabled = { settings.appLock.value },
+        timeout = { settings.lockTimeout.value },
+        now = SystemClock::elapsedRealtime,
+        schedule = { delayMillis, action -> Handler(Looper.getMainLooper()).postDelayed(action, delayMillis) },
+    )
     val auth = AuthBroker(appLock, lockOn = { settings.appLock.value }, turnOff = { settings.setAppLock(false) })
 
     /** Picked photos and files, prepared in the app cache until sent (T16). */
@@ -162,6 +195,7 @@ class AppContainer(context: Context) {
         reloadCredentials()
         scope.launch(Dispatchers.Default) { quotes.load() }
         link.start()
+        LanAutoFind(linkScope, wifi.current, wifi, link.state, { (credentials.state.value as? CredentialState.Paired)?.credentials }, finder).start()
         terminalAccess.start()
         scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
         scope.launch { credentials.state.collect { profileSelection.follow((it as? CredentialState.Paired)?.credentials?.pcId) } }
@@ -194,7 +228,7 @@ class AppContainer(context: Context) {
         clearAlerts()
         scope.launch {
             credentials.wipeActive()
-            ServerVersions.clear()
+            ServerVersions.clearAll()
             clearAlerts()
         }
     }

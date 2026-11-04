@@ -10,6 +10,8 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- Phone: Find your PC again by itself when you join a Wi-Fi where its address has changed; only your paired PC, checked by its certificate, is accepted.
+- Phone: "Find PC on this Wi-Fi" in Settings › Connection looks for your PC on the Wi-Fi you are on when it was not found by itself.
 - Server: Announce itself on your Wi-Fi (never over Tailscale) so the phone can find it after a network change.
 
 ## [1.0.0] - 2026-11-04

@@ -32,6 +32,13 @@ object EndpointChoice {
     }
 
     /**
+     * [order] with [found] (an address LAN discovery just verified with the pin, Q65) at the front, whether stored or
+     * not: a one-shot candidate, stored only once a relay connects through it. Unchanged when there is none.
+     */
+    fun withFound(order: List<ServerEndpoint>, found: ServerEndpoint?): List<ServerEndpoint> =
+        if (found == null) order else listOf(found) + order.filter { it != found }
+
+    /**
      * True when the phone's network makes LAN addresses the better first try: Wi-Fi or Ethernet, or another
      * unmetered network that is not cellular. A VPN (Tailscale) carries the transports of the network under it.
      */

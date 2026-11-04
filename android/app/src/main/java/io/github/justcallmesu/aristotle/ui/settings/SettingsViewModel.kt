@@ -5,10 +5,14 @@ import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.AuthPurpose
 import io.github.justcallmesu.aristotle.data.AuthResult
+import io.github.justcallmesu.aristotle.data.FindPhase
+import io.github.justcallmesu.aristotle.data.FindState
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.LockTimeout
+import io.github.justcallmesu.aristotle.data.PcSearch
 import io.github.justcallmesu.aristotle.data.TextSize
 import io.github.justcallmesu.aristotle.data.ThemeChoice
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,13 +33,14 @@ enum class LockNotice {
  * The Settings screen's state (Q60, TS1): the app settings and the link come straight from their owners; this holds
  * which picker or confirmation is open. Theme and text size apply as soon as they are picked ([AppSettings] flows).
  * The app lock (Q61, TS2) moves only after [prove] passed, both ways: off without a check would also drop the fresh
- * checks before the terminal, "Always allow" and sudo/secret answers. [scope]: the ViewModel's own unless a test
- * passes one.
+ * checks before the terminal, "Always allow" and sudo/secret answers. [search]: "Find PC on this Wi-Fi" (Q65), run
+ * only when the user taps it. [scope]: the ViewModel's own unless a test passes one.
  */
 class SettingsViewModel(
     private val settings: AppSettings,
     val link: StateFlow<LinkState>,
     private val prove: suspend (AuthPurpose) -> AuthResult = { AuthResult.Failed },
+    private val search: PcSearch? = null,
     scope: CoroutineScope? = null,
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
@@ -53,6 +58,26 @@ class SettingsViewModel(
     val lockNotice: StateFlow<LockNotice?> = notice.asStateFlow()
 
     private var checking: Job? = null
+
+    private val finding = MutableStateFlow<FindState>(FindState.Idle)
+    val find: StateFlow<FindState> = finding.asStateFlow()
+
+    /** "Find PC on this Wi-Fi": one search at a time; the row shows its phase, then the result. */
+    fun findPc() {
+        val search = search ?: return
+        if (finding.value is FindState.Looking) return
+        finding.value = FindState.Looking(FindPhase.Announcement)
+        work.launch {
+            finding.value = try {
+                search.find { phase -> finding.value = FindState.Looking(phase) }
+            } catch (e: CancellationException) {
+                finding.value = FindState.Idle
+                throw e
+            } catch (_: Exception) {
+                FindState.NotFound
+            }
+        }
+    }
 
     fun show(sheet: SettingsSheet) {
         open.value = sheet

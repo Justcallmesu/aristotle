@@ -1,0 +1,15 @@
+# TL1 build report
+
+Gate: `GATE_ONLY=android bash docs/v1-tickets/gates.sh docs/v1-tickets/runs/TL1` → PASS (exit 0; lint, unit tests, assemble), run with TM1's in-progress edits in the tree.
+
+## Built
+- `data/LanDiscovery.kt` (pure, tested): `DiscoveryTxt.accepts` (`v=1`, `fp` 16-64 hex, prefix of the pin, any case, keys case-insensitive); `SubnetScan` (/24-or-longer RFC1918 candidates without own/network/broadcast, LAN ports from stored addresses else 8760, `onLink`); `DiscoveryRule` (join = new Wi-Fi handle/address, first one seen counts; settled; skip when online on a LAN address inside this Wi-Fi's subnet, or Idle/Stopped/Revoked); `firstHit` scheduler (≤32 in parallel, stops at first hit, throws count as misses, cancellable); `PcFinder` (NSD under `MulticastGuard.held`, TXT filter → LAN IPv4 only → pinned `/healthz` with a 5 s cap → `CredentialStore.addFound` → `LinkManager.useFound`; manual = NSD 5 s then the /24 scan with 300 ms TCP connects); `LanAutoFind` (on a join: wait ≤8 s for the link to settle, then NSD ≤10 s). Debug logs carry counts only.
+- `data/AndroidLanDiscovery.kt`: `AndroidWifiWatch` (Wi-Fi, not VPN, internet not required; IPv4 + prefix from `LinkProperties`), `AndroidMulticastGuard` (ref-counted), `TcpPortProbe` (no proxy), `AndroidNsdBrowser` (API 34+ `registerServiceInfoCallback`; older `resolveService` behind one process-wide permit freed by Android's answer or after 15 s).
+- `ServerClient.healthy()` + `HttpLinkDialer : PinnedHealth` (no token sent; `/v1/me` untouched). `CredentialCodec.withFound`/`CredentialStore.addFound`: the existing `withLink` merge (found first, cap 8, typed and last-good kept, last-good records unchanged).
+- `LinkManager.useFound` + `Wake.Found`; `EndpointChoice.withFound` puts the found address first on a LAN-first network. A Tailscale link, or a connect to another address, switches to it now; a LAN link stays where it is.
+- Settings › Connection: "Find PC on this Wi-Fi" row (spinner, phase text, "Found at …" / "Not found on this Wi-Fi — try Tailscale", polite live region) via `SettingsViewModel(search = container.pcSearch)`. Wiring in `AppContainer`/`AristotleApp`, `CHANGE_WIFI_MULTICAST_STATE` in the manifest, 6 EN + 6 ID strings appended, 2 `Phone:` CHANGELOG lines, phone-side notes at the end of protocol §15 (permissions for API 29-36 included).
+- Tests: `LanDiscoveryTest.kt` (TXT, /24, rule, scheduler, finder incl. lock released on 6 paths, auto-find, merge, real-TLS `/healthz`), 2 `LinkManagerTest` cases, `ui/settings/FindPcTest`.
+
+## Notes
+- Permissions: no location or nearby-devices permission on API 29-36 (per the NsdManager and local-network-permission docs; Android 16 LNP is opt-in only and does not affect NsdManager). Target SDK 37 would need `ACCESS_LOCAL_NETWORK` for every LAN connection, not only discovery. Not verified on a device (no adb): NSD resolve, the multicast lock and the Settings row are untested on real phones.
+- Not done: the /24 probe socket is not bound to the Wi-Fi network (it follows the same routing as the link); a service whose resolve times out is not retried within the same run.

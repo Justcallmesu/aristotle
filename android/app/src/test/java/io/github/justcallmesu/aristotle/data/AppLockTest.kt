@@ -3,6 +3,7 @@ package io.github.justcallmesu.aristotle.data
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -15,7 +16,14 @@ class AppLockTest {
     private var on = true
     private var timeout = LockTimeout.Default
     private var now = 1_000_000L
-    private fun lock() = AppLock(enabled = { on }, timeout = { timeout }, now = { now })
+    /** The cap timers [AppLock] asked for: (due at, action). [runTimers] fires the due ones. */
+    private val timers = mutableListOf<Pair<Long, () -> Unit>>()
+    private fun lock() = AppLock(enabled = { on }, timeout = { timeout }, now = { now }, schedule = { delay, action -> timers += (now + delay) to action })
+    private fun runTimers() {
+        val due = timers.filter { it.first <= now }
+        timers.removeAll(due)
+        due.forEach { it.second() }
+    }
 
     /** On screen, then [awayMillis] in the background, then back. */
     private fun AppLock.away(awayMillis: Long) {
@@ -115,9 +123,9 @@ class AppLockTest {
         val lock = lock()
         lock.onStarted()
         lock.unlocked()
-        lock.authStarted()
+        val check = lock.authStarted()
         lock.away(5_000) // Android 10's PIN activity stops ours
-        lock.authEnded(passed = true)
+        lock.authEnded(check, passed = true)
         assertFalse(lock.locked.value)
     }
 
@@ -127,10 +135,10 @@ class AppLockTest {
         val lock = lock()
         lock.onStarted()
         lock.unlocked()
-        lock.authStarted()
+        val check = lock.authStarted()
         lock.onStopped(changingConfigurations = false)
         now += 5_000
-        lock.authEnded(passed = true) // the result arrives before onStart
+        lock.authEnded(check, passed = true) // the result arrives before onStart
         lock.onStarted()
         assertFalse(lock.locked.value)
     }
@@ -141,24 +149,114 @@ class AppLockTest {
         val lock = lock()
         lock.onStarted()
         lock.unlocked()
-        lock.authStarted()
+        val check = lock.authStarted()
         lock.away(5_000) // PIN screen left on the task, then back
         assertFalse(lock.locked.value) // judged when the check ends
-        lock.authEnded(passed = false)
+        lock.authEnded(check, passed = false)
         assertTrue(lock.locked.value)
     }
 
     @Test
-    fun aCheckThatNeverEndsDoesNotKeepTheLockOffAfterTheUserReturnsLater() {
+    fun aCheckThatEndsCancelledAfterALongAbsenceLocksOnReturn() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        val check = lock.authStarted()
+        lock.onStopped(changingConfigurations = false)
+        now += 10 * 60_000L
+        lock.authEnded(check, passed = false) // e.g. the host cancelled it on destroy
+        lock.onStarted()
+        assertTrue(lock.locked.value)
+    }
+
+    @Test
+    fun aCheckThatNeverEndsIsCappedAndTheTimeAwayCounts() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        lock.authStarted() // never calls back, and authEnded is never called
+        lock.onStopped(changingConfigurations = false)
+        now += 10 * 60_000L
+        lock.onStarted()
+        assertTrue(lock.locked.value)
+    }
+
+    @Test
+    fun aCheckStillWithinTheCapKeepsHoldingTheReturnBack() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        lock.authStarted()
+        lock.onStopped(changingConfigurations = false)
+        now += AppLock.CHECK_CAP_MILLIS - 1
+        lock.onStarted()
+        assertFalse(lock.locked.value)
+    }
+
+    // TL1c (TM1 follow-up): the cap is judged when it expires, also while the app stays in front.
+    @Test
+    fun theCapExpiringWithTheAppInFrontJudgesTheReturnItHeldBack() {
         val lock = lock()
         lock.onStarted()
         lock.unlocked()
         lock.authStarted() // never calls back
         lock.onStopped(changingConfigurations = false)
-        now += 10 * 60_000L
-        lock.authEnded(passed = false) // e.g. the host cancelled it on destroy
-        lock.onStarted()
+        now += 90_000 // away longer than the 1 min timeout
+        lock.onStarted() // within the cap: held back
+        assertFalse(lock.locked.value)
+        now = timers.single().first
+        runTimers() // no lifecycle event comes: the app stays in front
         assertTrue(lock.locked.value)
+    }
+
+    @Test
+    fun theCapExpiringAfterAShortAbsenceDoesNotLock() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        lock.authStarted()
+        lock.onStopped(changingConfigurations = false)
+        now += 30_000 // under the timeout
+        lock.onStarted()
+        now += AppLock.CHECK_CAP_MILLIS
+        runTimers()
+        assertFalse(lock.locked.value)
+    }
+
+    @Test
+    fun anEarlierChecksTimerDoesNotCutANewerCheckShort() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        val check1 = lock.authStarted()
+        lock.authEnded(check1, passed = true)
+        now += AppLock.CHECK_CAP_MILLIS - 1_000
+        lock.authStarted() // a second check; the first one's timer fires during it
+        lock.onStopped(changingConfigurations = false)
+        now += 1_000
+        runTimers()
+        assertTrue("still running", lock.checkRunning())
+        now += 60_000
+        lock.onStarted()
+        assertFalse(lock.locked.value) // the newer check is within its own cap: held back
+    }
+
+    @Test
+    fun theLateEndOfAnAbandonedCheckDoesNotEndANewOne() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        val check1 = lock.authStarted()
+        lock.onStopped(changingConfigurations = false)
+        now += 10 * 60_000L
+        lock.onStarted() // capped: locked
+        lock.unlocked()
+        lock.authEnded(check1, passed = false) // the abandoned one finally ends
+        lock.authStarted() // a new check
+        lock.onStopped(changingConfigurations = false)
+        now += 60_000L
+        lock.onStarted() // within the cap of the new check: held back
+        assertFalse(lock.locked.value)
     }
 
     @Test
@@ -166,10 +264,10 @@ class AppLockTest {
         val lock = lock()
         lock.onStarted()
         lock.unlocked()
-        lock.authStarted()
+        val check = lock.authStarted()
         lock.onStopped(changingConfigurations = false)
         now += 10 * 60_000L
-        lock.authEnded(passed = false) // the user went home; the prompt was cancelled
+        lock.authEnded(check, passed = false) // the user went home; the prompt was cancelled
         now += 60_000
         lock.onStarted()
         assertTrue(lock.locked.value)
@@ -241,6 +339,47 @@ class AppLockTest {
         assertFalse(broker.confirm(AuthPurpose.AlwaysAllow))
         gate.complete(AuthResult.Passed)
         assertTrue(first.await())
+    }
+
+    // TL1c (TM1 follow-up): a check that never calls back stops blocking Unlock at the cap.
+    @Test
+    fun aStuckCheckIsReleasedByTheCapSoUnlockWorksAgain() = runBlocking {
+        val lock = lock()
+        val (broker, _) = broker(lock)
+        val stuck = CompletableDeferred<AuthResult>()
+        broker.attach { stuck.await() }
+        val first = CompletableDeferred<Boolean>()
+        CoroutineScope(Dispatchers.Unconfined).launch { first.complete(broker.confirm(AuthPurpose.Unlock)) }
+        broker.attach { AuthResult.Passed }
+        now += AppLock.CHECK_CAP_MILLIS - 1
+        assertFalse("within the cap: one check at a time", broker.confirm(AuthPurpose.Unlock))
+        assertTrue(lock.locked.value)
+        now += 1
+        assertTrue("past the cap: Unlock works again", broker.confirm(AuthPurpose.Unlock))
+        assertFalse(lock.locked.value)
+        // The stuck one ends late: it frees nothing a newer check holds, and the broker still takes one at a time.
+        stuck.complete(AuthResult.Failed)
+        assertFalse(first.await())
+        val gate = CompletableDeferred<AuthResult>()
+        broker.attach { gate.await() }
+        val third = CompletableDeferred<Boolean>()
+        CoroutineScope(Dispatchers.Unconfined).launch { third.complete(broker.confirm(AuthPurpose.Terminal)) }
+        assertFalse(broker.confirm(AuthPurpose.AlwaysAllow))
+        gate.complete(AuthResult.Passed)
+        assertTrue(third.await())
+    }
+
+    @Test
+    fun theCapTimerAloneFreesAStuckCheck() = runBlocking {
+        val lock = lock()
+        val (broker, _) = broker(lock)
+        broker.attach { awaitCancellation() }
+        CoroutineScope(Dispatchers.Unconfined).launch { broker.confirm(AuthPurpose.Unlock) }
+        assertTrue(lock.checkRunning())
+        now += AppLock.CHECK_CAP_MILLIS
+        runTimers()
+        broker.attach { AuthResult.Passed }
+        assertTrue(broker.confirm(AuthPurpose.Unlock))
     }
 
     @Test

@@ -77,24 +77,56 @@ class PcRecordsTest {
 
     // D48: the version read from the old PC must not show for the next one before its first /v1/me.
     @Test
-    fun unpairAndRepairClearTheServerVersions() {
+    fun unpairAndRepairClearOnlyThatPcsServerVersion() {
+        ServerVersions.clearAll()
         runBlocking { credentials.save(pc) }
-        ServerVersions.record(ServerInfo("1.0.0", 1, 1))
+        ServerVersions.record(pc.pcId, ServerInfo("1.0.0", 1, 1))
+        ServerVersions.record("dev_other", ServerInfo("3.0.0", 1, 1))
         runBlocking { records.unpair(pc.pcId) }
-        assertNull(ServerVersions.current.value)
+        assertNull(ServerVersions.of(pc.pcId))
+        assertEquals("3.0.0", ServerVersions.of("dev_other")?.version)
 
+        val next = pc.copy(pcId = "dev_ba9876543210", deviceId = "dev_ba9876543210")
         runBlocking { credentials.save(pc) }
-        ServerVersions.record(ServerInfo("1.0.0", 1, 1))
-        runBlocking { records.replace(pc.pcId, pc.copy(pcId = "dev_ba9876543210", deviceId = "dev_ba9876543210")) }
-        assertNull(ServerVersions.current.value)
+        ServerVersions.record(pc.pcId, ServerInfo("1.0.0", 1, 1))
+        runBlocking { records.replace(pc.pcId, next) }
+        assertNull(ServerVersions.of(pc.pcId))
+        assertEquals("3.0.0", ServerVersions.of("dev_other")?.version)
+        ServerVersions.clearAll()
+    }
+
+    // Review race: the new PC's first /v1/me can land before the re-pair's clear; it must survive it.
+    @Test
+    fun theClearOnRepairNeverWipesTheNewPcsFirstRecord() {
+        ServerVersions.clearAll()
+        runBlocking { credentials.save(pc) }
+        val next = pc.copy(pcId = "dev_ba9876543210", deviceId = "dev_ba9876543210")
+        ServerVersions.record(pc.pcId, ServerInfo("1.0.0", 1, 1))
+        ServerVersions.record(next.pcId, ServerInfo("2.0.0", 1, 1)) // arrived before replace() ran its clear
+        runBlocking { records.replace(pc.pcId, next) }
+        assertEquals("2.0.0", ServerVersions.of(next.pcId)?.version)
+        assertNull(ServerVersions.of(pc.pcId))
+        ServerVersions.clearAll()
+    }
+
+    // Review race: a late /v1/me reply from the old PC (after unpair) is stored under the old id, never the new PC's.
+    @Test
+    fun aLateReplyFromTheOldPcDoesNotShowForTheNewOne() {
+        ServerVersions.clearAll()
+        runBlocking { credentials.save(pc) }
+        runBlocking { records.unpair(pc.pcId) }
+        ServerVersions.record(pc.pcId, ServerInfo("1.0.0", 1, 1)) // the late reply
+        assertNull(ServerVersions.of("dev_ba9876543210"))
+        ServerVersions.clearAll()
     }
 
     @Test
     fun aCancelledRepairKeepsTheServerVersions() {
+        ServerVersions.clearAll()
         runBlocking { credentials.save(pc) }
-        ServerVersions.record(ServerInfo("1.0.0", 1, 1))
+        ServerVersions.record(pc.pcId, ServerInfo("1.0.0", 1, 1))
         runBlocking { records.replace(pc.pcId, pc.copy(token = DeviceToken("fresh")), wanted = { false }) }
-        assertEquals("1.0.0", ServerVersions.current.value?.version)
-        ServerVersions.clear()
+        assertEquals("1.0.0", ServerVersions.of(pc.pcId)?.version)
+        ServerVersions.clearAll()
     }
 }

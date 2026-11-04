@@ -86,6 +86,7 @@ fun SessionsScreen(
     terminalAvailable: Boolean = false,
     onTerminal: () -> Unit = {},
     whatsNew: (@Composable () -> Unit)? = null,
+    pcId: String,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(state.open) {
@@ -104,6 +105,7 @@ fun SessionsScreen(
         terminalAvailable = terminalAvailable,
         onTerminal = onTerminal,
         whatsNew = whatsNew,
+        pcId = pcId,
     )
     SessionSheets(state, remember(viewModel) { ViewModelSheetActions(viewModel) })
 }
@@ -163,6 +165,7 @@ fun SessionsContentView(
     terminalAvailable: Boolean = false,
     onTerminal: () -> Unit = {},
     whatsNew: (@Composable () -> Unit)? = null,
+    pcId: String,
 ) {
     val address = state.address?.hostForUrl.orEmpty()
     val snackbar = remember { SnackbarHostState() }
@@ -185,7 +188,7 @@ fun SessionsContentView(
                 } else {
                     val offline = state.link as? LinkState.Offline
                     offline?.let { OfflineBanner(it, address, state.listedAt, timeText, onRetry) }
-                    CompatibilityBanner()
+                    CompatibilityBanner(pcId)
                     whatsNew?.invoke()
                     ListBody(state, address, bottom.asPaddingValues(), actions)
                 }

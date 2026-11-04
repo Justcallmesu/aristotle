@@ -141,8 +141,14 @@ class LinkManagerTest {
 
     private class FakeNetwork(@Volatile var lan: Boolean, @Volatile var vpn: Boolean = false) : NetworkWatch {
         override val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
+
+        /** The Wi-Fi the phone is on, as [NetworkWatch.localNetworks] reports it. */
+        @Volatile
+        var wifi: Set<Long> = setOf(1)
+
         override fun prefersLan() = lan
         override fun vpnUp() = vpn
+        override fun localNetworks() = wifi
         fun change(preferLan: Boolean) {
             lan = preferLan
             changes.tryEmit(Unit)
@@ -162,6 +168,7 @@ class LinkManagerTest {
         memory: LinkMemory = LinkMemory { _, addresses, lastGood -> remembered += Remembered(addresses, lastGood) },
         readyTimeoutMillis: Long = 2_000,
         supersededRetryMillis: Long = 60_000,
+        clock: () -> Long = { System.currentTimeMillis() + clockAhead },
     ): LinkManager = LinkManager(
         scope = scope,
         credentials = credentials,
@@ -169,7 +176,12 @@ class LinkManagerTest {
         network = network,
         memory = memory,
         timings = LinkTimings(readyTimeoutMillis = readyTimeoutMillis, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff, supersededRetryMillis = supersededRetryMillis),
+        clock = clock,
     ).also { it.start() }
+
+    /** How far the link's clock runs ahead of the real one: moves it past the flap window (TL1e). */
+    @Volatile
+    private var clockAhead = 0L
 
     private fun LinkManager.await(what: String, predicate: (LinkState) -> Boolean): LinkState = runBlocking {
         try {
@@ -340,6 +352,9 @@ class LinkManagerTest {
         val attempts = CopyOnWriteArrayList<Int>()
         scope.launch { manager.state.collect { if (it is LinkState.Offline && !it.trying) attempts += it.attempt } }
         dialer.sockets.last().close(1001, "going_away")
+        manager.await("offline") { it is LinkState.Offline }
+        // TL1e: once that drop is out of the flap window, the relay coming up on the address again resets the count.
+        clockAhead = 6 * 60_000L
         manager.await("back") { it is LinkState.Online && it.generation != first.generation }
         assertEquals(listOf(1, 2, 3, 4, 5), attempts.distinct())
         dialer.sockets.last().close(1001, "going_away")
@@ -635,5 +650,187 @@ class LinkManagerTest {
         runBlocking { delay(200) }
         assertEquals(1, dialer.opened.size)
         assertTrue(manager.state.value is LinkState.Online)
+    }
+
+    // TL1 (Q65) + TL1c MINOR-2: a found address is a one-shot candidate tried beside a working Tailscale relay; it takes
+    // over only once ready, and is stored only then.
+    private val found = ServerEndpoint("192.168.5.20", 8760, Network.Lan)
+
+    @Test
+    fun aFoundLanAddressTakesOverFromTailscaleOnceItIsReady() {
+        val dialer = FakeDialer { endpoint, _ -> if (endpoint == lan) FakeSocket().fail(null) else FakeSocket().ready() }
+        val manager = link(dialer)
+        val before = manager.await("online over Tailscale") { it is LinkState.Online && it.endpoint == tailnet } as LinkState.Online
+        assertTrue("nothing stored yet", remembered.none { found in it.addresses })
+        manager.useFound(found)
+        val after = manager.await("online on the found address") { it is LinkState.Online && it.endpoint == found } as LinkState.Online
+        assertTrue(after.generation > before.generation)
+        assertEquals(listOf(lan, tailnet, found), dialer.opened)
+        waitFor("the Tailscale relay closed") { dialer.sockets[1].closedByPhone }
+        waitFor("stored once connected") { remembered.any { it.lastGood == found } }
+        assertEquals(found, remembered.last { it.lastGood == found }.addresses.first())
+    }
+
+    @Test
+    fun aFoundAddressThatFailsLeavesTheTailscaleLinkAlone() {
+        val dialer = FakeDialer { endpoint, _ ->
+            when (endpoint) {
+                lan -> FakeSocket().fail(null)
+                found -> FakeSocket().fail(null, ConnectionProblem.CertificateChanged) // a relay that serves another cert
+                else -> FakeSocket().ready()
+            }
+        }
+        val manager = link(dialer)
+        val before = manager.await("online over Tailscale") { it is LinkState.Online && it.endpoint == tailnet }
+        manager.useFound(found)
+        waitFor("the candidate was tried") { dialer.opened.size == 3 }
+        waitFor("and closed") { !dialer.sockets[2].active }
+        runBlocking { delay(200) }
+        assertEquals(before, manager.state.value) // same relay, same generation
+        assertTrue(dialer.sockets[1].active)
+        assertTrue("never stored", remembered.none { it.lastGood == found || found in it.addresses })
+    }
+
+    @Test
+    fun theServerSupersedingTailscaleForACandidateThatThenFailsStartsANewRoundNotAStandDown() {
+        lateinit var dialer: FakeDialer
+        dialer = FakeDialer { endpoint, _ ->
+            when (endpoint) {
+                lan -> FakeSocket().fail(null)
+                // Admitted on the LAN listener: the server closes the Tailscale relay (4409), then the candidate fails.
+                found -> FakeSocket(onCollect = { dialer.sockets[1].close(4409, "superseded by a newer connection") })
+                else -> FakeSocket().ready()
+            }
+        }
+        val manager = link(dialer)
+        val before = manager.await("online over Tailscale") { it is LinkState.Online && it.endpoint == tailnet } as LinkState.Online
+        manager.useFound(found)
+        waitFor("the Tailscale relay was superseded") { dialer.opened.size == 3 && !dialer.sockets[1].active }
+        assertEquals("waits for the candidate", before, manager.state.value)
+        dialer.sockets[2].fail(null)
+        val again = manager.await("back on Tailscale") { it is LinkState.Online && it.generation > before.generation } as LinkState.Online
+        assertEquals(tailnet, again.endpoint)
+        assertEquals(listOf(lan, tailnet, found, lan, tailnet), dialer.opened)
+    }
+
+    @Test
+    fun aFoundAddressIsTriedFirstByTheNextRoundStoredOrNot() {
+        val dialer = FakeDialer { endpoint, _ -> if (endpoint == found) FakeSocket().ready() else FakeSocket().fail(null) }
+        val manager = link(dialer)
+        manager.await("offline") { it is LinkState.Offline }
+        manager.useFound(found)
+        manager.await("online on the found address") { it is LinkState.Online && it.endpoint == found }
+        waitFor("stored once connected") { remembered.any { it.lastGood == found && it.addresses.first() == found } }
+    }
+
+    @Test
+    fun aFoundAddressLeavesALanLinkAlone() {
+        credentials.value = CredentialState.Paired(pc.copy(addresses = listOf(lan, found, tailnet)))
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val manager = link(dialer)
+        manager.await("online") { it is LinkState.Online && it.endpoint == lan }
+        manager.useFound(found)
+        runBlocking { delay(300) }
+        assertEquals(listOf(lan), dialer.opened)
+    }
+
+    // TL1e (MINOR-A.1): the candidate fails before the server's 4409 for the Tailscale relay arrives: still a new round.
+    @Test
+    fun aCandidateThatFailsBeforeTheSupersedeArrivesStillStartsANewRound() {
+        val dialer = FakeDialer { endpoint, _ ->
+            when (endpoint) {
+                lan -> FakeSocket().fail(null)
+                found -> FakeSocket().fail(null) // a forwarder that resets right after the upgrade
+                else -> FakeSocket().ready()
+            }
+        }
+        val manager = link(dialer)
+        val before = manager.await("online over Tailscale") { it is LinkState.Online && it.endpoint == tailnet } as LinkState.Online
+        manager.useFound(found)
+        waitFor("the candidate was tried and failed") { dialer.opened.size == 3 && !dialer.sockets[2].active }
+        runBlocking { delay(200) }
+        assertEquals(before, manager.state.value)
+        dialer.sockets[1].close(4409, "superseded by a newer connection") // the server's close arrives late
+        val again = manager.await("back on Tailscale") { it is LinkState.Online && it.generation > before.generation } as LinkState.Online
+        assertEquals(tailnet, again.endpoint)
+        assertEquals(listOf(lan, tailnet, found, lan, tailnet), dialer.opened)
+    }
+
+    // TL1e (NIT): a network change while the candidate is still pending after the 4409 starts the next round at once.
+    @Test
+    fun aNetworkChangeWhileTheCandidateIsPendingDoesNotWaitForIt() {
+        lateinit var dialer: FakeDialer
+        dialer = FakeDialer { endpoint, _ ->
+            when (endpoint) {
+                lan -> FakeSocket().fail(null)
+                found -> FakeSocket(onCollect = { dialer.sockets[1].close(4409, "superseded by a newer connection") }) // never ready
+                else -> FakeSocket().ready()
+            }
+        }
+        val network = FakeNetwork(lan = true)
+        val manager = link(dialer, network, readyTimeoutMillis = 30_000)
+        val before = manager.await("online over Tailscale") { it is LinkState.Online && it.endpoint == tailnet } as LinkState.Online
+        manager.useFound(found)
+        waitFor("the Tailscale relay was superseded") { dialer.opened.size == 3 && !dialer.sockets[1].active }
+        val started = System.nanoTime()
+        network.change(preferLan = true)
+        manager.await("a new round") { it is LinkState.Online && it.generation > before.generation }
+        assertTrue("not after the 30 s ready timeout", (System.nanoTime() - started) / 1_000_000 < 3_000)
+        waitFor("the pending candidate was dropped") { !dialer.sockets[2].active }
+    }
+
+    // TL1e (MINOR-A.2): a LAN address that keeps dropping after gateway.ready goes below Tailscale on that Wi-Fi.
+    @Test
+    fun aLanAddressThatKeepsDroppingAfterReadyIsDemotedBelowTailscale() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val network = FakeNetwork(lan = true)
+        val manager = link(dialer, network)
+        val attempts = CopyOnWriteArrayList<Int>()
+        scope.launch { manager.state.collect { if (it is LinkState.Offline && !it.trying) attempts += it.attempt } }
+        var generation = 0L
+        repeat(3) { i ->
+            val online = manager.await("online on the LAN ${i + 1}") { it is LinkState.Online && it.generation > generation } as LinkState.Online
+            assertEquals(lan, online.endpoint)
+            generation = online.generation
+            dialer.sockets.last().close(1001, "going_away")
+        }
+        val demoted = manager.await("online over Tailscale") { it is LinkState.Online && it.generation > generation } as LinkState.Online
+        assertEquals(tailnet, demoted.endpoint)
+        assertEquals(listOf(lan, lan, lan, tailnet), dialer.opened)
+        assertEquals("the backoff grew instead of resetting on each ready", listOf(1, 2, 3), attempts.distinct())
+
+        network.wifi = setOf(2) // another Wi-Fi: the LAN address goes first again there
+        network.change(preferLan = true)
+        val elsewhere = manager.await("online on the LAN elsewhere") { it is LinkState.Online && it.generation > demoted.generation } as LinkState.Online
+        assertEquals(lan, elsewhere.endpoint)
+
+        network.wifi = setOf(1)
+        network.change(preferLan = true)
+        val back = manager.await("still demoted on the first Wi-Fi") { it is LinkState.Online && it.generation > elsewhere.generation } as LinkState.Online
+        assertEquals(tailnet, back.endpoint)
+
+        clockAhead = 16 * 60_000L // 15 min later the demotion is over
+        network.change(preferLan = true)
+        val restored = manager.await("the LAN first again") { it is LinkState.Online && it.generation > back.generation } as LinkState.Online
+        assertEquals(lan, restored.endpoint)
+    }
+
+    @Test
+    fun flapsAreCountedPerAddressAndWifiWithinTheWindow() {
+        val flaps = LanFlaps(drops = 3, windowMillis = 1_000, demoteMillis = 5_000)
+        val wifi = setOf(1L)
+        flaps.dropped(lan, wifi, 0)
+        flaps.dropped(lan, wifi, 500)
+        flaps.dropped(lan, wifi, 1_200) // the first is out of the window: two in it
+        assertFalse(flaps.demoted(lan, wifi, 1_200))
+        assertTrue(flaps.unsettled(lan, wifi, 1_200))
+        flaps.dropped(lan, wifi, 1_400)
+        assertTrue(flaps.demoted(lan, wifi, 1_400))
+        assertFalse("another Wi-Fi", flaps.demoted(lan, setOf(2L), 1_400))
+        assertEquals(listOf(tailnet, lan), flaps.order(listOf(lan, tailnet), wifi, 1_500))
+        assertFalse("over after the demotion", flaps.demoted(lan, wifi, 6_400))
+        assertFalse(flaps.unsettled(lan, wifi, 6_400))
+        repeat(5) { flaps.dropped(tailnet, wifi, 7_000L + it) }
+        assertFalse("only LAN addresses", flaps.demoted(tailnet, wifi, 7_010))
     }
 }

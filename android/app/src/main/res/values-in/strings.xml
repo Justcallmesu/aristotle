@@ -609,4 +609,27 @@
     <string name="whats_new_open">Lihat yang baru</string>
     <string name="whats_new_dismiss">Tutup</string>
     <string name="whats_new_empty">Tidak ada catatan perubahan di build ini.</string>
+    <string name="settings_find_pc">Cari PC di Wi-Fi ini</string>
+    <string name="settings_find_pc_body">Cari PC ini di Wi-Fi yang sedang dipakai. Hanya PC dengan sidik jari di atas yang diterima.</string>
+    <string name="settings_find_pc_looking">Mencari PC…</string>
+    <string name="settings_find_pc_scanning">Memeriksa setiap alamat di Wi-Fi ini…</string>
+    <string name="settings_find_pc_found">Ditemukan di %1$s</string>
+    <string name="settings_find_pc_not_found">Tidak ditemukan di Wi-Fi ini — coba Tailscale</string>
+    <string name="settings_find_pc_cant_scan">Wi-Fi ini tidak bisa dipindai</string>
+    <!-- TS3: Settings category list summaries (Q72) -->
+    <string name="settings_summary_two">%1$s · %2$s</string>
+    <string name="settings_summary_connected">Terhubung</string>
+    <string name="settings_summary_connecting">Menghubungkan…</string>
+    <string name="settings_summary_offline">Luring</string>
+    <string name="settings_summary_hermes_down">Hermes tidak berjalan</string>
+    <string name="settings_summary_hermes_updated">Hermes diperbarui</string>
+    <string name="settings_summary_stopped">Dihentikan</string>
+    <string name="settings_summary_revoked">Dicabut</string>
+    <string name="settings_summary_wifi">Wi-Fi</string>
+    <string name="settings_summary_notifications_on">Aktif</string>
+    <string name="settings_summary_notifications_off">Nonaktif</string>
+    <string name="settings_summary_notifications_some_off">Sebagian nonaktif</string>
+    <string name="settings_summary_lock_on">Kunci aplikasi aktif · %1$s</string>
+    <string name="settings_summary_lock_off">Kunci aplikasi nonaktif</string>
+    <string name="settings_summary_about">Aristotle %1$s</string>
 </resources>
