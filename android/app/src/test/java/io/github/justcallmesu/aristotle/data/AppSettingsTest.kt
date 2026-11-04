@@ -77,14 +77,6 @@ class AppSettingsTest {
     }
 
     @Test
-    fun textSizeScalesTheAppsTextOnly() {
-        assertEquals(1f, TextSize.Default.scale)
-        assertTrue(TextSize.Small.scale < 1f)
-        assertTrue(TextSize.Large.scale > 1f)
-        assertEquals(listOf(TextSize.Small, TextSize.Default, TextSize.Large), TextSize.entries.sortedBy { it.scale })
-    }
-
-    @Test
     fun languageTagsAndLocaleCodesMap() {
         assertNull(AppLanguage.System.tag)
         assertEquals("en", AppLanguage.English.tag)

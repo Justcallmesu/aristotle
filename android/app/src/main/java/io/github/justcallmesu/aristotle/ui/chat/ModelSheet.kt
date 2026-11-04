@@ -144,7 +144,6 @@ private fun ReasoningChoices(choices: List<String>, chat: ChatState, enabled: Bo
                     onClick = { if (level != current) onPick(level) },
                     enabled = enabled,
                     label = { Text(reasoningLabel(level)) },
-                    modifier = Modifier.heightIn(min = Sizes.minTouchTarget),
                 )
             }
         }

@@ -131,6 +131,11 @@ Rules that hold everywhere:
 | Q63 | Semantic versions (1.0.0) for app and server, shown in About; the app warns when the server's protocol version is too old or too new. | User 2026-11-04. TV1. |
 | Q64 | Change log: `CHANGELOG.md` in the repo (Keep a Changelog style) + an in-app "What's new" shown once after an update (and from About). | User 2026-11-04. TV2. |
 | Q65 | LAN auto-discovery: aristotle-server announces itself on the Wi-Fi (mDNS/DNS-SD); the phone discovers it on a network change and connects only if the pinned certificate fingerprint matches. Fallback: a manual "Find PC on this Wi-Fi" button that probes port 8760 on the local /24 (never automatic, to avoid looking like a scan on office networks). Tailscale stays the last fallback. | User "A+B is good" 2026-11-04. TL1. |
+| Q66 | (PM, technical — audit D1) Bundle Atkinson Hyperlegible Next + Mono (OFL) in the app; Literata stays downloadable. The Play-services font provider does not deliver the 2025 Atkinson families (device shows the system font). Replaces design.md "do not bundle fonts in v1". OFL notice goes in D45 licences. | PM 2026-11-04, from TU1 audit G1. |
+| Q67 | (PM, technical — audit D2) Visible controls keep Material sizes (40dp buttons); the 48dp touch area comes from Material's minimum interactive size, not `heightIn(48)`. Chat rhythm: 4dp between consecutive tool/reasoning items, 12dp between a message and them, 20dp before a user bubble. | PM 2026-11-04. |
+| Q68 | Chat: 3+ consecutive tool calls fold into one card "N tool calls · last: <name>" (tap to expand); long paths shortened to the part that differs. | User 2026-11-04 (audit D3). |
+| Q69 | Busy composer: Stop always visible; Queue / Steer only when the field has text. | User 2026-11-04 (audit D4). |
+| Q70 | Session-list top bar: wordmark · profile chip · search · ⋮ menu (Scheduled, Terminal, Settings), as the mockup. | User 2026-11-04 (audit D5). |
 
 ## 4. Risks
 

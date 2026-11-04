@@ -237,7 +237,7 @@ internal fun SubagentPage(child: Subagent, page: SubagentPageState, live: Boolea
                     enabled = live && page.shown?.armed == true && !page.stopping,
                     shape = ButtonShape,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.xs).heightIn(min = Sizes.minTouchTarget),
+                    modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.xs),
                 ) {
                     Icon(painter = painterResource(R.drawable.ic_stop), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon))
                     Text(text = stringResource(R.string.subagent_stop), modifier = Modifier.padding(start = Spacing.s))

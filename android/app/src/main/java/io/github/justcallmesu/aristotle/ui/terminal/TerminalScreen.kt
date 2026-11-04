@@ -176,7 +176,7 @@ private fun TerminalTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        TextButton(onClick = onClose, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        TextButton(onClick = onClose, shape = ButtonShape) {
             Text(stringResource(R.string.terminal_close))
         }
         Box {
@@ -235,7 +235,7 @@ private fun EndPanel(title: String, body: String?, onReopen: (() -> Unit)?) {
                 Text(text = title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 if (body != null) Text(text = body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                 if (onReopen != null) {
-                    Button(onClick = onReopen, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+                    Button(onClick = onReopen, shape = ButtonShape) {
                         Text(stringResource(R.string.terminal_reopen))
                     }
                 }

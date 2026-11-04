@@ -204,7 +204,7 @@ private fun ApprovalBody(prompt: Prompt.Approval, confirming: Boolean, busy: Boo
                 enabled = !busy,
                 shape = ButtonShape,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget),
+                modifier = Modifier.weight(1f),
             ) { Text(stringResource(R.string.prompt_deny)) }
         }
         if (ApprovalChoice.Once in offers) {
@@ -212,7 +212,7 @@ private fun ApprovalBody(prompt: Prompt.Approval, confirming: Boolean, busy: Boo
                 onClick = { actions.choose(prompt.key, ApprovalChoice.Once) },
                 enabled = !busy,
                 shape = ButtonShape,
-                modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget),
+                modifier = Modifier.weight(1f),
             ) { Text(stringResource(R.string.prompt_allow_once)) }
         }
     }
@@ -282,7 +282,7 @@ private fun ClarifyBody(prompt: Prompt.Clarify, busy: Boolean, armed: Boolean, a
     val answers = open.associate { it.qid to (drafts[it.qid] ?: Draft()).answer(it) }
     val ready = open.any { answers[it.qid]?.wire(it) != null }
     Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.s), horizontalArrangement = Arrangement.End) {
-        Button(onClick = { actions.answerClarify(prompt.key, answers) }, enabled = ready && !busy && armed, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        Button(onClick = { actions.answerClarify(prompt.key, answers) }, enabled = ready && !busy && armed, shape = ButtonShape) {
             Text(stringResource(R.string.prompt_answer))
         }
     }
@@ -373,13 +373,13 @@ private fun SecretBody(prompt: Prompt.Secret, busy: Boolean, armed: Boolean, act
             onClick = { actions.declineSecret(prompt.key, field) },
             enabled = !busy && armed,
             shape = ButtonShape,
-            modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget),
+            modifier = Modifier.weight(1f),
         ) { Text(stringResource(R.string.prompt_cancel)) }
         Button(
             onClick = { actions.answerSecret(prompt.key, field) },
             enabled = !busy && armed && !field.isEmpty,
             shape = ButtonShape,
-            modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget),
+            modifier = Modifier.weight(1f),
         ) { Text(stringResource(R.string.prompt_send)) }
     }
 }

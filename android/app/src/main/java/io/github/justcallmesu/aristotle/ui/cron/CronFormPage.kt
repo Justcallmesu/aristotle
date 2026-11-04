@@ -119,7 +119,7 @@ fun CronFormPage(form: CronForm, online: Boolean, armed: Boolean, locale: Locale
                 onClick = actions::create,
                 enabled = online && armed && form.complete && !form.sending,
                 shape = ButtonShape,
-                modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.minTouchTarget),
+                modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(if (form.sending) R.string.cron_form_creating else R.string.cron_form_create)) }
         }
     }
@@ -188,7 +188,7 @@ private fun TimeChoice(plan: SchedulePlan, enabled: Boolean, locale: Locale, onP
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Label(stringResource(R.string.cron_form_time))
         Box {
-            OutlinedButton(onClick = { open = true }, enabled = enabled, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+            OutlinedButton(onClick = { open = true }, enabled = enabled, shape = ButtonShape) {
                 Text(CronTimes.clock(plan.hour, plan.minute, locale), style = AristotleTextStyles.tabular(MaterialTheme.typography.labelLarge))
                 Icon(painter = painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null)
             }
@@ -217,7 +217,6 @@ private fun <T> Chips(options: List<T>, selected: T, enabled: Boolean, label: @C
                 enabled = enabled,
                 label = { Text(label(option)) },
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.heightIn(min = Sizes.minTouchTarget),
             )
         }
     }

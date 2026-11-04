@@ -73,10 +73,11 @@ in light mode instead of `error` text.
 - **Atkinson Hyperlegible Mono**: commands, tool output, pairing code, fingerprint, close-code details.
 - Slashed zero is accepted. Times/durations: `fontFeatureSettings = "tnum"`.
 
-Loading: Compose downloadable fonts, `GoogleFont.Provider("com.google.android.gms.fonts", "com.google.android.gms",
-R.array.com_google_android_gms_fonts_certs)`, one `FontFamily` per face with weights 400/500/600 (Literata also 500/600).
-Fallback chain in each `FontFamily`: `FontFamily.Serif` (Literata), `SansSerif` (Atkinson), `Monospace` (Mono), so a device
-without Play services still renders. Do not bundle font files in v1.
+Loading (Q66): Atkinson Hyperlegible Next and Mono are **bundled** (OFL, `docs/licences/OFL.txt`) as static `res/font`
+TTFs 400/500/600, from the upstream `googlefonts/atkinson-hyperlegible-next(-mono)` repos; the Play-services provider does
+not serve them. Literata stays a Compose downloadable font, `GoogleFont.Provider("com.google.android.gms.fonts",
+"com.google.android.gms", R.array.com_google_android_gms_fonts_certs)`, weights 400/500/600. Each `FontFamily` ends in a
+device fallback: `serif` (Literata), `sans-serif` (Atkinson), `monospace` (Mono). Debug builds log font load failures.
 
 | Slot | Font | Size / line (sp) | Weight | Use |
 |---|---|---|---|---|
@@ -116,9 +117,16 @@ Nested rounded blocks within 8 dp of the container edge: inner radius = outer �
 
 ## 4. Spacing, elevation, motion
 
-**Spacing** (4 dp grid): 4, 8, 12, 16, 20, 24, 32. Gutters 16 dp (lists, chat), 20–24 dp (forms, sheets). Related items 8,
-groups 16–20. Touch targets ≥ 48 dp even when the visible control is 32–40 dp. Row heights: session row 72, list/choice row 56,
-tool card header ≥ 48.
+**Spacing** (4 dp grid): 4, 8, 12, 16, 20, 24, 32 (2 dp only between Markdown list items). Gutters 16 dp (lists, chat),
+20–24 dp (forms, sheets). Related items 8, groups 16–20. Row heights: session row 72, list/choice row 56, tool card header
+48 including its padding, reasoning row 32 visible.
+
+**Controls (Q67)**: touch targets are ≥ 48 dp and come from Material's `minimumInteractiveComponentSize`; never stretch the
+visible control with `heightIn(48)`. Visible sizes stay Material's: buttons 40, chips 32.
+
+**Chat rhythm (Q67)**: the gap above a transcript item depends on the item before it: 4 dp between consecutive work items
+(tool / reasoning / notice, `Spacing.chatWorkGap`), 12 dp between a message and work (`chatMessageGap`), 20 dp before a user
+bubble (`chatTurnGap`).
 
 **Elevation**: tonal only. Lists/chat = `surface`; cards and sheets = `surfaceContainerLow`; composer = `surfaceContainer`;
 banners and code = `surfaceContainerHighest`. Shadows only on the extended FAB (level 3) and `ModalBottomSheet` (default).
@@ -198,6 +206,8 @@ Direction: **concept B, hand on chin, line art** (`docs/design/icon-concepts.htm
 TD1 rated B weak at 48 dp (fist reads as a blob, thin line fades on dark launchers). **T20 must simplify it** (heavier
 stroke, fewer interior lines, larger fist, silhouette first) until it reads at 48 dp on the Poco home screen; supply
 adaptive foreground (safe zone 66 dp of 108) + monochrome layer. The user approves on device.
+
+Icons: Material Symbols Outlined, weight 400, 24 dp, everywhere in the UI (launcher/notification icons excepted). (TU2)
 
 ## 7. Do not
 

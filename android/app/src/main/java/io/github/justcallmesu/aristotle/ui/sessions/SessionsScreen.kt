@@ -508,7 +508,7 @@ private fun RowTimeText(time: RowTime, staleAt: String?) {
 private fun HistoryFooter(end: HistoryEnd, loadMore: () -> Unit, retry: () -> Unit) {
     when (end) {
         HistoryEnd.More -> Box(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.s, vertical = Spacing.s)) {
-            TextButton(onClick = loadMore, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+            TextButton(onClick = loadMore, shape = ButtonShape) {
                 Text(stringResource(R.string.sessions_load_more))
             }
         }
@@ -524,7 +524,7 @@ private fun HistoryFooter(end: HistoryEnd, loadMore: () -> Unit, retry: () -> Un
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f).padding(vertical = Spacing.l),
             )
-            TextButton(onClick = retry, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+            TextButton(onClick = retry, shape = ButtonShape) {
                 Text(stringResource(R.string.sessions_history_retry))
             }
         }

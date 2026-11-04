@@ -20,11 +20,8 @@ enum class ThemeChoice(val key: String) {
     }
 }
 
-/**
- * The app's text size (Q60): a factor on the app's own `sp` text, on top of the phone's font scale (which the app still
- * honours and never changes). Small goes under design.md's 11 sp floor only because the user asked for smaller text.
- */
-enum class TextSize(val key: String, val scale: Float) { Small("small", 0.9f), Default("default", 1f), Large("large", 1.15f) }
+/** The app's text size (Q60). Only the choice lives here; AristotleTheme turns it into type sizes (11 sp floor kept). */
+enum class TextSize(val key: String) { Small("small"), Default("default"), Large("large") }
 
 /**
  * The app's language (Q60): the phone's, or English / Indonesian whatever the phone uses. [tag] is the BCP 47 tag

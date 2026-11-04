@@ -66,7 +66,11 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TV1 | Versioning (Q63): semver for app (versionName/Code) and server (build-time ldflags), protocol version in /healthz + /v1/me, compatibility warning in the app, About shows both | T19c | server, android | TODO |
 | TV2 | Change log (Q64): CHANGELOG.md for v1.0.0 from the board history; in-app "What's new" once after update + under About | TV1 | docs, android | TODO |
 | TQ2 | Quote while a chat loads (Q59) | TQ1 | android | TODO |
-| TU1 | UI refinement: design audit of every screen from real Poco screenshots (needs the phone) -> TU tickets | TS2, TQ2 | android | AUDITING (screenshots captured) |
+| TU1 | UI refinement: design audit of every screen from real Poco screenshots (needs the phone) -> TU tickets | TS2, TQ2 | android | DONE (runs/TU1/audit.md: 26 findings) |
+| TU2 | Fonts bundled (Q66), icon set unified, Spacing/Type tokens, 40dp controls (Q67) — then re-capture screens | TU1 | android | DONE |
+| TU3 | Session list top bar (Q70) + Scheduled + sub-page top bars | TU2 | android | BUILDING |
+| TU4 | Chat transcript: rhythm (Q67), tool-call folding + path shortening (Q68), markdown spacing, tables, stable top bar | TU2 | android | BUILDING |
+| TU5 | Composer (Q69) + slash menu + model sheet + attach menu + prompt sheet | TU2 | android | BUILDING |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | DONE (user approved on device 2026-11-04) |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
@@ -345,3 +349,5 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TU1: 12 device screenshots captured with the focus-guarded driver (nothing sent; composer cleared). Deep design audit dispatched -> runs/TU1/audit.md -> TU2.. tickets.
 - 2026-11-04 TS1 built (639 tests). PM gate GREEN runs/pm-gate-39; mutation (unpair keeps credentials) fails 1. PM updated design.md §1 for Q60 (forced theme) + 11 sp floor under Small text (PM technical). Deep review dispatched.
 - 2026-11-04 TS1 review PASS-WITH-FINDINGS (re-pair atomic, unpair clears all, no loops). Committed. Minors -> TS1b, folded into TS2's run (same files: AppSettings, PcRecords).
+- 2026-11-04 TU1 audit in (3 HIGH, 12 MED, 11 LOW). User answered D3-D5 (Q68-Q70); PM took D1/D2 (Q66/Q67). TU2 dispatched first (tokens/fonts), then TU3/TU4/TU5 in parallel, then re-capture.
+- 2026-11-04 TU2 PM gate GREEN runs/pm-gate-40; installed: device screenshot confirms Atkinson now renders (heavier strokes, slashed zero in 100.74.61.96) — audit G1 fixed. Committed. TU3/TU4/TU5 dispatched in parallel (disjoint files per audit).

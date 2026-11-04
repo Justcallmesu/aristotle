@@ -206,7 +206,6 @@ private fun SendButton(enabled: Boolean, command: Boolean, onClick: () -> Unit) 
         enabled = enabled,
         shape = ButtonShape,
         contentPadding = ButtonDefaults.ContentPadding,
-        modifier = Modifier.heightIn(min = Sizes.minTouchTarget),
     ) {
         Icon(painter = painterResource(R.drawable.ic_send), contentDescription = stringResource(if (command) R.string.composer_run else R.string.composer_send), modifier = Modifier.size(Sizes.chipIcon))
     }
@@ -226,19 +225,18 @@ private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, 
             enabled = busy && !state.stopping,
             shape = ButtonShape,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            modifier = Modifier.heightIn(min = Sizes.minTouchTarget),
         ) {
             Icon(painter = painterResource(R.drawable.ic_stop), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon))
             Spacer(Modifier.size(Spacing.s))
             Text(stringResource(R.string.composer_stop))
         }
         Spacer(Modifier.weight(1f))
-        FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape) {
             Text(stringResource(R.string.composer_queue))
         }
         // A steer carries words only: with attachments the message is queued (T16).
         val steerable = hasText && !state.blocked && !command && state.attachments.isEmpty()
-        Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape, modifier = Modifier.heightIn(min = Sizes.minTouchTarget)) {
+        Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape) {
             Text(stringResource(R.string.composer_steer))
         }
     }

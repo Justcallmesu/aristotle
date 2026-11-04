@@ -247,7 +247,7 @@ private fun JobPage(job: CronJob, state: CronUiState, locale: Locale, vm: CronVi
                 enabled = state.online && !state.unscoped && !busy && CronArm.deleteKey(job.id) in state.armed,
                 shape = ButtonShape,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.l).heightIn(min = Sizes.minTouchTarget),
+                modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.l),
             ) { Text(stringResource(R.string.cron_delete)) }
         }
     }

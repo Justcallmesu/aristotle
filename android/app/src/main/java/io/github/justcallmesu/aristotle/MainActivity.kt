@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
             val textSize by container.settings.textSize.collectAsStateWithLifecycle()
             val dark = theme.isDark(isSystemInDarkTheme())
             LaunchedEffect(theme, dark) { followTheme(theme, dark) }
-            AristotleTheme(darkTheme = dark, textScale = textSize.scale) {
+            AristotleTheme(darkTheme = dark, textSize = textSize) {
                 AristotleApp(container = container, defaultDeviceName = deviceName)
             }
         }
