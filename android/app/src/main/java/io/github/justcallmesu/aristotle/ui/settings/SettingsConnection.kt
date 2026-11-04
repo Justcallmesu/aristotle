@@ -1,6 +1,7 @@
 package io.github.justcallmesu.aristotle.ui.settings
 
 import android.text.format.DateFormat
+import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -19,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
@@ -26,6 +30,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.AddressSource
 import io.github.justcallmesu.aristotle.data.FindPhase
 import io.github.justcallmesu.aristotle.data.FindState
 import io.github.justcallmesu.aristotle.data.LinkState
@@ -40,21 +45,27 @@ import java.util.Date
 
 /**
  * Connection & PCs (Q60): the paired PC (named by its address: the protocol has no PC name), the link now, the pinned
- * fingerprint as on pairing, every stored address, "Find PC on this Wi-Fi" (Q65), the background link switch, then
- * Pair again and Unpair.
+ * fingerprint as on pairing, the saved addresses with where each came from, when it last worked and a delete (Q73), the
+ * connection history, "Find PC on this Wi-Fi" (Q65), the background link switch, then Pair again and Unpair. The top
+ * bar names the page; no header repeats it (TS3).
  */
 @Composable
-internal fun ConnectionSection(viewModel: SettingsViewModel, pc: PcCredentials, onRepair: () -> Unit) {
+internal fun ConnectionSection(viewModel: SettingsViewModel, pc: PcCredentials, onRepair: () -> Unit, onHistory: () -> Unit) {
     val link by viewModel.link.collectAsStateWithLifecycle()
     val keepConnected by viewModel.keepConnected.collectAsStateWithLifecycle()
     val find by viewModel.find.collectAsStateWithLifecycle()
-    SectionHeader(stringResource(R.string.settings_section_connection))
+    val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
     SettingRow(title = ConnectionRows.pcLabel(pc), body = linkStatus(link))
     FingerprintBlock(pc)
-    SubHeader(stringResource(R.string.settings_addresses))
-    ConnectionRows.addresses(pc, link).forEach { row ->
-        SettingRow(title = row.endpoint.displayAddress, body = addressLine(row))
-    }
+    SubHeader(stringResource(R.string.settings_saved_addresses))
+    val rows = ConnectionRows.addresses(pc, link)
+    val now = System.currentTimeMillis()
+    rows.forEach { row -> SavedAddressRow(row, now, onDelete = { viewModel.askDelete(row.endpoint) }) }
+    SettingRow(
+        title = stringResource(R.string.settings_history),
+        body = stringResource(R.string.settings_history_body),
+        modifier = Modifier.clickable(onClick = onHistory),
+    )
     FindPcRow(find, onFind = viewModel::findPc)
     SwitchRow(
         title = stringResource(R.string.settings_keep_connected),
@@ -71,6 +82,62 @@ internal fun ConnectionSection(viewModel: SettingsViewModel, pc: PcCredentials, 
         title = stringResource(R.string.settings_unpair),
         body = stringResource(R.string.settings_unpair_body),
         modifier = Modifier.clickable { viewModel.show(SettingsSheet.Unpair) },
+    )
+    rows.firstOrNull { it.endpoint == pendingDelete }?.let { row ->
+        DeleteAddressDialog(row, onConfirm = viewModel::confirmDelete, onDismiss = viewModel::cancelDelete)
+    }
+}
+
+/** One saved address (Q73): the delete is disabled, with the reason in the line, when it is the only one. */
+@Composable
+private fun SavedAddressRow(row: AddressRow, now: Long, onDelete: () -> Unit) {
+    val address = row.endpoint.displayAddress
+    SettingRow(
+        title = address,
+        body = addressLine(row, now),
+        trailing = {
+            IconButton(onClick = onDelete, enabled = row.deletable) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(R.string.settings_address_delete, address),
+                )
+            }
+        },
+    )
+}
+
+/**
+ * Delete confirmation (design.md §5, as Unpair): what goes, whether the PC's list may bring it back (remembered only when
+ * another address of its kind stays, until unpaired), and, for the address in use, that the link moves at once.
+ */
+@Composable
+private fun DeleteAddressDialog(row: AddressRow, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_address_delete_title)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(
+                        if (row.remembered) R.string.settings_address_delete_remembered else R.string.settings_address_delete_may_return,
+                        row.endpoint.displayAddress,
+                    ),
+                )
+                if (row.inUse) {
+                    Spacer(Modifier.height(Spacing.m))
+                    Text(stringResource(R.string.settings_address_delete_in_use))
+                }
+            }
+        },
+        confirmButton = {
+            OutlinedButton(
+                onClick = onConfirm,
+                shape = ButtonShape,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(R.string.settings_address_delete_confirm)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, shape = ButtonShape) { Text(stringResource(R.string.settings_cancel)) } },
+        shape = MaterialTheme.shapes.extraLarge,
     )
 }
 
@@ -133,16 +200,42 @@ private fun SubHeader(text: String) {
     )
 }
 
-/** "Wi-Fi (LAN) · worked last · in use now": text only, no colour (verdigris is for live work). */
+/**
+ * "Wi-Fi (LAN) · typed · worked 5 minutes ago · worked last · in use now": text only, no colour (verdigris is for live
+ * work).
+ */
 @Composable
-private fun addressLine(row: AddressRow): String {
+private fun addressLine(row: AddressRow, now: Long): String {
     val parts = buildList {
         add(stringResource(if (row.endpoint.network == Network.Lan) R.string.settings_address_lan else R.string.settings_address_tailscale))
+        add(sourceLabel(row.source))
+        when (ConnectionRows.workedAgo(row.lastSuccessAt, now)) {
+            ConnectionRows.Worked.JustNow -> add(stringResource(R.string.settings_address_worked_now))
+            ConnectionRows.Worked.Ago -> add(
+                stringResource(
+                    R.string.settings_address_worked,
+                    DateUtils.getRelativeTimeSpanString(row.lastSuccessAt ?: now, now, DateUtils.MINUTE_IN_MILLIS).toString(),
+                ),
+            )
+            null -> Unit
+        }
         if (row.lastWorked) add(stringResource(R.string.settings_address_last_worked))
         if (row.inUse) add(stringResource(R.string.settings_address_in_use))
+        if (!row.deletable) add(stringResource(R.string.settings_address_only_one))
     }
     return parts.joinToString(" · ")
 }
+
+@Composable
+internal fun sourceLabel(source: AddressSource): String = stringResource(
+    when (source) {
+        AddressSource.Typed -> R.string.settings_address_source_typed
+        AddressSource.Pairing -> R.string.settings_address_source_pairing
+        AddressSource.ServerList -> R.string.settings_address_source_server
+        AddressSource.FoundOnWifi -> R.string.settings_address_source_found
+        AddressSource.Earlier -> R.string.settings_address_source_earlier
+    },
+)
 
 @Composable
 private fun linkStatus(link: LinkState): String = when (link) {

@@ -28,6 +28,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -165,7 +166,7 @@ class LinkManagerTest {
         network: FakeNetwork = FakeNetwork(lan = true),
         backoff: Backoff = Backoff(baseMillis = 40, capMillis = 200, random = { 1.0 }),
         credentials: StateFlow<CredentialState> = this.credentials,
-        memory: LinkMemory = LinkMemory { _, addresses, lastGood -> remembered += Remembered(addresses, lastGood) },
+        memory: LinkMemory = LinkMemory { _, addresses, lastGood, _ -> remembered += Remembered(addresses, lastGood) },
         readyTimeoutMillis: Long = 2_000,
         supersededRetryMillis: Long = 60_000,
         clock: () -> Long = { System.currentTimeMillis() + clockAhead },
@@ -177,7 +178,11 @@ class LinkManagerTest {
         memory = memory,
         timings = LinkTimings(readyTimeoutMillis = readyTimeoutMillis, hermesDownRetryMillis = 150, rpcTimeoutMillis = 2_000, backoff = backoff, supersededRetryMillis = supersededRetryMillis),
         clock = clock,
+        history = { recorded += it },
     ).also { it.start() }
+
+    /** What the link told the connection history (Q73). */
+    private val recorded = CopyOnWriteArrayList<ConnectionEvent>()
 
     /** How far the link's clock runs ahead of the real one: moves it past the flap window (TL1e). */
     @Volatile
@@ -453,7 +458,7 @@ class LinkManagerTest {
                 credentials = credentials,
                 dialer = dialer,
                 network = network,
-                memory = { _, _, _ -> },
+                memory = { _, _, _, _ -> },
                 timings = LinkTimings(readyTimeoutMillis = 2_000, rpcTimeoutMillis = 2_000, backoff = Backoff(baseMillis = 40, capMillis = 200, random = { 1.0 })),
             ).also { it.start() }
             val online = manager.await("online") { it is LinkState.Online } as LinkState.Online
@@ -532,7 +537,7 @@ class LinkManagerTest {
     fun aFailingStoreNeitherCrashesNorEndsTheLink() {
         val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
         dialer.list = listOf(lan, tailnet, ServerEndpoint("10.0.0.2", 8760, Network.Lan))
-        val manager = link(dialer, memory = { _, _, _ -> throw IllegalStateException("disk full") })
+        val manager = link(dialer, memory = { _, _, _, _ -> throw IllegalStateException("disk full") })
         val first = manager.await("online") { it is LinkState.Online } as LinkState.Online
         runBlocking { delay(200) }
         assertEquals(first, manager.state.value)
@@ -798,6 +803,7 @@ class LinkManagerTest {
         assertEquals(tailnet, demoted.endpoint)
         assertEquals(listOf(lan, lan, lan, tailnet), dialer.opened)
         assertEquals("the backoff grew instead of resetting on each ready", listOf(1, 2, 3), attempts.distinct())
+        assertEquals("one history line for the demotion (Q73)", 1, recorded.count { it == ConnectionEvent.Demoted(lan) })
 
         network.wifi = setOf(2) // another Wi-Fi: the LAN address goes first again there
         network.change(preferLan = true)
@@ -832,5 +838,63 @@ class LinkManagerTest {
         assertFalse(flaps.unsettled(lan, wifi, 6_400))
         repeat(5) { flaps.dropped(tailnet, wifi, 7_000L + it) }
         assertFalse("only LAN addresses", flaps.demoted(tailnet, wifi, 7_010))
+    }
+
+    // Q73: the history gets one line per connect, a switch names both addresses, and an offline stretch is told once.
+    @Test
+    fun theHistoryTellsConnectsSwitchesAndEachOfflineStretchOnce() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val network = FakeNetwork(lan = true)
+        val manager = link(dialer, network)
+        val first = manager.await("online on the LAN") { it is LinkState.Online } as LinkState.Online
+        network.change(preferLan = false)
+        manager.await("over Tailscale") { it is LinkState.Online && it.generation > first.generation }
+        waitFor("two lines") { recorded.size == 2 }
+        assertEquals(listOf(ConnectionEvent.Connected(lan), ConnectionEvent.Switched(lan, tailnet)), recorded.toList())
+        stopLinks()
+
+        recorded.clear()
+        val down = FakeDialer { _, _ -> FakeSocket().fail(null) }
+        val offline = link(down)
+        offline.await("third try") { it is LinkState.Offline && it.attempt >= 3 }
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Offline(OfflineReason.PcUnreachable)), recorded.toList())
+    }
+
+    // Q73: deleting the address in use moves the link to another one at once: a switch, never the 4409 stand-down.
+    @Test
+    fun deletingTheAddressInUseReconnectsThroughAnotherAtOnce() {
+        val dialer = FakeDialer { _, _ -> FakeSocket().ready() }
+        val manager = link(dialer, supersededRetryMillis = 60_000)
+        val online = manager.await("online on the LAN") { it is LinkState.Online } as LinkState.Online
+        assertEquals(lan, online.endpoint)
+        val started = System.nanoTime()
+        credentials.value = CredentialState.Paired(pc.copy(addresses = listOf(tailnet))) // the store has it gone first
+        manager.addressRemoved(lan)
+        val moved = manager.await("online elsewhere") { it is LinkState.Online && it.generation > online.generation } as LinkState.Online
+        assertEquals(tailnet, moved.endpoint)
+        assertTrue("at once", (System.nanoTime() - started) / 1_000_000 < 3_000)
+        assertEquals(listOf(lan, tailnet), dialer.opened)
+        waitFor("the old relay was closed") { !dialer.sockets[0].active }
+        assertTrue(recorded.none { it is ConnectionEvent.Offline })
+        manager.addressRemoved(ServerEndpoint("10.9.9.9", 8760, Network.Lan)) // not in use: the relay stays
+        runBlocking { delay(200) }
+        assertEquals(moved, manager.state.value)
+    }
+
+    @Test
+    fun eachRoundEndHasItsHistoryReason() {
+        assertEquals(OfflineReason.Revoked, LinkHistory.reasonOf(RoundEnd.Revoked))
+        assertEquals(OfflineReason.HermesNotRunning, LinkHistory.reasonOf(RoundEnd.HermesDown("close 4503 hermes_not_running")))
+        assertEquals(OfflineReason.Superseded, LinkHistory.reasonOf(RoundEnd.Superseded("close 4409", lan)))
+        assertEquals(OfflineReason.TailscaleMayBeOff, LinkHistory.reasonOf(RoundEnd.Lost(OfflineCause.TailscaleMayBeOff, "x", null)))
+        assertNull("a switch is not offline", LinkHistory.reasonOf(RoundEnd.Switch))
+    }
+
+    @Test
+    fun theDropThatDemotesSaysSo() {
+        val flaps = LanFlaps(drops = 2, windowMillis = 1_000, demoteMillis = 5_000)
+        assertFalse(flaps.dropped(lan, setOf(1L), 0))
+        assertTrue(flaps.dropped(lan, setOf(1L), 10))
+        assertFalse(flaps.dropped(tailnet, setOf(1L), 20))
     }
 }

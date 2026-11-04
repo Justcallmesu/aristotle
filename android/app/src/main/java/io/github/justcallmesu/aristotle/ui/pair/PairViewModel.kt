@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.AddressCheck
 import io.github.justcallmesu.aristotle.data.AddressError
+import io.github.justcallmesu.aristotle.data.AddressInfo
+import io.github.justcallmesu.aristotle.data.AddressSource
 import io.github.justcallmesu.aristotle.data.CertificateSource
 import io.github.justcallmesu.aristotle.data.ConnectionProblem
 import io.github.justcallmesu.aristotle.data.CredentialStore
@@ -105,6 +107,7 @@ class PairViewModel(
     defaultDeviceName: String,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     private val savePairing: suspend (PcCredentials, wanted: () -> Boolean) -> Boolean = { paired, wanted -> credentials.save(paired, commitIf = wanted) },
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel(scope) {
     private val state = MutableStateFlow(PairUiState(deviceName = defaultDeviceName.take(MAX_NAME)))
     val uiState: StateFlow<PairUiState> = state.asStateFlow()
@@ -235,18 +238,24 @@ class PairViewModel(
     private suspend fun onPairResult(step: PairStep.Confirmed, endpoint: ServerEndpoint, result: PairResult) {
         when (result) {
             // The address that paired first (it just worked, T09), then every address the PC reported, then
-            // the rest of a scanned list.
-            is PairResult.Paired -> store(
-                PcCredentials(
-                    pcId = result.deviceId,
-                    deviceId = result.deviceId,
-                    addresses = PcAddresses.merge(listOf(endpoint) + result.addresses, step.endpoints, keep = listOf(endpoint)),
-                    fingerprint = Fingerprint.format(step.fingerprint),
-                    token = result.token,
-                    lastGood = endpoint,
-                    typed = endpoint,
-                ),
-            )
+            // the rest of a scanned list. Q73: the typed one is "typed", the rest came with the pairing.
+            is PairResult.Paired -> {
+                val addresses = PcAddresses.merge(listOf(endpoint) + result.addresses, step.endpoints, keep = listOf(endpoint))
+                val info = addresses.associateWith { AddressInfo(AddressSource.Pairing) } +
+                    (endpoint to AddressInfo(if (step.scanned) AddressSource.Pairing else AddressSource.Typed, lastSuccessAt = clock()))
+                store(
+                    PcCredentials(
+                        pcId = result.deviceId,
+                        deviceId = result.deviceId,
+                        addresses = addresses,
+                        fingerprint = Fingerprint.format(step.fingerprint),
+                        token = result.token,
+                        lastGood = endpoint,
+                        typed = endpoint,
+                        addressInfo = info,
+                    ),
+                )
+            }
             PairResult.InvalidCode -> state.update { it.copy(busy = false, codeError = CodeFieldError.Invalid) }
             PairResult.Forbidden -> backToEntry(addressError = AddressFieldError.NotAllowed)
             PairResult.ServerError -> state.update { it.copy(busy = false, message = PairMessage.ServerError) }

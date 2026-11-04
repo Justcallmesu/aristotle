@@ -997,9 +997,11 @@ matches the one it stored at pairing; a matching announcement alone proves nothi
   VPN, or cellular beside a Wi-Fi without internet). Android refuses that bind to every app under a VPN that does not
   allow bypass (Tailscale), whatever the VPN's routes. *Unbound* then, only when the default network is a VPN over Wi-Fi
   alone (no cellular or Ethernet transport) whose IPv4 routes (`LinkProperties.getRoutes`, longest prefix wins; from API
-  33 RTN_THROW/RTN_UNREACHABLE are excluded routes; no IPv4 route at all = cannot tell) take none of the Wi-Fi's network
-  address, broadcast and first host: plain sockets then leave on the Wi-Fi, as the relay's do. Each unbound probe and
-  check goes only to a host on the Wi-Fi's subnet that no VPN route takes, and names are never resolved. *Unavailable*
+  33 RTN_THROW is an excluded route and RTN_UNREACHABLE a covering one; no IPv4 route at all = cannot tell) take none of
+  the Wi-Fi's network address, broadcast and first host: plain sockets then leave on the Wi-Fi, as the relay's do. Each
+  unbound probe and check goes only to a host on the Wi-Fi's subnet that no VPN route takes (the routes are read again
+  before each target), and names are never resolved; each unbound socket, once connected and before any TLS byte, must
+  have the Wi-Fi's own address as its local address, else it is closed and that target skipped (TH1). *Unavailable*
   otherwise (no Wi-Fi; a refused bind under a full tunnel, an exit node without "Allow LAN access", a subnet route over
   this LAN, a VPN over cellular, or no VPN): nothing is sent, auto-find skips and Settings shows "Can't scan this Wi-Fi".
   The mode (`bound`, `unbound-vpn-no-route`, `unavailable`) is logged (debug). NSD browses on the Wi-Fi network on API

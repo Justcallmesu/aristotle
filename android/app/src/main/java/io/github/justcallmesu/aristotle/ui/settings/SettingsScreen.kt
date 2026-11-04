@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -29,8 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.BuildConfig
@@ -61,6 +58,8 @@ class SettingsActions(
     val onBatteryGuide: () -> Unit,
     val onRepair: () -> Unit,
     val onWhatsNew: () -> Unit = {},
+    /** Connection & PCs › Connection history (Q73). */
+    val onHistory: () -> Unit = {},
     val onUnpair: () -> Unit,
     val canPostNotifications: () -> Boolean,
     val channelOn: (AppChannel) -> Boolean,
@@ -70,7 +69,10 @@ class SettingsActions(
     val screenLockSet: () -> Boolean = { false },
 )
 
-/** The settings screen (Q60, TS1), grouped like Android's own: connection, notifications, appearance, language, security, about. */
+/**
+ * The settings screen (Q60, TS1), grouped like Android's own: connection, notifications, appearance, language, security,
+ * about. Each category is its own page; its top bar names it, so the page repeats no header (TS3).
+ */
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -110,7 +112,7 @@ fun SettingsScreen(
                         lockTimeout = lockTimeout,
                         onOpen = onOpen,
                     )
-                    SettingsPage.Connection -> ConnectionSection(viewModel, pc, actions.onRepair)
+                    SettingsPage.Connection -> ConnectionSection(viewModel, pc, actions.onRepair, actions.onHistory)
                     SettingsPage.Notifications -> NotificationsSection(notificationsOn, channels, actions.onBatteryGuide)
                     SettingsPage.Appearance -> AppearanceSection(theme, textSize, onOpen = viewModel::show)
                     SettingsPage.Language -> LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
@@ -229,7 +231,6 @@ private fun SettingsList(
 @Composable
 private fun NotificationsSection(appAllowed: Boolean, channels: Map<AppChannel, Boolean>, onBatteryGuide: () -> Unit) {
     val context = LocalContext.current
-    SectionHeader(stringResource(R.string.settings_section_notifications))
     if (!appAllowed) {
         SettingRow(
             title = stringResource(R.string.settings_notifications_off),
@@ -264,7 +265,6 @@ private fun NotificationsSection(appAllowed: Boolean, channels: Map<AppChannel, 
 
 @Composable
 private fun AppearanceSection(theme: ThemeChoice, textSize: TextSize, onOpen: (SettingsSheet) -> Unit) {
-    SectionHeader(stringResource(R.string.settings_section_appearance))
     SettingRow(
         title = stringResource(R.string.settings_theme),
         body = themeLabel(theme),
@@ -279,7 +279,6 @@ private fun AppearanceSection(theme: ThemeChoice, textSize: TextSize, onOpen: (S
 
 @Composable
 private fun LanguageSection(language: AppLanguage, onOpen: () -> Unit) {
-    SectionHeader(stringResource(R.string.settings_section_language))
     SettingRow(title = stringResource(R.string.settings_language), body = languageLabel(language), modifier = Modifier.clickable(onClick = onOpen))
 }
 
@@ -293,7 +292,6 @@ private fun SecuritySection(viewModel: SettingsViewModel, screenLockSet: () -> B
     val lockTimeout by viewModel.lockTimeout.collectAsStateWithLifecycle()
     val showTerminal by viewModel.showTerminal.collectAsStateWithLifecycle()
     val notice by viewModel.lockNotice.collectAsStateWithLifecycle()
-    SectionHeader(stringResource(R.string.settings_section_security))
     SwitchRow(
         title = stringResource(R.string.settings_app_lock),
         body = stringResource(
@@ -334,7 +332,6 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
 /** The licence notices are D45's and say so until they exist. */
 @Composable
 private fun AboutSection(pcId: String, onWhatsNew: () -> Unit) {
-    SectionHeader(stringResource(R.string.settings_section_about))
     SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline))
     SettingRow(
         title = stringResource(R.string.settings_version),
@@ -352,18 +349,6 @@ private fun AboutSection(pcId: String, onWhatsNew: () -> Unit) {
     SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_whats_new_body), modifier = Modifier.clickable(onClick = onWhatsNew))
     SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true)
     SettingRow(title = stringResource(R.string.settings_source), body = stringResource(R.string.settings_source_body))
-}
-
-@Composable
-internal fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .padding(start = Spacing.listGutter, end = Spacing.listGutter, top = Spacing.xxl, bottom = Spacing.xs)
-            .semantics { heading() },
-    )
 }
 
 /** One settings row (56 dp list row). [quiet]: a placeholder with nothing to do yet, its title dimmed. */

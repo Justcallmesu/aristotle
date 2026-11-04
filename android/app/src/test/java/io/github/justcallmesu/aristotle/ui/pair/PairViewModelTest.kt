@@ -1,5 +1,7 @@
 package io.github.justcallmesu.aristotle.ui.pair
 
+import io.github.justcallmesu.aristotle.data.AddressInfo
+import io.github.justcallmesu.aristotle.data.AddressSource
 import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
 import io.github.justcallmesu.aristotle.data.CertificateSource
 import io.github.justcallmesu.aristotle.data.ConnectionProblem
@@ -56,7 +58,7 @@ class PairViewModelTest {
         CredentialStore(MemoryStore(), CredentialCodec(cipher), io = Dispatchers.Unconfined)
 
     private fun viewModel(credentials: CredentialStore = store()) =
-        PairViewModel(credentials, pairing, probe, "POCO X5 Pro 5G", CoroutineScope(Dispatchers.Unconfined))
+        PairViewModel(credentials, pairing, probe, "POCO X5 Pro 5G", CoroutineScope(Dispatchers.Unconfined), clock = { PAIRED_AT })
 
     private fun PairViewModel.fill(address: String) {
         onAddressChange(address)
@@ -236,7 +238,11 @@ class PairViewModelTest {
         assertArrayEquals(manualCall.pin, scannedCall.pin)
         assertEquals(manualCall.code, scannedCall.code)
         assertEquals(manualCall.name, scannedCall.name)
-        assertEquals(saved(manualStore), saved(scannedStore))
+        // Q73: only where the address came from differs: typed by hand, or from the QR code.
+        val typedAt = AddressInfo(AddressSource.Typed, PAIRED_AT)
+        assertEquals(typedAt, saved(manualStore).infoOf(manualCall.endpoint))
+        assertEquals(typedAt.copy(source = AddressSource.Pairing), saved(scannedStore).infoOf(scannedCall.endpoint))
+        assertEquals(saved(manualStore).copy(addressInfo = emptyMap()), saved(scannedStore).copy(addressInfo = emptyMap()))
     }
 
     @Test
@@ -274,3 +280,5 @@ class PairViewModelTest {
         assertArrayEquals(probedPin, calls.single().pin)
     }
 }
+
+private const val PAIRED_AT = 1_700_000_000_000L

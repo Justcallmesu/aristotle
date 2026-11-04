@@ -18,17 +18,20 @@ class LanFlaps(
     private val recent = HashMap<Key, ArrayDeque<Long>>()
     private val demotedUntil = HashMap<Key, Long>()
 
-    /** A relay on [endpoint] reached `gateway.ready` on [wifi] and was then lost at [now]. Only LAN addresses count. */
+    /**
+     * A relay on [endpoint] reached `gateway.ready` on [wifi] and was then lost at [now]. Only LAN addresses count.
+     * True when this drop demotes it (for the connection history, Q73).
+     */
     @Synchronized
-    fun dropped(endpoint: ServerEndpoint, wifi: Set<Long>, now: Long) {
-        if (endpoint.network != Network.Lan) return
+    fun dropped(endpoint: ServerEndpoint, wifi: Set<Long>, now: Long): Boolean {
+        if (endpoint.network != Network.Lan) return false
         prune(now)
         val key = Key(endpoint, wifi)
         val times = recent.getOrPut(key) { ArrayDeque() }.apply { addLast(now) }
-        if (times.size >= drops) {
-            demotedUntil[key] = now + demoteMillis
-            times.clear()
-        }
+        if (times.size < drops) return false
+        demotedUntil[key] = now + demoteMillis
+        times.clear()
+        return true
     }
 
     /** [endpoint] dropped after `gateway.ready` on [wifi] within the window, or is demoted: its relay coming up proves little. */

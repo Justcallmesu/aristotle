@@ -38,6 +38,7 @@ import io.github.justcallmesu.aristotle.ui.sessions.SessionsScreen
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsViewModel
 import io.github.justcallmesu.aristotle.ui.settings.BatteryGuideScreen
 import io.github.justcallmesu.aristotle.ui.settings.NotificationPermissionPrompt
+import io.github.justcallmesu.aristotle.ui.settings.ConnectionHistoryScreen
 import io.github.justcallmesu.aristotle.ui.settings.ConnectionRows
 import io.github.justcallmesu.aristotle.ui.settings.SettingsActions
 import io.github.justcallmesu.aristotle.ui.settings.SettingsPage
@@ -174,6 +175,7 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
  */
 internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew,
+    SettingsHistory,
     SettingsConnection(SettingsPage.Connection),
     SettingsNotifications(SettingsPage.Notifications),
     SettingsAppearance(SettingsPage.Appearance),
@@ -181,12 +183,12 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     SettingsSecurity(SettingsPage.Security),
     SettingsAbout(SettingsPage.About);
 
-    /** The category page that opens this one (battery guide, \"Pair again\", What's new), or the list. */
+    /** The category page that opens this one (battery guide, \"Pair again\", What's new, connection history), or the list. */
     val back: PairedPage
         get() = when (this) {
             SettingsConnection, SettingsNotifications, SettingsAppearance, SettingsLanguage, SettingsSecurity, SettingsAbout -> Settings
             SettingsGuide -> SettingsNotifications
-            Repair -> SettingsConnection
+            Repair, SettingsHistory -> SettingsConnection
             SettingsWhatsNew -> SettingsAbout
             else -> Sessions
         }
@@ -305,7 +307,9 @@ private fun PairedPages(
                 repairCount += 1
                 page = PairedPage.Repair
             },
+            onHistory = { page = PairedPage.SettingsHistory },
         )
+        PairedPage.SettingsHistory -> ConnectionHistoryScreen(settingsViewModel(container), onBack = { page = page.back })
         PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
         PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
@@ -340,11 +344,10 @@ private fun SettingsRoute(
     onBatteryGuide: () -> Unit,
     onWhatsNew: () -> Unit,
     onRepair: () -> Unit,
+    onHistory: () -> Unit,
 ) {
     val context = LocalContext.current
-    val settingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) {
-        SettingsViewModel(container.settings, container.link.state, prove = container.auth::prove, search = container.pcSearch)
-    }
+    val settingsViewModel = settingsViewModel(container)
     val activity = LocalActivity.current
     // Leaving Settings closes its sheet; a rotation keeps it.
     DisposableEffect(settingsViewModel) {
@@ -356,6 +359,7 @@ private fun SettingsRoute(
             onBatteryGuide = onBatteryGuide,
             onWhatsNew = onWhatsNew,
             onRepair = onRepair,
+            onHistory = onHistory,
             onUnpair = { container.unpair(pc.pcId) },
             canPostNotifications = container.notifier::canPost,
             channelOn = container.notifier::isOn,
@@ -365,6 +369,19 @@ private fun SettingsRoute(
         )
     }
     SettingsScreen(settingsViewModel, pc, actions, page, onOpen)
+}
+
+/** The one Settings ViewModel, in the activity's store, shared by the Settings pages and the connection history (Q73). */
+@Composable
+private fun settingsViewModel(container: AppContainer): SettingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) {
+    SettingsViewModel(
+        container.settings,
+        container.link.state,
+        prove = container.auth::prove,
+        search = container.pcSearch,
+        history = container.connectionLog,
+        deleteAddress = container::deleteAddress,
+    )
 }
 
 /** The chat to show: its session, a title until Hermes sends one, its profile, and whether to focus the composer. */

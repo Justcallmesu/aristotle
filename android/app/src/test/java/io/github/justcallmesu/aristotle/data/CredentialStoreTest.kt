@@ -71,8 +71,12 @@ class CredentialStoreTest {
         typed = lan,
     )
 
+    private val events = mutableListOf<ConnectionEvent>()
+    private var clockNow = NOW
+    private val lan2 = ServerEndpoint("192.168.1.45", 8760, Network.Lan)
+
     private fun store(storage: KeyValueStore, codec: CredentialCodec = this.codec) =
-        CredentialStore(storage, codec, io = Dispatchers.Unconfined)
+        CredentialStore(storage, codec, io = Dispatchers.Unconfined, events = { events += it }, clock = { clockNow })
 
     private fun loaded(storage: KeyValueStore, codec: CredentialCodec = this.codec): CredentialState =
         store(storage, codec).also { runBlocking { it.load() } }.state.value
@@ -168,7 +172,7 @@ class CredentialStoreTest {
         assertEquals(CredentialState.Paired(expected), loaded(storage))
         val stored = entryOf(storage)
         assertNull(stored["base_urls"])
-        assertEquals("""[{"url":"https://192.168.1.23:8760","kind":"lan"}]""", stored["addresses"].toString())
+        assertEquals("""[{"url":"https://192.168.1.23:8760","kind":"lan","source":"earlier"}]""", stored["addresses"].toString())
         assertEquals(sealedBefore, stored["token_sealed"])
         assertEquals(CredentialState.Paired(expected), loaded(storage))
     }
@@ -179,7 +183,7 @@ class CredentialStoreTest {
         val storage = legacyStorage("http://100.101.102.103:8760", creds.fingerprint)
         val expected = creds.copy(addresses = listOf(tailnet), lastGood = null, typed = tailnet)
         assertEquals(CredentialState.Paired(expected), loaded(storage))
-        assertEquals("""[{"url":"https://100.101.102.103:8760","kind":"tailscale"}]""", entryOf(storage)["addresses"].toString())
+        assertEquals("""[{"url":"https://100.101.102.103:8760","kind":"tailscale","source":"earlier"}]""", entryOf(storage)["addresses"].toString())
     }
 
     // Q49 + D28: a pairing without a pin (Tailscale, earlier build) must pair again; it is removed without
@@ -211,13 +215,20 @@ class CredentialStoreTest {
         val noKeystore = CredentialCodec(AesGcmTokenCipher({ error("encrypt") }, { key }))
         val store = store(storage, noKeystore).also { it.load() }
         val wifi = ServerEndpoint("192.168.1.61", 8760, Network.Lan)
-        store.remember(creds.pcId, listOf(wifi, tailnet), wifi)
-        // D29: the last good address of each kind is kept too (tailnet from before, wifi now).
-        val expected = creds.copy(addresses = listOf(wifi, tailnet, lan), lastGood = wifi, lastGoodByKind = mapOf(Network.Lan to wifi, Network.Tailscale to tailnet))
+        store.remember(creds.pcId, listOf(wifi, tailnet), wifi, null)
+        // D29: the last good address of each kind is kept too (tailnet from before, wifi now). Q73: the new one came
+        // from the PC's list and worked now.
+        val expected = creds.copy(
+            addresses = listOf(wifi, tailnet, lan),
+            lastGood = wifi,
+            lastGoodByKind = mapOf(Network.Lan to wifi, Network.Tailscale to tailnet),
+            addressInfo = mapOf(wifi to AddressInfo(AddressSource.ServerList, NOW)),
+        )
         assertEquals(CredentialState.Paired(expected), store.state.value)
         assertEquals(sealedBefore, entryOf(storage)["token_sealed"])
         assertEquals(CredentialState.Paired(expected), loaded(storage))
-        store.remember("dev_other", listOf(wifi), wifi) // not stored: ignored
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Saved(wifi, AddressSource.ServerList)), events)
+        store.remember("dev_other", listOf(wifi), wifi, null) // not stored: ignored
         assertEquals(CredentialState.Paired(expected), store.state.value)
     }
 
@@ -227,7 +238,7 @@ class CredentialStoreTest {
         val storage = savedStorage()
         val store = store(storage).also { it.load() }
         val seen = (1..PcAddresses.MAX_STORED).map { ServerEndpoint("10.0.0.$it", 8760, Network.Lan) }
-        for (address in seen) store.remember(creds.pcId, listOf(address), address)
+        for (address in seen) store.remember(creds.pcId, listOf(address), address, null)
         val stored = (store.state.value as CredentialState.Paired).credentials
         // The typed address and the last good one of each kind (D29: the tailnet one from before) stay; the LAN
         // addresses unseen longest went.
@@ -244,13 +255,128 @@ class CredentialStoreTest {
         store(storage).save(t09)
         val store = store(storage).also { it.load() }
         val seen = (1..PcAddresses.MAX_STORED + 2).map { ServerEndpoint("10.0.0.$it", 8760, Network.Lan) }
-        for (address in seen) store.remember(creds.pcId, listOf(address), address)
+        for (address in seen) store.remember(creds.pcId, listOf(address), address, null)
         val stored = (store.state.value as CredentialState.Paired).credentials
         assertEquals(lan, stored.typed)
         assertTrue(lan in stored.addresses)
         assertTrue(seen.last() in stored.addresses)
         assertEquals(PcAddresses.MAX_STORED, stored.addresses.size)
         assertEquals(CredentialState.Paired(stored), loaded(storage))
+    }
+
+    // Q73: an entry stored before the format bump (format 1, as T09-TL1e wrote it) reads with every address
+    // "earlier" and no last success; it is rewritten as format 2 without losing anything, the token byte for byte.
+    @Test
+    fun aFormat1EntryReadsAsEarlierAndIsUpgradedWithoutLoss() {
+        val sealed = Json.parseToJsonElement(codec.encode(creds)).jsonObject.getValue("token_sealed").toString()
+        val old = """{"pc_id":"dev_0123456789ab","device_id":"dev_0123456789ab",""" +
+            """"addresses":[{"url":"https://192.168.1.23:8760","kind":"lan","iface":"wlan0"},{"url":"https://100.101.102.103:8760","kind":"tailscale"}],""" +
+            """"last_good":"https://100.101.102.103:8760","typed":"https://192.168.1.23:8760",""" +
+            """"last_good_kinds":{"tailscale":"https://100.101.102.103:8760"},"fingerprint":"${creds.fingerprint}","token_sealed":$sealed}"""
+        val storage = MemoryStore().apply {
+            map[ENTRY] = old
+            map["active_pc"] = creds.pcId
+        }
+        val expected = creds.copy(lastGoodByKind = mapOf(Network.Tailscale to tailnet))
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
+        assertTrue(expected.addresses.all { expected.infoOf(it) == AddressInfo.EARLIER })
+        val upgraded = entryOf(storage)
+        assertEquals(JsonPrimitive(2), upgraded["format"])
+        assertEquals(
+            """[{"url":"https://192.168.1.23:8760","kind":"lan","source":"earlier"},{"url":"https://100.101.102.103:8760","kind":"tailscale","source":"earlier"}]""",
+            upgraded["addresses"].toString(),
+        )
+        assertEquals(Json.parseToJsonElement(sealed), upgraded["token_sealed"])
+        assertNull(codec.upgrade(storage.map.getValue(ENTRY))) // already current
+        assertEquals(CredentialState.Paired(expected), loaded(storage))
+    }
+
+    // Q73: the source and the last success survive a restart.
+    @Test
+    fun sourcesAndLastSuccessRoundTrip() {
+        val withInfo = creds.copy(addressInfo = mapOf(lan to AddressInfo(AddressSource.Typed, 42L), tailnet to AddressInfo(AddressSource.Pairing)))
+        val storage = MemoryStore().also { runBlocking { store(it).save(withInfo) } }
+        assertEquals(CredentialState.Paired(withInfo), loaded(storage))
+    }
+
+    // Q73: delete one address; the last one stays; a deleted one does not come back from the PC's list (nor from a
+    // relay that was still on it), only when LAN discovery finds it again, as another LAN address stays. The deletion
+    // goes with the entry (unpair).
+    @Test
+    fun aDeletedAddressStaysGoneUntilFoundOnTheWifi() = runBlocking {
+        val twoLan = creds.copy(addresses = listOf(lan, lan2), lastGood = lan2, typed = lan)
+        val storage = MemoryStore().also { store(it).save(twoLan) }
+        val store = store(storage).also { it.load() }
+        assertTrue(store.forgetAddress(twoLan.pcId, lan))
+        var now = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(listOf(lan2), now.addresses)
+        assertNull("the typed address was deleted", now.typed)
+        assertEquals(ConnectionEvent.Deleted(lan), events.last())
+        assertFalse("the last address stays", store.forgetAddress(twoLan.pcId, lan2))
+        assertFalse("not stored", store.forgetAddress(twoLan.pcId, lan))
+        assertFalse("another PC", store.forgetAddress("dev_other", lan2))
+
+        store.remember(twoLan.pcId, listOf(lan, lan2), lan2, null) // the PC still lists it; a refresh raced the delete
+        now = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(listOf(lan2), now.addresses)
+        assertEquals(CredentialState.Paired(now), loaded(storage))
+
+        store.remember(twoLan.pcId, listOf(lan), lan, found = lan) // verified on the Wi-Fi and connected
+        now = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(setOf(lan, lan2), now.addresses.toSet())
+        assertEquals(AddressInfo(AddressSource.FoundOnWifi, NOW), now.infoOf(lan))
+        assertTrue(store.forgetAddress(twoLan.pcId, lan2))
+        store.wipeActive()
+        assertEquals(emptyMap<String, String>(), storage.map)
+    }
+
+    // MAJOR-1 (TH1): deleting an address that is the last of its kind is not remembered, so the PC's list can bring
+    // it back (discovery finds only LAN addresses, so a remembered Tailscale deletion could never be undone).
+    @Test
+    fun deletingTheOnlyTailscaleAddressIsNotRememberedAndTheListBringsItBack() = runBlocking {
+        val storage = savedStorage()
+        val store = store(storage).also { it.load() }
+        assertTrue(store.forgetAddress(creds.pcId, tailnet))
+        var now = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(listOf(lan), now.addresses)
+        assertFalse(codec.remembersDeletion(listOf(lan, tailnet), tailnet))
+
+        store.remember(creds.pcId, listOf(lan, tailnet), lan, null)
+        now = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(setOf(lan, tailnet), now.addresses.toSet())
+        assertEquals(AddressSource.ServerList, now.infoOf(tailnet).source)
+        assertEquals(CredentialState.Paired(now), loaded(storage))
+    }
+
+    @Test
+    fun deletingOneOfTwoLanAddressesIsRemembered() {
+        assertTrue(codec.remembersDeletion(listOf(lan, lan2, tailnet), lan))
+        assertFalse(codec.remembersDeletion(listOf(lan, tailnet), lan))
+        assertFalse(codec.remembersDeletion(listOf(lan, lan2, tailnet), tailnet))
+        val text = codec.encode(creds.copy(addresses = listOf(lan, lan2, tailnet)))
+        val linked = codec.withoutAddress(text, lan)!!
+        assertEquals(listOf(lan2, tailnet), linked.addresses)
+        // The PC lists it again: it is not added back.
+        val again = codec.withLink(linked.text, listOf(lan, lan2, tailnet), tailnet, null, NOW)!!
+        assertEquals(setOf(lan2, tailnet), again.addresses.toSet())
+        assertFalse(lan in again.addresses)
+    }
+
+    // TH1 NIT-2: the last success moves on at most once an hour per address, so a connect does not rewrite the entry.
+    @Test
+    fun lastSuccessIsWrittenAtMostOncePerHourPerAddress() = runBlocking {
+        val storage = savedStorage()
+        val store = store(storage).also { it.load() }
+        store.remember(creds.pcId, listOf(lan, tailnet), tailnet, null)
+        val first = storage.map.toMap()
+        clockNow = NOW + 59 * 60_000
+        store.remember(creds.pcId, listOf(lan, tailnet), tailnet, null)
+        assertEquals("no rewrite within the hour", first, storage.map)
+        clockNow = NOW + 60 * 60_000
+        store.remember(creds.pcId, listOf(lan, tailnet), tailnet, null)
+        val now = (store.state.value as CredentialState.Paired).credentials
+        assertEquals(NOW + 60 * 60_000, now.infoOf(tailnet).lastSuccessAt)
+        assertTrue(first != storage.map)
     }
 
     @Test
@@ -271,6 +397,7 @@ class CredentialStoreTest {
 // The Keystore daemon case (UnrecoverableKeyException caused by android.security.KeyStoreException) needs
 // the real class, which the JVM test android.jar cannot construct; it is covered only by reading the code.
 private const val ENTRY = "pc.dev_0123456789ab"
+private const val NOW = 1_000_000L
 
 class KeystoreFailuresTest {
     @Test

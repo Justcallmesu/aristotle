@@ -53,12 +53,15 @@ sealed interface CredentialState {
 
 /**
  * Paired PCs, keyed per PC (Q25), and which one is active. The token is sealed by [codec]. All file
- * and Keystore work runs on [io], never on the caller's (main) thread.
+ * and Keystore work runs on [io], never on the caller's (main) thread. Addresses saved or deleted go to [events]
+ * (the connection history, Q73); [clock] stamps an address's last success.
  */
 class CredentialStore(
     private val storage: KeyValueStore,
     private val codec: CredentialCodec,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val events: ConnectionEvents = ConnectionEvents.None,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : LinkMemory {
     private val mutex = Mutex()
     private val current = MutableStateFlow<CredentialState>(CredentialState.Loading)
@@ -100,18 +103,46 @@ class CredentialStore(
 
     /**
      * Stores what the link learnt (T09): [fresh] merged into the stored addresses (T09b,
-     * [CredentialCodec.withLink]) and the one that worked. No Keystore call; the sealed token is kept. Written
-     * only when something changed; ignored when [pcId] is no longer stored.
+     * [CredentialCodec.withLink]), the one that worked and when (Q73). No Keystore call; the sealed token is kept.
+     * Written only when something changed; ignored when [pcId] is no longer stored. Each new address is reported as
+     * saved.
      */
-    override suspend fun remember(pcId: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint) = locked {
+    override suspend fun remember(pcId: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint, found: ServerEndpoint?) = locked {
         val key = entryKey(pcId)
         val stored = storage.get(key) ?: return@locked
-        val linked = codec.withLink(stored, fresh, lastGood) ?: return@locked
+        val linked = codec.withLink(stored, fresh, lastGood, found, clock()) ?: return@locked
         if (linked.text != stored) storage.put(key, linked.text)
+        publish(pcId, linked)
+        linked.added.forEach { (endpoint, source) -> events.record(ConnectionEvent.Saved(endpoint, source)) }
+    }
+
+    /**
+     * Deletes [endpoint] from [pcId]'s stored addresses (Q73, [CredentialCodec.withoutAddress]). False, and nothing
+     * written, when it is not stored, is the only address left, or the PC is not stored.
+     */
+    suspend fun forgetAddress(pcId: String, endpoint: ServerEndpoint): Boolean = locked {
+        val key = entryKey(pcId)
+        val stored = storage.get(key) ?: return@locked false
+        val linked = codec.withoutAddress(stored, endpoint) ?: return@locked false
+        storage.put(key, linked.text)
+        publish(pcId, linked)
+        events.record(ConnectionEvent.Deleted(endpoint))
+        true
+    }
+
+    private fun publish(pcId: String, linked: LinkedEntry) {
         current.update { state ->
             val paired = (state as? CredentialState.Paired)?.credentials
             if (paired?.pcId == pcId) {
-                CredentialState.Paired(paired.copy(addresses = linked.addresses, lastGood = lastGood, typed = linked.typed, lastGoodByKind = linked.lastGoodByKind))
+                CredentialState.Paired(
+                    paired.copy(
+                        addresses = linked.addresses,
+                        lastGood = linked.lastGood,
+                        typed = linked.typed,
+                        lastGoodByKind = linked.lastGoodByKind,
+                        addressInfo = linked.addressInfo,
+                    ),
+                )
             } else {
                 state
             }

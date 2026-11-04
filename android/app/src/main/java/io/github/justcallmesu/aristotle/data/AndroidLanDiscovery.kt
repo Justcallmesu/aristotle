@@ -111,13 +111,14 @@ class AndroidWifiWatch(context: Context, private val log: (String) -> Unit = {})
 
     /**
      * Before API 33 a VPN can only add routes (`VpnService.Builder.addRoute`), so each one is unicast. From 33 an app
-     * targeting 33+ also sees the excluded ones (`excludeRoute`) as RTN_THROW, and RTN_UNREACHABLE drops: neither
-     * takes traffic into the tunnel.
+     * targeting 33+ also sees the excluded ones (`excludeRoute`) as RTN_THROW, which fall through to the Wi-Fi. An
+     * RTN_UNREACHABLE route drops its traffic: nothing gets to the Wi-Fi past it either, so it counts as covering
+     * (TL1e review NIT), and the search says "Can't scan this Wi-Fi" rather than "Not found".
      */
     private fun vpnRouteOf(route: RouteInfo): VpnRoute? {
         val destination = route.destination ?: return null
         val host = destination.address?.hostAddress ?: return null
-        val unicast = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || route.type == RouteInfo.RTN_UNICAST
+        val unicast = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || route.type == RouteInfo.RTN_UNICAST || route.type == RouteInfo.RTN_UNREACHABLE
         return VpnRoute(host, destination.prefixLength, unicast)
     }
 

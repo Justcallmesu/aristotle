@@ -139,6 +139,7 @@ Rules that hold everywhere:
 | Q71 | Q59 amended: the loading quote shows on a chat's first open only. After a reconnect the transcript stays visible under the reconnecting banner; no quote covers it. | User 2026-11-04 (option A). |
 | Q72 | Settings is a category list (Connection & PCs, Notifications, Appearance, Language, Security, About) with a one-line summary each; each opens its own sub-page. | User 2026-11-04 ("nested like submenu"); layout PM. TS3. |
 | Q73 | Settings › Connection gets (a) a connection history log on the phone (newest first: found/switched/connected/offline events with time, address, network; kept 7 days or 200 entries) and (b) a saved-addresses list (each address with its source — typed, pairing, server list, found on Wi-Fi — last success, and delete). | User 2026-11-04 ("both"). TH1. |
+| Q74 | UI redesign: the user finds the app rough/ugly — the problem is component shapes and layout, not colours (keep palette A). Inspiration: ChatGPT and Claude apps (principles, not copies). Home direction chosen from mockups. Model sheet: providers collapsible + model search; reasoning effort as a stepped slider. | User 2026-11-04. TD2 mockups first, then build tickets. |
 
 ## 4. Risks
 

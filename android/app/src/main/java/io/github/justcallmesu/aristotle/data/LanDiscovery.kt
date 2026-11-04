@@ -2,6 +2,8 @@ package io.github.justcallmesu.aristotle.data
 
 import java.io.IOException
 import java.net.InetAddress
+import java.net.Socket
+import java.net.SocketException
 import java.net.UnknownHostException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -33,13 +35,46 @@ data class WifiLink(val handle: Long, val address: String, val prefixLength: Int
  * The phone's Wi-Fi network as a route. Bound (TL1c, [vpnRoutes] null): [sockets] are bound to that network before
  * they connect and [dns] resolves on it, so whatever goes through the route leaves on that Wi-Fi whatever the default
  * network is (a VPN, or cellular beside a Wi-Fi without internet). Unbound (TL1e, [vpnRoutes] = the default VPN's
- * routes): plain sockets that leave on the Wi-Fi only because the VPN routes none of its subnet, the way the relay
- * reaches the LAN; [dns] then takes IP literals only. Every discovery probe and check uses one, and only to a host
- * the route [reaches].
+ * routes when the search began): plain sockets that leave on the Wi-Fi only because the VPN routes none of its subnet,
+ * the way the relay reaches the LAN; [dns] then takes IP literals only, and each socket must come up on the Wi-Fi's own
+ * address ([LocalAddressCheck]). Every discovery probe and check uses one, and only to a host the route [reaches].
+ * [reread] reads the VPN's routes again (TH1, TL1e review MINOR-C): null when the unbound route no longer holds.
  */
-class WifiRoute(val link: WifiLink, val sockets: SocketFactory, val dns: Dns, val vpnRoutes: List<VpnRoute>? = null) {
-    /** [host] is on this Wi-Fi's subnet and, on an unbound route, no VPN route takes it into the tunnel. */
-    fun reaches(host: String): Boolean = SubnetScan.onLink(host, link) && (vpnRoutes == null || !VpnRouting.covers(vpnRoutes, host))
+class WifiRoute(
+    val link: WifiLink,
+    val sockets: SocketFactory,
+    val dns: Dns,
+    val vpnRoutes: List<VpnRoute>? = null,
+    private val reread: () -> List<VpnRoute>? = { vpnRoutes },
+) {
+    /**
+     * [host] is on this Wi-Fi's subnet and, on an unbound route, no VPN route takes it into the tunnel. The routes are
+     * read again for each host, so a VPN that starts taking the subnet mid-search (an exit node turned on) stops the
+     * rest of it; one that is gone or changed beyond use reaches nothing.
+     */
+    fun reaches(host: String): Boolean {
+        if (!SubnetScan.onLink(host, link)) return false
+        if (vpnRoutes == null) return true
+        val now = reread() ?: return false
+        return !VpnRouting.covers(now, host)
+    }
+}
+
+/**
+ * TL1e review MINOR-B: an unbound socket follows the system default network, which is this Wi-Fi only when the VPN
+ * runs over it. Right after connect, before any TLS byte, the socket's own address must be the Wi-Fi's; else it is
+ * closed and the target skipped (a miss), so nothing more goes out on another network.
+ */
+object LocalAddressCheck {
+    fun require(socket: Socket, wifi: WifiLink) {
+        if (!sameAddress(socket.localAddress?.hostAddress, wifi.address)) throw SocketException("not on this Wi-Fi")
+    }
+
+    fun sameAddress(local: String?, wifi: String): Boolean {
+        val a = local?.let(ServerAddress::parseIpLiteral) ?: return false
+        val b = ServerAddress.parseIpLiteral(wifi) ?: return false
+        return a.contentEquals(b)
+    }
 }
 
 /** Whether discovery may run now, and through which route ([ScanGate.access]). */
@@ -68,7 +103,10 @@ fun interface WifiRoutes {
     fun access(): WifiAccess
 }
 
-/** One IPv4 or IPv6 route of a VPN network ([android.net.RouteInfo]); [unicast] false for an excluded (throw/unreachable) one. */
+/**
+ * One IPv4 or IPv6 route of a VPN network ([android.net.RouteInfo]). [unicast] false for an excluded (RTN_THROW) one,
+ * whose traffic falls through to the next table; RTN_UNREACHABLE counts as unicast: it reaches nothing past it either.
+ */
 data class VpnRoute(val destination: String, val prefixLength: Int, val unicast: Boolean = true)
 
 /** The default network when it is a VPN: what it carries (the transports of the network under it) and its routes. */
@@ -78,8 +116,8 @@ data class VpnPath(val transports: Transports, val routes: List<VpnRoute>)
 object VpnRouting {
     /**
      * True when the most specific IPv4 route of [routes] matching [host] is a unicast one (longest prefix wins, as in
-     * the kernel; a tie counts as covered). An excluded route (RTN_THROW/RTN_UNREACHABLE, `excludeRoute`) more specific
-     * than the covering one leaves the host out. No matching route: not covered. A host that is not IPv4: covered.
+     * the kernel; a tie counts as covered). An excluded route (RTN_THROW, `excludeRoute`) more specific than the
+     * covering one leaves the host out. No matching route: not covered. A host that is not IPv4: covered.
      */
     fun covers(routes: List<VpnRoute>, host: String): Boolean {
         val address = ipv4(host) ?: return true
@@ -154,16 +192,23 @@ object ScanGate {
     }
 
     private fun unbound(wifi: WifiLink, vpn: () -> VpnPath?): WifiAccess {
+        val routes = unboundRoutes(wifi, vpn) ?: return WifiAccess.Unavailable
+        val sockets = DirectSocketFactory(afterConnect = { LocalAddressCheck.require(it, wifi) })
+        return WifiAccess.Unbound(WifiRoute(wifi, sockets, LiteralDns, routes, reread = { unboundRoutes(wifi, vpn) }))
+    }
+
+    /** The default VPN's routes when they allow an unbound route to [wifi] (see [access]); else null. */
+    private fun unboundRoutes(wifi: WifiLink, vpn: () -> VpnPath?): List<VpnRoute>? {
         val path = try {
             vpn()
         } catch (_: RuntimeException) {
             null
-        } ?: return WifiAccess.Unavailable
+        } ?: return null
         val over = path.transports
-        if (!over.vpn || !over.wifi || over.cellular || over.ethernet) return WifiAccess.Unavailable
-        if (path.routes.none { ServerAddress.parseIpLiteral(it.destination)?.size == 4 }) return WifiAccess.Unavailable
-        if (VpnRouting.coversSubnet(path.routes, wifi)) return WifiAccess.Unavailable
-        return WifiAccess.Unbound(WifiRoute(wifi, DirectSocketFactory(), LiteralDns, path.routes))
+        if (!over.vpn || !over.wifi || over.cellular || over.ethernet) return null
+        if (path.routes.none { ServerAddress.parseIpLiteral(it.destination)?.size == 4 }) return null
+        if (VpnRouting.coversSubnet(path.routes, wifi)) return null
+        return path.routes
     }
 
     /** The mode for the debug log: `bound`, `unbound-vpn-no-route` or `unavailable`. */
@@ -399,12 +444,14 @@ class PcFinder(
     private val onFound: (ServerEndpoint) -> Unit,
     private val log: (String) -> Unit = {},
     private val timings: FinderTimings = FinderTimings(),
+    private val events: ConnectionEvents = ConnectionEvents.None,
 ) {
     /**
      * NSD for up to [windowMillis] with the multicast lock held; the first verified announcement wins. Only addresses
-     * on [route]'s own subnet are checked: anything else is dropped before a connection is made.
+     * on [route]'s own subnet are checked: anything else is dropped before a connection is made. [auto]: the search
+     * after a Wi-Fi join, whose find goes to the connection history (Q73); the manual one reports its own result.
      */
-    suspend fun discover(pc: PcCredentials, route: WifiRoute, windowMillis: Long = timings.autoWindowMillis): ServerEndpoint? {
+    suspend fun discover(pc: PcCredentials, route: WifiRoute, windowMillis: Long = timings.autoWindowMillis, auto: Boolean = true): ServerEndpoint? {
         var discovered = 0
         var rejected = 0
         val found = try {
@@ -422,6 +469,7 @@ class PcFinder(
             null // discovery failed to start or broke off: nothing found
         }
         log("lan discovery: discovered=$discovered verified=${if (found != null) 1 else 0} rejected=$rejected")
+        if (found != null && auto) events.record(ConnectionEvent.Found(found, auto = true))
         found?.let(onFound)
         return found
     }
@@ -429,11 +477,23 @@ class PcFinder(
     /**
      * The manual search: NSD first, then, if nothing answered, the /24 of the Wi-Fi. The route is taken again when the
      * scan starts (the Wi-Fi, or the VPN's routes, may have changed meanwhile). [FindState.CantScan] when there is none.
+     * The result goes to the connection history (Q73).
      */
-    suspend fun findOnWifi(pc: PcCredentials, routes: WifiRoutes, onPhase: (FindPhase) -> Unit = {}): FindResult {
+    suspend fun findOnWifi(pc: PcCredentials, routes: WifiRoutes, onPhase: (FindPhase) -> Unit = {}): FindResult =
+        searchOnWifi(pc, routes, onPhase).also { result ->
+            events.record(
+                when (result) {
+                    is FindState.Found -> ConnectionEvent.Found(result.endpoint, auto = false)
+                    FindState.NotFound -> ConnectionEvent.NotFound
+                    FindState.CantScan -> ConnectionEvent.CantScan
+                },
+            )
+        }
+
+    private suspend fun searchOnWifi(pc: PcCredentials, routes: WifiRoutes, onPhase: (FindPhase) -> Unit): FindResult {
         val first = routes.access().routeOrNull() ?: return FindState.CantScan
         onPhase(FindPhase.Announcement)
-        discover(pc, first, timings.manualWindowMillis)?.let { return FindState.Found(it) }
+        discover(pc, first, timings.manualWindowMillis, auto = false)?.let { return FindState.Found(it) }
         val now = routes.access().routeOrNull() ?: return FindState.CantScan
         if (!SubnetScan.scannable(now.link)) return FindState.NotFound
         onPhase(FindPhase.Scan)

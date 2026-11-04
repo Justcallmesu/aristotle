@@ -16,18 +16,22 @@ class PcRecords(
     private val pins: SessionPins,
     private val drafts: ChatDrafts,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** Empties the connection history (Q73), which Unpair ends too. */
+    private val clearHistory: suspend () -> Unit = {},
 ) {
     /**
      * Unpair: the PC's settings and every draft first, on disk before the credential entry goes (one commit), so a
-     * kill in between leaves the pairing without its drafts, never drafts waiting for a re-pair (TS1b). The PC keeps
-     * this phone until revoked there.
+     * kill in between leaves the pairing without its drafts, never drafts waiting for a re-pair (TS1b). The connection
+     * history goes with them (Q73). The PC keeps this phone until revoked there.
      */
     suspend fun unpair(pcId: String) {
         withContext(io) {
             forgetSettings(pcId, durable = true)
             drafts.clear(durable = true)
         }
+        clearHistory()
         credentials.wipeActive()
+        clearHistory() // a line recorded between the first clear and the wipe
         ServerVersions.clear(pcId)
     }
 

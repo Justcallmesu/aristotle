@@ -314,6 +314,51 @@ class ScanGateTest {
         }
     }
 
+    // TH1 (TL1e review MINOR-C): the VPN's routes are read again for each target, so an exit node turned on mid-search
+    // (or the VPN going away) stops the rest of it.
+    @Test
+    fun theVpnRoutesAreReadAgainForEachTarget() {
+        var path: VpnPath? = VpnPath(overWifi, tailscaleRoutes)
+        val route = (ScanGate.access(wifi, here, refused) { path } as WifiAccess.Unbound).route
+        assertTrue(route.reaches("192.168.1.61"))
+        path = VpnPath(overWifi, listOf(VpnRoute("0.0.0.0", 0))) // exit node on, no LAN access
+        assertFalse(route.reaches("192.168.1.61"))
+        path = VpnPath(overWifi, tailscaleRoutes)
+        assertTrue(route.reaches("192.168.1.61"))
+        path = null // the VPN went: the default network is something else now
+        assertFalse(route.reaches("192.168.1.61"))
+        path = VpnPath(Transports(cellular = true, vpn = true), tailscaleRoutes)
+        assertFalse("now over cellular", route.reaches("192.168.1.61"))
+    }
+
+    // TH1 (TL1e review MINOR-B): an unbound socket must come up on the Wi-Fi's own address, else it is closed before
+    // a byte is sent and the target is a miss. Loopback stands in for "another network": its address is not the Wi-Fi's.
+    @Test
+    fun anUnboundSocketOnAnotherNetworkIsClosedBeforeAnyByte() = runBlocking {
+        java.net.ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress()).use { server ->
+            val target = ServerEndpoint("127.0.0.1", server.localPort, Network.Lan)
+            val elsewhere = (ScanGate.access(wifi, here, refused) { VpnPath(overWifi, tailscaleRoutes) } as WifiAccess.Unbound).route
+            val socket = elsewhere.sockets.createSocket()
+            assertThrows(IOException::class.java) { socket.connect(java.net.InetSocketAddress(target.inetAddress, target.port), 1_000) }
+            assertTrue(socket.isClosed)
+            server.soTimeout = 1_000
+            server.accept().use { accepted -> assertEquals("nothing was sent", -1, accepted.getInputStream().read()) }
+            assertFalse("the probe counts it as a miss", TcpPortProbe().open(target, 1_000, elsewhere))
+
+            val onWifi = WifiLink(7, "127.0.0.1", 8) // the socket's own address is this "Wi-Fi"'s
+            val onIt = (ScanGate.access(onWifi, phone(7L to Transports(wifi = true)), refused) { VpnPath(overWifi, tailscaleRoutes) } as WifiAccess.Unbound).route
+            assertTrue(TcpPortProbe().open(target, 1_000, onIt))
+        }
+    }
+
+    @Test
+    fun theLocalAddressCheckComparesAddressesNotText() {
+        assertTrue(LocalAddressCheck.sameAddress("192.168.1.37", "192.168.1.37"))
+        assertFalse(LocalAddressCheck.sameAddress("10.0.0.37", "192.168.1.37"))
+        assertFalse(LocalAddressCheck.sameAddress(null, "192.168.1.37"))
+        assertFalse(LocalAddressCheck.sameAddress("0.0.0.0", "192.168.1.37"))
+    }
+
     @Test
     fun excludedRoutesLeaveTheLanOut() {
         val exitNodeWithLanAccess = listOf(VpnRoute("0.0.0.0", 0), VpnRoute("192.168.0.0", 16, unicast = false))
@@ -481,7 +526,11 @@ class PcFinderTest {
         onFound = { used += it },
         log = { logs += it },
         timings = FinderTimings(autoWindowMillis = 300, manualWindowMillis = 200),
+        events = { recorded += it },
     )
+
+    /** What the finder told the connection history (Q73). */
+    private val recorded = CopyOnWriteArrayList<ConnectionEvent>()
 
     private fun bound(vararg links: WifiLink): WifiRoutes {
         val queue = ArrayDeque(links.map { routeOn(it) })
@@ -650,6 +699,23 @@ class PcFinderTest {
         assertTrue(routesSeen.all { it === unbound })
     }
 
+    // Q73: the automatic find and every manual result go to the connection history; a quiet automatic search does not.
+    @Test
+    fun findsAndSearchResultsGoToTheHistory() = runBlocking {
+        val at = ServerEndpoint("192.168.1.80", 8760, Network.Lan)
+        val announced = finder({ flowOf(FoundService(listOf("192.168.1.80"), 8760, good)) }, pcAt = setOf("192.168.1.80"))
+        announced.discover(pc, route)
+        assertEquals(listOf<ConnectionEvent>(ConnectionEvent.Found(at, auto = true)), recorded.toList())
+        recorded.clear()
+        finder().discover(pc, route)
+        assertTrue("nothing found by itself: no line", recorded.isEmpty())
+        announced.findOnWifi(pc, bound(home))
+        finder().findOnWifi(pc, { WifiAccess.Unavailable })
+        finder().findOnWifi(pc, bound(home))
+        val expected = listOf(ConnectionEvent.Found(at, auto = false), ConnectionEvent.CantScan, ConnectionEvent.NotFound)
+        assertEquals(expected, recorded.toList())
+    }
+
     @Test
     fun anUnboundRouteFindsTheAnnouncedPc() = runBlocking {
         val unbound = WifiRoute(home, DirectSocketFactory(), LiteralDns, listOf(VpnRoute("100.64.0.0", 10)))
@@ -774,7 +840,7 @@ class FoundMergeTest {
         val storage = MemoryStore()
         val store = CredentialStore(storage, codec, io = Dispatchers.Unconfined)
         store.save(creds)
-        store.remember(creds.pcId, listOf(found), found) // what the link stores after a relay came up on it
+        store.remember(creds.pcId, listOf(found), found, found) // what the link stores after a relay came up on it
         val now = (store.state.value as CredentialState.Paired).credentials
         assertEquals(PcAddresses.MAX_STORED, now.addresses.size)
         assertEquals(found, now.addresses.first())
@@ -784,6 +850,7 @@ class FoundMergeTest {
         assertEquals(found, now.lastGood)
         assertEquals(typed, now.typed)
         assertEquals(mapOf(Network.Tailscale to tailnet, Network.Lan to found), now.lastGoodByKind)
+        assertEquals(AddressSource.FoundOnWifi, now.infoOf(found).source) // Q73
         val reloaded = CredentialStore(storage, codec, io = Dispatchers.Unconfined).also { it.load() }.state.value as CredentialState.Paired
         assertEquals(now.addresses, reloaded.credentials.addresses)
     }

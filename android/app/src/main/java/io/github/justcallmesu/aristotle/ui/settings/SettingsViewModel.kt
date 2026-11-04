@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.AuthPurpose
 import io.github.justcallmesu.aristotle.data.AuthResult
+import io.github.justcallmesu.aristotle.data.ConnectionHistory
 import io.github.justcallmesu.aristotle.data.FindPhase
 import io.github.justcallmesu.aristotle.data.FindState
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.LockTimeout
+import io.github.justcallmesu.aristotle.data.LogEntry
 import io.github.justcallmesu.aristotle.data.PcSearch
+import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.TextSize
 import io.github.justcallmesu.aristotle.data.ThemeChoice
 import kotlinx.coroutines.CancellationException
@@ -34,7 +37,8 @@ enum class LockNotice {
  * which picker or confirmation is open. Theme and text size apply as soon as they are picked ([AppSettings] flows).
  * The app lock (Q61, TS2) moves only after [prove] passed, both ways: off without a check would also drop the fresh
  * checks before the terminal, "Always allow" and sudo/secret answers. [search]: "Find PC on this Wi-Fi" (Q65), run
- * only when the user taps it. [scope]: the ViewModel's own unless a test passes one.
+ * only when the user taps it. [scope]: the ViewModel's own unless a test passes one. [history]: the connection history
+ * (Q73); [deleteAddress] deletes a saved address of the active PC after the user confirmed it.
  */
 class SettingsViewModel(
     private val settings: AppSettings,
@@ -42,6 +46,8 @@ class SettingsViewModel(
     private val prove: suspend (AuthPurpose) -> AuthResult = { AuthResult.Failed },
     private val search: PcSearch? = null,
     scope: CoroutineScope? = null,
+    private val history: ConnectionHistory? = null,
+    private val deleteAddress: (suspend (ServerEndpoint) -> Boolean)? = null,
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     val keepConnected: StateFlow<Boolean> = settings.keepConnected
@@ -79,12 +85,40 @@ class SettingsViewModel(
         }
     }
 
+    val historyEntries: StateFlow<List<LogEntry>> = history?.entries ?: MutableStateFlow(emptyList())
+
+    fun clearHistory() {
+        val history = history ?: return
+        work.launch { history.clear() }
+    }
+
+    private val deleting = MutableStateFlow<ServerEndpoint?>(null)
+
+    /** The saved address whose delete waits for the user's confirmation. */
+    val pendingDelete: StateFlow<ServerEndpoint?> = deleting.asStateFlow()
+
+    fun askDelete(endpoint: ServerEndpoint) {
+        deleting.value = endpoint
+    }
+
+    fun cancelDelete() {
+        deleting.value = null
+    }
+
+    fun confirmDelete() {
+        val endpoint = deleting.value ?: return
+        deleting.value = null
+        val delete = deleteAddress ?: return
+        work.launch { delete(endpoint) }
+    }
+
     fun show(sheet: SettingsSheet) {
         open.value = sheet
     }
 
     fun close() {
         open.value = null
+        deleting.value = null
     }
 
     fun setKeepConnected(on: Boolean) = settings.setKeepConnected(on)

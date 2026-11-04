@@ -83,7 +83,9 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | DONE (user approved on device 2026-11-04) |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | TS3 | Nested Settings (Q72): category list with summaries -> sub-pages | TS1 | android | DONE |
-| TH1 | Q73: connection history log + saved-addresses list (source, last success, delete) in Settings › Connection; remove repeated sub-page headers (TS3 leftover) | TL1e, TS3 | android | BUILDING |
+| TH1 | Q73: connection history log + saved-addresses list (source, last success, delete) in Settings › Connection; remove repeated sub-page headers (TS3 leftover) | TL1e, TS3 | android | DONE (via TH1b) |
+| TH1b | TH1 review: deleting the only Tailscale address could only be undone by re-pairing (MAJOR-1) -> remember a deletion only when another address of the same kind remains; per-case confirm text; history NITs | TH1 | android | DONE |
+| TD2 | Redesign mockups (Q74): 3 home options, chat, model sheet (collapsible providers + search, effort slider vs segmented), settings, prompt sheet; light+dark | TU5 | docs/design | BUILDING |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -391,3 +393,7 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TL1e built; pm-gate-50 GREEN over TL1e + TS3 (831, incl. SettingsSummariesTest + PairedPageTest); mutation (VPN route coverage ignored) fails 2. Installed on the Poco; user device check of Find PC with Tailscale on + nested Settings pending. Then the deep re-review of the whole TL1 set.
 - 2026-11-04 DEVICE: TL1e build, Tailscale ON, Find PC -> 'Found at 192.168.1.61' (user: 'all correct'); nested Settings OK. MAJOR-2 fixed on device. User asked for address list + history logs -> Q73 'both' -> TH1 (after the TL1 set commits; same files). Deep re-review of TL1+TL1c+TL1e+TM1+TS3 dispatched.
 - 2026-11-04 TL1e re-review PASS-WITH-FINDINGS (MAJOR-2, MINOR-A closed). Committed TL1+TL1c+TL1e+TM1+TS3. MINOR-B (unbound socket may leave on another network: check the socket's local address == Wi-Fi address before TLS) + MINOR-C (re-read VPN routes per target) + NITs folded into TH1.
+- 2026-11-04 TH1 built (853); pm-gate-51 GREEN; mutations: last address deletable fails 1, MINOR-B check off fails 1. Installed on the Poco (migration of the real stored entry runs at launch). Deep data+security review dispatched.
+- 2026-11-04 User: app looks rough/ugly, wants a redesign (component shapes, not colours), home options as mockups, ChatGPT/Claude as inspiration; model sheet collapsible providers + search; effort slider -> Q74. TD2 mockups (deep) dispatched; build tickets after the user picks.
+- 2026-11-04 TH1 review CHANGES-REQUIRED: migration safe on real data (token byte-for-byte, write after decode), MAJOR-1 deleted Tailscale address never returns. TH1b (std) dispatched.
+- 2026-11-04 TH1b: pm-gate-52 GREEN (859); mutation (deletion remembered regardless of kind) fails 3. Committed TH1+TH1b without a separate re-review (narrow, mutation-proven MAJOR fix; diff folds into the redesign review). Installed on the Poco.

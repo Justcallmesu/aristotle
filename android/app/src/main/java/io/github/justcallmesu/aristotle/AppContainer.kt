@@ -29,6 +29,8 @@ import io.github.justcallmesu.aristotle.data.AesGcmTokenCipher
 import io.github.justcallmesu.aristotle.data.CertificateProbe
 import io.github.justcallmesu.aristotle.data.CredentialCodec
 import io.github.justcallmesu.aristotle.data.CredentialStore
+import io.github.justcallmesu.aristotle.data.ConnectionLog
+import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.AndroidNetworkWatch
 import io.github.justcallmesu.aristotle.data.HttpClients
 import io.github.justcallmesu.aristotle.data.HttpLinkDialer
@@ -82,9 +84,21 @@ class AppContainer(context: Context) {
     /** Process-lifetime work (credential reads and wipes); the store moves it off the main thread. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    val credentials = CredentialStore(
+    /**
+     * The connection history (Q73): its own app-private file, kept from backups like the credentials (allowBackup off,
+     * every domain excluded in the backup rules). Written in the background, on its own queue.
+     */
+    val connectionLog = ConnectionLog(
+        SharedPreferencesStore(context.getSharedPreferences(HISTORY_FILE, Context.MODE_PRIVATE)),
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        // After Unpair nothing is written: a late event of the old pairing must not start a new history.
+        paired = { credentials.state.value is CredentialState.Paired },
+    )
+
+    val credentials: CredentialStore = CredentialStore(
         SharedPreferencesStore(context.getSharedPreferences(CREDENTIALS_FILE, Context.MODE_PRIVATE)),
         CredentialCodec(AesGcmTokenCipher(encryptKey = KeystoreTokenKey::getOrCreate, decryptKey = KeystoreTokenKey::existing)),
+        events = connectionLog,
     )
     val httpClients = HttpClients()
     val certificateProbe = CertificateProbe()
@@ -105,6 +119,7 @@ class AppContainer(context: Context) {
         dialer = dialer,
         network = network,
         memory = credentials,
+        history = connectionLog,
     )
 
     /** The phone's Wi-Fi (Q65): its joins start LAN discovery, its /24 is what "Find PC on this Wi-Fi" probes. */
@@ -118,6 +133,7 @@ class AppContainer(context: Context) {
         ports = TcpPortProbe(),
         onFound = link::useFound,
         log = { Log.d(TAG, it) },
+        events = connectionLog,
     )
 
     /** Settings' "Find PC on this Wi-Fi": announcement first, then the /24. Never automatic (Q65). */
@@ -168,7 +184,7 @@ class AppContainer(context: Context) {
     val notifier = Notifier(context)
 
     /** What this phone keeps per PC, ended together by Unpair and a finished re-pair (TS1). */
-    val records = PcRecords(credentials, profileSelection, pins, drafts)
+    val records = PcRecords(credentials, profileSelection, pins, drafts, clearHistory = connectionLog::clear)
     val background = BackgroundController(context, link, credentials.state, settings, scope)
 
     /** HyperOS stops background apps unless told otherwise; the battery guide is for these phones (spec Q27). */
@@ -192,6 +208,7 @@ class AppContainer(context: Context) {
     val pairEpoch: StateFlow<Int> = epoch.asStateFlow()
 
     init {
+        connectionLog.start()
         reloadCredentials()
         scope.launch(Dispatchers.Default) { quotes.load() }
         link.start()
@@ -247,6 +264,15 @@ class AppContainer(context: Context) {
         }
     }
 
+    /**
+     * Settings' delete on a saved address (Q73): gone from the store first, then the link leaves it if it is on it.
+     * False when it was not deleted (the last address, or no longer stored).
+     */
+    suspend fun deleteAddress(endpoint: ServerEndpoint): Boolean {
+        val pc = (credentials.state.value as? CredentialState.Paired)?.credentials ?: return false
+        return credentials.forgetAddress(pc.pcId, endpoint).also { deleted -> if (deleted) link.addressRemoved(endpoint) }
+    }
+
     /** The old PC's session notifications leave the tray (main thread, like the router). */
     private fun clearAlerts() {
         alerts.reset().forEach(notifier::apply)
@@ -262,6 +288,7 @@ class AppContainer(context: Context) {
         const val SETTINGS_FILE = "settings"
         const val DRAFTS_FILE = "drafts"
         const val PINS_FILE = "pins"
+        const val HISTORY_FILE = "connection_history"
         const val TAG = "Aristotle"
     }
 }

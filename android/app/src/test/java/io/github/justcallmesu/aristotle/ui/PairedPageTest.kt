@@ -21,6 +21,7 @@ class PairedPageTest {
         assertEquals(PairedPage.SettingsNotifications, PairedPage.SettingsGuide.back)
         assertEquals(PairedPage.SettingsConnection, PairedPage.Repair.back)
         assertEquals(PairedPage.SettingsAbout, PairedPage.SettingsWhatsNew.back)
+        assertEquals(PairedPage.SettingsConnection, PairedPage.SettingsHistory.back) // Q73
     }
 
     @Test

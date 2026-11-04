@@ -65,10 +65,11 @@ interface LinkDialer {
 
 /**
  * Stores what the link learnt about a PC: [fresh], the addresses it serves now (empty when unknown), merged
- * into the stored ones (never replacing them, T09b), and [lastGood], the one that worked.
+ * into the stored ones (never replacing them, T09b), and [lastGood], the one that worked. [found]: [lastGood] when it
+ * was not stored and came from LAN discovery (Q65), so it is saved as found on Wi-Fi (Q73).
  */
 fun interface LinkMemory {
-    suspend fun remember(pcId: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint)
+    suspend fun remember(pcId: String, fresh: List<ServerEndpoint>, lastGood: ServerEndpoint, found: ServerEndpoint?)
 }
 
 data class LinkTimings(
@@ -94,6 +95,8 @@ data class LinkTimings(
  * [stop] (the background notification's Stop, T10) closes the relay until [onForeground].
  * Frames are handed off OkHttp's reader thread at once ([RelaySocket]) and parsed here (protocol §12).
  * An unexpected error in a round shows as [OfflineCause.AppError] and the next round runs: the link never dies.
+ * What happens (connected, switched, offline and why, a LAN address demoted) goes to [history], the connection
+ * history (Q73), which only queues it.
  */
 class LinkManager(
     private val scope: CoroutineScope,
@@ -103,6 +106,7 @@ class LinkManager(
     private val memory: LinkMemory,
     private val timings: LinkTimings = LinkTimings(),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val history: ConnectionEvents = ConnectionEvents.None,
 ) : RelayLink {
     private val current = MutableStateFlow<LinkState>(LinkState.Idle)
     override val state: StateFlow<LinkState> = current.asStateFlow()
@@ -127,7 +131,14 @@ class LinkManager(
     /** LAN addresses that keep dropping after `gateway.ready` (TL1e); kept across stops and restarts of the session. */
     private val flaps = LanFlaps(timings.flapDrops, timings.flapWindowMillis, timings.flapDemoteMillis)
 
-    private enum class Wake { User, Network, Foreground, Found }
+    /**
+     * Addresses the user deleted while this session runs (Q73, [addressRemoved]): a round already ordered skips them,
+     * and a relay on one ends at once. Cleared when a session starts (the stored list no longer holds them then).
+     */
+    @Volatile
+    private var removed: Set<ServerEndpoint> = emptySet()
+
+    private enum class Wake { User, Network, Foreground, Found, Removed }
 
     /** Starts following the stored pairing; call once. */
     fun start(): Job = scope.launch {
@@ -170,8 +181,20 @@ class LinkManager(
      * beside its own and moves only when that one is ready. A link already online on a LAN address stays where it is.
      */
     fun useFound(endpoint: ServerEndpoint) {
+        removed = removed - endpoint
         found = endpoint
         wakes.trySend(Wake.Found)
+    }
+
+    /**
+     * The user deleted [endpoint] from the stored addresses (Q73); the store has it gone already. A relay on it, or
+     * one connecting to it, ends and the next round starts at once on the other addresses: a switch, not a loss, so
+     * no backoff and no 4409 stand-down.
+     */
+    fun addressRemoved(endpoint: ServerEndpoint) {
+        removed = removed + endpoint
+        if (found == endpoint) found = null
+        wakes.trySend(Wake.Removed)
     }
 
     override suspend fun call(method: String, params: JsonObject): JsonElement =
@@ -187,10 +210,17 @@ class LinkManager(
         private var failures = 0
         private var offlineSince: Long? = null
 
+        /** For the history (Q73): the address last online with no offline since, and the offline reason last told. */
+        private var lastOnline: ServerEndpoint? = null
+        private var lastOffline: OfflineReason? = null
+
         suspend fun run() {
+            removed = emptySet()
             current.value = LinkState.Connecting
             while (true) {
-                when (val end = nextRound()) {
+                val end = nextRound()
+                LinkHistory.reasonOf(end)?.let(::wentOffline)
+                when (end) {
                     RoundEnd.Revoked -> {
                         current.value = LinkState.Revoked
                         return
@@ -210,6 +240,21 @@ class LinkManager(
                     is RoundEnd.Superseded -> standDown(end)
                 }
             }
+        }
+
+        /** One history line per stretch offline, and again only when the reason changes (no line per retry). */
+        private fun wentOffline(reason: OfflineReason) {
+            lastOnline = null
+            if (reason == lastOffline) return
+            lastOffline = reason
+            history.record(ConnectionEvent.Offline(reason))
+        }
+
+        private fun cameOnline(endpoint: ServerEndpoint) {
+            val before = lastOnline
+            history.record(if (before != null && before != endpoint) ConnectionEvent.Switched(before, endpoint) else ConnectionEvent.Connected(endpoint))
+            lastOnline = endpoint
+            lastOffline = null
         }
 
         /** One round over the PC's addresses, best first; an unexpected error ends it like a loss. */
@@ -233,6 +278,7 @@ class LinkManager(
         private suspend fun round(pc: PcCredentials, order: List<ServerEndpoint>): RoundEnd {
             val misses = mutableListOf<Miss>()
             for (endpoint in order) {
+                if (endpoint in removed) continue
                 when (val result = attempt(pc, endpoint)) {
                     is Attempt.Missed -> misses += result.miss
                     is Attempt.Ended -> return result.end
@@ -252,7 +298,7 @@ class LinkManager(
                         dial.ready.onAwait { Start.Ready }
                         dial.ended.onAwait { Start.Ended(it) }
                         // The network changed while connecting: this address may now be the wrong one.
-                        wakes.onReceive { wake -> if (wake == Wake.Network || connectsToFound(wake, endpoint)) Start.Switched else null }
+                        wakes.onReceive { wake -> if (wake == Wake.Network || connectsToFound(wake, endpoint) || isRemoved(wake, endpoint)) Start.Switched else null }
                     }
                 }
                 started
@@ -344,7 +390,9 @@ class LinkManager(
                 while (true) {
                     when (val next = onlineOn(within, pc, dial)) {
                         is Watch.Over -> {
-                            if (next.end is RoundEnd.Lost) flaps.dropped(dial.endpoint, network.localNetworks(), clock())
+                            if (next.end is RoundEnd.Lost && flaps.dropped(dial.endpoint, network.localNetworks(), clock())) {
+                                history.record(ConnectionEvent.Demoted(dial.endpoint))
+                            }
                             return next.end
                         }
                         is Watch.TakeOver -> {
@@ -360,6 +408,7 @@ class LinkManager(
 
         private suspend fun onlineOn(within: CoroutineScope, pc: PcCredentials, dial: Dial): Watch {
             reachedOn(dial.endpoint)
+            cameOnline(dial.endpoint)
             live = dial.rpc
             current.value = LinkState.Online(dial.endpoint, ++generation)
             dial.live.complete(Unit)
@@ -374,7 +423,12 @@ class LinkManager(
                         dial.ended.onAwait { socketEnd -> endWhileTrying(endOf(socketEnd, dial.endpoint), trial, trialFailedAt) }
                         wakes.onReceive { wake ->
                             when {
-                                wake == Wake.Network -> Watch.Over(RoundEnd.Switch)
+                                wake == Wake.Network || isRemoved(wake, dial.endpoint) -> Watch.Over(RoundEnd.Switch)
+                                wake == Wake.Removed && trial?.let { it.dial.endpoint in removed } == true -> {
+                                    trial?.cancel()
+                                    trial = null
+                                    null
+                                }
                                 trial == null && movesToFound(wake, dial.endpoint) -> {
                                     trial = found.also { found = null }
                                         ?.takeUnless { flaps.demoted(it, network.localNetworks(), clock()) }
@@ -446,6 +500,9 @@ class LinkManager(
         private fun movesToFound(wake: Wake, endpoint: ServerEndpoint): Boolean =
             wake == Wake.Found && endpoint.network != Network.Lan && network.prefersLan()
 
+        /** The user deleted [endpoint] (Q73): leave it now. */
+        private fun isRemoved(wake: Wake, endpoint: ServerEndpoint): Boolean = wake == Wake.Removed && endpoint in removed
+
         /** Still connecting: on a LAN-first network the verified address goes before any other being tried. */
         private fun connectsToFound(wake: Wake, endpoint: ServerEndpoint): Boolean =
             wake == Wake.Found && network.prefersLan() && found.let { it != null && it != endpoint }
@@ -462,8 +519,10 @@ class LinkManager(
          */
         private suspend fun refreshAddresses(pc: PcCredentials, endpoint: ServerEndpoint) = unlessCancelled {
             val served = dialer.addresses(pc, endpoint).orEmpty()
-            val fresh = if (endpoint in pc.addresses) served else listOf(endpoint) + served
-            if (fresh.isNotEmpty() || endpoint != pc.lastGood) memory.remember(pc.pcId, fresh, endpoint)
+            val stored = endpoint in pc.addresses
+            val fresh = if (stored) served else listOf(endpoint) + served
+            // Every time, even with nothing new: the address's last success is stored too (Q73).
+            memory.remember(pc.pcId, fresh, endpoint, found = endpoint.takeUnless { stored })
         }
 
         private suspend fun backOff(end: RoundEnd.Lost) {
@@ -578,6 +637,26 @@ class LinkManager(
             } catch (_: Exception) {
                 // Best effort by design; the caller's state stays as it was.
             }
+        }
+    }
+}
+
+/** How a round's end reads in the connection history (Q73). Pure. */
+object LinkHistory {
+    /** The offline reason of [end]; null for a switch (the link goes on at once). */
+    fun reasonOf(end: RoundEnd): OfflineReason? = when (end) {
+        RoundEnd.Revoked -> OfflineReason.Revoked
+        is RoundEnd.HermesDown -> OfflineReason.HermesNotRunning
+        is RoundEnd.HermesUpdated -> OfflineReason.HermesUpdated
+        RoundEnd.Switch -> null
+        is RoundEnd.Superseded -> OfflineReason.Superseded
+        is RoundEnd.Lost -> when (end.cause) {
+            OfflineCause.Unreachable -> OfflineReason.PcUnreachable
+            OfflineCause.TailscaleMayBeOff -> OfflineReason.TailscaleMayBeOff
+            OfflineCause.CertificateChanged -> OfflineReason.CertificateChanged
+            OfflineCause.ConnectionLost -> OfflineReason.ConnectionLost
+            OfflineCause.AppError -> OfflineReason.AppError
+            OfflineCause.Superseded -> OfflineReason.Superseded
         }
     }
 }
