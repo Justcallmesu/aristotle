@@ -40,15 +40,19 @@ class AuthBroker(
     private val lockOn: () -> Boolean,
     private val turnOff: () -> Unit,
 ) : FreshAuth {
-    private var host: AuthHost? = null
+    // Every activity that is attached, the most recent last: a second window that closes leaves the first one asking.
+    private val hosts = ArrayList<AuthHost>()
     private var busy = false
 
+    /** The activity came to the front (onResume); it becomes the one that asks. */
     fun attach(host: AuthHost) {
-        this.host = host
+        hosts.remove(host)
+        hosts.add(host)
     }
 
+    /** Only [host] goes; another activity's attachment stays. */
     fun detach(host: AuthHost) {
-        if (this.host === host) this.host = null
+        hosts.remove(host)
     }
 
     override suspend fun confirm(purpose: AuthPurpose): Boolean {
@@ -66,17 +70,19 @@ class AuthBroker(
 
     /** Asks whatever the app lock's setting: turning the lock on or off needs a check too. */
     suspend fun prove(purpose: AuthPurpose): AuthResult {
-        val current = host ?: return AuthResult.Failed
+        val current = hosts.lastOrNull() ?: return AuthResult.Failed
         if (busy) return AuthResult.Failed
         busy = true
         lock.authStarted()
+        var passed = false
         try {
             val result = current.authenticate(purpose)
-            if (result == AuthResult.Passed) lock.unlocked()
+            passed = result == AuthResult.Passed
+            if (passed) lock.unlocked()
             return result
         } finally {
             busy = false
-            lock.authEnded()
+            lock.authEnded(passed)
         }
     }
 }

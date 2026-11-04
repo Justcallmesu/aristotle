@@ -7,8 +7,6 @@ import android.content.Context
 import android.graphics.Typeface
 import android.os.Build
 import android.os.PersistableBundle
-import android.view.WindowManager
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +29,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +52,7 @@ import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.terminal.TerminalEnd
 import io.github.justcallmesu.aristotle.data.terminal.TerminalState
+import io.github.justcallmesu.aristotle.ui.lock.SecureWhileShown
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.AtkinsonMonoFamily
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
@@ -70,7 +68,7 @@ import io.github.justcallmesu.aristotle.ui.theme.TerminalPalette
 @Composable
 fun TerminalScreen(viewModel: TerminalViewModel, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    SecureWindow()
+    SecureWhileShown()
     val modifiers = remember { StickyModifiers() }
     var view by remember { mutableStateOf<RemoteTerminalView?>(null) }
     val current = state.current
@@ -272,16 +270,6 @@ private fun endBody(end: TerminalEnd): String? = when (end) {
     is TerminalEnd.Refused -> end.details
     is TerminalEnd.Other -> end.details
     else -> null
-}
-
-/** FLAG_SECURE on the activity window while the terminal is on screen (no screenshots, blank recents snapshot). */
-@Composable
-private fun SecureWindow() {
-    val window = LocalActivity.current?.window
-    DisposableEffect(window) {
-        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
-    }
 }
 
 /** Copy, only when the user asks: marked sensitive, so Android's clipboard preview does not show it. */

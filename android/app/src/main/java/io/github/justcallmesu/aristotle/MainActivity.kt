@@ -19,11 +19,13 @@ import io.github.justcallmesu.aristotle.data.DeviceName
 import io.github.justcallmesu.aristotle.data.ThemeChoice
 import io.github.justcallmesu.aristotle.ui.AristotleApp
 import io.github.justcallmesu.aristotle.ui.lock.BiometricHost
+import io.github.justcallmesu.aristotle.ui.lock.WindowSecure
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTheme
 
 /** A FragmentActivity because BiometricPrompt (the app lock, TS2) needs one; nothing else changes. */
 class MainActivity : FragmentActivity() {
     private var biometric: BiometricHost? = null
+    private var pausedSecure: Any? = null
 
     /** Below Android 13 the app's language (TS1) is applied here; on 13+ the platform does it ([AppLocales]). */
     override fun attachBaseContext(newBase: Context) {
@@ -38,7 +40,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         val container = (application as AristotleApplication).container
         // BiometricPrompt is built in onCreate; the app lock and the fresh checks (Q61) ask through it.
-        biometric = BiometricHost(this).also(container.auth::attach)
+        biometric = BiometricHost(this)
         if (savedInstanceState == null) openFrom(intent)
         // The name the user gave the phone ("POCO X5 Pro 5G"), not the model code ("22101320G").
         val deviceName = DeviceName.of(
@@ -69,6 +71,25 @@ class MainActivity : FragmentActivity() {
         }
         val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+
+    /** The window in front asks the checks (attach); a second window that closes detaches only itself. */
+    override fun onResume() {
+        super.onResume()
+        val container = (application as AristotleApplication).container
+        biometric?.let(container.auth::attach)
+        pausedSecure?.let { WindowSecure.release(window, it) }
+        pausedSecure = null
+    }
+
+    /** Android 10-12 take the recents snapshot as the app leaves, before the lock screen: hide it from then on. */
+    override fun onPause() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && pausedSecure == null &&
+            (application as AristotleApplication).container.settings.appLock.value
+        ) {
+            pausedSecure = Any().also { WindowSecure.acquire(window, it) }
+        }
+        super.onPause()
     }
 
     override fun onDestroy() {

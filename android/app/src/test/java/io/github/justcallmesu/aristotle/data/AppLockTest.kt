@@ -117,19 +117,59 @@ class AppLockTest {
         lock.unlocked()
         lock.authStarted()
         lock.away(5_000) // Android 10's PIN activity stops ours
-        lock.authEnded()
+        lock.authEnded(passed = true)
         assertFalse(lock.locked.value)
     }
 
     @Test
-    fun leavingTheAppDuringACheckCountsFromWhenTheCheckEnded() {
+    fun aPassedCheckThatEndsBeforeTheReturnAlsoForgivesTheTimeAway() {
+        timeout = LockTimeout.Immediately
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        lock.authStarted()
+        lock.onStopped(changingConfigurations = false)
+        now += 5_000
+        lock.authEnded(passed = true) // the result arrives before onStart
+        lock.onStarted()
+        assertFalse(lock.locked.value)
+    }
+
+    @Test
+    fun aCancelledCheckOnReturnStillCountsTheTimeAwayFromTheStop() {
+        timeout = LockTimeout.Immediately
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        lock.authStarted()
+        lock.away(5_000) // PIN screen left on the task, then back
+        assertFalse(lock.locked.value) // judged when the check ends
+        lock.authEnded(passed = false)
+        assertTrue(lock.locked.value)
+    }
+
+    @Test
+    fun aCheckThatNeverEndsDoesNotKeepTheLockOffAfterTheUserReturnsLater() {
+        val lock = lock()
+        lock.onStarted()
+        lock.unlocked()
+        lock.authStarted() // never calls back
+        lock.onStopped(changingConfigurations = false)
+        now += 10 * 60_000L
+        lock.authEnded(passed = false) // e.g. the host cancelled it on destroy
+        lock.onStarted()
+        assertTrue(lock.locked.value)
+    }
+
+    @Test
+    fun leavingTheAppDuringACheckCountsFromTheStop() {
         val lock = lock()
         lock.onStarted()
         lock.unlocked()
         lock.authStarted()
         lock.onStopped(changingConfigurations = false)
         now += 10 * 60_000L
-        lock.authEnded() // the user went home; the prompt was cancelled
+        lock.authEnded(passed = false) // the user went home; the prompt was cancelled
         now += 60_000
         lock.onStarted()
         assertTrue(lock.locked.value)
@@ -173,6 +213,22 @@ class AppLockTest {
         broker.detach(host)
         assertFalse(broker.confirm(AuthPurpose.Terminal))
         assertTrue(lock.locked.value)
+    }
+
+    @Test
+    fun aClosedSecondWindowDoesNotBreakTheFirstOnesUnlock() = runBlocking {
+        val lock = lock()
+        val (broker, _) = broker(lock)
+        val first = AuthHost { AuthResult.Passed }
+        val second = AuthHost { AuthResult.Failed }
+        broker.attach(first)
+        broker.attach(second)
+        assertFalse(broker.confirm(AuthPurpose.Unlock)) // the newest window asks
+        broker.detach(second)
+        assertTrue(broker.confirm(AuthPurpose.Unlock))
+        assertFalse(lock.locked.value)
+        broker.detach(second) // detaching twice or a stranger changes nothing
+        assertTrue(broker.confirm(AuthPurpose.Unlock))
     }
 
     @Test

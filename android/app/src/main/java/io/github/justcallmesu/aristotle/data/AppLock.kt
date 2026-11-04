@@ -26,7 +26,8 @@ enum class LockTimeout(val key: String, val millis: Long) {
  * - Back after at least [LockTimeout.millis] in the background locks it; time on screen never does. A rotation is not
  *   time away.
  * - While the app itself asks for a fingerprint or PIN ([authStarted]..[authEnded]) the system's PIN screen may stop
- *   the activity; that is not time away either, or "Immediately" would lock again right after every check.
+ *   the activity. The time away is still measured from that stop, and it counts unless the check PASSED: a cancelled
+ *   or abandoned check does not suppress locking, a passed one does not lock again right after itself.
  *
  * Main thread only, like the activity callbacks that drive it.
  */
@@ -42,28 +43,49 @@ class AppLock(
     private var awaySince: Long? = null
     private var authenticating = 0
 
+    /** A return that happened while a check was still running: (stop time, return time), judged when it ends. */
+    private var returnedDuringCheck: Pair<Long, Long>? = null
+
     fun onStarted() {
         started++
         if (started != 1) return
-        val since = awaySince
+        val since = awaySince ?: return
         awaySince = null
-        if (since != null && enabled() && now() - since >= timeout().millis) state.value = true
+        if (authenticating > 0) {
+            returnedDuringCheck = since to now()
+            return
+        }
+        lockIfAway(since, now())
+    }
+
+    private fun lockIfAway(since: Long, until: Long) {
+        if (enabled() && until - since >= timeout().millis) state.value = true
     }
 
     fun onStopped(changingConfigurations: Boolean) {
         started = (started - 1).coerceAtLeast(0)
         if (started > 0 || changingConfigurations) return
-        if (authenticating == 0) awaySince = now()
+        awaySince = now()
     }
 
     fun authStarted() {
         authenticating++
     }
 
-    /** The check ended; if the user left the app meanwhile, the time away starts now. */
-    fun authEnded() {
+    /**
+     * The check ended. [passed]: what happened while it ran is forgiven. Otherwise the time away stands, measured
+     * from the stop, and a return that came during the check is judged now.
+     */
+    fun authEnded(passed: Boolean) {
         authenticating = (authenticating - 1).coerceAtLeast(0)
-        if (authenticating == 0 && started == 0 && awaySince == null) awaySince = now()
+        if (authenticating > 0) return
+        val returned = returnedDuringCheck
+        returnedDuringCheck = null
+        if (passed) {
+            awaySince = null
+            return
+        }
+        if (returned != null) lockIfAway(returned.first, returned.second)
     }
 
     /** A check passed, or the lock was turned off. */

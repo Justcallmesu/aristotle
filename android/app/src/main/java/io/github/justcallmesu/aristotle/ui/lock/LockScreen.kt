@@ -1,7 +1,5 @@
 package io.github.justcallmesu.aristotle.ui.lock
 
-import android.view.WindowManager
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -59,14 +56,5 @@ fun LockScreen(onUnlock: () -> Unit) {
                 Button(onClick = onUnlock, shape = ButtonShape) { Text(stringResource(R.string.lock_unlock)) }
             }
         }
-    }
-}
-
-@Composable
-private fun SecureWhileShown() {
-    val window = LocalActivity.current?.window
-    DisposableEffect(window) {
-        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
     }
 }

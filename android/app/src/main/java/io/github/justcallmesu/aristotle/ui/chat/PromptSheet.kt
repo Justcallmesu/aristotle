@@ -5,9 +5,7 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.View
-import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -68,6 +66,7 @@ import io.github.justcallmesu.aristotle.data.chat.ClarifyAnswer
 import io.github.justcallmesu.aristotle.data.chat.ClarifyQuestion
 import io.github.justcallmesu.aristotle.data.chat.Prompt
 import io.github.justcallmesu.aristotle.data.chat.SecretKind
+import io.github.justcallmesu.aristotle.ui.lock.SecureWhileShown
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
@@ -349,7 +348,7 @@ private fun SecretBody(prompt: Prompt.Secret, busy: Boolean, armed: Boolean, act
     // The value lives here only: `remember`, not `rememberSaveable`, so it is never written into saved state.
     val field = remember(prompt.key) { SecretField() }
     var visible by remember(prompt.key) { mutableStateOf(false) }
-    SecureWindow()
+    SecureWhileShown()
     DisposableEffect(prompt.key) { onDispose { field.take() } }
     val sudo = prompt.kind == SecretKind.Sudo
     Headline(stringResource(if (sudo) R.string.prompt_sudo_title else R.string.prompt_secret_title))
@@ -381,16 +380,6 @@ private fun SecretBody(prompt: Prompt.Secret, busy: Boolean, armed: Boolean, act
             shape = ButtonShape,
             modifier = Modifier.weight(1f),
         ) { Text(stringResource(R.string.prompt_send)) }
-    }
-}
-
-/** FLAG_SECURE on the activity window too while the secret sheet is up (the sheet's own window has SecureOn). */
-@Composable
-private fun SecureWindow() {
-    val window = LocalActivity.current?.window
-    DisposableEffect(window) {
-        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
     }
 }
 

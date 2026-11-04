@@ -9,6 +9,7 @@ import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.AuthHost
 import io.github.justcallmesu.aristotle.data.AuthPurpose
@@ -40,6 +41,11 @@ class BiometricHost(private val activity: FragmentActivity) : AuthHost {
     override suspend fun authenticate(purpose: AuthPurpose): AuthResult {
         if (!isScreenLockSet(activity)) return AuthResult.NoScreenLock
         if (pending != null) return AuthResult.Failed
+        // A check starts only on a resumed, visible activity. After onSaveInstanceState androidx drops authenticate()
+        // silently, and nothing would ever call back (TS2b).
+        if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || activity.supportFragmentManager.isStateSaved) {
+            return AuthResult.Failed
+        }
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(activity.getString(title(purpose)))
             .setAllowedAuthenticators(AUTHENTICATORS)
