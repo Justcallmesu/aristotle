@@ -77,6 +77,13 @@ type testServer struct {
 // tweaks run on the built server before it starts.
 func startServer(t *testing.T, scan func() ([]listen.Iface, error), hermesHome string, tweaks ...func(*server)) testServer {
 	t.Helper()
+	return startServerWithState(t, scan, hermesHome, nil, tweaks...)
+}
+
+// startServerWithState is startServer with prepare run on the state dir before the server opens it.
+func startServerWithState(t *testing.T, scan func() ([]listen.Iface, error), hermesHome string, prepare func(stateDir string),
+	tweaks ...func(*server)) testServer {
+	t.Helper()
 	root, err := os.MkdirTemp("", "ar")
 	if err != nil {
 		t.Fatal(err)
@@ -93,6 +100,9 @@ func startServer(t *testing.T, scan func() ([]listen.Iface, error), hermesHome s
 	stateDir, err := config.EnsureStateDir(log)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if prepare != nil {
+		prepare(stateDir)
 	}
 	cfg := config.Default()
 	cfg.Port = 0 // loopback on an ephemeral port

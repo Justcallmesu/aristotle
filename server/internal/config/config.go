@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 )
@@ -33,6 +34,15 @@ type Config struct {
 	LANEnabled       bool     `json:"lan_enabled"`
 	TailscaleEnabled bool     `json:"tailscale_enabled"`
 	LANInterfaces    []string `json:"lan_interfaces"`
+	Terminal         Terminal `json:"terminal"`
+}
+
+// Terminal holds the remote terminal's PC-side settings (docs/terminal.md). The switch and the grants
+// are not here: they live in the state dir (terminal.json), changed only by the CLI.
+type Terminal struct {
+	// KeepEnv names desktop-session variables (DISPLAY, SSH_AUTH_SOCK, ...) that the shell keeps;
+	// by default it gets none of them.
+	KeepEnv []string `json:"keep_env"`
 }
 
 // Default returns the configuration used when no file exists.
@@ -53,8 +63,27 @@ func (c Config) Validate() error {
 	if c.Port < 1 || c.Port > 65535 {
 		return fmt.Errorf("port %d out of range 1-65535", c.Port)
 	}
-	return checkIfaceNames(c.LANInterfaces)
+	if err := checkIfaceNames(c.LANInterfaces); err != nil {
+		return err
+	}
+	return checkEnvNames(c.Terminal.KeepEnv)
 }
+
+func checkEnvNames(names []string) error {
+	seen := map[string]bool{}
+	for _, n := range names {
+		if !envName.MatchString(n) {
+			return fmt.Errorf("terminal.keep_env: %q is not a variable name", n)
+		}
+		if seen[n] {
+			return fmt.Errorf("terminal.keep_env: %q listed twice", n)
+		}
+		seen[n] = true
+	}
+	return nil
+}
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // maxIfaceName is IFNAMSIZ minus the terminating NUL on Linux.
 const maxIfaceName = 15
@@ -100,19 +129,32 @@ func Parse(data []byte) (Config, error) {
 	return cfg, nil
 }
 
-var knownKeys = map[string]bool{"host": true, "port": true, "lan_enabled": true, "tailscale_enabled": true, "lan_interfaces": true}
+var knownKeys = map[string]bool{"host": true, "port": true, "lan_enabled": true, "tailscale_enabled": true, "lan_interfaces": true,
+	"terminal": true}
 
-// checkKeys requires a JSON object whose top-level keys match exactly
-// (case-sensitive), appear once and are not null. Syntax errors inside the
-// object are left to the JSON decoder to report.
+// knownObjects lists, for each key whose value is an object, that object's keys.
+var knownObjects = map[string]map[string]bool{"terminal": {"keep_env": true}}
+
+// checkKeys requires a JSON object whose top-level keys (and those of the nested objects in
+// knownObjects) match exactly (case-sensitive), appear once and are not null. Syntax errors inside
+// the object are left to the JSON decoder to report.
 func checkKeys(data []byte) error {
+	return checkObject(data, knownKeys, "")
+}
+
+// checkObject checks one object's keys against known; prefix names the object in errors ("" for the
+// top level, "terminal." inside it).
+func checkObject(data []byte, known map[string]bool, prefix string) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	tok, err := dec.Token()
 	if err != nil {
 		return nil
 	}
 	if tok != json.Delim('{') {
-		return errors.New("config must be a JSON object")
+		if prefix == "" {
+			return errors.New("config must be a JSON object")
+		}
+		return fmt.Errorf("%s must be a JSON object", strings.TrimSuffix(prefix, "."))
 	}
 	seen := map[string]bool{}
 	for dec.More() {
@@ -121,7 +163,7 @@ func checkKeys(data []byte) error {
 			return nil
 		}
 		key, _ := tok.(string)
-		if err := checkKey(key, seen); err != nil {
+		if err := checkKey(key, prefix, known, seen); err != nil {
 			return err
 		}
 		var value json.RawMessage
@@ -129,23 +171,28 @@ func checkKeys(data []byte) error {
 			return nil
 		}
 		if string(value) == "null" {
-			return fmt.Errorf("key %q must not be null", key)
+			return fmt.Errorf("key %q must not be null", prefix+key)
+		}
+		if sub, ok := knownObjects[prefix+key]; ok {
+			if err := checkObject(value, sub, prefix+key+"."); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func checkKey(key string, seen map[string]bool) error {
-	if !knownKeys[key] {
-		for known := range knownKeys {
-			if strings.EqualFold(key, known) {
-				return fmt.Errorf("key %q must be written exactly as %q", key, known)
+func checkKey(key, prefix string, known, seen map[string]bool) error {
+	if !known[key] {
+		for k := range known {
+			if strings.EqualFold(key, k) {
+				return fmt.Errorf("key %q must be written exactly as %q", prefix+key, prefix+k)
 			}
 		}
-		return fmt.Errorf("unknown field %q", key)
+		return fmt.Errorf("unknown field %q", prefix+key)
 	}
 	if seen[key] {
-		return fmt.Errorf("duplicate key %q", key)
+		return fmt.Errorf("duplicate key %q", prefix+key)
 	}
 	seen[key] = true
 	return nil

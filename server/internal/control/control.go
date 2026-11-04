@@ -54,8 +54,8 @@ type Server struct {
 	// PeerPID returns the connecting process's pid; default SO_PEERCRED.
 	PeerPID func(*net.UnixConn) (int, error)
 	// Authorize, when set, runs before every known command with the peer's pid (0 when it could not be
-	// read); an error refuses the command with that text. The server uses it to refuse pair, terminal
-	// enable and grant-terminal to processes inside a remote terminal (T19 red-team B2).
+	// read); an error refuses the command with that text. The server uses it to refuse processes inside a
+	// remote terminal every command outside a short allowlist (T19 red-team B2).
 	Authorize func(cmd string, pid int) error
 
 	ln   *net.UnixListener

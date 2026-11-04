@@ -73,6 +73,9 @@ type Options struct {
 	// DelegatedUnit is the systemd unit whose cgroup is delegated to the server (the installed unit file
 	// says Delegate=yes); "" relies on systemd's delegate xattr alone.
 	DelegatedUnit string
+	// KeepEnv names desktop-session variables the shell keeps (config terminal.keep_env); by default
+	// it gets none of them (proc.go desktopEnv).
+	KeepEnv []string
 	// NoCgroup skips cgroup detection: cleanup is by process session only (tests).
 	NoCgroup bool
 
@@ -297,7 +300,7 @@ func (h *Hub) List() []Open {
 }
 
 // InTerminal reports whether process pid runs inside an Aristotle terminal, and how that was seen, so
-// the control socket can refuse it pair, terminal enable and grant-terminal (T19 red-team B2). It
+// the control socket can refuse it every command outside its allowlist (T19 red-team B2). It
 // checks the ARISTOTLE_TERMINAL marker in the environment pid started with, the terminal cgroups, and
 // pid's ancestry and session against every live shell. Anything it cannot read counts as inside (fail
 // closed). A same-uid process can still escape every check (setsid plus an unset marker without a

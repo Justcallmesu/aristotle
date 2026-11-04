@@ -14,3 +14,4 @@
 - 2026-11-03 User: "continue working without the phone connection". Keep building tickets autonomously; all device checks (DC4, DC5, DC-T11*, T12 sheets) are batched on the board for when the phone is back. Workers never install on the phone.
 - 2026-11-04 User: "after this pause okay". In flight: T19a security review + T19b build. PM finishes those (gate, mutation, commit only if no BLOCKER/MAJOR); starts nothing new — no fix rounds, no T22 — until the user says go.
 - 2026-11-04 User: "continue". Pause lifted.
+- 2026-11-04 User: "do tickets first, and refine the ui, the ui still rough". Device QA (T22) paused. Order: finish T19c, clear open D-rows, then a UI refinement pass (TU tickets) driven by a screen-by-screen audit against design.md; release signing last.

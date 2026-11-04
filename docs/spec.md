@@ -68,7 +68,7 @@ Rules that hold everywhere:
 | Q6 | Name "Aristotle". Icon: vector redraw of the reference engraving, with a monochrome layer. | `docs/assets/icon-reference.png`. Public-domain status ASSUMED. |
 | Q7 | aristotle-server (Go) is the only door: phone -> server (device token) -> loopback `/api/ws` via control-socket ticket. | Spike first (v0). |
 | Q7b | Pairing: QR on the PC (address + one-time code + cert fingerprint) and a manual path (type address + code). No Tailscale-identity auto-trust. | Manual path shows the fingerprint to compare. |
-| Q7c | No app lock, including for approvals. | Accepted risk: an unlocked phone can drive the PC agent. Mitigation: revoke from the PC. |
+| Q7c | ~~No app lock, including for approvals.~~ Superseded by Q61 (optional app lock). | Accepted risk: an unlocked phone can drive the PC agent. Mitigation: revoke from the PC. |
 | Q7d | The phone may call everything the Desktop can (no method allowlist; size/rate sanity only). | |
 | Q8 | Stock features are native app screens backed by the server. | v2. |
 | Q9 | App: Kotlin + Jetpack Compose (Material 3). | PM technical call ("stack with the best UI"). |
@@ -124,6 +124,12 @@ Rules that hold everywhere:
 | Q56 | Attachments: max 765 KiB per file (one relay frame); photos are downscaled to fit; bigger files refused with a clear message. | User "do all" = A. |
 | Q57 | Cron edit / Run now / run history stay on the Desktop in v1 (REST-only in Hermes; no REST proxy in aristotle-server). | User "do all" = A. |
 | Q58 | D40: strip the Google code scanner's datatransport/CCT telemetry components from the merged manifest; the scanner must still work on the Poco (device check), else revisit. | User "do all" = A. |
+| Q59 | Chat loading shows a quote (same calm style as Q44-Q46) while a chat loads its history on first open or after a reconnect, only if loading takes > ~300 ms, then stays ≥ ~1.2 s. | User 2026-11-04. TQ2. |
+| Q60 | Settings screen: Connection & PCs (paired PC, its addresses, re-pair, unpair), Notifications, Appearance (light/dark/system, text size), Language (EN/ID/system), Security, About. | User 2026-11-04. TS1. |
+| Q61 | Optional app lock (replaces Q7c "no app lock"), off by default: fingerprint / device PIN (BiometricPrompt, device credential allowed) when opening Aristotle after N minutes away; when on, also required before opening the terminal and before Always allow / sudo / secret answers. | User 2026-11-04. TS2. |
+| Q62 | Security setting "Show Terminal on this phone" (phone-local; hides the entry). The terminal itself is still enabled only on the PC (Q52). | User 2026-11-04. TS2. |
+| Q63 | Semantic versions (1.0.0) for app and server, shown in About; the app warns when the server's protocol version is too old or too new. | User 2026-11-04. TV1. |
+| Q64 | Change log: `CHANGELOG.md` in the repo (Keep a Changelog style) + an in-app "What's new" shown once after an update (and from About). | User 2026-11-04. TV2. |
 
 ## 4. Risks
 

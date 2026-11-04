@@ -82,10 +82,11 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		ctl.Unlock()
 		return nil, err
 	}
-	grants, err := terminal.OpenGrants(stateDir)
+	// A bad terminal.json disables the terminal, not the server: the relay keeps working (fail closed).
+	grants, err := terminal.OpenGrantsFailClosed(stateDir)
 	if err != nil {
-		ctl.Unlock()
-		return nil, err
+		log.Error("terminal state unusable: the remote terminal stays disabled until it is fixed or removed "+
+			"(aristotle-server terminal status)", "err", err)
 	}
 	cert, err := loadCert(cfg, stateDir, scan, log)
 	if err != nil {
@@ -101,7 +102,7 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		rejects: httpapi.NewRejectLog(log), control: ctl,
 		relay:  relay.New(relay.Options{Dialer: connector, Devices: store, Log: log}),
 		grants: grants, terms: terminal.New(terminal.Options{Grants: grants, Devices: store, Log: log,
-			DelegatedUnit: delegatedUnit()})}
+			KeepEnv: cfg.Terminal.KeepEnv, DelegatedUnit: delegatedUnit()})}
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,

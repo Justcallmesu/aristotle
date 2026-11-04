@@ -46,10 +46,11 @@ type session struct {
 	proc       *shellProc    // set by run before the pumps start
 	pid        atomic.Int64  // proc's pid for List and InTerminal (0 before the start)
 	outputDone chan struct{} // closed when pumpOutput returns
+	ptyIn      *inputQueue   // input frames from pumpInput to writePTY
 	report     killReport    // written by teardown, read by logClose
 
 	lastInput     atomic.Int64 // opts.Now unix nanos of the last input byte (idle limit)
-	blocked       atomic.Bool  // the phone is not being read (input waits for the rate or the PTY)
+	blocked       atomic.Bool  // the phone is not being read because input waits for the byte rate
 	lastUnblocked atomic.Int64 // real unix nanos when the last such wait ended
 	bytesIn       atomic.Int64
 	bytesOut      atomic.Int64
@@ -59,7 +60,7 @@ type session struct {
 
 func newSession(h *Hub, dev, listener string) *session {
 	s := &session{PhoneConn: relay.NewPhoneConn(nil), hub: h, id: newTerminalID(), dev: dev, listener: listener,
-		log: h.opts.Log, start: h.opts.Now(), outputDone: make(chan struct{})}
+		log: h.opts.Log, start: h.opts.Now(), outputDone: make(chan struct{}), ptyIn: newInputQueue(InputQueueBytes)}
 	s.lastInput.Store(s.start.UnixNano())
 	s.ioCtx, s.cancelIO = context.WithCancel(context.Background())
 	s.stopCtx, s.stop = context.WithCancel(context.Background())
@@ -103,6 +104,7 @@ func (s *session) run() {
 	var wg sync.WaitGroup
 	wg.Go(s.pumpOutput)
 	wg.Go(s.pumpInput)
+	wg.Go(s.writePTY)
 	wg.Go(s.keepalive)
 	wg.Go(s.watchLimits)
 	wg.Go(s.watchExit)
@@ -117,7 +119,7 @@ func (s *session) run() {
 func (s *session) startShell() error {
 	path, args := s.hub.opts.Command()
 	home := homeDir()
-	spec := spawnSpec{path: path, args: args, dir: home, env: shellEnv(os.Environ(), s.id, path, home),
+	spec := spawnSpec{path: path, args: args, dir: home, env: shellEnv(os.Environ(), s.hub.opts.KeepEnv, s.id, path, home),
 		cols: defaultCols, rows: defaultRows}
 	if s.hub.cg != nil {
 		cg, err := s.hub.cg.create(s.id)
@@ -210,25 +212,44 @@ func (s *session) pumpInput() {
 	}
 }
 
-// input writes one frame of keystrokes or paste to the PTY, after the byte-rate wait. The phone is not
-// read meanwhile, which keepalive allows for.
+// input queues one frame of keystrokes or paste for writePTY, after the byte-rate wait. The phone is
+// not read during that wait, which keepalive allows for (at most a second per 64 KiB frame). A PTY
+// write that blocks (the program does not read its input) does not stop the reading: frames queue, up
+// to InputQueueBytes, and only beyond that does the reader wait for the PTY. That wait is not exempt
+// from keepalive: a phone that vanishes behind a stuck program is dropped by the pong rule, not left
+// to the idle limit (T19a review m5).
 func (s *session) input(rate *byteRate, msg []byte) {
 	if len(msg) == 0 {
 		return
 	}
-	s.blocked.Store(true)
-	defer func() {
+	if d := rate.take(time.Now(), len(msg)); d > 0 {
+		s.blocked.Store(true)
+		ok := s.sleep(d)
 		s.lastUnblocked.Store(time.Now().UnixNano()) // before blocked drops, for keepalive
 		s.blocked.Store(false)
-	}()
-	if d := rate.take(time.Now(), len(msg)); d > 0 && !s.sleep(d) {
-		return
+		if !ok {
+			return
+		}
 	}
-	if _, err := s.proc.master.Write(msg); err != nil {
-		return // the PTY is closing; watchExit or teardown ends the terminal
+	s.ptyIn.push(msg, s.stopCtx.Done())
+}
+
+// writePTY writes the queued input to the PTY, apart from the phone's reads. teardown's close of the
+// master ends a write in flight.
+func (s *session) writePTY() {
+	for {
+		msg := s.ptyIn.next(s.stopCtx.Done())
+		if msg == nil {
+			return
+		}
+		_, err := s.proc.master.Write(msg)
+		s.ptyIn.written(len(msg))
+		if err != nil {
+			return // the PTY is closing; watchExit or teardown ends the terminal
+		}
+		s.bytesIn.Add(int64(len(msg)))
+		s.lastInput.Store(s.hub.opts.Now().UnixNano())
 	}
-	s.bytesIn.Add(int64(len(msg)))
-	s.lastInput.Store(s.hub.opts.Now().UnixNano())
 }
 
 type controlMsg struct {

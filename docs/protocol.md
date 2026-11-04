@@ -885,7 +885,10 @@ counted from **input only** (output and resizes do not count), maximum session 8
 
 **Keepalive.** As §12: a ping every 25 s, close `1011 pong_timeout` when within 15 s nothing came from the phone and no
 write that waited for it got bytes out (not counted while the server has stopped reading the phone for the input
-rate or a full PTY). Same client obligations: answer every ping, never block the reading thread.
+rate). Input the shell is not reading yet (a full PTY) waits in a queue of up to 256 KiB while the server keeps reading
+the phone, so a phone that vanishes then is still closed by this rule. Beyond 256 KiB the server stops reading the
+phone until the shell reads, and that time is not exempt: a paste that large into a program that does not read its
+input ends with `pong_timeout` within 40 s. Same client obligations: answer every ping, never block the reading thread.
 
 **No reattach (Q55).** Any close ends the shell: the server sends SIGHUP to the shell's session, then after 5 s kills
 what is left (the whole terminal cgroup with `cgroup.kill` when the service unit delegates its cgroup, else every

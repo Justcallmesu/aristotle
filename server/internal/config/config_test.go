@@ -31,6 +31,19 @@ func TestParseLANInterfaces(t *testing.T) {
 	if def := Default(); def.LANInterfaces != nil {
 		t.Fatalf("default lan_interfaces = %v, want unset", def.LANInterfaces)
 	}
+	if def := Default(); def.Terminal.KeepEnv != nil {
+		t.Fatalf("default terminal.keep_env = %v, want none", def.Terminal.KeepEnv)
+	}
+}
+
+func TestParseTerminalKeepEnv(t *testing.T) {
+	cfg, err := Parse([]byte(`{"terminal": {"keep_env": ["SSH_AUTH_SOCK"]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Terminal.KeepEnv) != 1 || cfg.Terminal.KeepEnv[0] != "SSH_AUTH_SOCK" {
+		t.Fatalf("cfg = %+v", cfg)
+	}
 }
 
 func TestParseListenerToggles(t *testing.T) {
@@ -76,6 +89,17 @@ func TestParse(t *testing.T) {
 		{"lan_interfaces too long", `{"lan_interfaces": ["abcdefghijklmnop"]}`, "not an interface name", ""},
 		{"lan_interfaces duplicate", `{"lan_interfaces": ["wlan0", "wlan0"]}`, "listed twice", ""},
 		{"lan_interfaces mixed case key", `{"LAN_interfaces": ["wlan0"]}`, `"LAN_interfaces"`, ""},
+		{"terminal keep_env", `{"terminal": {"keep_env": ["SSH_AUTH_SOCK", "DISPLAY"]}}`, "", "127.0.0.1:8760"},
+		{"terminal empty", `{"terminal": {}}`, "", "127.0.0.1:8760"},
+		{"terminal unknown key", `{"terminal": {"keep": []}}`, `unknown field "terminal.keep"`, ""},
+		{"terminal mixed-case key", `{"terminal": {"Keep_Env": []}}`, `"terminal.Keep_Env" must be written exactly as "terminal.keep_env"`, ""},
+		{"terminal duplicate key", `{"terminal": {"keep_env": [], "keep_env": []}}`, `duplicate key "terminal.keep_env"`, ""},
+		{"terminal null", `{"terminal": null}`, `"terminal" must not be null`, ""},
+		{"terminal not an object", `{"terminal": ["DISPLAY"]}`, "terminal must be a JSON object", ""},
+		{"keep_env null", `{"terminal": {"keep_env": null}}`, `"terminal.keep_env" must not be null`, ""},
+		{"keep_env bad name", `{"terminal": {"keep_env": ["A=B"]}}`, "not a variable name", ""},
+		{"keep_env empty name", `{"terminal": {"keep_env": [""]}}`, "not a variable name", ""},
+		{"keep_env duplicate", `{"terminal": {"keep_env": ["DISPLAY", "DISPLAY"]}}`, "listed twice", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

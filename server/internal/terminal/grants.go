@@ -35,24 +35,53 @@ type Grants struct {
 
 	mu       sync.Mutex
 	state    grantsFile
+	problem  error // terminal.json could not be used: disabled, no grants, until it loads (OpenGrantsFailClosed)
 	onChange []func()
 }
 
 // OpenGrants loads <dir>/terminal.json; a missing file means disabled with no grants. Unknown fields
 // are ignored so that a downgrade keeps working; anything else unreadable is an error (fail closed).
 func OpenGrants(dir string) (*Grants, error) {
-	g := &Grants{dir: dir}
-	data, err := statefile.Read(dir, GrantsFile)
-	if errors.Is(err, fs.ErrNotExist) {
-		return g, nil
-	}
+	state, err := loadGrants(dir)
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(data, &g.state); err != nil {
-		return nil, fmt.Errorf("%s: %w", GrantsFile, err)
+	return &Grants{dir: dir, state: state}, nil
+}
+
+// OpenGrantsFailClosed is OpenGrants for the server: when terminal.json is corrupt, has loose
+// permissions or cannot be read, it still returns Grants, disabled with no grants, along with the
+// error, so that the server (and its relay) keeps running without a terminal (T19a review m4).
+// Problem keeps reporting the error; the file is not overwritten. Enable and grant load the file
+// again first and are refused while it is still unusable.
+func OpenGrantsFailClosed(dir string) (*Grants, error) {
+	state, err := loadGrants(dir)
+	if err != nil {
+		return &Grants{dir: dir, problem: err}, err
 	}
-	return g, nil
+	return &Grants{dir: dir, state: state}, nil
+}
+
+func loadGrants(dir string) (grantsFile, error) {
+	var state grantsFile
+	data, err := statefile.Read(dir, GrantsFile)
+	if errors.Is(err, fs.ErrNotExist) {
+		return state, nil
+	}
+	if err != nil {
+		return state, err
+	}
+	if err := json.Unmarshal(data, &state); err != nil {
+		return grantsFile{}, fmt.Errorf("%s: %w", GrantsFile, err)
+	}
+	return state, nil
+}
+
+// Problem returns why terminal.json could not be used (the terminal is then disabled), or nil.
+func (g *Grants) Problem() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.problem
 }
 
 // Status returns the switch and a copy of the granted ids.
@@ -123,9 +152,19 @@ func (g *Grants) Ungrant(id string) (bool, error) {
 }
 
 // update applies change to a copy, saves it and makes it current, then runs the hooks. When the save
-// fails a restrictive change still becomes current (and the hooks run); the error is returned.
+// fails a restrictive change still becomes current (and the hooks run); the error is returned. While
+// terminal.json is unusable, a widening change first loads it again and is refused if it still fails.
 func (g *Grants) update(restrictive bool, change func(*grantsFile) bool) (bool, error) {
 	g.mu.Lock()
+	if g.problem != nil && !restrictive {
+		state, err := loadGrants(g.dir)
+		if err != nil {
+			g.problem = err
+			g.mu.Unlock()
+			return false, fmt.Errorf("the terminal stays disabled until %s is fixed or removed: %w", GrantsFile, err)
+		}
+		g.state, g.problem = state, nil
+	}
 	next := grantsFile{Enabled: g.state.Enabled, Devices: slices.Clone(g.state.Devices)}
 	if !change(&next) {
 		g.mu.Unlock()

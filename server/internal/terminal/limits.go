@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -94,4 +95,86 @@ func (b *byteRate) take(now time.Time, n int) time.Duration {
 		return 0
 	}
 	return time.Duration(-b.tokens / b.rate * float64(time.Second))
+}
+
+// InputQueueBytes bounds the input that waits for the PTY (the program is not reading it) while the
+// phone is still being read, so that its pongs keep counting (T19a review m5).
+const InputQueueBytes = 4 * MaxFrameBytes
+
+// inputQueue holds the input frames between the phone reader and the PTY writer, at most max bytes
+// (counting the frame being written; one frame always fits in an empty queue).
+type inputQueue struct {
+	max   int
+	ready chan struct{} // a frame was added
+	space chan struct{} // a frame was written
+
+	mu     sync.Mutex
+	frames [][]byte
+	size   int
+}
+
+func newInputQueue(max int) *inputQueue {
+	return &inputQueue{max: max, ready: make(chan struct{}, 1), space: make(chan struct{}, 1)}
+}
+
+// tryPush queues msg when it fits and reports whether it did.
+func (q *inputQueue) tryPush(msg []byte) bool {
+	q.mu.Lock()
+	if q.size > 0 && q.size+len(msg) > q.max {
+		q.mu.Unlock()
+		return false
+	}
+	q.frames = append(q.frames, msg)
+	q.size += len(msg)
+	q.mu.Unlock()
+	signal(q.ready)
+	return true
+}
+
+// push queues msg, waiting for room; false when done ended first.
+func (q *inputQueue) push(msg []byte, done <-chan struct{}) bool {
+	for !q.tryPush(msg) {
+		select {
+		case <-q.space:
+		case <-done:
+			return false
+		}
+	}
+	return true
+}
+
+// next returns the oldest frame, waiting for one; nil when done ended first. The frame keeps its room
+// until written is called.
+func (q *inputQueue) next(done <-chan struct{}) []byte {
+	for {
+		q.mu.Lock()
+		if len(q.frames) > 0 {
+			msg := q.frames[0]
+			q.frames[0] = nil
+			q.frames = q.frames[1:]
+			q.mu.Unlock()
+			return msg
+		}
+		q.mu.Unlock()
+		select {
+		case <-q.ready:
+		case <-done:
+			return nil
+		}
+	}
+}
+
+// written frees the room of a frame returned by next.
+func (q *inputQueue) written(n int) {
+	q.mu.Lock()
+	q.size -= n
+	q.mu.Unlock()
+	signal(q.space)
+}
+
+func signal(c chan struct{}) {
+	select {
+	case c <- struct{}{}:
+	default:
+	}
 }

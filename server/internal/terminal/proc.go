@@ -101,21 +101,41 @@ var droppedEnv = []string{
 
 var droppedEnvPrefixes = []string{"LISTEN_", "WATCHDOG_", "TRIGGER_", "MONITOR_", "MEMORY_PRESSURE_", "ARISTOTLE_"}
 
-// shellEnv is the service's environment minus systemd's and aristotle's own variables, plus the
-// terminal's: TERM, COLORTERM, SHELL, HOME, PWD and the ARISTOTLE_TERMINAL marker.
-func shellEnv(base []string, termID, shell, home string) []string {
+// desktopEnv point at the user's live desktop session: the display, the session bus, the window
+// manager's IPC socket, the SSH and GPG agents and the login seat. The shell drops them unless the
+// server config keeps them (terminal.keep_env), so that a phone shell does not reach the desktop by
+// default. It can still set them itself (the X and Wayland sockets and the bus are reachable to any
+// process of the user): this is hygiene, not a boundary (docs/terminal.md, T19a review m1).
+var desktopEnv = []string{
+	"DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS",
+	"SWAYSOCK", "HYPRLAND_INSTANCE_SIGNATURE", "I3SOCK",
+	"SSH_AUTH_SOCK", "GPG_AGENT_INFO", "DESKTOP_SESSION", "XDG_CURRENT_DESKTOP",
+}
+
+var desktopEnvPrefixes = []string{"XDG_SESSION_", "XDG_SEAT"}
+
+// shellEnv is the service's environment minus systemd's and aristotle's own variables and minus the
+// desktop session's (except those named in keep), plus the terminal's: TERM, COLORTERM, SHELL, HOME,
+// PWD and the ARISTOTLE_TERMINAL marker. keep never brings back a systemd or aristotle variable.
+func shellEnv(base, keep []string, termID, shell, home string) []string {
 	out := make([]string, 0, len(base)+7)
 	for _, kv := range base {
 		key, _, _ := strings.Cut(kv, "=")
-		if slices.Contains(droppedEnv, key) || slices.ContainsFunc(droppedEnvPrefixes, func(p string) bool {
-			return strings.HasPrefix(key, p)
-		}) {
+		if listed(key, droppedEnv, droppedEnvPrefixes) ||
+			(listed(key, desktopEnv, desktopEnvPrefixes) && !slices.Contains(keep, key)) {
 			continue
 		}
 		out = append(out, kv)
 	}
 	return append(out, "TERM=xterm-256color", "COLORTERM=truecolor", "SHELL="+shell, "HOME="+home,
 		"PWD="+home, markerEnv+"="+termID)
+}
+
+// listed reports whether key is one of names or starts with one of prefixes.
+func listed(key string, names, prefixes []string) bool {
+	return slices.Contains(names, key) || slices.ContainsFunc(prefixes, func(p string) bool {
+		return strings.HasPrefix(key, p)
+	})
 }
 
 // loginShell is $SHELL, else the user's shell in passwd, else /bin/bash: the first that is an

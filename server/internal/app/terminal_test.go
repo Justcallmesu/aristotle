@@ -4,10 +4,13 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -126,6 +129,118 @@ func TestControlRefusesEscalationFromATerminalProcess(t *testing.T) {
 	// The same escalating command from an ordinary process works.
 	if code, out := cliAs(t, nil, "terminal enable"); code != 0 {
 		t.Fatalf("enable from the PC: exit %d\n%s", code, out)
+	}
+}
+
+// T19a review m3: from a terminal process only the allowlisted commands run (status, devices list,
+// terminal status, disable, ungrant, revoke); every other command is refused, including one added later.
+func TestControlFromATerminalIsAnAllowlist(t *testing.T) {
+	srv, logs := startTestServer(t)
+	child := exec.Command("sleep", "30")
+	child.Env = append(os.Environ(), "ARISTOTLE_TERMINAL=term_0000")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+	environ := fmt.Sprintf("/proc/%d/environ", child.Process.Pid)
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(5 * time.Millisecond) { // execve may still be setting it up
+		if b, _ := os.ReadFile(environ); strings.Contains(string(b), "ARISTOTLE_TERMINAL=") {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatal("the marker never showed in the child's environment")
+		}
+	}
+	allowed := map[string]bool{"status": true, "devices.list": true, "terminal.status": true, "terminal.disable": true,
+		"devices.ungrant_terminal": true, "devices.revoke": true}
+	cmds := []string{"devices.rename", "terminal.set_idle", "pair.start_qr"} // not (yet) commands: refused all the same
+	for cmd := range srv.controlHandlers() {
+		cmds = append(cmds, cmd)
+	}
+	for _, cmd := range cmds {
+		err := srv.authorizeControl(cmd, child.Process.Pid)
+		if allowed[cmd] != (err == nil) {
+			t.Errorf("%s from a terminal process: %v", cmd, err)
+		}
+		if err := srv.authorizeControl(cmd, os.Getpid()); err != nil {
+			t.Errorf("%s from the PC: %v", cmd, err)
+		}
+	}
+	if !strings.Contains(logs.String(), "cmd=devices.rename") {
+		t.Fatalf("no refusal line for an unknown command:\n%s", logs.String())
+	}
+}
+
+// T19a review m4: a corrupt terminal.json does not stop the server: the error is logged, the terminal
+// is disabled, the rest keeps serving, terminal status names the problem, and enable works once the
+// file is fixed or removed.
+func TestUnusableTerminalStateDisablesOnlyTheTerminal(t *testing.T) {
+	for name, mode := range map[string]os.FileMode{"corrupt": 0o600, "wrong permissions": 0o644} {
+		t.Run(name, func(t *testing.T) {
+			data := `{"enabled":tru`
+			if mode != 0o600 {
+				data = `{"enabled":true,"devices":[]}`
+			}
+			var path string
+			ts := startServerWithState(t, noIfaces, "", func(dir string) {
+				path = filepath.Join(dir, terminal.GrantsFile)
+				if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(path, mode); err != nil {
+					t.Fatal(err)
+				}
+			})
+			if !strings.Contains(ts.logs.String(), "level=ERROR msg=\"terminal state unusable") {
+				t.Fatalf("no error line:\n%s", ts.logs.String())
+			}
+			dev, token, err := ts.srv.devices.Add("pixel")
+			if err != nil {
+				t.Fatal(err)
+			}
+			api := httptest.NewServer(ts.srv.remoteHandler(listen.LAN))
+			defer api.Close()
+			get := func(path string) (int, string) {
+				req, _ := http.NewRequest("GET", api.URL+path, nil)
+				req.Header.Set("Authorization", "Bearer "+token)
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer resp.Body.Close()
+				b, _ := io.ReadAll(resp.Body)
+				return resp.StatusCode, string(b)
+			}
+			if code, body := get("/v1/me"); code != 200 || !strings.Contains(body, `"terminal":{"enabled":false,"granted":false}`) {
+				t.Fatalf("/v1/me = %d %s", code, body)
+			}
+			if code, body := get("/v1/terminal"); code != 403 || !strings.Contains(body, "terminal_disabled") {
+				t.Fatalf("/v1/terminal = %d %s", code, body)
+			}
+			if code, out, errOut := run(t, "devices", "list"); code != 0 || !strings.Contains(out, dev.ID) {
+				t.Fatalf("devices list: %d %s%s", code, out, errOut)
+			}
+			code, out, errOut := run(t, "terminal", "status")
+			if code != 0 || !strings.Contains(out, "Terminal: disabled") || !strings.Contains(out, "terminal.json cannot be used") {
+				t.Fatalf("terminal status: %d\n%s%s", code, out, errOut)
+			}
+			code, out, errOut = run(t, "terminal", "enable")
+			if code != 1 || !strings.Contains(errOut, "stays disabled until terminal.json is fixed or removed") {
+				t.Fatalf("enable while unusable: %d\n%s%s", code, out, errOut)
+			}
+			if b, _ := os.ReadFile(path); string(b) != data {
+				t.Fatalf("terminal.json overwritten: %s", b)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if code, out, errOut := run(t, "terminal", "enable"); code != 0 || ts.srv.grants.Problem() != nil {
+				t.Fatalf("enable after removing the file: %d\n%s%s", code, out, errOut)
+			}
+			if code, out, _ := run(t, "terminal", "status"); code != 0 || strings.Contains(out, "cannot be used") ||
+				!strings.Contains(out, "Terminal: enabled") {
+				t.Fatalf("status after the fix:\n%s", out)
+			}
+		})
 	}
 }
 

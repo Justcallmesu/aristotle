@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/justcallmesu/aristotle/server/internal/devices"
@@ -22,16 +21,24 @@ const (
 	cmdUngrantTerminal = "devices.ungrant_terminal"
 )
 
-// escalates lists the commands a process inside a remote terminal may not run: each would widen what
-// the phone can do (a new pairing that outlives a revoke, the switch, a grant). Disable, ungrant,
-// revoke and status stay allowed from anywhere (T19 red-team B2).
-func escalates(cmd string) bool {
-	return strings.HasPrefix(cmd, "pair.") || cmd == cmdTerminalEnable || cmd == cmdGrantTerminal
+// fromTerminal is the allowlist of control commands a process inside a remote terminal may run: the
+// ones that only read state or narrow access. Everything else is refused from a terminal: pair (a new
+// pairing that outlives a revoke), terminal enable, grant-terminal, and any command added later until
+// it is listed here on purpose (T19 red-team B2, T19a review m3). `logs` does not use the control
+// socket (it runs journalctl).
+var fromTerminal = map[string]bool{
+	cmdStatus:          true,
+	cmdDevicesList:     true,
+	cmdTerminalStatus:  true,
+	cmdTerminalDisable: true,
+	cmdUngrantTerminal: true,
+	cmdDevicesRevoke:   true,
 }
 
-// authorizeControl refuses an escalating command when the calling process is inside a terminal.
+// authorizeControl refuses every command outside fromTerminal when the calling process is inside a
+// terminal.
 func (s *server) authorizeControl(cmd string, pid int) error {
-	if !escalates(cmd) {
+	if fromTerminal[cmd] {
 		return nil
 	}
 	how, inside := s.terms.InTerminal(pid)
@@ -49,6 +56,7 @@ type terminalStatusResult struct {
 	Open    []terminal.Open `json:"open"`
 	Changed bool            `json:"changed"`
 	Warning string          `json:"warning,omitempty"`
+	Problem string          `json:"problem,omitempty"` // terminal.json is unusable: the terminal is disabled
 	Device  *devices.Public `json:"device,omitempty"`
 }
 
@@ -135,6 +143,9 @@ func (s *server) terminalStatus(changed bool, dev *devices.Public) terminalStatu
 	}
 	res := terminalStatusResult{Enabled: enabled, Open: s.terms.List(), Changed: changed, Device: dev,
 		Granted: []grantedDevice{}}
+	if err := s.grants.Problem(); err != nil {
+		res.Problem = err.Error()
+	}
 	for _, id := range ids {
 		res.Granted = append(res.Granted, grantedDevice{ID: id, Name: names[id]})
 	}
@@ -175,6 +186,10 @@ func printTerminalStatus(w io.Writer, res terminalStatusResult) {
 		state = "enabled"
 	}
 	fmt.Fprintf(w, "Terminal: %s\n", state)
+	if res.Problem != "" {
+		fmt.Fprintf(w, "  %s cannot be used, so the terminal stays disabled: %s\n", terminal.GrantsFile, res.Problem)
+		fmt.Fprintln(w, "  Fix or remove the file (removing it also removes every grant), then run terminal enable again.")
+	}
 	if len(res.Granted) == 0 {
 		fmt.Fprintln(w, "Granted devices: none")
 	} else {

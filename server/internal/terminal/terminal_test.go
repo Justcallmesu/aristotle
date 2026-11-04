@@ -538,6 +538,114 @@ func TestKeepaliveKeepsReadingPhone(t *testing.T) {
 	h.open(t, h.token).stillOpen(t, 400*time.Millisecond)
 }
 
+// blockedPTY is a program that never reads its input, on a raw PTY: once the PTY's input buffers are
+// full, a write to the master blocks.
+const blockedPTY = `stty raw -echo; echo ready; exec sleep 300`
+
+// pasteIntoBlockedPTY sends n 64 KiB frames (one is more than the PTY holds) without waiting for them.
+func pasteIntoBlockedPTY(c *websocket.Conn, n int) {
+	go func() {
+		for range n {
+			if c.Write(context.Background(), websocket.MessageBinary, make([]byte, MaxFrameBytes)) != nil {
+				return
+			}
+		}
+	}()
+}
+
+// T19a review m5: a phone that vanishes while a PTY write is blocked is dropped by keepalive (pong
+// timeout), not left to the 30 min idle limit: the blocked write does not stop the phone being read.
+func TestKeepaliveDropsVanishedPhoneWhilePTYWriteBlocks(t *testing.T) {
+	h := newHarness(t, script(blockedPTY), func(o *Options) {
+		o.PingInterval, o.PongTimeout = 50*time.Millisecond, 200*time.Millisecond
+	})
+	c, _, err := h.dial(t, h.token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	for !strings.Contains(out.String(), "ready") { // read only until the PTY is raw, then never again
+		_, msg, err := c.Read(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		out.Write(msg)
+	}
+	s := h.only(t)
+	pasteIntoBlockedPTY(c, 2)
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if why, _ := s.closeState(); why == closePongLost {
+			break
+		} else if why.code != 0 || time.Now().After(deadline) {
+			t.Fatalf("close %+v, want pong_timeout within 10s", why)
+		}
+	}
+	waitLog(t, h, "close_reason=pong_timeout")
+	if in := s.bytesIn.Load(); in >= 2*MaxFrameBytes {
+		t.Fatalf("the PTY took all %d bytes: no write was blocked", in)
+	}
+}
+
+// The same blocked PTY with a phone that is there: it keeps its terminal.
+func TestKeepaliveKeepsLivePhoneWhilePTYWriteBlocks(t *testing.T) {
+	h := newHarness(t, script(blockedPTY), func(o *Options) {
+		o.PingInterval, o.PongTimeout = 50*time.Millisecond, 200*time.Millisecond
+	})
+	p := h.open(t, h.token)
+	p.waitOutput(t, "ready")
+	s := h.only(t)
+	pasteIntoBlockedPTY(p.c, 3) // the reader also waits on the byte rate twice
+	p.stillOpen(t, 3500*time.Millisecond)
+	if in := s.bytesIn.Load(); in >= 3*MaxFrameBytes {
+		t.Fatalf("the PTY took all %d bytes: no write was blocked", in)
+	}
+}
+
+func TestInputQueueIsBoundedInBytes(t *testing.T) {
+	q := newInputQueue(10)
+	big := make([]byte, 25)
+	if !q.tryPush(big) {
+		t.Fatal("one frame must always fit in an empty queue")
+	}
+	if q.tryPush([]byte("x")) {
+		t.Fatal("queued past the bound")
+	}
+	done := make(chan struct{})
+	pushed := make(chan bool)
+	go func() { pushed <- q.push([]byte("abc"), done) }()
+	if msg := q.next(done); len(msg) != 25 {
+		t.Fatalf("next = %d bytes", len(msg))
+	}
+	select {
+	case <-pushed:
+		t.Fatal("room freed before the frame was written")
+	case <-time.After(50 * time.Millisecond):
+	}
+	q.written(25)
+	if !<-pushed {
+		t.Fatal("push failed")
+	}
+	if msg := q.next(done); string(msg) != "abc" {
+		t.Fatalf("next = %q", msg)
+	}
+	close(done)
+	if q.next(done) != nil {
+		t.Fatal("next after done")
+	}
+}
+
+// T19a review m1: the shell does not get the desktop session's variables, except those the config keeps.
+func TestShellDoesNotInheritTheDesktopSession(t *testing.T) {
+	t.Setenv("DISPLAY", ":7")
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1/bus")
+	t.Setenv("SSH_AUTH_SOCK", "/run/user/1/agent")
+	h := newHarness(t, script(`echo "d=[$DISPLAY] b=[$DBUS_SESSION_BUS_ADDRESS] s=[$SSH_AUTH_SOCK]"; sleep 30`), func(o *Options) {
+		o.KeepEnv = []string{"SSH_AUTH_SOCK"}
+	})
+	p := h.open(t, h.token)
+	p.waitOutput(t, `d=\[\] b=\[\] s=\[/run/user/1/agent\]`)
+}
+
 func TestMeFlags(t *testing.T) {
 	h := newHarness(t, interactive, nil)
 	_, otherToken, _ := h.store.Add("other")
