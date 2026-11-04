@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/justcallmesu/aristotle/server/internal/devices"
+	appversion "github.com/justcallmesu/aristotle/server/internal/version"
 )
 
 type deviceKey struct{}
@@ -43,6 +44,14 @@ type meResponse struct {
 	DeviceID string        `json:"device_id"`
 	Name     string        `json:"name"`
 	Terminal terminalFlags `json:"terminal"`
+	Server   serverInfo    `json:"server"`
+}
+
+// serverInfo lets the phone check compatibility (docs/protocol.md §0, §11.2).
+type serverInfo struct {
+	Version          string `json:"version"`
+	Protocol         int    `json:"protocol"`
+	MinPhoneProtocol int    `json:"min_phone_protocol"`
 }
 
 // terminalFlags tell the phone whether to show the terminal: both must be true (docs/protocol.md §14).
@@ -51,10 +60,10 @@ type terminalFlags struct {
 	Granted bool `json:"granted"`
 }
 
-func meHandler(t TerminalServer) http.Handler {
+func meHandler(version string, t TerminalServer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dev, _ := DeviceFrom(r.Context())
-		res := meResponse{DeviceID: dev.ID, Name: dev.Name}
+		res := meResponse{DeviceID: dev.ID, Name: dev.Name, Server: serverInfo{Version: version, Protocol: appversion.ProtocolVersion, MinPhoneProtocol: appversion.MinPhoneProtocol}}
 		if t != nil {
 			res.Terminal.Enabled, res.Terminal.Granted = t.Status(dev.ID)
 		}

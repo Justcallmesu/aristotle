@@ -8,11 +8,13 @@ import (
 
 	"github.com/justcallmesu/aristotle/server/internal/devices"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	appversion "github.com/justcallmesu/aristotle/server/internal/version"
 )
 
 type healthResponse struct {
-	Status  string `json:"status"`
-	Version string `json:"version"`
+	Status   string `json:"status"`
+	Version  string `json:"version"`
+	Protocol int    `json:"protocol"`
 }
 
 type errorResponse struct {
@@ -85,7 +87,7 @@ func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 		d.Rejects = NewRejectLog(log)
 	}
 	mux.Handle("POST /v1/pair", pairHandler(d, log, d.Rejects))
-	mux.Handle("GET /v1/me", requireDevice(d.Devices, meHandler(d.Terminal)))
+	mux.Handle("GET /v1/me", requireDevice(d.Devices, meHandler(version, d.Terminal)))
 	mux.Handle("GET /v1/addresses", requireDevice(d.Devices, addressesHandler(d)))
 	if d.Relay != nil {
 		mux.Handle("GET /v1/ws", requireDevice(d.Devices, relayHandler(d.Relay, d.Listener)))
@@ -105,7 +107,7 @@ func newMux(version string) *http.ServeMux {
 
 func healthHandler(version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Version: version})
+		writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Version: version, Protocol: appversion.ProtocolVersion})
 	}
 }
 

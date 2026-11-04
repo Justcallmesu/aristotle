@@ -6,6 +6,18 @@ relative to that tree. Evidence frames: `docs/spikes/frames/`. Spike client: `sp
 Labels: **EXERCISED** = sent by the spike and the answer captured (frame file named).
 **From source, not exercised** = read in Hermes code/contracts only.
 
+## 0. Versions and bump rules
+
+- **Server version**: semver of the `aristotle-server` build, set at build time (`scripts/build-server.sh`: `git describe --tags`,
+  fallback `0.0.0-dev+<short sha>`; unset builds report `0.0.0-dev`). `aristotle-server version` prints
+  `aristotle-server <version> (<commit>) protocol <N>`.
+- **Protocol version** (`ProtocolVersion`, integer, starts at 1): the phone-facing API, §11–§14 (HTTP endpoints, `/v1/ws`
+  relay frames, cron, `/v1/terminal`). `MinPhoneProtocol` is the oldest phone protocol the server still serves.
+- **Bump `ProtocolVersion`** on any breaking change to a phone-facing shape: removing or renaming a field, route or frame,
+  changing a type or meaning, or making an optional field required. **Additive changes do not bump** (new optional field,
+  new route, new frame type the phone may ignore). Raise `MinPhoneProtocol` only when the server drops support for older phones.
+- The server reports all three in `/healthz` and `/v1/me` (§11.2). Hermes-side frames (§1–§10) are versioned by Hermes, not here.
+
 ## 1. Connection bootstrap (EXERCISED — `a-identify.jsonl`, `a-connect.jsonl`, `a-probes.jsonl`)
 
 ### 1.1 Control socket
@@ -570,9 +582,9 @@ All listeners use the same port (config `port`, default 8760). The server never 
 ### 11.2 Endpoints (LAN and Tailscale listeners)
 | Method, path | Auth | Success | Errors |
 |---|---|---|---|
-| `GET /healthz` | none | `200 {"status":"ok","version":"…"}` | — |
+| `GET /healthz` | none | `200 {"status":"ok","version":"<server semver>","protocol":<N>}` | — |
 | `POST /v1/pair` | none (one-time code in the body) | `201 {"device_id":"dev_<12 hex>","token":"<43 chars>","addresses":[…]}` | `400`, `401`, `500` (below) |
-| `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…","terminal":{"enabled":<bool>,"granted":<bool>}}` (T19a, §14) | `401` |
+| `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…","terminal":{"enabled":<bool>,"granted":<bool>},"server":{"version":"<semver>","protocol":<N>,"min_phone_protocol":<M>}}` (T19a, §14; `server`: §0) | `401` |
 | `GET /v1/addresses` | Bearer | `200 {"addresses":[…]}` | `401` |
 | `GET /v1/terminal` | Bearer (WebSocket upgrade, §14) | `101` | `401`; `403 {"error":"terminal_disabled"\|"terminal_not_granted"}` before upgrade |
 | any other `/v1/*` | Bearer | `404` with a valid token | `401` without one |

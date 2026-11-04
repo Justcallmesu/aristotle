@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	appversion "github.com/justcallmesu/aristotle/server/internal/version"
 	"io"
 	"log/slog"
 	"os"
@@ -32,7 +33,7 @@ commands:
                         remove the service; --purge also deletes devices and certificate
   status                service state and the listener URLs
   logs [-f]             show the service log (journalctl)
-  version               print the version
+  version               print the server version, commit and protocol version
   help                  show this help
 `
 
@@ -44,7 +45,7 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(stdout, appversion.Line(version))
 		return 0
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)

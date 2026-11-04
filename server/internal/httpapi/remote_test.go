@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	appversion "github.com/justcallmesu/aristotle/server/internal/version"
 	"io"
 	"log/slog"
 	"net"
@@ -82,6 +83,21 @@ func TestPairThenMe(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &me)
 	if me.DeviceID != p.DeviceID || me.Name != "Poco X5" {
 		t.Fatalf("me = %+v", me)
+	}
+}
+
+// /v1/me carries the server block with exactly these keys (docs/protocol.md §11.2).
+func TestMeServerBlock(t *testing.T) {
+	rm := newRemote(t)
+	p := rm.pair(t, "", "Poco X5")
+	var raw map[string]any
+	if err := json.Unmarshal(rm.do(http.MethodGet, "/v1/me", "", p.Token).Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := raw["server"].(map[string]any)
+	if len(srv) != 3 || srv["version"] != "t" || srv["protocol"] != float64(appversion.ProtocolVersion) ||
+		srv["min_phone_protocol"] != float64(appversion.MinPhoneProtocol) {
+		t.Fatalf("server = %v", srv)
 	}
 }
 

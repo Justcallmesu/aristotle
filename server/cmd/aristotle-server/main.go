@@ -5,11 +5,10 @@ import (
 	"os"
 
 	"github.com/justcallmesu/aristotle/server/internal/app"
+	"github.com/justcallmesu/aristotle/server/internal/version"
 )
 
-// version is set at build time: -ldflags "-X main.version=1.0.0".
-var version = "dev"
-
+// The version is set at build time by scripts/build-server.sh (ldflags on package version).
 func main() {
-	os.Exit(app.Run(os.Args[1:], version, os.Stdout, os.Stderr))
+	os.Exit(app.Run(os.Args[1:], version.Version, os.Stdout, os.Stderr))
 }

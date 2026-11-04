@@ -24,7 +24,7 @@ func TestRunDispatch(t *testing.T) {
 	}{
 		{"no args", nil, 2, "", "usage:"},
 		{"unknown", []string{"bogus"}, 2, "", "unknown command"},
-		{"version", []string{"version"}, 0, "1.2.3\n", ""},
+		{"version", []string{"version"}, 0, "aristotle-server 1.2.3 (unknown) protocol 1\n", ""},
 		{"help", []string{"help"}, 0, "usage:", ""},
 	}
 	for _, tt := range tests {

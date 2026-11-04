@@ -18,11 +18,11 @@ func TestHealthz(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("code %d", rec.Code)
 	}
-	var got map[string]string
+	var got map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got["status"] != "ok" || got["version"] != "v-test" {
+	if got["status"] != "ok" || got["version"] != "v-test" || got["protocol"] != float64(1) {
 		t.Fatalf("body %v", got)
 	}
 }
