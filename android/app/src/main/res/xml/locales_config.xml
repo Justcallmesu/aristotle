@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TS1 (Q60): the app's languages for Android 13+'s per-app language page and LocaleManager. English is the
+     fallback (values/); Indonesian is values-in/ ("in" is Android's own code for it). -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="in" />
+</locale-config>

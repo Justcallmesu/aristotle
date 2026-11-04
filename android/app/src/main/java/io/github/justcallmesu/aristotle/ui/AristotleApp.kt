@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,7 +38,13 @@ import io.github.justcallmesu.aristotle.ui.sessions.SessionsScreen
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsViewModel
 import io.github.justcallmesu.aristotle.ui.settings.BatteryGuideScreen
 import io.github.justcallmesu.aristotle.ui.settings.NotificationPermissionPrompt
+import io.github.justcallmesu.aristotle.ui.settings.ConnectionRows
+import io.github.justcallmesu.aristotle.ui.settings.SettingsActions
 import io.github.justcallmesu.aristotle.ui.settings.SettingsScreen
+import io.github.justcallmesu.aristotle.ui.settings.SettingsViewModel
+import io.github.justcallmesu.aristotle.background.AppLocales
+import io.github.justcallmesu.aristotle.ui.pair.RepairMode
+import androidx.compose.ui.res.stringResource
 import io.github.justcallmesu.aristotle.ui.terminal.TerminalScreen
 import io.github.justcallmesu.aristotle.ui.terminal.TerminalViewModel
 import io.github.justcallmesu.aristotle.R
@@ -72,8 +79,30 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
         is CredentialState.Paired -> {
             val pc = current.credentials
             LaunchedEffect(pc.pcId) { container.clearPairNotice() }
-            PairedPages(container, pc, routes, chatRoutes, cronRoutes)
+            PairedPages(container, pc, routes, chatRoutes, cronRoutes, defaultDeviceName)
         }
+    }
+}
+
+/**
+ * Pair again from Settings (TS1): the pair form over the paired PC, whose pairing stays stored (and the link keeps
+ * using it) until the new pairing is saved, which then replaces it ([io.github.justcallmesu.aristotle.data.PcRecords.replace]);
+ * the new PC id then opens its session list. Back or the arrow cancels and changes nothing.
+ */
+@Composable
+private fun RepairRoute(container: AppContainer, routes: RouteStores, pc: PcCredentials, key: String, defaultDeviceName: String, onCancel: () -> Unit) {
+    RouteScope(routes, key) {
+        val pairViewModel = viewModel {
+            PairViewModel(
+                container.credentials,
+                HttpPairingApi(container.httpClients),
+                container.certificateProbe,
+                defaultDeviceName,
+                savePairing = { paired -> container.records.replace(pc.pcId, paired) },
+            )
+        }
+        val note = stringResource(R.string.repair_note, ConnectionRows.revokeCommand(pc.deviceId))
+        PairScreen(pairViewModel, notice = null, repair = RepairMode(note, onCancel))
     }
 }
 
@@ -104,9 +133,9 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
 
 /** The pages under a paired PC. Back from a sub-page goes to [back]. */
 private enum class PairedPage {
-    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal;
+    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair;
 
-    val back: PairedPage get() = if (this == SettingsGuide) Settings else Sessions
+    val back: PairedPage get() = if (this == SettingsGuide || this == Repair) Settings else Sessions
 }
 
 /**
@@ -115,7 +144,14 @@ private enum class PairedPage {
  * the session list's ViewModel; so does the "Scheduled" page ([cronRoutes], T18).
  */
 @Composable
-private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: RouteStores, chatRoutes: RouteStores, cronRoutes: RouteStores) {
+private fun PairedPages(
+    container: AppContainer,
+    pc: PcCredentials,
+    routes: RouteStores,
+    chatRoutes: RouteStores,
+    cronRoutes: RouteStores,
+    defaultDeviceName: String,
+) {
     val terminalRoutes = viewModel(key = TERMINAL_ROUTES) { RouteStores() }
     val terminalTarget by container.terminalAccess.target.collectAsStateWithLifecycle()
     val settings = container.settings
@@ -130,6 +166,8 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
     // The "Scheduled" page's profile (null = launch) and its name, taken from the list when it was opened (T18).
     var cronProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var cronLabel by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
+    // Each "Pair again" starts from an empty form.
+    var repairCount by rememberSaveable(pc.pcId) { mutableIntStateOf(0) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
     // A notification tap: that session's chat (ChatRoute raises the prompt sheet and takes the request).
     val openRequest by container.openChat.collectAsStateWithLifecycle()
@@ -168,12 +206,17 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
             )
             NotificationPermissionPrompt(settings, container.notifier::canPost)
         }
-        PairedPage.Settings -> SettingsScreen(
-            settings = settings,
-            canPostNotifications = container.notifier::canPost,
+        PairedPage.Settings -> SettingsRoute(
+            container,
+            pc,
             onBack = { page = page.back },
             onBatteryGuide = { page = PairedPage.SettingsGuide },
+            onRepair = {
+                repairCount += 1
+                page = PairedPage.Repair
+            },
         )
+        PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
         PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
         PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
@@ -187,6 +230,31 @@ private fun PairedPages(container: AppContainer, pc: PcCredentials, routes: Rout
             }
         }
     }
+}
+
+/** The settings screen (TS1). Its ViewModel lives in the activity's store: it holds only which sheet is open. */
+@Composable
+private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: () -> Unit, onBatteryGuide: () -> Unit, onRepair: () -> Unit) {
+    val settingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) { SettingsViewModel(container.settings, container.link.state) }
+    val context = LocalContext.current
+    val activity = LocalActivity.current
+    // Leaving Settings closes its sheet; a rotation keeps it.
+    DisposableEffect(settingsViewModel) {
+        onDispose { if (activity?.isChangingConfigurations != true) settingsViewModel.close() }
+    }
+    val actions = remember(pc.pcId, activity) {
+        SettingsActions(
+            onBack = onBack,
+            onBatteryGuide = onBatteryGuide,
+            onRepair = onRepair,
+            onUnpair = { container.unpair(pc.pcId) },
+            canPostNotifications = container.notifier::canPost,
+            channelOn = container.notifier::isOn,
+            currentLanguage = { AppLocales.current(context, container.settings) },
+            pickLanguage = { choice -> activity?.let { AppLocales.apply(it, container.settings, choice) } },
+        )
+    }
+    SettingsScreen(settingsViewModel, pc, actions)
 }
 
 /** The chat to show: its session, a title until Hermes sends one, its profile, and whether to focus the composer. */
@@ -300,3 +368,4 @@ class RouteStores : ViewModel() {
 private const val CHAT_ROUTES = "chat-routes"
 private const val CRON_ROUTES = "cron-routes"
 private const val TERMINAL_ROUTES = "terminal-routes"
+private const val SETTINGS_VIEW_MODEL = "settings"

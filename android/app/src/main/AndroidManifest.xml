@@ -21,8 +21,10 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Aristotle">
+        android:theme="@style/Theme.Aristotle"
+        tools:targetApi="33">
         <!-- T08: ask Play services to fetch the code scanner module at install, so "Scan QR code" works offline the
              first time. The scanner brings its own camera UI: the app has no CAMERA permission. -->
         <meta-data

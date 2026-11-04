@@ -63,11 +63,15 @@ class CredentialStore(
         wiped
     }
 
-    /** Throws when the Keystore cannot seal the token; nothing is stored then. */
-    suspend fun save(credentials: PcCredentials) = locked {
+    /**
+     * Throws when the Keystore cannot seal the token; nothing is stored or removed then. [replacing]: the PC entry a
+     * re-pair (TS1) replaces. It stays stored and active until the new pairing is written, and is removed only then.
+     */
+    suspend fun save(credentials: PcCredentials, replacing: String? = null) = locked {
         val sealed = codec.encode(credentials)
         storage.put(entryKey(credentials.pcId), sealed)
         storage.put(ACTIVE_KEY, credentials.pcId)
+        if (replacing != null && replacing != credentials.pcId) storage.remove(entryKey(replacing))
         current.value = CredentialState.Paired(credentials)
     }
 

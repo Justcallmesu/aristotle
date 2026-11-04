@@ -47,6 +47,13 @@ class ProfileSelection(private val store: KeyValueStore) {
         return true
     }
 
+    /** [pcId] was unpaired or replaced (TS1): its remembered profile goes; the active one falls back to the launch profile. */
+    @Synchronized
+    fun forget(pcId: String) {
+        store.remove(key(pcId))
+        if (pcId == this.pcId) current.value = null
+    }
+
     /** The user was told about [fellBackFrom]. */
     fun noticeShown() {
         unserved.value = null
@@ -72,6 +79,13 @@ class SessionPins(private val store: KeyValueStore) {
         val next = if (pinned) read(key) + sessionId else read(key) - sessionId
         if (next.isEmpty()) store.remove(key) else store.put(key, HermesJson.encodeToString(IDS, next.toList()))
         return next
+    }
+
+    /** [pcId] was unpaired or replaced (TS1): every profile's pins for it go. */
+    @Synchronized
+    fun forget(pcId: String) {
+        val prefix = "pins.$pcId."
+        store.keys().filter { it.startsWith(prefix) }.forEach(store::remove)
     }
 
     private fun read(key: String): Set<String> =

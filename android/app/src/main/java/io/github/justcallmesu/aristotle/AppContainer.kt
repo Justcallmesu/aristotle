@@ -28,6 +28,7 @@ import io.github.justcallmesu.aristotle.data.HttpLinkDialer
 import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
 import io.github.justcallmesu.aristotle.data.LinkManager
 import io.github.justcallmesu.aristotle.data.LinkState
+import io.github.justcallmesu.aristotle.data.PcRecords
 import io.github.justcallmesu.aristotle.data.ProfileSelection
 import io.github.justcallmesu.aristotle.data.SessionPins
 import io.github.justcallmesu.aristotle.data.CredentialState
@@ -117,6 +118,9 @@ class AppContainer(context: Context) {
     /** Session pins on this phone only (T14; Hermes' own pin is not readable over the relay). */
     val pins = SessionPins(ApplyingPreferencesStore(context.getSharedPreferences(PINS_FILE, Context.MODE_PRIVATE)))
     val notifier = Notifier(context)
+
+    /** What this phone keeps per PC, ended together by Unpair and a finished re-pair (TS1). */
+    val records = PcRecords(credentials, profileSelection, pins, drafts)
     val background = BackgroundController(context, link, credentials.state, settings, scope)
 
     /** HyperOS stops background apps unless told otherwise; the battery guide is for these phones (spec Q27). */
@@ -173,6 +177,13 @@ class AppContainer(context: Context) {
         notice.value = reason
         epoch.value += 1
         scope.launch { credentials.wipeActive() }
+    }
+
+    /** Settings' Unpair (TS1): the pairing, its addresses, the PC's settings and every draft go; back to pairing. */
+    fun unpair(pcId: String) {
+        notice.value = null
+        epoch.value += 1
+        scope.launch { records.unpair(pcId) }
     }
 
     fun clearPairNotice() {

@@ -57,16 +57,17 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | T19b | Terminal phone: emulator screen (Termux terminal-view if licence/fit verified), extra keys, resize, no-learning keyboard, FLAG_SECURE, bounded output queue; shown only when /v1/me says enabled+granted | T19a | android | DONE |
 | TD40 | Strip scanner telemetry (Q58): tools:node=remove for datatransport/CCT components; merged-manifest check | T08 | android | DONE (scanner check on device: T22) |
 | T19c | T19a review fixes (do FIRST on resume): docs/terminal.md must say the phone shell reaches the desktop GUI (DISPLAY/WAYLAND/DBUS in env, abstract X sockets) and that the escalation check and cgroup are bypassable in one command (setsid + env -u; user-owned cgroup.procs) — it is a speed bump, not a boundary; consider stripping DISPLAY/WAYLAND_DISPLAY/XAUTHORITY/DBUS_SESSION_BUS_ADDRESS from the shell env (PM: yes, document how to get them back); escalation list -> allowlist; corrupt terminal.json must not stop the relay; keepalive during a blocked PTY write | T19a | server, docs | DONE |
-| TS1 | Settings screen (Q60): Connection & PCs, Notifications, Appearance (theme, text size), Language, About shell | T14 | android | BUILDING |
+| TS1 | Settings screen (Q60): Connection & PCs, Notifications, Appearance (theme, text size), Language, About shell | T14 | android | DONE |
 | TC1 | Chat: render Hermes `display_kind` rows like the Desktop (hidden dropped; process/delegation completions as compact expandable cards, not user bubbles) — user screenshot | T11 | android | DONE |
+| TS1b | TS1 minors: 11 sp floor by scaling Typography styles (also reaches dialogs/sheets/menus), back cancels a busy re-pair, re-pair/unpair writes in one commit (no orphaned token, drafts cleared before credentials), cancel old PC's notifications on unpair | TS1 | android | TODO (with TS2) |
 | TS2 | Security (Q61, Q62): optional app lock (BiometricPrompt + device credential, timeout), gate on terminal / Always allow / sudo / secret; hide-terminal switch | TS1 | android | TODO |
 | TV1a | Versioning server: semver via ldflags, protocol version in /healthz + /v1/me + `aristotle-server version`, documented compatibility range | T19c | server, docs | DONE |
 | TL1 | LAN auto-discovery (Q65): server mDNS/DNS-SD announce on LAN listeners; phone NSD discovery on network change + pinned-fingerprint check; manual 'Find PC on this Wi-Fi' /24 probe | TS2 | server, android | TODO |
 | TV1 | Versioning (Q63): semver for app (versionName/Code) and server (build-time ldflags), protocol version in /healthz + /v1/me, compatibility warning in the app, About shows both | T19c | server, android | TODO |
 | TV2 | Change log (Q64): CHANGELOG.md for v1.0.0 from the board history; in-app "What's new" once after update + under About | TV1 | docs, android | TODO |
 | TQ2 | Quote while a chat loads (Q59) | TQ1 | android | TODO |
-| TU1 | UI refinement: design audit of every screen from real Poco screenshots (needs the phone) -> TU tickets | TS2, TQ2 | android | TODO (phone) |
-| T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | BUILT — awaiting user approval on the Poco (Q42) |
+| TU1 | UI refinement: design audit of every screen from real Poco screenshots (needs the phone) -> TU tickets | TS2, TQ2 | android | AUDITING (screenshots captured) |
+| T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | DONE (user approved on device 2026-11-04) |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
@@ -339,3 +340,8 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 User screenshot: delegation-complete notification renders as a giant user bubble on the phone (Desktop shows a one-line card via display_kind/display_metadata.display_text — verified apps/desktop/src/types/hermes.ts:731, process_registry_notifications.py:350-375). TC1 (std) dispatched in parallel with TS1.
 - 2026-11-04 User chose A+B for LAN discovery (Q65) -> TL1.
 - 2026-11-04 TC1 mutation (hidden rows kept) fails 3 tests; committed (TC1 paths only; TS1 still building).
+- 2026-11-04 Hygiene slip: commit 6809747 (TC1) also carries TS1's additive `ChatDrafts.clear()` (staged with the data/chat directory). Self-contained, HEAD compiles; TS1's commit will reference it. Lesson: stage files, not directories, when two workers share a package.
+- 2026-11-04 User approved the T20 icon on the Poco ("the icon is okay"). UI audit capture: PM drives the phone with scratch/safe.sh, which asserts Aristotle has focus before every input (an earlier unguarded run sent taps into Instagram; reported to the user).
+- 2026-11-04 TU1: 12 device screenshots captured with the focus-guarded driver (nothing sent; composer cleared). Deep design audit dispatched -> runs/TU1/audit.md -> TU2.. tickets.
+- 2026-11-04 TS1 built (639 tests). PM gate GREEN runs/pm-gate-39; mutation (unpair keeps credentials) fails 1. PM updated design.md §1 for Q60 (forced theme) + 11 sp floor under Small text (PM technical). Deep review dispatched.
+- 2026-11-04 TS1 review PASS-WITH-FINDINGS (re-pair atomic, unpair clears all, no loops). Committed. Minors -> TS1b, folded into TS2's run (same files: AppSettings, PcRecords).

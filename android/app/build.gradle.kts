@@ -28,6 +28,8 @@ android {
 
     buildFeatures {
         compose = true
+        // TS1: About shows the version from BuildConfig.
+        buildConfig = true
     }
 
     // T19b: the terminal streams a PC shell; it never starts a process on the phone. Termux's JNI library (pty and

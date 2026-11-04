@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.PersistableBundle
 import android.view.WindowManager
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +58,7 @@ import io.github.justcallmesu.aristotle.data.terminal.TerminalState
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.AtkinsonMonoFamily
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
+import io.github.justcallmesu.aristotle.ui.theme.LocalDarkTheme
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import io.github.justcallmesu.aristotle.ui.theme.TerminalPalette
@@ -117,7 +117,7 @@ private fun sendExtraKey(view: RemoteTerminalView, key: ExtraKey) {
 /** The Termux view in Compose: font Atkinson Hyperlegible Mono at the zoomed size, palette A light/dark. */
 @Composable
 private fun TerminalSurface(textSizeSp: Float, modifiers: StickyModifiers, tab: TerminalTab?, onZoom: (Float) -> Unit, onView: (RemoteTerminalView) -> Unit) {
-    val dark = isSystemInDarkTheme()
+    val dark = LocalDarkTheme.current
     val background = MaterialTheme.colorScheme.surface.toArgb()
     val resolver = LocalFontFamilyResolver.current
     val typeface = remember(resolver) { resolver.resolve(AtkinsonMonoFamily, FontWeight.W400) }.value as? Typeface ?: Typeface.MONOSPACE

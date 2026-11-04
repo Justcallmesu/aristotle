@@ -91,12 +91,17 @@ data class PairUiState(
     val message: PairMessage? = null,
 )
 
+/**
+ * The pair form. [savePairing] stores a pairing the PC accepted: by default [credentials]' save; a re-pair from
+ * Settings (TS1) passes one that replaces the old PC only then, so nothing before it touches the stored pairing.
+ */
 class PairViewModel(
-    private val credentials: CredentialStore,
+    credentials: CredentialStore,
     private val pairing: PairingApi,
     private val probe: CertificateSource,
     defaultDeviceName: String,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+    private val savePairing: suspend (PcCredentials) -> Unit = { credentials.save(it) },
 ) : ViewModel(scope) {
     private val state = MutableStateFlow(PairUiState(deviceName = defaultDeviceName.take(MAX_NAME)))
     val uiState: StateFlow<PairUiState> = state.asStateFlow()
@@ -239,7 +244,7 @@ class PairViewModel(
     /** On success the app leaves this screen (the store's state turns Paired); the form stays busy until then. */
     private suspend fun store(paired: PcCredentials) {
         try {
-            credentials.save(paired)
+            savePairing(paired)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

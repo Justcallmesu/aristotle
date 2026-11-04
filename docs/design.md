@@ -7,7 +7,8 @@ No blur, no gradients, no web-only effects. Deviations need a spec decision.
 ## 1. Colour (palette A, Q38)
 
 **No dynamic colour.** No `dynamicLightColorScheme`/`dynamicDarkColorScheme`, no Material You option, no settings switch.
-Follow system light/dark only. (T07 removes the T02 shell's dynamic colour.)
+Theme follows the system light/dark by default; Settings › Appearance can force Light or Dark (Q60). Text size Small/Default/
+Large scales app text 0.9/1.0/1.15, but no text renders below 11 sp (clamp). (T07 removes the T02 shell's dynamic colour.)
 
 | M3 role | Light | Dark |
 |---|---|---|

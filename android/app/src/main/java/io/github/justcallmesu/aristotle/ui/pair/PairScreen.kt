@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.ui.pair
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.PairNotice
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.ui.components.SubPageTopBar
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.AtkinsonMonoFamily
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
@@ -66,8 +68,11 @@ class PairActions(
     val onScan: () -> Unit,
 )
 
+/** Pairing again from Settings (TS1): back cancels, and [note] says the current pairing stays until this one works. */
+class RepairMode(val note: String, val onCancel: () -> Unit)
+
 @Composable
-fun PairScreen(viewModel: PairViewModel, notice: PairNotice?) {
+fun PairScreen(viewModel: PairViewModel, notice: PairNotice?, repair: RepairMode? = null) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scanner: QrScanner = remember(context) { GmsQrScanner(context) }
@@ -84,69 +89,82 @@ fun PairScreen(viewModel: PairViewModel, notice: PairNotice?) {
             onPair = viewModel::onPair,
             onScan = { scanner.scan(viewModel::onScanResult) },
         ),
+        repair = repair,
     )
 }
 
 @Composable
-fun PairContent(state: PairUiState, notice: PairNotice?, actions: PairActions) {
+fun PairContent(state: PairUiState, notice: PairNotice?, actions: PairActions, repair: RepairMode? = null) {
     val addressFocus = remember { FocusRequester() }
     // No scanner: the form below is the way in, so the cursor goes there.
     LaunchedEffect(state.scanError) { if (state.scanError == ScanError.Unavailable) addressFocus.requestFocus() }
+    repair?.let { BackHandler(onBack = it.onCancel) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.formGutter, vertical = Spacing.m),
-        ) {
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            repair?.let { SubPageTopBar(stringResource(R.string.repair_title), it.onCancel) }
+            PairForm(state, notice, actions, repair, addressFocus)
+        }
+    }
+}
+
+@Composable
+private fun PairForm(state: PairUiState, notice: PairNotice?, actions: PairActions, repair: RepairMode?, addressFocus: FocusRequester) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.formGutter, vertical = Spacing.m),
+    ) {
+        if (repair == null) {
             Text(
                 text = stringResource(R.string.app_name),
                 style = AristotleTextStyles.wordmarkSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            notice?.let {
-                Spacer(Modifier.height(Spacing.l))
-                NoticeBanner(stringResource(noticeText(it)))
-            }
-            Spacer(Modifier.height(Spacing.xl))
-            Text(text = stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineSmall)
+        } else {
+            NoticeBanner(repair.note)
+        }
+        notice?.let {
+            Spacer(Modifier.height(Spacing.l))
+            NoticeBanner(stringResource(noticeText(it)))
+        }
+        Spacer(Modifier.height(Spacing.xl))
+        Text(text = stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(Spacing.s))
+        Text(
+            text = withCommand(R.string.pair_lead),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.xl))
+        ScanButton(enabled = !state.busy, onClick = actions.onScan)
+        state.scanError?.let { error ->
             Spacer(Modifier.height(Spacing.s))
             Text(
-                text = withCommand(R.string.pair_lead),
+                text = scanErrorText(error),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (error == ScanError.Unavailable) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
-            Spacer(Modifier.height(Spacing.xl))
-            ScanButton(enabled = !state.busy, onClick = actions.onScan)
-            state.scanError?.let { error ->
-                Spacer(Modifier.height(Spacing.s))
-                Text(
-                    text = scanErrorText(error),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (error == ScanError.Unavailable) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
-            Spacer(Modifier.height(Spacing.xl))
-            OrTypeItIn()
-            Spacer(Modifier.height(Spacing.xl))
-            AddressField(state, actions.onAddressChange, addressFocus)
+        }
+        Spacer(Modifier.height(Spacing.xl))
+        OrTypeItIn()
+        Spacer(Modifier.height(Spacing.xl))
+        AddressField(state, actions.onAddressChange, addressFocus)
+        Spacer(Modifier.height(Spacing.l))
+        CodeField(state, actions.onCodeChange)
+        Spacer(Modifier.height(Spacing.l))
+        DeviceNameField(state, actions.onDeviceNameChange)
+        Spacer(Modifier.height(Spacing.xl))
+        StepArea(state, actions)
+        state.message?.let { message ->
             Spacer(Modifier.height(Spacing.l))
-            CodeField(state, actions.onCodeChange)
-            Spacer(Modifier.height(Spacing.l))
-            DeviceNameField(state, actions.onDeviceNameChange)
-            Spacer(Modifier.height(Spacing.xl))
-            StepArea(state, actions)
-            state.message?.let { message ->
-                Spacer(Modifier.height(Spacing.l))
-                Text(
-                    text = messageText(message),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
+            Text(
+                text = messageText(message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
     }
 }

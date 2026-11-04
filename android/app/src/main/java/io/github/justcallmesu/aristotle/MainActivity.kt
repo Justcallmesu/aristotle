@@ -2,17 +2,31 @@ package io.github.justcallmesu.aristotle
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.justcallmesu.aristotle.background.AppLocales
 import io.github.justcallmesu.aristotle.data.DeviceName
+import io.github.justcallmesu.aristotle.data.ThemeChoice
 import io.github.justcallmesu.aristotle.ui.AristotleApp
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTheme
 
 class MainActivity : ComponentActivity() {
+    /** Below Android 13 the app's language (TS1) is applied here; on 13+ the platform does it ([AppLocales]). */
+    override fun attachBaseContext(newBase: Context) {
+        val settings = (newBase.applicationContext as AristotleApplication).container.settings
+        super.attachBaseContext(AppLocales.wrap(newBase, settings.language.value))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Transparent bars whose icons follow the system light/dark mode, as AristotleTheme does (D8); the
@@ -27,10 +41,25 @@ class MainActivity : ComponentActivity() {
             Build.MODEL,
         )
         setContent {
-            AristotleTheme {
+            // The user's theme and text size (TS1) apply at once, app-wide; the bar icons follow the theme, not the system.
+            val theme by container.settings.theme.collectAsStateWithLifecycle()
+            val textSize by container.settings.textSize.collectAsStateWithLifecycle()
+            val dark = theme.isDark(isSystemInDarkTheme())
+            LaunchedEffect(theme, dark) { followTheme(theme, dark) }
+            AristotleTheme(darkTheme = dark, textScale = textSize.scale) {
                 AristotleApp(container = container, defaultDeviceName = deviceName)
             }
         }
+    }
+
+    /** Transparent bars; with a forced light or dark theme their icons follow it instead of the system's mode. */
+    private fun followTheme(theme: ThemeChoice, dark: Boolean) {
+        if (theme == ThemeChoice.System) {
+            enableEdgeToEdge()
+            return
+        }
+        val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
     }
 
     override fun onNewIntent(intent: Intent) {

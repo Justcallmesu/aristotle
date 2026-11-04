@@ -68,8 +68,9 @@ fun FingerprintCard(
     }
 }
 
+/** The 16 groups in a 4 × 4 mono grid, read out group by group; the pair screen and Settings (TS1) show it alike. */
 @Composable
-private fun FingerprintGrid(fingerprint: ByteArray) {
+internal fun FingerprintGrid(fingerprint: ByteArray) {
     val groups = Fingerprint.groups(fingerprint)
     Column(
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),

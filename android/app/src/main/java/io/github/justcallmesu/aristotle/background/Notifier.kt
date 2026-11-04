@@ -30,14 +30,11 @@ class Notifier(private val context: Context) {
 
     /** Creating again only renames them, so the names follow the phone's language (EN/ID). */
     fun createChannels() {
-        manager.createNotificationChannelsCompat(
-            listOf(
-                channel(CHANNEL_LINK, NotificationManagerCompat.IMPORTANCE_LOW, R.string.channel_link, R.string.channel_link_description),
-                channel(CHANNEL_TURNS, NotificationManagerCompat.IMPORTANCE_DEFAULT, R.string.channel_turns, R.string.channel_turns_description),
-                channel(CHANNEL_NEEDS, NotificationManagerCompat.IMPORTANCE_HIGH, R.string.channel_needs, R.string.channel_needs_description),
-            ),
-        )
+        manager.createNotificationChannelsCompat(AppChannel.entries.map(::channel))
     }
+
+    /** The channel's switch as the system holds it (Settings mirrors it, TS1). */
+    fun isOn(channel: AppChannel): Boolean = ChannelSwitch.isOn(canPost(), manager.getNotificationChannelCompat(channel.id)?.importance)
 
     /** POST_NOTIFICATIONS on Android 13+ (ContextCompat answers from the app's notification switch below 13). */
     @SuppressLint("InlinedApi") // a string constant; ContextCompat handles the older releases
@@ -46,7 +43,7 @@ class Notifier(private val context: Context) {
 
     /** The foreground service's notification: where the link is, tap opens the app, Stop ends it. */
     fun ongoing(notice: ConnectionNotice?): Notification =
-        NotificationCompat.Builder(context, CHANNEL_LINK)
+        NotificationCompat.Builder(context, AppChannel.Link.id)
             .setSmallIcon(R.drawable.ic_stat_aristotle)
             .setContentTitle(ongoingText(notice))
             .setOngoing(true)
@@ -74,7 +71,7 @@ class Notifier(private val context: Context) {
 
     private fun alert(notice: AlertNotice): Notification {
         val needsYou = notice.channel == AlertChannel.NeedsYou
-        val channel = if (needsYou) CHANNEL_NEEDS else CHANNEL_TURNS
+        val channel = (if (needsYou) AppChannel.NeedsYou else AppChannel.Turns).id
         val headline = context.getString(if (needsYou) R.string.notify_needs_public else R.string.notify_turn_public)
         // The lock screen shows only this: agent text stays behind the unlock.
         val public = NotificationCompat.Builder(context, channel)
@@ -158,19 +155,16 @@ class Notifier(private val context: Context) {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    private fun channel(id: String, importance: Int, name: Int, description: Int) =
-        NotificationChannelCompat.Builder(id, importance)
-            .setName(context.getString(name))
-            .setDescription(context.getString(description))
-            .setShowBadge(id != CHANNEL_LINK)
+    private fun channel(channel: AppChannel) =
+        NotificationChannelCompat.Builder(channel.id, channel.importance)
+            .setName(context.getString(channel.title))
+            .setDescription(context.getString(channel.description))
+            .setShowBadge(channel.showBadge)
             .build()
 
     companion object {
         const val ID_LINK = 1
         private const val ID_ALERT = 2
-        private const val CHANNEL_LINK = "link"
-        private const val CHANNEL_TURNS = "turn_finished"
-        private const val CHANNEL_NEEDS = "needs_you"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val TIME = "HH:mm"

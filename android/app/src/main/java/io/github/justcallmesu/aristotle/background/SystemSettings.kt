@@ -45,6 +45,15 @@ object SystemSettings {
         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
     )
 
+    /** One channel's system page (TS1); Android owns the switch. */
+    fun openChannelSettings(context: Context, channelId: String) = openFirst(
+        context,
+        Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .putExtra(Settings.EXTRA_CHANNEL_ID, channelId),
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+    )
+
     /** Starts the first intent that resolves and may be started, else the app info page. */
     private fun openFirst(context: Context, vararg candidates: Intent) {
         val all = candidates.toList() + Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri(context))
