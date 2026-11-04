@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Battery outline, 24 dp. Tinted by the composable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M320,880Q287,880 263.5,856.5Q240,833 240,800L240,200Q240,167 263.5,143.5Q287,120 320,120L400,120L400,80L560,80L560,120L640,120Q673,120 696.5,143.5Q720,167 720,200L720,800Q720,833 696.5,856.5Q673,880 640,880L320,880ZM320,800L640,800L640,200L320,200L320,800Z" />
+</vector>

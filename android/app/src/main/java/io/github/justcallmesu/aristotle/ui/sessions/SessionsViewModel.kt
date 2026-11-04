@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
+import io.github.justcallmesu.aristotle.data.PcStatusPoller
+import io.github.justcallmesu.aristotle.data.PcStatusSource
+import io.github.justcallmesu.aristotle.data.PcStatusView
 import io.github.justcallmesu.aristotle.data.ProfileOption
 import io.github.justcallmesu.aristotle.data.ProfileRoster
 import io.github.justcallmesu.aristotle.data.ProfileSelection
@@ -20,6 +23,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,6 +75,8 @@ data class SessionsUiState(
     val message: SessionsMessage? = null,
     /** A chat to open; the screen takes it ([SessionsViewModel.opened]). */
     val open: OpenRequest? = null,
+    /** The PC's last status reading (Q78); [PcStatusView.None] until the first one. */
+    val pcStatus: PcStatusView = PcStatusView.None,
 ) {
     /** The name on the profile chip. */
     val profileName: String? get() = profile ?: launchProfile
@@ -96,11 +102,23 @@ class SessionsViewModel(
     private val locale: () -> Locale = { Locale.getDefault() },
     private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
     scope: CoroutineScope? = null,
+    statusSource: PcStatusSource? = null,
+    statusPause: suspend (Long) -> Unit = { delay(it) },
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     private val repository = SessionRepository(link)
     private val state = MutableStateFlow(SessionsUiState(address = pc.lastGood ?: pc.addresses.firstOrNull(), profile = selection.selected.value))
     val uiState: StateFlow<SessionsUiState> = state.asStateFlow()
+
+    /** Whether Home is on screen and resumed (Q78): the PC status is read only then, and only while online. */
+    private val homeVisible = MutableStateFlow(false)
+    private val poller = statusSource?.let { source ->
+        PcStatusPoller(work, link.state, homeVisible, { endpoint -> source.pcStatus(pc, endpoint) }, pause = statusPause)
+    }
+
+    fun homeVisible(visible: Boolean) {
+        homeVisible.value = visible
+    }
 
     private var listing: SessionFeedEvent.Sessions? = null
     private var pinned: Set<String> = pins.of(pc.pcId, state.value.profile)
@@ -118,6 +136,10 @@ class SessionsViewModel(
                 state.update { it.copy(message = SessionsMessage.ProfileFellBack(name)) }
                 selection.noticeShown()
             }
+        }
+        poller?.let { p ->
+            p.start()
+            work.launch { p.view.collect { view -> state.update { it.copy(pcStatus = view) } } }
         }
         startFeed()
     }

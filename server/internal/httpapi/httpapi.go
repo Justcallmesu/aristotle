@@ -2,12 +2,14 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/justcallmesu/aristotle/server/internal/devices"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/pcstatus"
 	appversion "github.com/justcallmesu/aristotle/server/internal/version"
 )
 
@@ -37,6 +39,8 @@ type Deps struct {
 	// Addresses lists the listeners bound right now, for the pair response and GET /v1/addresses;
 	// nil means none.
 	Addresses func() []Address
+	// PCStatus serves GET /v1/pc-status (docs/protocol.md §16); nil leaves the route out.
+	PCStatus func(context.Context) pcstatus.Status
 }
 
 // Address is one listener URL the phone can use (docs/protocol.md §11.2). Every URL is https://.
@@ -89,6 +93,9 @@ func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 	mux.Handle("POST /v1/pair", pairHandler(d, log, d.Rejects))
 	mux.Handle("GET /v1/me", requireDevice(d.Devices, meHandler(version, d.Terminal)))
 	mux.Handle("GET /v1/addresses", requireDevice(d.Devices, addressesHandler(d)))
+	if d.PCStatus != nil {
+		mux.Handle("GET /v1/pc-status", requireDevice(d.Devices, pcStatusHandler(d.PCStatus)))
+	}
 	if d.Relay != nil {
 		mux.Handle("GET /v1/ws", requireDevice(d.Devices, relayHandler(d.Relay, d.Listener)))
 	}
@@ -127,6 +134,13 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func addressesHandler(d Deps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, addressesResponse{Addresses: d.addresses()})
+	})
+}
+
+// pcStatusHandler is read-only: it reads /sys and /proc, never Hermes' files.
+func pcStatusHandler(status func(context.Context) pcstatus.Status) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, status(r.Context()))
 	})
 }
 

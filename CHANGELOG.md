@@ -15,6 +15,8 @@ file at build time and shows the `Phone:` entries only.
 - Phone: Settings › Connection shows your saved PC addresses (where each came from, when it last worked, delete) and a connection history of the last 7 days.
 - Phone: Above the message field, a chat lists its running subagents and background processes; a process can be stopped after you confirm.
 - Server: Announce itself on your Wi-Fi (never over Tailscale) so the phone can find it after a network change.
+- Phone: Home shows your PC's battery, CPU and memory under the title (tap for disk, Hermes, Tailscale and uptime), refreshed every 10 seconds while Home is open and the PC is reachable.
+- Server: Report the PC's battery, CPU, memory, disk, Hermes and Tailscale state to the phone (read-only, `GET /v1/pc-status`).
 
 ## [1.0.0] - 2026-11-04
 

@@ -95,6 +95,10 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TR6 | Settings + Connection grouped rows; prompt sheet shapes | TR1 | android | DONE (device look pending) |
 | TB1 | Q77: chat status stack (subagents + background processes with stop) above the composer; relay passes process.list/process.kill | TR3, TR4 | android (+server check) | DONE (via TB1b) |
 | TB1b | TB1 review: stack can push the composer under the keyboard (MAJOR-1); 'outcome unknown' after a dropped kill; poll only while a process runs (Desktop parity) | TB1 | android | DONE (device: folds with keyboard open, user-confirmed) |
+| TP1a | Q78 server: GET /v1/pc-status (battery, CPU, RAM, disk, Hermes, Tailscale, uptime), protocol §16 | — | server | DONE |
+| TP1b | Q78 phone: PC status card on Home C (compact + expand), 10 s poll while visible+online | TP1a contract | android | DONE |
+| TP1c | Flaky pcstatus CPU test + zero-delta pair erases CPU % | TP1a | server | DONE |
+| TD3 | PC status card: 3 more beautiful options on the v2 board (user: 'bare and rough') | TP1b | docs/design | BUILDING |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -419,3 +423,7 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TB1 review CHANGES-REQUIRED (MAJOR-1 composer under IME with a tall stack). Kill path, process id, polling lifecycle all verified. PM decision MINOR-3: Desktop parity (5 s timer only while a process runs). TB1b (std) dispatched. Device: TR+TB1 build installed; stack showed real '1 Subagent' + '1 Background' rows.
 - 2026-11-04 TB1b: pm-gate-56 GREEN (932); mutation (cap from window) fails 2. NOTE: the IME fold in StatusStack.kt:119-125 reads imeVisible directly; the pure stackLayout test does not cover that UI path -> device check required (phone locked at install). Committed TB1+TB1b; installed.
 - 2026-11-04 DEVICE: user confirmed the status stack folds when the keyboard opens (TB1b MAJOR-1 fix behaves as designed).
+- 2026-11-04 User asked for a PC status card -> Q78 (Home under the title, compact + expand; battery, CPU, RAM, disk, Hermes, Tailscale, uptime). PM wrote protocol §16 as the contract; TP1a (server) + TP1b (phone) dispatched in parallel.
+- 2026-11-04 TP1a/TP1b built. Mutation (pc-status without requireDevice) fails 1. Full gate pm-gate-57: android PASS, server 380/381 — TestStatusAssemblesEveryField flaky (passes 2/3 alone). TP1c dispatched to fix the cause. Demo server restarted from the tree; app installed.
+- 2026-11-04 DEVICE: PC status card shows real values (58%, CPU 27%, RAM 7.0/11.5 GB, 34 GB free of 184 GB, Hermes Running, Tailscale Up, Up 28 m). User: too bare -> TD3 mockups (3 options). TP1c: PM's product-bug guess was wrong (keep-last-value already existed); cause = test race; fixed deterministic.
+- 2026-11-04 pm-gate-58 GREEN (381 Go, android). TP1a+TP1b+TP1c committed without a separate review (read-only endpoint behind requireDevice, mutation-proven); diff folds into the card-redesign review. Card look being redone (TD3).

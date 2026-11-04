@@ -19,6 +19,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/pcstatus"
 	"github.com/justcallmesu/aristotle/server/internal/relay"
 	"github.com/justcallmesu/aristotle/server/internal/service"
 	"github.com/justcallmesu/aristotle/server/internal/terminal"
@@ -67,8 +68,9 @@ type server struct {
 	control   *control.Server
 	rejects   *httpapi.RejectLog // one limiter for every listener
 	relay     *relay.Hub
-	grants    *terminal.Grants // terminal switch and per-device grants (terminal.json)
-	terms     *terminal.Hub    // /v1/terminal shells
+	grants    *terminal.Grants    // terminal switch and per-device grants (terminal.json)
+	terms     *terminal.Hub       // /v1/terminal shells
+	pcstatus  *pcstatus.Collector // GET /v1/pc-status
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -109,6 +111,7 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		relay:  relay.New(relay.Options{Dialer: connector, Devices: store, Log: log}),
 		grants: grants, terms: terminal.New(terminal.Options{Grants: grants, Devices: store, Log: log,
 			KeepEnv: cfg.Terminal.KeepEnv, DelegatedUnit: delegatedUnit()})}
+	s.pcstatus = &pcstatus.Collector{Log: log, Hermes: hermesRunning(connector), Tailscale: s.tailscaleUp}
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
@@ -167,7 +170,7 @@ func (s *server) syncDiscovery(eps []listen.Endpoint) {
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
 	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Terminal: s.terms,
-		Listener: string(kind), Addresses: s.addresses}
+		Listener: string(kind), Addresses: s.addresses, PCStatus: s.pcstatus.Status}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 

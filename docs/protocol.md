@@ -1037,3 +1037,25 @@ matches the one it stored at pairing; a matching announcement alone proves nothi
   NsdManager alone; a target SDK of 37 or higher makes every LAN connection of the app (the relay too) need
   `ACCESS_LOCAL_NETWORK`, and NSD resolve (`registerServiceInfoCallback`/`resolveService`) then needs that permission
   too, unless the service was picked by the user in the system picker (`DiscoveryRequest.FLAG_SHOW_PICKER`).
+
+
+## 16. PC status (`GET /v1/pc-status`, spec Q78, TP1a/TP1b)
+
+Device-token auth like `/v1/addresses`; read-only; never touches Hermes files. Response 200:
+
+```json
+{
+  "at": "2026-11-04T17:40:00+07:00",
+  "battery": {"percent": 82, "charging": true},          // null when the PC has no battery
+  "cpu_percent": 14.2,                                    // all cores, averaged over the last sample window (≤ 5 s)
+  "memory": {"used_bytes": 9771728896, "total_bytes": 16624144384},
+  "disk": {"path": "/home/<user>", "free_bytes": 120000000000, "total_bytes": 500000000000},
+  "hermes_running": true,                                 // the same check that gives relay close 4503
+  "tailscale_up": true,                                   // a Tailscale listener is bound right now
+  "uptime_seconds": 86400
+}
+```
+
+Every field except `at` may be `null` when it can't be read (logged once at debug, never an error response). The server samples CPU
+in the background only while requests arrive (stops 60 s after the last one). The phone polls every 10 s only while Home is visible and
+the link is online, and shows the last values with "as of HH:MM" when offline. Linux only; other OSes return nulls.

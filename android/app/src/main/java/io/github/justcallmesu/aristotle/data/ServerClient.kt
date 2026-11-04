@@ -81,7 +81,7 @@ class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
 }
 
 /** The link's calls over HTTPS with the PC's pin; one client per pin and address kind ([HttpClients]). */
-class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth {
+class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth, PcStatusSource {
     private val clients = ConcurrentHashMap<Pair<String, Network>, OkHttpClient>()
 
     override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
@@ -113,6 +113,9 @@ class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, Termina
     override suspend fun terminalAllowed(pc: PcCredentials, endpoint: ServerEndpoint): Boolean? =
         ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).terminalAllowed(pc.token, pc.pcId)
 
+    override suspend fun pcStatus(pc: PcCredentials, endpoint: ServerEndpoint): PcStatus? =
+        ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).pcStatus(pc.token)
+
     private fun clientFor(pc: PcCredentials, endpoint: ServerEndpoint): OkHttpClient =
         clients.getOrPut(pc.fingerprint to endpoint.network) { httpClients.pinnedTo(pc.pin, endpoint.network) }
 }
@@ -136,6 +139,12 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
         return execute(request, { null }) { response ->
             if (response.code != 200) null else decode(response, AddressesBody.serializer())?.let { PcAddresses.endpointsOf(it.addresses) }
         }
+    }
+
+    /** `GET /v1/pc-status` (protocol §16): the PC's battery, CPU, memory and more; null on any failure or a body that is not an object. */
+    suspend fun pcStatus(token: DeviceToken): PcStatus? {
+        val request = Request.Builder().url(base.resolve("/v1/pc-status")!!).header("Authorization", "Bearer ${token.value}").build()
+        return execute(request, { null }) { response -> if (response.code != 200) null else PcStatusParser.parse(response.body.string()) }
     }
 
     /**

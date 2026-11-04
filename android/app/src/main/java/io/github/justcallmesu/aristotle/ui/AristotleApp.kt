@@ -247,7 +247,7 @@ private fun PairedPages(
     when (page) {
         PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
             val sessionsViewModel = viewModel {
-                SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins)
+                SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins, statusSource = container.pcStatus)
             }
             SessionsScreen(
                 sessionsViewModel,

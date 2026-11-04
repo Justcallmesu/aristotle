@@ -33,6 +33,7 @@ import io.github.justcallmesu.aristotle.data.ConnectionLog
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import io.github.justcallmesu.aristotle.data.AndroidNetworkWatch
 import io.github.justcallmesu.aristotle.data.HttpClients
+import io.github.justcallmesu.aristotle.data.PcStatusSource
 import io.github.justcallmesu.aristotle.data.HttpLinkDialer
 import io.github.justcallmesu.aristotle.data.KeystoreTokenKey
 import io.github.justcallmesu.aristotle.data.LinkManager
@@ -142,6 +143,9 @@ class AppContainer(context: Context) {
     }
 
     /** T19b: whether the Terminal entry shows (`/v1/me` on every connect), and where a terminal opens. */
+    /** `GET /v1/pc-status` over the pinned client (Q78); the Home card's poller reads through it. */
+    val pcStatus: PcStatusSource = dialer
+
     val terminalAccess = TerminalAccess(linkScope, link.state, credentials.state, dialer)
 
     /** Opens terminal sockets with the link's pinned clients (never the relay socket). */

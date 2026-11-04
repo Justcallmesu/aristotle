@@ -54,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -76,6 +77,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.LinkState
@@ -103,6 +105,11 @@ fun SessionsScreen(
     pcId: String,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // The PC status is read only while Home is on screen and resumed (Q78); leaving the screen ends it too.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.homeVisible(true)
+        onPauseOrDispose { viewModel.homeVisible(false) }
+    }
     LaunchedEffect(state.open) {
         val request = state.open ?: return@LaunchedEffect
         viewModel.opened()
@@ -201,7 +208,20 @@ fun SessionsContentView(
     val showBar = !state.searching
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-            if (state.searching) SearchHead(state.query, actions) else HomeHead(state, address, timeText, onRetry, actions)
+            val pcStatus = state.pcStatus.shown
+            val online = state.link is LinkState.Online
+            if (state.searching) SearchHead(state.query, actions) else HomeHead(state, address, timeText, onRetry, actions, showPcLine = !(online && pcStatus != null))
+            if (!state.searching && page == null && pcStatus != null) {
+                var pcExpanded by rememberSaveable { mutableStateOf(false) }
+                PcStatusCard(
+                    status = pcStatus,
+                    address = if (online) pcLineText(state.link, address) else "",
+                    expanded = pcExpanded,
+                    onToggle = { pcExpanded = !pcExpanded },
+                    asOf = if (online) null else state.pcStatus.fetchedAtMillis?.let(timeText),
+                    modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
+                )
+            }
             if (page == null) {
                 val offline = state.link as? LinkState.Offline
                 val compatibility = compatibilityText(pcId)
@@ -254,14 +274,21 @@ private fun ListBody(state: SessionsUiState, address: String, actions: ListActio
 
 /** Home C head (§5.1): not a TopAppBar; wordmark + PC line, the profile avatar at the end, top-aligned. */
 @Composable
-private fun HomeHead(state: SessionsUiState, address: String, timeText: (Long) -> String, onRetry: () -> Unit, actions: ListActions) {
+private fun HomeHead(
+    state: SessionsUiState,
+    address: String,
+    timeText: (Long) -> String,
+    onRetry: () -> Unit,
+    actions: ListActions,
+    showPcLine: Boolean = true,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.s, top = Spacing.m, bottom = Spacing.xs),
         verticalAlignment = Alignment.Top,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = stringResource(R.string.app_name), style = homeWordmark(), maxLines = 1)
-            PcLine(state.link, address, timeText, onRetry)
+            if (showPcLine) PcLine(state.link, address, timeText, onRetry)
         }
         state.profileName?.let {
             ProfileAvatarButton(
@@ -304,12 +331,16 @@ private fun PcLine(link: LinkState, address: String, timeText: (Long) -> String,
         }
         return
     }
-    val text = when {
-        link is LinkState.Online && link.endpoint.network == Network.Tailscale -> stringResource(R.string.sessions_via_tailscale, address)
-        link is LinkState.Online -> stringResource(R.string.sessions_via_wifi, address)
-        else -> address
-    }
+    val text = pcLineText(link, address)
     Text(text = text, style = lineStyle, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/** "100.74.61.96 · via Tailscale" and its Wi-Fi twin; the bare address while the link is not online. */
+@Composable
+private fun pcLineText(link: LinkState, address: String): String = when {
+    link is LinkState.Online && link.endpoint.network == Network.Tailscale -> stringResource(R.string.sessions_via_tailscale, address)
+    link is LinkState.Online -> stringResource(R.string.sessions_via_wifi, address)
+    else -> address
 }
 
 /** Search mode replaces the head: back, then a filled search field (§5.1 field: FieldShape, surfaceContainerHigh). */

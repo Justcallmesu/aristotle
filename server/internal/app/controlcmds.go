@@ -1,12 +1,14 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/justcallmesu/aristotle/server/internal/control"
 	"github.com/justcallmesu/aristotle/server/internal/devices"
+	"github.com/justcallmesu/aristotle/server/internal/hermes"
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 )
@@ -120,4 +122,33 @@ func decodeArgs(raw json.RawMessage, v any) error {
 type statusResult struct {
 	Version   string            `json:"version"`
 	Addresses []httpapi.Address `json:"addresses"`
+}
+
+// tailscaleUp: a Tailscale listener is bound right now (§16).
+func (s *server) tailscaleUp() bool {
+	for _, e := range s.listen.Active() {
+		if e.Kind == listen.Tailscale {
+			return true
+		}
+	}
+	return false
+}
+
+// hermesRunning is the check behind relay close 4503: the control socket is missing or refuses. Any other
+// answer (even an unsupported protocol) means Hermes is up; a timeout leaves the field null.
+func hermesRunning(c *hermes.Connector) func(context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		_, err := c.Identify(ctx)
+		switch {
+		case err == nil:
+			return true, nil
+		case errors.Is(err, hermes.ErrHermesNotRunning):
+			return false, nil
+		case ctx.Err() != nil:
+			return false, ctx.Err()
+		}
+		return true, nil
+	}
 }
