@@ -2,9 +2,11 @@ package io.github.justcallmesu.aristotle.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +65,7 @@ import io.github.justcallmesu.aristotle.data.chat.AttachmentRules
 import io.github.justcallmesu.aristotle.data.chat.PickKind
 import io.github.justcallmesu.aristotle.data.chat.SlashCommand
 import io.github.justcallmesu.aristotle.data.chat.SlashMenu
+import io.github.justcallmesu.aristotle.ui.components.reducedMotion
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.ComposerShape
@@ -124,7 +127,7 @@ private val OUTER_PADDING = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp
  * runs it, busy too; Queue and Steer are off for it.
  *
  * [modelChip] is [ComposerLogic.chipLabel] of the chat's model and effort (null hides the chip); [onOpenModels] opens
- * the model sheet; [onOpenPrompt] opens the prompt sheet from the waiting chip.
+ * the model sheet; [onOpenPrompt] opens the prompt sheet from the waiting chip, whose words follow [waitingFor].
  */
 @Composable
 fun Composer(
@@ -138,6 +141,7 @@ fun Composer(
     modelChip: String? = null,
     onOpenModels: () -> Unit = {},
     onOpenPrompt: () -> Unit = {},
+    waitingFor: WaitingFor = WaitingFor.Approval,
 ) {
     val online = state.mode != ComposerMode.Offline
     val ready = state.armed && online
@@ -154,7 +158,7 @@ fun Composer(
                 .padding(OUTER_PADDING),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            if (online && state.blocked) ComposerWaitingChip(onOpenPrompt)
+            if (online && state.blocked) ComposerWaitingChip(waitingFor, onOpenPrompt)
             if (online) queued.forEachIndexed { index, row -> QueuedLine(index + 1, row, state, ready, actions) }
             if (online && query != null) SlashMenuPanel(slash, query, onPick = actions::pickCommand, onRetry = actions::retryCommands)
             Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = ComposerShape, modifier = Modifier.fillMaxWidth()) {
@@ -171,11 +175,15 @@ fun Composer(
                     }
                 }
             }
-            when {
-                !online -> HintLine(stringResource(R.string.composer_offline))
-                running && ComposerLogic.showsBusyExtras(state) -> BusyHint(state, command)
-                state.blocked && !command -> HintLine(stringResource(R.string.composer_blocked_idle_hint))
-                ComposerLogic.hasRefused(state) -> HintLine(stringResource(R.string.attach_refused_hint))
+            // Q69: the busy hint fades in and out with Queue and Steer (TR MINOR-2); the other hints are steady.
+            val busyExtras = online && running && ComposerLogic.showsBusyExtras(state)
+            ExtrasFade(visible = busyExtras, horizontal = false) { BusyHint(state, command) }
+            if (!busyExtras) {
+                when {
+                    !online -> HintLine(stringResource(R.string.composer_offline))
+                    state.blocked && !command -> HintLine(stringResource(R.string.composer_blocked_idle_hint))
+                    ComposerLogic.hasRefused(state) -> HintLine(stringResource(R.string.attach_refused_hint))
+                }
             }
         }
     }
@@ -248,12 +256,13 @@ private fun ModelChip(label: String, onClick: () -> Unit, modifier: Modifier = M
     )
 }
 
-/** A prompt waits for this phone: `errorContainer` chip that opens the prompt sheet again. */
+/** A prompt waits for this phone: `errorContainer` chip that opens the prompt sheet again; "answer" unless it is an approval. */
 @Composable
-private fun ComposerWaitingChip(onClick: () -> Unit) {
+private fun ComposerWaitingChip(waitingFor: WaitingFor, onClick: () -> Unit) {
+    val label = if (waitingFor == WaitingFor.Answer) R.string.composer_waiting_answer else R.string.composer_waiting_chip
     AssistChip(
         onClick = onClick,
-        label = { Text(stringResource(R.string.composer_waiting_chip), style = MaterialTheme.typography.labelLarge) },
+        label = { Text(stringResource(label), style = MaterialTheme.typography.labelLarge) },
         leadingIcon = { Icon(painter = painterResource(R.drawable.ic_pan_tool), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon)) },
         shape = MaterialTheme.shapes.small,
         colors = AssistChipDefaults.assistChipColors(
@@ -288,35 +297,46 @@ private fun StopButton(enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The right end of the action row, by [ComposerLogic.trailing]; Queue and Steer fade in over [EXTRAS_FADE_MS]. */
+/**
+ * The right end of the action row, by [ComposerLogic.trailing]. While busy, Stop stays and Queue · Steer fade in and
+ * out beside it over [EXTRAS_FADE_MS] (TR MINOR-2). Send follows [ComposerLogic.sendEnabled]: a command (alone, or
+ * beside Stop while busy) runs idle or busy, never while the prompt sheet covers the composer (TR MINOR-3).
+ */
 @Composable
 private fun TrailingActions(trailing: ComposerTrailing, state: ComposerState, ready: Boolean, hasText: Boolean, hasContent: Boolean, command: Boolean, actions: ComposerActions) {
     val busy = ready && state.mode == ComposerMode.Busy
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
-        when (trailing) {
-            ComposerTrailing.Send -> {
-                // A command runs idle, and while a prompt waits (it is not a message to the parked turn).
-                val canSend = if (command) state.mode == ComposerMode.Idle || state.mode == ComposerMode.Busy else state.mode == ComposerMode.Idle && !state.blocked
-                SendButton(enabled = ready && canSend && (if (command) hasText else hasContent), command = command, onClick = actions::send)
-            }
-            ComposerTrailing.Stop -> StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
-            ComposerTrailing.StopSend -> {
-                StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
-                SendButton(enabled = ready && hasText, command = true, onClick = actions::send)
-            }
-            ComposerTrailing.StopQueueSteer -> {
-                StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
-                FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape) {
-                    Text(stringResource(R.string.composer_queue))
+        if (trailing == ComposerTrailing.Send) {
+            // A command runs idle, and while a prompt waits (it is not a message to the parked turn).
+            SendButton(enabled = ComposerLogic.sendEnabled(state, ready, command, hasText, hasContent), command = command, onClick = actions::send)
+        } else {
+            StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
+            ExtrasFade(visible = trailing == ComposerTrailing.StopQueueSteer, horizontal = true) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+                    FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape) {
+                        Text(stringResource(R.string.composer_queue))
+                    }
+                    // A steer carries words only: with attachments the message is queued (T16).
+                    val steerable = hasText && !state.blocked && !command && state.attachments.isEmpty()
+                    Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape) {
+                        Text(stringResource(R.string.composer_steer))
+                    }
                 }
-                // A steer carries words only: with attachments the message is queued (T16).
-                val steerable = hasText && !state.blocked && !command && state.attachments.isEmpty()
-                Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape) {
-                    Text(stringResource(R.string.composer_steer))
-                }
+            }
+            if (trailing == ComposerTrailing.StopSend) {
+                SendButton(enabled = ComposerLogic.sendEnabled(state, ready, command = true, hasText, hasContent), command = true, onClick = actions::send)
             }
         }
     }
+}
+
+/** Fades [content] in and out over [EXTRAS_FADE_MS], growing it sideways or downwards; instant with reduced motion. */
+@Composable
+private fun ExtrasFade(visible: Boolean, horizontal: Boolean, content: @Composable () -> Unit) {
+    val millis = if (reducedMotion()) 0 else EXTRAS_FADE_MS
+    val enter = fadeIn(tween(millis)) + if (horizontal) expandHorizontally(tween(millis)) else expandVertically(tween(millis))
+    val exit = fadeOut(tween(millis)) + if (horizontal) shrinkHorizontally(tween(millis)) else shrinkVertically(tween(millis))
+    AnimatedVisibility(visible = visible, enter = enter, exit = exit) { content() }
 }
 
 /** The one hint line under the field while Queue and Steer show (Q69). */
@@ -328,9 +348,7 @@ private fun BusyHint(state: ComposerState, command: Boolean) {
         state.blocked -> R.string.composer_blocked_hint
         else -> R.string.composer_steer_hint
     }
-    AnimatedVisibility(visible = true, enter = fadeIn(tween(EXTRAS_FADE_MS)) + expandVertically(tween(EXTRAS_FADE_MS)), exit = fadeOut(tween(EXTRAS_FADE_MS)) + shrinkVertically(tween(EXTRAS_FADE_MS))) {
-        HintLine(stringResource(hint))
-    }
+    HintLine(stringResource(hint))
 }
 
 /** "Queued · N — text" with ✕ (Hermes' queue: the Desktop shows and cancels the same rows), in `surfaceContainerLow`. */

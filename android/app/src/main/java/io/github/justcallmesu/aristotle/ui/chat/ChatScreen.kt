@@ -53,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -127,10 +128,13 @@ fun ChatScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onStart() }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onStop() }
+    // Leaving the screen without ON_STOP (the app lock covers it): the process poll stops too (TB1).
+    DisposableEffect(viewModel) { onDispose { viewModel.onScreenGone() } }
     val actions = remember(viewModel) { ViewModelPromptActions(viewModel) }
     val composer = remember(viewModel) { ViewModelComposerActions(viewModel) }
     val models = remember(viewModel) { ViewModelModelActions(viewModel) }
     val subagents = remember(viewModel) { ViewModelSubagentActions(viewModel) }
+    val background = remember(viewModel) { ViewModelBackgroundActions(viewModel) }
     ChatContentView(
         state = state,
         fallbackTitle = fallbackTitle,
@@ -152,7 +156,15 @@ fun ChatScreen(
         onOpenSubagent = viewModel::openSubagent,
         fallbackProfile = fallbackProfile,
         quotes = quotes,
+        background = background,
     )
+}
+
+private class ViewModelBackgroundActions(private val vm: ChatViewModel) : BackgroundActions {
+    override fun askStop(processId: String) = vm.askStopProcess(processId)
+    override fun confirmStop() = vm.confirmStopProcess()
+    override fun cancelStop() = vm.cancelStopProcess()
+    override fun resultShown() = vm.processResultShown()
 }
 
 private class ViewModelSubagentActions(private val vm: ChatViewModel) : SubagentActions {
@@ -235,6 +247,8 @@ fun ChatContentView(
     fallbackProfile: String? = null,
     /** The quotes shown while the history loads (Q59); null: only the quiet line. */
     quotes: QuoteSource? = null,
+    /** The status stack's process rows and their Stop dialog (TB1); null: no stack. */
+    background: BackgroundActions? = null,
 ) {
     val feed = state.feed
     val chat = feed.chat
@@ -264,6 +278,14 @@ fun ChatContentView(
             models.messageShown()
         }
     }
+    val killResult = state.background.result
+    val processResultText = killResult?.let { processResult(it) }
+    LaunchedEffect(killResult) {
+        if (processResultText != null) {
+            snackbar.showSnackbar(processResultText)
+            background?.resultShown()
+        }
+    }
     // T17: an opened child covers the chat, which stays composed underneath (its scroll position survives) but is
     // hidden from accessibility services while covered.
     val child = state.subagent.open?.let { chat.subagents.byId(it) }?.takeIf { subagents != null }
@@ -273,31 +295,45 @@ fun ChatContentView(
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             // A prompt waits for this phone's answer (not while that answer is on its way, T12b).
-            val waiting = state.sheet.current(chat) != null
-            ChatTopBar(chat, state.link, live, waiting, fallbackTitle, fallbackProfile, onBack, modifier = sides)
+            val waitingFor = ChatSubtitle.waitingFor(state.sheet.current(chat))
+            ChatTopBar(chat, state.link, live, waitingFor, fallbackTitle, fallbackProfile, onBack, modifier = sides)
             if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
             // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
             val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
             val insets = WindowInsets.safeDrawing.only(edge).asPaddingValues()
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                val outbox = state.composer.outbox
-                val runs = state.slash.runs
-                when {
-                    feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
-                    feed.loaded -> Transcript(
-                        chat,
-                        live = live,
-                        composer = state.composer,
-                        runs = runs,
-                        insets = insets,
-                        echoes = echoes,
-                        onOpenSubagent = onOpenSubagent,
-                    )
-                    feed.problem != null -> LoadFailed(feed.problem, onRetry)
-                    else -> QuietLine(stringResource(R.string.chat_loading))
+            // The stack sits in the room left after the top bar and the composer, so it is measured against that (TB1b).
+            Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    val outbox = state.composer.outbox
+                    val runs = state.slash.runs
+                    when {
+                        feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
+                        feed.loaded -> Transcript(
+                            chat,
+                            live = live,
+                            composer = state.composer,
+                            runs = runs,
+                            insets = insets,
+                            echoes = echoes,
+                            onOpenSubagent = onOpenSubagent,
+                        )
+                        feed.problem != null -> LoadFailed(feed.problem, onRetry)
+                        else -> QuietLine(stringResource(R.string.chat_loading))
+                    }
+                    if (quotes != null && feed.problem == null) LoadingQuote(quotes, feed.loaded)
+                    SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
                 }
-                if (quotes != null && feed.problem == null) LoadingQuote(quotes, feed.loaded)
-                SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
+                if (feed.loaded && background != null) {
+                    StatusStack(
+                        sessionId = chat.sessionId,
+                        children = chat.subagents.items,
+                        background = state.background,
+                        live = live,
+                        onOpenSubagent = onOpenSubagent,
+                        onStop = background::askStop,
+                        modifier = sides,
+                    )
+                }
             }
             if (feed.loaded) {
                 Composer(
@@ -308,9 +344,15 @@ fun ChatContentView(
                     slash = state.slash,
                     focusOnStart = focusComposer,
                     // design-notes §5.2: the model and effort moved from the top bar's subtitle into the composer's chip.
-                    modelChip = ComposerLogic.chipLabel(chat.model, ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) }),
+                    // TR MINOR-1: without a model name the chip still shows ("Model"), so the sheet stays reachable.
+                    modelChip = ComposerLogic.chipLabel(
+                        chat.model,
+                        ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) },
+                        fallback = stringResource(R.string.composer_model_fallback),
+                    ),
                     onOpenModels = models::open,
                     onOpenPrompt = onOpenSheet,
+                    waitingFor = ChatSubtitle.waitingFor(state.sheet.current(chat) ?: chat.prompts.firstOrNull()) ?: WaitingFor.Approval,
                 )
             }
         }
@@ -323,6 +365,7 @@ fun ChatContentView(
     }
     if (state.model.open) ModelSheet(state.model, chat, models)
     state.model.confirm?.let { ModelConfirmDialog(it, models) }
+    if (background != null) state.background.confirm?.let { StopProcessDialog(it, background) }
 }
 
 /**
@@ -393,7 +436,7 @@ private fun ChatTopBar(
     chat: ChatState,
     link: LinkState,
     live: Boolean,
-    waiting: Boolean,
+    waitingFor: WaitingFor?,
     fallbackTitle: String?,
     fallbackProfile: String?,
     onBack: () -> Unit,
@@ -414,7 +457,7 @@ private fun ChatTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },
             )
-            Subtitle(chat, link, fallbackProfile, live = live, waiting = waiting)
+            Subtitle(chat, link, fallbackProfile, live = live, waitingFor = waitingFor)
         }
     }
 }
@@ -426,12 +469,13 @@ private fun ChatTopBar(
  * is always there, empty until the chat loads, so the bar does not move when it fills in (C4).
  */
 @Composable
-private fun Subtitle(chat: ChatState, link: LinkState, fallbackProfile: String?, live: Boolean, waiting: Boolean) {
+private fun Subtitle(chat: ChatState, link: LinkState, fallbackProfile: String?, live: Boolean, waitingFor: WaitingFor?) {
     val linkText = linkLabel(link)
-    val lead = ChatSubtitle.lead(linkDown = linkText != null, live = live, waiting = waiting, running = chat.running)
+    val lead = ChatSubtitle.lead(linkDown = linkText != null, live = live, waiting = waitingFor != null, running = chat.running)
     val leadText = when (lead) {
         SubtitleLead.Link -> linkText
-        SubtitleLead.Waiting -> stringResource(R.string.chat_needs_approval)
+        // TR MINOR-4: an approval needs approving; a question, sudo or secret needs an answer.
+        SubtitleLead.Waiting -> stringResource(if (waitingFor == WaitingFor.Answer) R.string.chat_needs_answer else R.string.chat_needs_approval)
         SubtitleLead.Running -> chat.step?.let { stringResource(R.string.chat_running_step, it) } ?: stringResource(R.string.session_running)
         SubtitleLead.None -> null
     }

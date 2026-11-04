@@ -1,0 +1,8 @@
+# TB1b build report — TB1 review fixes
+
+Gate `GATE_ONLY=android bash docs/v1-tickets/gates.sh docs/v1-tickets/runs/TB1b`: `PASS android` (lint, unit tests, assembleDebug). Not run on a device (no adb).
+- **MAJOR-1:** the stack now sits in a `weight(1f)` column with the transcript, so it is measured in the room left after the top bar and composer. Its cap is 40 % of that room (`BackgroundLogic.stackLayout`, applied by a `layout` modifier), never of the window. While the IME is up it folds to its two one-line headers (chosen over hiding: it keeps the "N Background" hint and costs ≤72 dp; saved fold state is untouched). Test: IME up -> collapsed; little room -> capped.
+- **MINOR-2:** `ProcessKill.Unknown` for a written frame with a closed link: "Outcome unknown — check the list when the PC is back." (EN + ID `background_result_unknown`, appended). "Not sent" only when `written` is false. Tests: unit + ViewModel.
+- **MINOR-3:** the 5 s timer runs only while a running row exists (`timerRuns`); otherwise one read on opening, on reconnect, and on the existing refresh events, then it waits for an event. Tests: idle -> one read and no timer, event -> timer starts, list empties -> timer stops, reconnect -> one read. Existing poll tests now give a running row. A lost answer with no rows is no longer retried on a timer (event or reconnect does it).
+- **Nits:** the Stop dialog closes when its process leaves the list (test); the waiting chip uses the prompt whose answer is in flight, so it keeps "answer" wording.
+- **Files:** `android/.../ui/chat/{BackgroundControl,StatusStack,ChatScreen}.kt`, `data/chat/BackgroundProcesses.kt`, `res/values{,-in}/strings.xml`; tests `BackgroundProcessesTest`, `ChatViewModelBackgroundTest`, `StatusStackLogicTest`.

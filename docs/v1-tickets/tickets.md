@@ -93,7 +93,8 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TR4 | Floating composer + model chip + Send/Stop/Queue/Steer | TR1 | android | DONE (device look pending) |
 | TR5 | Model sheet: search, collapsible providers, effort slider (one call per gesture) | TR1 | android | DONE (device look pending) |
 | TR6 | Settings + Connection grouped rows; prompt sheet shapes | TR1 | android | DONE (device look pending) |
-| TB1 | Q77: chat status stack (subagents + background processes with stop) above the composer; relay passes process.list/process.kill | TR3, TR4 | android (+server check) | BUILDING |
+| TB1 | Q77: chat status stack (subagents + background processes with stop) above the composer; relay passes process.list/process.kill | TR3, TR4 | android (+server check) | DONE (via TB1b) |
+| TB1b | TB1 review: stack can push the composer under the keyboard (MAJOR-1); 'outcome unknown' after a dropped kill; poll only while a process runs (Desktop parity) | TB1 | android | DONE (keyboard check on device pending) |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -414,3 +415,6 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 User: stopping a background process needs a confirmation popup -> Q77 updated (dialog with full command + runtime, red Stop / Cancel).
 - 2026-11-04 TR2-TR6 built in parallel (gates collided on shared Gradle); PM clean gate pm-gate-54 GREEN (895). Mutations: slider commit every step fails 2, model search case-sensitive fails 1, busy extras always fails 2. Phone unplugged: device screenshots pending. Deep review of the batch dispatched.
 - 2026-11-04 TR batch review PASS-WITH-FINDINGS (behaviour preserved; Q75 correct; TH1b rule correct). Committed. PM: reasoning-only run stays '1 step' (Q75 literal). Minors 1-5 + unused resources folded into TB1 (same files). Q67 exception recorded in design.md: steps line 36 dp and step rows 44 dp rely on Compose's touch-area expansion.
+- 2026-11-04 TB1 built (927); relay forwards process.list/kill untouched (session.go:136-163). pm-gate-55 GREEN; mutation (Stop without arm) fails 2. Deep review dispatched; PM installs TR+TB1 build on the Poco for screenshots.
+- 2026-11-04 TB1 review CHANGES-REQUIRED (MAJOR-1 composer under IME with a tall stack). Kill path, process id, polling lifecycle all verified. PM decision MINOR-3: Desktop parity (5 s timer only while a process runs). TB1b (std) dispatched. Device: TR+TB1 build installed; stack showed real '1 Subagent' + '1 Background' rows.
+- 2026-11-04 TB1b: pm-gate-56 GREEN (932); mutation (cap from window) fails 2. NOTE: the IME fold in StatusStack.kt:119-125 reads imeVisible directly; the pure stackLayout test does not cover that UI path -> device check required (phone locked at install). Committed TB1+TB1b; installed.

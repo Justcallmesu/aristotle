@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -275,7 +276,7 @@ private fun EffortFooter(choices: List<String>, chat: ChatState, enabled: Boolea
 @Composable
 private fun GroupHead(view: ProviderView, query: String, onToggle: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val count = if (view.filtered) stringResource(R.string.model_count_of, view.shown.size, view.total) else stringResource(R.string.model_count, view.total)
+    val count = if (view.filtered) stringResource(R.string.model_count_of, view.shown.size, view.total) else pluralStringResource(R.plurals.model_count, view.total, view.total)
     val state = stringResource(if (view.expanded) R.string.model_group_open else R.string.model_group_closed)
     Column {
         Row(

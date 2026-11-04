@@ -216,7 +216,7 @@ private fun SubagentStatus.asRow(): DelegateStatus = when (this) {
 
 /** "12 s", or "3 m 05 s" from a minute on. */
 @Composable
-private fun elapsedText(seconds: Long): String =
+internal fun elapsedText(seconds: Long): String =
     if (seconds < SECONDS_PER_MINUTE) {
         stringResource(R.string.subagent_seconds, seconds.toInt())
     } else {
@@ -225,7 +225,7 @@ private fun elapsedText(seconds: Long): String =
 
 /** The wall clock, ticking once a second while [ticking] (a running child's elapsed time). */
 @Composable
-private fun wallClockTicking(ticking: Boolean): Long {
+internal fun wallClockTicking(ticking: Boolean): Long {
     val now by produceState(System.currentTimeMillis(), ticking) {
         value = System.currentTimeMillis()
         while (ticking) {

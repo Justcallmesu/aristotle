@@ -44,7 +44,6 @@
     <!-- Sessions screen -->
     <string name="sessions_via_wifi">%1$s · lewat Wi-Fi</string>
     <string name="sessions_via_tailscale">%1$s · lewat Tailscale</string>
-    <string name="sessions_offline_line">%1$s · offline</string>
     <string name="sessions_profile_description">Profil Hermes: %1$s</string>
     <string name="sessions_connecting">Menghubungkan ke %1$s…</string>
     <string name="session_running">Berjalan</string>
@@ -57,8 +56,6 @@
     <string name="sessions_empty_title">Belum ada sesi</string>
     <string name="sessions_empty_body">Sesi dari Hermes di PC muncul di sini, yang aktif di atas.</string>
     <string name="sessions_section_pinned">Disematkan di ponsel ini</string>
-    <string name="sessions_section_live">Aktif</string>
-    <string name="sessions_section_history">Riwayat</string>
     <string name="sessions_search">Cari sesi</string>
     <string name="sessions_search_close">Tutup pencarian</string>
     <string name="sessions_search_clear">Hapus pencarian</string>
@@ -70,7 +67,6 @@
     <string name="sessions_history_failed">Riwayat gagal dimuat \u00b7</string>
     <string name="sessions_history_retry">Coba lagi</string>
     <string name="sessions_profile_fell_back">PC tidak lagi melayani profil %1$s. Menampilkan profil awal.</string>
-    <string name="sessions_new">Sesi baru</string>
     <string name="sessions_new_busy">Membuat…</string>
     <string name="sessions_new_failed">Tidak bisa membuat sesi: %1$s</string>
     <string name="sessions_profiles_title">Profil Hermes</string>
@@ -78,7 +74,6 @@
     <string name="sessions_profiles_loading">Memuat profil…</string>
     <string name="sessions_profiles_failed">Tidak bisa memuat profil: %1$s</string>
     <string name="session_actions">Tindakan sesi</string>
-    <string name="session_pinned">Disematkan</string>
     <string name="session_pin">Sematkan di ponsel ini</string>
     <string name="session_unpin">Lepas sematan di ponsel ini</string>
     <string name="session_pin_scope">Hanya ponsel ini yang menampilkan sematan. Desktop punya sematan sendiri.</string>
@@ -105,7 +100,6 @@
     <string name="conn_cert_body">Aristotle menolak tersambung: %1$s menjawab dengan sertifikat yang berbeda dari yang Anda cocokkan saat penyandingan. Jika kunci aristotle-server dihapus, sandingkan lagi. Jika tidak, mungkin perangkat lain yang menjawab di alamat ini.</string>
 
     <!-- Banner offline (T09) -->
-    <string name="offline_title">PC offline sejak %1$s</string>
     <string name="offline_cause_unreachable">Laptop di %1$s tidak menjawab lewat Wi-Fi maupun Tailscale. Pastikan laptop menyala dan aristotle-server berjalan.</string>
     <string name="offline_cause_tailscale">Tailscale mungkin mati di ponsel ini. Di luar Wi-Fi Anda, Aristotle hanya bisa menjangkau laptop lewat Tailscale.</string>
     <string name="offline_cause_lost">Laptop di %1$s menjawab, lalu koneksinya terputus.</string>
@@ -167,7 +161,6 @@
     <string name="settings_link_revoked">PC mencabut akses ponsel ini</string>
     <string name="settings_fingerprint">Sidik jari sertifikat</string>
     <string name="settings_fingerprint_body">Kunci PC seperti yang Anda konfirmasi saat memasangkan. Setiap alamat harus menunjukkan yang ini.</string>
-    <string name="settings_addresses">Alamat</string>
     <string name="settings_address_lan">Wi-Fi (LAN)</string>
     <string name="settings_address_tailscale">Tailscale</string>
     <string name="settings_address_last_worked">terakhir berhasil</string>
@@ -197,7 +190,6 @@
     <string name="settings_coming_soon">Segera hadir</string>
     <string name="settings_about_tagline">Sesi Hermes Agent di PC Anda, dari ponsel ini.</string>
     <string name="settings_version">Versi</string>
-    <string name="settings_version_value">%1$s (build %2$d)</string>
     <string name="settings_whats_new">Yang baru</string>
     <string name="settings_licences">Lisensi sumber terbuka</string>
     <string name="settings_source">Sumber</string>
@@ -241,7 +233,6 @@
     </plurals>
     <string name="chat_expand">Tampilkan detail</string>
     <string name="chat_collapse">Sembunyikan detail</string>
-    <string name="chat_waiting">Hermes menunggu Anda</string>
     <string name="chat_jump_latest">Ke pesan terbaru</string>
     <string name="chat_turn_stopped">Giliran dihentikan</string>
     <string name="chat_turn_failed">Giliran ini gagal</string>
@@ -332,7 +323,6 @@
     <string name="scan_error_malformed">Kode QR ini rusak atau tidak lengkap. Pindai lagi, atau masukkan kodenya secara manual.</string>
     <string name="loading_progress">Memuat</string>
     <!-- T15: model and reasoning switch, slash commands -->
-    <string name="model_open">Ganti model dan penalaran</string>
     <string name="model_sheet_title">Model</string>
     <string name="model_current">Sekarang: %1$s</string>
     <string name="model_running_note">Hermes sedang bekerja: perubahan berlaku mulai pesan berikutnya.</string>
@@ -432,7 +422,6 @@
     <string name="cron_title">Terjadwal</string>
     <string name="cron_open">Tugas terjadwal</string>
     <string name="cron_profile">Profil %1$s</string>
-    <string name="cron_tz_note">Jam di jadwal mengikuti jam PC; waktu jalan mengikuti jam ponsel ini.</string>
     <string name="cron_offline">Tidak tersambung ke PC. Daftar ini mungkin sudah lama, dan perubahan menunggu sambungan.</string>
     <string name="cron_loading">Memuat tugas terjadwal…</string>
     <string name="cron_failed">Tugas terjadwal tidak bisa dimuat</string>
@@ -574,9 +563,6 @@
     <string name="terminal_key_on">aktif</string>
     <string name="terminal_key_off">mati</string>
     <string name="sessions_more">Tindakan lainnya</string>
-    <plurals name="chat_tool_group">
-        <item quantity="other">%1$d panggilan alat · terakhir: %2$s</item>
-    </plurals>
     <string name="lock_title">Aristotle terkunci</string>
     <string name="lock_body">Buka dengan sidik jari atau kunci layar ponsel.</string>
     <string name="lock_unlock">Buka kunci</string>
@@ -644,7 +630,6 @@
     <string name="settings_address_only_one">satu-satunya alamat, jadi tidak bisa dihapus</string>
     <string name="settings_address_delete">Hapus %1$s</string>
     <string name="settings_address_delete_title">Hapus alamat ini?</string>
-    <string name="settings_address_delete_text">%1$s dihapus dari ponsel ini. Jika PC mencantumkannya lagi, alamat ini tidak ditambahkan kembali; menemukan PC di Wi-Fi ini atau memasangkan ulang akan mengembalikannya.</string>
     <string name="settings_address_delete_in_use">Ponsel sedang tersambung lewat alamat ini dan langsung pindah ke alamat lain.</string>
     <string name="settings_address_delete_confirm">Hapus</string>
     <string name="settings_history">Riwayat koneksi</string>
@@ -673,7 +658,6 @@
     <string name="settings_address_delete_may_return">%1$s dihapus dari ponsel ini. Ini yang terakhir dari jenisnya, jadi PC dapat menambahkannya lagi saat berikutnya membagikan alamatnya.</string>
     <string name="model_search_hint">Cari %1$d model</string>
     <string name="model_search_none">Tidak ada model yang cocok dengan “%1$s”.</string>
-    <string name="model_count">%1$d model</string>
     <string name="model_count_of">%1$d dari %2$d</string>
     <string name="model_group_open">Terbuka</string>
     <string name="model_group_closed">Tertutup</string>
@@ -702,4 +686,33 @@
     <string name="sessions_section_yesterday">Kemarin · %1$s</string>
     <string name="sessions_section_earlier">Sebelumnya</string>
     <string name="whats_new_see">Lihat</string>
+    <!-- TB1: chat status stack (Q77) and TR review minors -->
+    <plurals name="model_count">
+        <item quantity="other">%1$d model</item>
+    </plurals>
+    <string name="composer_model_fallback">Model</string>
+    <string name="composer_waiting_answer">Menunggu jawaban Anda</string>
+    <string name="chat_needs_answer">Perlu jawaban Anda</string>
+    <plurals name="status_subagents">
+        <item quantity="other">%1$d Subagen</item>
+    </plurals>
+    <plurals name="status_background">
+        <item quantity="other">%1$d Latar belakang</item>
+    </plurals>
+    <string name="status_section_open">Terbuka</string>
+    <string name="status_section_closed">Tertutup</string>
+    <string name="background_unnamed">Proses latar belakang</string>
+    <string name="background_hours">%1$d j %2$02d m</string>
+    <string name="background_stop">Hentikan proses</string>
+    <string name="background_stop_title">Hentikan proses ini?</string>
+    <string name="background_running_for">Berjalan selama %1$s</string>
+    <string name="background_stop_confirm">Hentikan</string>
+    <string name="background_stop_cancel">Batal</string>
+    <string name="background_result_stopped">Proses dihentikan.</string>
+    <string name="background_result_exited">Proses sudah selesai sebelumnya.</string>
+    <string name="background_result_not_found">Hermes tidak lagi punya proses ini.</string>
+    <string name="background_result_failed">Proses tidak bisa dihentikan: %1$s</string>
+    <string name="background_result_failed_plain">Proses tidak bisa dihentikan.</string>
+    <string name="background_result_not_sent">Tidak terkirim: PC tidak terhubung.</string>
+    <string name="background_result_unknown">Hasil tidak diketahui — periksa daftar saat PC tersambung lagi.</string>
 </resources>

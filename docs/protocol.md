@@ -409,6 +409,17 @@ are closed sets (`profile` allowed), any other key → `invalid_params`; the ses
 There is no "stop all subagents" in the Desktop: Stop on the composer interrupts the parent's turn, which does not
 end background children (`apps/desktop/src/store/subagents.ts:339-342`).
 
+**Background processes (TB1, from source, not exercised).** `process.list {session_id}` → `{processes:[{session_id,
+command, cwd, pid, started_at, uptime_seconds, status:"running"|"exited", exit_code?, output_preview, output_tail, …}]}`
+(`tui_gateway/contracts/tools_commands.py:93-113`); a row's `session_id` is the PROCESS id (`proc.id`,
+`tools/process_registry.py::list_sessions`), `command` is cut to 200 characters. `process.kill {session_id, process_id}` →
+`{status:"killed"|"already_exited"|"not_found"|"error", error?, …}` (`:123-151`); another session's process → `4044`
+(`tui_gateway/methods_tools.py:285-295`), a gone session → `4001`. The phone reads the list every 5 s while the chat is on
+screen and live, at once after `tool.complete` of `terminal`/`process` and `status.update {kind:"process"}`, stops on
+`4001`/`4044` until it is subscribed again, and sends `process.kill` only from a confirmation dialog (Q77). The relay
+forwards both untouched (it refuses only `client.capabilities` with `desktop_local`, §12); its audit line counts them as
+`other`.
+
 `execution_generation`: take it from the latest event's `params.execution_generation` or the snapshot;
 a stale one is refused `stale_generation`.
 

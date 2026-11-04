@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.chat.ChatFeedState
 import io.github.justcallmesu.aristotle.data.chat.ChatItem
+import io.github.justcallmesu.aristotle.data.chat.Prompt
 import java.util.Locale
 
 /** Where the streaming cursor goes in a Markdown block (design.md §5: a block cursor at the text end). */
@@ -222,6 +223,9 @@ data class StatusText(val text: String, val leadEnd: Int) {
 /** What leads the chat top bar's subtitle (design-notes §5.6), before the profile. */
 enum class SubtitleLead { None, Link, Waiting, Running }
 
+/** What a waiting prompt asks of the user: an approval, or an answer (a question, a sudo password, a secret value). */
+enum class WaitingFor { Approval, Answer }
+
 /**
  * The chat top bar's subtitle (design-notes §5.2, §5.6): "Running · step 8 · [P] pm", "Needs your approval · [P] pm",
  * "Offline · [P] pm", idle just "[P] pm". The model and effort live in the composer's chip. Pure.
@@ -237,6 +241,16 @@ object ChatSubtitle {
         live && waiting -> SubtitleLead.Waiting
         live && running -> SubtitleLead.Running
         else -> SubtitleLead.None
+    }
+
+    /**
+     * TR MINOR-4: the waiting chip and the subtitle say "approval" only for an approval; a clarify, sudo, secret or a
+     * prompt the PC answers asks for an answer. Null: nothing waits.
+     */
+    fun waitingFor(prompt: Prompt?): WaitingFor? = when (prompt) {
+        null -> null
+        is Prompt.Approval -> WaitingFor.Approval
+        is Prompt.Clarify, is Prompt.Secret, is Prompt.OnPc -> WaitingFor.Answer
     }
 
     /** The profile mark's letter: the name's first character in upper case, "?" for a blank name. */

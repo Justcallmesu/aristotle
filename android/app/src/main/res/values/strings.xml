@@ -48,7 +48,6 @@
     <!-- Sessions screen -->
     <string name="sessions_via_wifi">%1$s · via Wi-Fi</string>
     <string name="sessions_via_tailscale">%1$s · via Tailscale</string>
-    <string name="sessions_offline_line">%1$s · offline</string>
     <string name="sessions_profile_description">Hermes profile: %1$s</string>
     <string name="sessions_connecting">Connecting to %1$s…</string>
     <string name="session_running">Running</string>
@@ -62,8 +61,6 @@
     <string name="sessions_empty_title">No sessions yet</string>
     <string name="sessions_empty_body">Sessions from Hermes on the PC show up here, live ones first.</string>
     <string name="sessions_section_pinned">Pinned on this phone</string>
-    <string name="sessions_section_live">Live</string>
-    <string name="sessions_section_history">History</string>
     <string name="sessions_search">Search sessions</string>
     <string name="sessions_search_close">Close search</string>
     <string name="sessions_search_clear">Clear search</string>
@@ -75,7 +72,6 @@
     <string name="sessions_history_failed">Couldn\u2019t load history \u00b7</string>
     <string name="sessions_history_retry">Retry</string>
     <string name="sessions_profile_fell_back">The PC no longer serves profile %1$s. Showing the launch profile instead.</string>
-    <string name="sessions_new">New session</string>
     <string name="sessions_new_busy">Creating…</string>
     <string name="sessions_new_failed">Couldn\'t create a session: %1$s</string>
     <string name="sessions_profiles_title">Hermes profile</string>
@@ -83,7 +79,6 @@
     <string name="sessions_profiles_loading">Loading profiles…</string>
     <string name="sessions_profiles_failed">Couldn\'t load the profiles: %1$s</string>
     <string name="session_actions">Session actions</string>
-    <string name="session_pinned">Pinned</string>
     <string name="session_pin">Pin on this phone</string>
     <string name="session_unpin">Unpin on this phone</string>
     <string name="session_pin_scope">Only this phone shows the pin. The Desktop keeps its own.</string>
@@ -110,7 +105,6 @@
     <string name="conn_cert_body">Aristotle refused to connect: %1$s answered with a different certificate than the one you confirmed when pairing. If aristotle-server\'s key was deleted, pair again. Otherwise another device may be answering at this address.</string>
 
     <!-- Offline banner (T09) -->
-    <string name="offline_title">PC offline since %1$s</string>
     <string name="offline_cause_unreachable">The laptop at %1$s doesn\'t answer on Wi-Fi or Tailscale. Check that it\'s awake and that aristotle-server is running.</string>
     <string name="offline_cause_tailscale">Tailscale may be off on this phone. Away from your Wi-Fi, Aristotle reaches the laptop only through Tailscale.</string>
     <string name="offline_cause_lost">The laptop at %1$s answered, then the connection ended.</string>
@@ -172,7 +166,6 @@
     <string name="settings_link_revoked">The PC revoked this phone</string>
     <string name="settings_fingerprint">Certificate fingerprint</string>
     <string name="settings_fingerprint_body">The PC\'s key as you confirmed it when pairing. Every address must show this one.</string>
-    <string name="settings_addresses">Addresses</string>
     <string name="settings_address_lan">Wi-Fi (LAN)</string>
     <string name="settings_address_tailscale">Tailscale</string>
     <string name="settings_address_last_worked">worked last</string>
@@ -204,7 +197,6 @@
     <string name="settings_coming_soon">Coming soon</string>
     <string name="settings_about_tagline">Your Hermes Agent sessions on your PC, from this phone.</string>
     <string name="settings_version">Version</string>
-    <string name="settings_version_value">%1$s (build %2$d)</string>
     <string name="settings_whats_new">What\'s new</string>
     <string name="settings_licences">Open-source licences</string>
     <string name="settings_source">Source</string>
@@ -249,7 +241,6 @@
     </plurals>
     <string name="chat_expand">Show details</string>
     <string name="chat_collapse">Hide details</string>
-    <string name="chat_waiting">Hermes is waiting for you</string>
     <string name="chat_jump_latest">Jump to latest</string>
     <string name="chat_turn_stopped">Turn stopped</string>
     <string name="chat_turn_failed">The turn failed</string>
@@ -339,7 +330,6 @@
     <string name="scan_error_address">This QR code has an address the app does not use (only Wi-Fi or Tailscale IP addresses over HTTPS). Enter the address by hand.</string>
     <string name="scan_error_malformed">This QR code is damaged or incomplete. Scan it again, or enter the code by hand.</string>
     <!-- T15: model and reasoning switch, slash commands -->
-    <string name="model_open">Change model and reasoning</string>
     <string name="model_sheet_title">Model</string>
     <string name="model_current">Now: %1$s</string>
     <string name="model_running_note">Hermes is working: a change applies from your next message.</string>
@@ -440,7 +430,6 @@
     <string name="cron_title">Scheduled</string>
     <string name="cron_open">Scheduled jobs</string>
     <string name="cron_profile">Profile %1$s</string>
-    <string name="cron_tz_note">Schedule times are the PC\'s clock; run times are this phone\'s.</string>
     <string name="cron_offline">Not connected to the PC. The list may be out of date, and changes wait for the connection.</string>
     <string name="cron_loading">Loading scheduled jobs…</string>
     <string name="cron_failed">Couldn\'t load the scheduled jobs</string>
@@ -585,10 +574,6 @@
     <string name="terminal_key_on">on</string>
     <string name="terminal_key_off">off</string>
     <string name="sessions_more">More actions</string>
-    <plurals name="chat_tool_group">
-        <item quantity="one">%1$d tool call · last: %2$s</item>
-        <item quantity="other">%1$d tool calls · last: %2$s</item>
-    </plurals>
     <string name="lock_title">Aristotle is locked</string>
     <string name="lock_body">Unlock with your fingerprint or the phone\'s screen lock.</string>
     <string name="lock_unlock">Unlock</string>
@@ -656,7 +641,6 @@
     <string name="settings_address_only_one">the only address, so it can\'t be deleted</string>
     <string name="settings_address_delete">Delete %1$s</string>
     <string name="settings_address_delete_title">Delete this address?</string>
-    <string name="settings_address_delete_text">%1$s is removed from this phone. If the PC lists it again, it is not added back; finding the PC on this Wi-Fi or pairing again brings it back.</string>
     <string name="settings_address_delete_in_use">The phone is connected through it now and moves to another address at once.</string>
     <string name="settings_address_delete_confirm">Delete</string>
     <string name="settings_history">Connection history</string>
@@ -685,7 +669,6 @@
     <string name="settings_address_delete_may_return">%1$s is removed from this phone. It is the last of its kind, so the PC may add it again the next time it shares its addresses.</string>
     <string name="model_search_hint">Search %1$d models</string>
     <string name="model_search_none">No model matches “%1$s”.</string>
-    <string name="model_count">%1$d models</string>
     <string name="model_count_of">%1$d of %2$d</string>
     <string name="model_group_open">Open</string>
     <string name="model_group_closed">Closed</string>
@@ -718,4 +701,36 @@
     <string name="sessions_section_yesterday">Yesterday · %1$s</string>
     <string name="sessions_section_earlier">Earlier</string>
     <string name="whats_new_see">See</string>
+    <!-- TB1: chat status stack (Q77) and TR review minors -->
+    <plurals name="model_count">
+        <item quantity="one">%1$d model</item>
+        <item quantity="other">%1$d models</item>
+    </plurals>
+    <string name="composer_model_fallback">Model</string>
+    <string name="composer_waiting_answer">Waiting for your answer</string>
+    <string name="chat_needs_answer">Needs your answer</string>
+    <plurals name="status_subagents">
+        <item quantity="one">%1$d Subagent</item>
+        <item quantity="other">%1$d Subagents</item>
+    </plurals>
+    <plurals name="status_background">
+        <item quantity="one">%1$d Background</item>
+        <item quantity="other">%1$d Background</item>
+    </plurals>
+    <string name="status_section_open">Expanded</string>
+    <string name="status_section_closed">Collapsed</string>
+    <string name="background_unnamed">Background process</string>
+    <string name="background_hours">%1$d h %2$02d m</string>
+    <string name="background_stop">Stop process</string>
+    <string name="background_stop_title">Stop this process?</string>
+    <string name="background_running_for">Running for %1$s</string>
+    <string name="background_stop_confirm">Stop</string>
+    <string name="background_stop_cancel">Cancel</string>
+    <string name="background_result_stopped">Process stopped.</string>
+    <string name="background_result_exited">The process had already exited.</string>
+    <string name="background_result_not_found">Hermes no longer has this process.</string>
+    <string name="background_result_failed">Could not stop the process: %1$s</string>
+    <string name="background_result_failed_plain">Could not stop the process.</string>
+    <string name="background_result_not_sent">Not sent: the PC is not connected.</string>
+    <string name="background_result_unknown">Outcome unknown — check the list when the PC is back.</string>
 </resources>

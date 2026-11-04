@@ -471,7 +471,7 @@ private fun FoldHeader(
 }
 
 @Composable
-private fun Chevron(open: Boolean, size: Dp = Sizes.toolIcon) {
+internal fun Chevron(open: Boolean, size: Dp = Sizes.toolIcon) {
     val instant = reducedMotion()
     val angle by animateFloatAsState(
         targetValue = if (open) TURNED else 0f,
@@ -488,7 +488,7 @@ private fun Chevron(open: Boolean, size: Dp = Sizes.toolIcon) {
 
 /** design.md §4: expandVertically + fadeIn 300 ms emphasized-decelerate; out 200 ms standard-accelerate; instant if reduced. */
 @Composable
-private fun Fold(open: Boolean, content: @Composable () -> Unit) {
+internal fun Fold(open: Boolean, content: @Composable () -> Unit) {
     val instant = reducedMotion()
     val enter = if (instant) 0 else EXPAND_MILLIS
     val exit = if (instant) 0 else COLLAPSE_MILLIS

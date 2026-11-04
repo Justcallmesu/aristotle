@@ -131,11 +131,26 @@ object ComposerLogic {
     /** The model chip shares the row with Stop · Queue · Steer only when there is room: it hides then. */
     fun showsModelChip(trailing: ComposerTrailing): Boolean = trailing != ComposerTrailing.StopQueueSteer && trailing != ComposerTrailing.StopSend
 
-    /** The chip's text: "model · effort", just the model without an effort, null (no chip) without a model. */
-    fun chipLabel(model: String?, effort: String?): String? {
-        val name = model?.trim().orEmpty().ifEmpty { return null }
+    /**
+     * The chip's text: "model · effort", just the model without an effort. Without a model name it is [fallback]
+     * ("Model", TR MINOR-1: the chip is the only way to the model sheet), with the effort when there is one; null (no
+     * chip) only when there is no fallback either.
+     */
+    fun chipLabel(model: String?, effort: String?, fallback: String? = null): String? {
         val level = effort?.trim().orEmpty()
+        val name = model?.trim().orEmpty().ifEmpty { fallback?.trim().orEmpty() }.ifEmpty { return null }
         return if (level.isEmpty()) name else "$name · $level"
+    }
+
+    /**
+     * Send is on: the composer is armed and online, the field holds what Send needs, and the mode allows it. A command
+     * runs idle or busy, never while the prompt sheet covers the composer (TR MINOR-3, the busy Stop · Send included);
+     * a message only idle and when no prompt waits.
+     */
+    fun sendEnabled(composer: ComposerState, ready: Boolean, command: Boolean, hasText: Boolean, hasContent: Boolean): Boolean {
+        val mode = composer.mode
+        val allowed = if (command) mode == ComposerMode.Idle || mode == ComposerMode.Busy else mode == ComposerMode.Idle && !composer.blocked
+        return ready && allowed && (if (command) hasText else hasContent)
     }
 
     /** A refused item is in the composer: Send stays off until it is removed. */

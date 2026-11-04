@@ -52,6 +52,8 @@ data class ChatUiState(
     val slash: SlashState = SlashState(),
     /** The opened subagent's page (T17). */
     val subagent: SubagentPageState = SubagentPageState(),
+    /** The session's background processes and their Stop dialog (TB1, Q77). */
+    val background: BackgroundState = BackgroundState(),
 ) {
     /**
      * A sudo/secret answer is a bare response that Hermes may have resolved elsewhere meanwhile, and re-sending it
@@ -83,6 +85,8 @@ class ChatViewModel(
     /** Wall-clock time, for a subagent's elapsed time (T17); [clock] stays the arming clock. */
     wallClock: () -> Long = System::currentTimeMillis,
     subagentPacing: SubagentPacing = SubagentPacing(),
+    /** How often `process.list` is read while the chat is on screen (TB1); tests pass a short one. */
+    backgroundPollMs: Long = BackgroundLogic.POLL_MS,
     /** The app lock's fresh check (Q61) before "Always allow" and a sudo/secret value; [FreshAuth.None]: no lock. */
     private val freshAuth: FreshAuth = FreshAuth.None,
 ) : ViewModel() {
@@ -97,6 +101,7 @@ class ChatViewModel(
     private val models = ChatModelControl(sessionId, link, newId, clock, work, state::value, ::change)
     private val commands = ChatCommands(sessionId, link, newId, clock, work, state::value, ::change, composer)
     private val subagents = ChatSubagents(sessionId, link, clock, wallClock, work, state::value, ::change, feed::offerSubagents, subagentPacing)
+    private val processes = ChatBackground(sessionId, link, clock, wallClock, work, state::value, ::change, backgroundPollMs)
 
     private var job: Job? = null
     private var authorizing: Job? = null
@@ -378,13 +383,22 @@ class ChatViewModel(
 
     // ── subagents (T17) ───────────────────────────────────────────────────────────────────────────
 
-    /** A child row of a `delegate_task` card: its page opens, read-only, from the parent's own stream. */
-    /** The app left the screen (ON_STOP): the subagent reads sleep (T17b). */
-    fun onStop() = subagents.onStop()
+    /** The app left the screen (ON_STOP): the subagent reads sleep (T17b) and the process poll stops (TB1). */
+    fun onStop() {
+        subagents.onStop()
+        processes.onVisible(false)
+    }
 
-    /** The app is back (ON_START): the subagent reads resume with one immediate read. */
-    fun onStart() = subagents.onStart()
+    /** The chat is on screen (ON_START): the subagent reads resume with one immediate read; the process poll starts. */
+    fun onStart() {
+        subagents.onStart()
+        processes.onVisible(true)
+    }
 
+    /** The chat screen left composition (another screen, the app lock): no process poll until it is back. */
+    fun onScreenGone() = processes.onVisible(false)
+
+    /** A child row of a `delegate_task` card or the status stack: its page opens, read-only, from the parent's own stream. */
     fun openSubagent(id: String) = subagents.open(id)
 
     fun closeSubagent() = subagents.close()
@@ -393,6 +407,19 @@ class ChatViewModel(
     fun stopSubagent(id: String) = subagents.stop(id)
 
     fun subagentMessageShown() = subagents.messageShown()
+
+    // ── background processes (TB1) ────────────────────────────────────────────────────────────────
+
+    /** Stop on a process row: the confirmation dialog opens; nothing is sent. */
+    fun askStopProcess(processId: String) = processes.askStop(processId)
+
+    /** Cancel, back or outside the dialog: nothing is sent. */
+    fun cancelStopProcess() = processes.cancelStop()
+
+    /** The dialog's red Stop: `process.kill` for the process it shows. */
+    fun confirmStopProcess() = processes.confirmStop()
+
+    fun processResultShown() = processes.resultShown()
 
     private fun updateSheet(transform: (PromptSheetState) -> PromptSheetState) = change { it.copy(sheet = transform(it.sheet)) }
 
@@ -419,6 +446,7 @@ class ChatViewModel(
         armComposer(next.composer.shown)
         armSubagent(next.subagent.shown)
         subagents.onState(next)
+        processes.onState(next)
     }
 
     private fun armSubagent(shown: SubagentShown?) {
