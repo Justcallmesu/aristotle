@@ -130,6 +130,7 @@ Rules that hold everywhere:
 | Q62 | Security setting "Show Terminal on this phone" (phone-local; hides the entry). The terminal itself is still enabled only on the PC (Q52). | User 2026-11-04. TS2. |
 | Q63 | Semantic versions (1.0.0) for app and server, shown in About; the app warns when the server's protocol version is too old or too new. | User 2026-11-04. TV1. |
 | Q64 | Change log: `CHANGELOG.md` in the repo (Keep a Changelog style) + an in-app "What's new" shown once after an update (and from About). | User 2026-11-04. TV2. |
+| Q65 | LAN auto-discovery: aristotle-server announces itself on the Wi-Fi (mDNS/DNS-SD); the phone discovers it on a network change and connects only if the pinned certificate fingerprint matches. Fallback: a manual "Find PC on this Wi-Fi" button that probes port 8760 on the local /24 (never automatic, to avoid looking like a scan on office networks). Tailscale stays the last fallback. | User "A+B is good" 2026-11-04. TL1. |
 
 ## 4. Risks
 

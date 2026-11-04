@@ -59,6 +59,12 @@ sealed interface ChatItem {
         val subagents: List<DelegateRow> = emptyList(),
     ) : ChatItem
 
+    /**
+     * A Hermes notification the Desktop paints as a one-line card (`process_complete`, `async_delegation_complete`; [DisplayRows], TC1):
+     * never a user bubble. [title] is the producer's one-liner, [text] the whole notification (shown on tap, never sent back).
+     */
+    data class Card(override val key: String, val process: Boolean, val title: String, val text: String) : ChatItem
+
     /** A line about the session itself: a stopped turn, a failure, an informational notice. */
     data class Notice(override val key: String, val kind: NoticeKind, val text: String) : ChatItem
 }

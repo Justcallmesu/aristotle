@@ -73,7 +73,7 @@ object ChatReducer {
         val omitted = snapshot.flag("messages_omitted") == true
         val state = base.copy(
             sessionId = snapshot.text("session_id")?.ifEmpty { null } ?: sessionId,
-            items = if (omitted) base.items else withRunningPrompt(HistoryMapper.items(snapshot["messages"] as? JsonArray), startedEntries),
+            items = if (omitted) base.items else withRunningPrompt(HistoryMapper.items(snapshot["messages"] as? JsonArray), startedEntries, HistoryMapper.machineTexts(snapshot["messages"] as? JsonArray)),
             running = running,
             step = if (keepTurn) base.step else null,
             thinking = keepTurn && base.thinking,
@@ -107,13 +107,14 @@ object ChatReducer {
      * steers, not the prompt) is added unless the history already ends its user rows with that same text (a
      * text-only prompt is stored as typed, `agent/session_persistence.py:122-127`).
      */
-    private fun withRunningPrompt(history: List<ChatItem>, started: List<JsonObject>): List<ChatItem> {
+    private fun withRunningPrompt(history: List<ChatItem>, started: List<JsonObject>, machine: Set<String> = emptySet()): List<ChatItem> {
         val lastUser = history.lastOrNull { it is ChatItem.User && !it.steer } as? ChatItem.User
         return started.filter { it.flag("steering") != true }.fold(history) { items, admission ->
             val id = admission.text("admission_id") ?: return@fold items
             val text = admission.text("text")?.takeIf { it.isNotBlank() } ?: return@fold items
             val prompt = ChatItem.User.of("user-$id", text)
-            if (lastUser?.text?.trim() == prompt.text.trim()) items else items + prompt
+            // A hidden row or a card holds this very text: Hermes started the turn itself, nobody typed it. Cards never count as the user's last message.
+            if (lastUser?.text?.trim() == prompt.text.trim() || text.trim() in machine) items else items + prompt
         }
     }
 
@@ -274,8 +275,31 @@ object ChatReducer {
     private fun startTurn(state: ChatState, payload: JsonObject, admissionId: String?, at: Long): ChatState {
         var next = settled(state, at).copy(running = true, step = null, thinking = false, turn = TurnCursor(turnId = payload.text("turn_id")))
         val admission = admissionId ?: payload.text("admission_id")
+        next = showAutomation(next, payload, admission)
         pendingEntries(next.info["pending"]).firstOrNull { it.text("admission_id") == admission }?.let { next = showUser(next, it) }
         return withRoster(next, Subagents.pruneFinished(next.subagents))
+    }
+
+    /**
+     * `message.start` of a turn Hermes started itself carries its `display_kind` (`session_automation.admission_display`): the same
+     * typing the stored row gets (TC1, [DisplayRows]). A card replaces the prompt bubble `session.info` may have shown first (the
+     * `pending` entry has no kind), a hidden turn removes it; either way the admission counts as shown.
+     */
+    private fun showAutomation(state: ChatState, payload: JsonObject, admission: String?): ChatState {
+        val kind = payload.text("display_kind")?.takeIf { it.isNotEmpty() } ?: return state
+        if (admission == null) return state
+        val key = "user-$admission"
+        if (state.items.any { it.key == "card-$admission" }) return state
+        val text = payload.text("text") ?: payload.text("display_text").orEmpty()
+        val shown = DisplayRows.shown("card-$admission", "user", kind, JsonObject(mapOf("display_text" to (payload["display_text"] ?: JsonPrimitive("")))), text)
+        if (shown == DisplayRows.Shown.Plain) return state
+        val replacement = (shown as? DisplayRows.Shown.Item)?.item
+        val items = when {
+            state.items.any { it.key == key } -> state.items.mapNotNull { if (it.key == key) replacement else it }
+            replacement != null -> state.items + replacement
+            else -> state.items
+        }
+        return state.copy(items = items, shownAdmissions = state.shownAdmissions + admission)
     }
 
     private fun messageDelta(state: ChatState, payload: JsonObject, at: Long): ChatState {

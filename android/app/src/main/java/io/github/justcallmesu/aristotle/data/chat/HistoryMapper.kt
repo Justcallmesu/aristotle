@@ -21,13 +21,37 @@ object HistoryMapper {
             val row = element.asObject() ?: return@forEachIndexed
             if (modelOnly(row)) return@forEachIndexed
             val key = "h-${row.number("row_id")?.toLong() ?: "i$index"}"
+            val kind = row.text("display_kind")
+            when (val shown = DisplayRows.shown(key, row.text("role"), kind, row["display_metadata"], textOf(row["content"]))) {
+                DisplayRows.Shown.Drop -> return@forEachIndexed
+                is DisplayRows.Shown.Item -> { items += shown.item; return@forEachIndexed }
+                DisplayRows.Shown.Plain -> Unit
+            }
             when (row.text("role")) {
-                "user" -> textOf(row["content"])?.let { items += ChatItem.User.of(key, it, steer = row.text("display_kind") == "steer") }
+                "user" -> textOf(row["content"])?.let { items += ChatItem.User.of(key, it, steer = kind == "steer") }
                 "assistant" -> assistant(row, key, items, cards, toolKeys)
                 "tool" -> toolResult(row, key, items, cards)
             }
         }
         return items
+    }
+
+    /**
+     * The text of every hidden or card row after the last row the user typed. The running turn's prompt reaches `pending`
+     * with no `display_kind`, so a turn Hermes started itself would show its machine text as the user's message (D35, [ChatReducer]).
+     */
+    fun machineTexts(messages: JsonArray?): Set<String> {
+        val texts = LinkedHashSet<String>()
+        messages.orEmpty().forEach { element ->
+            val row = element.asObject() ?: return@forEach
+            if (modelOnly(row) || row.text("role") != "user") return@forEach
+            val kind = row.text("display_kind")
+            val text = textOf(row["content"])?.trim() ?: return@forEach
+            val machine = kind == DisplayRows.HIDDEN || DisplayRows.isCard(kind) ||
+                (kind == null && DisplayRows.shown("", "user", null, null, text) == DisplayRows.Shown.Drop)
+            if (machine) texts += text else if (kind == null) texts.clear()
+        }
+        return texts
     }
 
     private fun assistant(row: JsonObject, key: String, items: MutableList<ChatItem>, cards: MutableMap<String, Int>, toolKeys: MutableSet<String>) {

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
@@ -94,6 +95,55 @@ fun ChatRow(
             ToolCard(item, folds, openByDefault = item.key == lastFailedTool, live = live)
         }
         is ChatItem.Notice -> NoticeRow(item)
+        is ChatItem.Card -> NotificationCard(item, folds)
+    }
+}
+
+/**
+ * A Hermes notification (a finished background process or delegation) as the Desktop's one-line row, never a user bubble (TC1):
+ * `surfaceContainerLow`, `medium`, `onSurfaceVariant` text, no verdigris (it is not live work). Tap opens the whole text in mono.
+ */
+@Composable
+private fun NotificationCard(item: ChatItem.Card, folds: FoldState) {
+    val open = folds.isOpen(item.key, default = false)
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Column {
+            FoldHeader(
+                open = open,
+                onToggle = { folds.toggle(item.key, default = false) },
+                minHeight = Sizes.minTouchTarget,
+                modifier = Modifier.padding(horizontal = Spacing.m, vertical = 6.dp),
+            ) {
+                Icon(
+                    painter = painterResource(if (item.process) R.drawable.ic_terminal else R.drawable.ic_task_alt),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(Sizes.toolIcon),
+                )
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (item.text.isNotEmpty()) Chevron(open)
+            }
+            if (item.text.isNotEmpty()) {
+                Fold(open) {
+                    SelectionContainer {
+                        Text(
+                            text = item.text,
+                            style = AristotleTextStyles.toolOutput,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // The Desktop caps the opened log (max-h-80) and scrolls it.
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp).verticalScroll(rememberScrollState()).padding(start = Spacing.m, end = Spacing.m, bottom = Spacing.m),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
