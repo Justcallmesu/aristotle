@@ -209,6 +209,8 @@ adaptive foreground (safe zone 66 dp of 108) + monochrome layer. The user approv
 
 Icons: Material Symbols Outlined, weight 400, 24 dp, everywhere in the UI (launcher/notification icons excepted). (TU2)
 
+App lock screen (TS2) is the second exception to the no-centred-stack rule: icon, app name, one Unlock button, centred.
+
 ## 7. Do not
 
 - No gradients, glassmorphism/blur, glow, or decorative shadows.

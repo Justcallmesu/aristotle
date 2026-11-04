@@ -31,6 +31,8 @@ sealed interface PromptMessage {
  *   [PromptSheetLogic.ARM_MS] (T12b tap-through guard).
  * @property unconfirmed sudo/secret answers sent as a response frame, which gets no reply, by the link generation they
  *   went out on: a new socket may have lost them, so they are answerable again there.
+ * @property authorizing the prompt whose "Always allow" or sudo/secret answer waits for the app lock's fresh check
+ *   (Q61); its buttons are off until the check ends.
  */
 data class PromptSheetState(
     val open: Boolean = false,
@@ -44,6 +46,7 @@ data class PromptSheetState(
     val showing: String? = null,
     val shown: Shown? = null,
     val unconfirmed: Map<String, Long> = emptyMap(),
+    val authorizing: String? = null,
 ) {
     /** The prompt the sheet shows: the oldest still open that this phone has not answered. */
     fun current(chat: ChatState): Prompt? = chat.prompts.firstOrNull { it.key !in answered }

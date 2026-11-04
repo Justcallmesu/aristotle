@@ -5,11 +5,14 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import io.github.justcallmesu.aristotle.background.BackgroundController
 import io.github.justcallmesu.aristotle.background.Notifier
 import io.github.justcallmesu.aristotle.data.AlertRouter
+import io.github.justcallmesu.aristotle.data.AppLock
 import io.github.justcallmesu.aristotle.data.AppSettings
+import io.github.justcallmesu.aristotle.data.AuthBroker
 import io.github.justcallmesu.aristotle.data.AttachmentFiles
 import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
 import io.github.justcallmesu.aristotle.data.DeviceMaker
@@ -100,6 +103,13 @@ class AppContainer(context: Context) {
 
     val settings = AppSettings(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
 
+    /**
+     * The app lock (Q61, TS2). Built with the process, so a new process starts locked while the lock is on; the
+     * activity callbacks below drive it. [auth] asks the activity on screen for a fingerprint or the screen lock.
+     */
+    val appLock = AppLock(enabled = { settings.appLock.value }, timeout = { settings.lockTimeout.value }, now = SystemClock::elapsedRealtime)
+    val auth = AuthBroker(appLock, lockOn = { settings.appLock.value }, turnOff = { settings.setAppLock(false) })
+
     /** Picked photos and files, prepared in the app cache until sent (T16). */
     val attachments = AttachmentFiles(context)
 
@@ -176,14 +186,31 @@ class AppContainer(context: Context) {
     fun forgetPc(reason: PairNotice?) {
         notice.value = reason
         epoch.value += 1
-        scope.launch { credentials.wipeActive() }
+        clearAlerts()
+        scope.launch {
+            credentials.wipeActive()
+            clearAlerts()
+        }
     }
 
-    /** Settings' Unpair (TS1): the pairing, its addresses, the PC's settings and every draft go; back to pairing. */
+    /**
+     * Settings' Unpair (TS1): the pairing, its addresses, the PC's settings, every draft and its notifications go;
+     * back to pairing. The tray is swept again once the pairing is gone, for an alert that raced the wipe (TS1b).
+     */
     fun unpair(pcId: String) {
         notice.value = null
         epoch.value += 1
-        scope.launch { records.unpair(pcId) }
+        clearAlerts()
+        scope.launch {
+            records.unpair(pcId)
+            clearAlerts()
+        }
+    }
+
+    /** The old PC's session notifications leave the tray (main thread, like the router). */
+    private fun clearAlerts() {
+        alerts.reset().forEach(notifier::apply)
+        notifier.cancelAlerts()
     }
 
     fun clearPairNotice() {
@@ -207,10 +234,17 @@ class AristotleApplication : Application() {
         registerActivityLifecycleCallbacks(VisibilityCallbacks())
     }
 
-    /** Tells the background controller when the app comes on screen and leaves it (T10). */
+    /** Tells the background controller (T10) and the app lock (TS2) when the app comes on screen and leaves it. */
     private inner class VisibilityCallbacks : ActivityLifecycleCallbacks {
-        override fun onActivityStarted(activity: Activity) = container.background.onActivityStarted()
-        override fun onActivityStopped(activity: Activity) = container.background.onActivityStopped(activity.isChangingConfigurations)
+        override fun onActivityStarted(activity: Activity) {
+            container.appLock.onStarted()
+            container.background.onActivityStarted()
+        }
+
+        override fun onActivityStopped(activity: Activity) {
+            container.appLock.onStopped(activity.isChangingConfigurations)
+            container.background.onActivityStopped(activity.isChangingConfigurations)
+        }
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
         override fun onActivityResumed(activity: Activity) = Unit
         override fun onActivityPaused(activity: Activity) = Unit

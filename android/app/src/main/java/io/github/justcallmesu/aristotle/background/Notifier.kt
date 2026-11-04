@@ -3,6 +3,7 @@ package io.github.justcallmesu.aristotle.background
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -67,6 +68,15 @@ class Notifier(private val context: Context) {
             is NotifyAction.Cancel -> manager.cancel(action.tag, ID_ALERT)
             is NotifyAction.Post -> if (canPost()) manager.notify(action.notice.tag, ID_ALERT, alert(action.notice))
         }
+    }
+
+    /**
+     * Unpair (TS1b): every session notification in the tray goes (turn finished, needs you), also ones posted before
+     * the process restarted. The foreground service's own notification stays; the service ends with the pairing.
+     */
+    fun cancelAlerts() {
+        val system = context.getSystemService(NotificationManager::class.java) ?: return
+        AlertSweep.tags(system.activeNotifications.map { it.tag to it.id }, ID_ALERT).forEach { manager.cancel(it, ID_ALERT) }
     }
 
     private fun alert(notice: AlertNotice): Notification {

@@ -2,6 +2,8 @@ package io.github.justcallmesu.aristotle.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.justcallmesu.aristotle.data.AuthPurpose
+import io.github.justcallmesu.aristotle.data.FreshAuth
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.ProfileLink
 import io.github.justcallmesu.aristotle.data.RelayLink
@@ -81,6 +83,8 @@ class ChatViewModel(
     /** Wall-clock time, for a subagent's elapsed time (T17); [clock] stays the arming clock. */
     wallClock: () -> Long = System::currentTimeMillis,
     subagentPacing: SubagentPacing = SubagentPacing(),
+    /** The app lock's fresh check (Q61) before "Always allow" and a sudo/secret value; [FreshAuth.None]: no lock. */
+    private val freshAuth: FreshAuth = FreshAuth.None,
 ) : ViewModel() {
     private val link: RelayLink = ProfileLink(base, profile)
     private val work: CoroutineScope = scope ?: viewModelScope
@@ -95,6 +99,7 @@ class ChatViewModel(
     private val subagents = ChatSubagents(sessionId, link, clock, wallClock, work, state::value, ::change, feed::offerSubagents, subagentPacing)
 
     private var job: Job? = null
+    private var authorizing: Job? = null
     private var arming: Job? = null
     private var armingFor: Shown? = null
     private var composerArming: Job? = null
@@ -158,10 +163,15 @@ class ChatViewModel(
         send(key, PromptAnswer.Choose(choice))
     }
 
-    /** The second step of "Always allow"; nothing unless that step was asked for this prompt and has been seen. */
+    /**
+     * The second step of "Always allow"; nothing unless that step was asked for this prompt and has been seen. With
+     * the app lock on, a fresh check comes first (Q61); a failed or cancelled one sends nothing.
+     */
     fun confirmAlways(key: String) {
         if (state.value.sheet.confirmAlways != key || !armed(key, confirming = true)) return
-        send(key, PromptAnswer.Choose(ApprovalChoice.Always))
+        afterCheck(key, AuthPurpose.AlwaysAllow, stillWanted = { it.sheet.confirmAlways == key }) {
+            send(key, PromptAnswer.Choose(ApprovalChoice.Always))
+        }
     }
 
     fun cancelAlways() = updateSheet { it.copy(confirmAlways = null) }
@@ -173,12 +183,37 @@ class ChatViewModel(
     /**
      * Sends a sudo password or secret value once (Q51). The value is taken out of [field] (empty afterwards) and lives
      * only in the frame being sent; nothing here keeps, logs or shows it. A tap before the prompt was seen leaves it.
+     * With the app lock on, a fresh check comes first (Q61): the value stays in the field until it passes, and a
+     * failed or cancelled check sends nothing.
      */
     fun answerSecret(key: String, field: SecretField) {
-        if (!armed(key)) return
-        val value = field.take()
-        if (value.isEmpty()) return
-        send(key, PromptAnswer.Value(value))
+        if (!armed(key) || field.isEmpty) return
+        afterCheck(key, AuthPurpose.SecretValue, stillWanted = { true }) {
+            val value = field.take()
+            if (value.isNotEmpty()) send(key, PromptAnswer.Value(value))
+        }
+    }
+
+    /**
+     * Runs [answer] for [key] after [freshAuth] passed (at once with the app lock off). The arming time was checked
+     * at the tap; the check's own dialog then pauses the screen and restarts arming, so afterwards only this is
+     * asked: the same prompt is still the one on screen, still answerable, nothing else on its way, and
+     * [stillWanted] (e.g. still in the "Always allow" step).
+     */
+    private fun afterCheck(key: String, purpose: AuthPurpose, stillWanted: (ChatUiState) -> Boolean, answer: () -> Unit) {
+        if (authorizing?.isActive == true || state.value.sheet.sending != null) return
+        updateSheet { it.copy(authorizing = key) }
+        authorizing = work.launch {
+            val passed = try {
+                freshAuth.confirm(purpose)
+            } finally {
+                updateSheet { it.copy(authorizing = null) }
+            }
+            val ui = state.value
+            val prompt = ui.sheet.current(ui.feed.chat)
+            val onScreen = prompt?.key == key && ui.sheet.open && ui.sheet.withdrawn == null && ui.answerable(prompt)
+            if (passed && onScreen && stillWanted(ui)) answer()
+        }
     }
 
     /** Cancel on a sudo/secret sheet: Hermes is told the user skipped it (`value: ""`). */

@@ -589,4 +589,24 @@
         <item quantity="one">%1$d tool call · last: %2$s</item>
         <item quantity="other">%1$d tool calls · last: %2$s</item>
     </plurals>
+    <string name="lock_title">Aristotle is locked</string>
+    <string name="lock_body">Unlock with your fingerprint or the phone\'s screen lock.</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_auth_unlock">Unlock Aristotle</string>
+    <string name="lock_auth_turn_on">Turn on app lock</string>
+    <string name="lock_auth_turn_off">Turn off app lock</string>
+    <string name="lock_auth_terminal">Open the terminal</string>
+    <string name="lock_auth_always">Always allow this command</string>
+    <string name="lock_auth_secret">Send the password or secret</string>
+    <string name="settings_app_lock_off_body">Ask for your fingerprint or screen lock when you open Aristotle, and before the terminal, Always allow and sudo or secret answers.</string>
+    <string name="settings_app_lock_on_body">Aristotle asks for your fingerprint or screen lock when you open it, and before the terminal, Always allow and sudo or secret answers.</string>
+    <string name="settings_app_lock_no_screen_lock">This phone has no screen lock. Set a PIN, pattern or password in Android\'s settings first.</string>
+    <string name="settings_lock_after">Lock after</string>
+    <string name="settings_lock_after_body">How long Aristotle can be in the background before it asks again.</string>
+    <string name="settings_lock_immediately">Immediately</string>
+    <string name="settings_lock_1_min">1 minute</string>
+    <string name="settings_lock_5_min">5 minutes</string>
+    <string name="settings_lock_15_min">15 minutes</string>
+    <string name="settings_show_terminal">Show Terminal on this phone</string>
+    <string name="settings_show_terminal_body">Off hides the Terminal entry here. Whether a terminal can open at all is set on the PC.</string>
 </resources>

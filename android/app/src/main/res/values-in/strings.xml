@@ -577,4 +577,24 @@
     <plurals name="chat_tool_group">
         <item quantity="other">%1$d panggilan alat · terakhir: %2$s</item>
     </plurals>
+    <string name="lock_title">Aristotle terkunci</string>
+    <string name="lock_body">Buka dengan sidik jari atau kunci layar ponsel.</string>
+    <string name="lock_unlock">Buka kunci</string>
+    <string name="lock_auth_unlock">Buka kunci Aristotle</string>
+    <string name="lock_auth_turn_on">Aktifkan kunci aplikasi</string>
+    <string name="lock_auth_turn_off">Nonaktifkan kunci aplikasi</string>
+    <string name="lock_auth_terminal">Buka terminal</string>
+    <string name="lock_auth_always">Selalu izinkan perintah ini</string>
+    <string name="lock_auth_secret">Kirim kata sandi atau rahasia</string>
+    <string name="settings_app_lock_off_body">Minta sidik jari atau kunci layar saat membuka Aristotle, dan sebelum terminal, Selalu izinkan, serta jawaban sudo atau rahasia.</string>
+    <string name="settings_app_lock_on_body">Aristotle meminta sidik jari atau kunci layar saat dibuka, dan sebelum terminal, Selalu izinkan, serta jawaban sudo atau rahasia.</string>
+    <string name="settings_app_lock_no_screen_lock">Ponsel ini tidak memiliki kunci layar. Atur PIN, pola, atau sandi di pengaturan Android terlebih dahulu.</string>
+    <string name="settings_lock_after">Kunci setelah</string>
+    <string name="settings_lock_after_body">Berapa lama Aristotle boleh di latar belakang sebelum meminta lagi.</string>
+    <string name="settings_lock_immediately">Segera</string>
+    <string name="settings_lock_1_min">1 menit</string>
+    <string name="settings_lock_5_min">5 menit</string>
+    <string name="settings_lock_15_min">15 menit</string>
+    <string name="settings_show_terminal">Tampilkan Terminal di ponsel ini</string>
+    <string name="settings_show_terminal_body">Nonaktif menyembunyikan entri Terminal di sini. Apakah terminal bisa dibuka ditentukan di PC.</string>
 </resources>

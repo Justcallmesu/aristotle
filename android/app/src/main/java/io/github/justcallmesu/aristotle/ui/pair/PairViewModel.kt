@@ -21,7 +21,9 @@ import io.github.justcallmesu.aristotle.data.ProbeResult
 import io.github.justcallmesu.aristotle.data.ServerAddress
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
 import kotlin.coroutines.cancellation.CancellationException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,8 +94,9 @@ data class PairUiState(
 )
 
 /**
- * The pair form. [savePairing] stores a pairing the PC accepted: by default [credentials]' save; a re-pair from
- * Settings (TS1) passes one that replaces the old PC only then, so nothing before it touches the stored pairing.
+ * The pair form. [savePairing] stores a pairing the PC accepted, writing nothing once its second argument says the
+ * form was cancelled (returns whether it stored): by default [credentials]' save; a re-pair from Settings (TS1) passes
+ * one that replaces the old PC only then, so nothing before it touches the stored pairing.
  */
 class PairViewModel(
     credentials: CredentialStore,
@@ -101,10 +104,24 @@ class PairViewModel(
     private val probe: CertificateSource,
     defaultDeviceName: String,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
-    private val savePairing: suspend (PcCredentials) -> Unit = { credentials.save(it) },
+    private val savePairing: suspend (PcCredentials, wanted: () -> Boolean) -> Boolean = { paired, wanted -> credentials.save(paired, commitIf = wanted) },
 ) : ViewModel(scope) {
     private val state = MutableStateFlow(PairUiState(deviceName = defaultDeviceName.take(MAX_NAME)))
     val uiState: StateFlow<PairUiState> = state.asStateFlow()
+
+    /** Set by [cancel]; read by the store under its lock, so a late success after Back writes nothing (TS1b). */
+    private val cancelled = AtomicBoolean(false)
+    private var work: Job? = null
+
+    /**
+     * Back or the arrow on a re-pair (TS1b): the probe or pairing under way stops, and a pairing the PC accepted
+     * anyway is not stored, so the old pairing stays as it was.
+     */
+    fun cancel() {
+        cancelled.set(true)
+        work?.cancel()
+        state.update { it.copy(busy = false) }
+    }
 
     fun onAddressChange(value: String) = state.update {
         it.copy(address = value, addressError = null, scanError = null, message = null, step = PairStep.Entry)
@@ -120,7 +137,7 @@ class PairViewModel(
         if (current.busy) return
         val endpoint = validEndpoint(current) ?: return
         state.update { it.copy(busy = true, message = null) }
-        viewModelScope.launch { showFingerprint(endpoint, probe.fetch(endpoint)) }
+        work = viewModelScope.launch { showFingerprint(endpoint, probe.fetch(endpoint)) }
     }
 
     fun onFingerprintMatches() {
@@ -194,7 +211,7 @@ class PairViewModel(
         }
         state.update { it.copy(step = step, busy = true, codeError = null, scanError = null, message = null) }
         val form = state.value
-        viewModelScope.launch {
+        work = viewModelScope.launch {
             val (endpoint, result) = pairFirst(step, form)
             onPairResult(step, endpoint, result)
         }
@@ -243,8 +260,9 @@ class PairViewModel(
 
     /** On success the app leaves this screen (the store's state turns Paired); the form stays busy until then. */
     private suspend fun store(paired: PcCredentials) {
+        if (cancelled.get()) return
         try {
-            savePairing(paired)
+            savePairing(paired) { !cancelled.get() }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

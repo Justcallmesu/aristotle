@@ -39,9 +39,13 @@ class ChatDrafts(private val store: KeyValueStore, private val clock: () -> Inst
         }
     }
 
-    /** Unpair (TS1): every draft and its timestamp go; drafts are not keyed by PC, and v1 holds one PC (Q25). */
-    fun clear() {
-        store.keys().filter { it.startsWith(PREFIX) || it.startsWith(TIMESTAMP_PREFIX) }.forEach(store::remove)
+    /**
+     * Unpair (TS1): every draft and its timestamp go, in one write; drafts are not keyed by PC, and v1 holds one PC
+     * (Q25). [durable]: on disk before it returns (TS1b: before the credentials go; call it off the main thread).
+     */
+    fun clear(durable: Boolean = false) {
+        val keys = store.keys().filter { it.startsWith(PREFIX) || it.startsWith(TIMESTAMP_PREFIX) }
+        store.edit(keys.associateWith { null }, durable)
     }
 
     private fun key(sessionId: String) = "$PREFIX$sessionId"

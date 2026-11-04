@@ -105,7 +105,7 @@ object ToolSummary {
     private const val MAX_SEGMENTS = 4
     private const val TAIL_SEGMENTS = 2
 
-    private val HOME = Regex("(?<![\\w.~/-])(?:/home/[^/\\s'\"`]+|/Users/[^/\\s'\"`]+|/root(?![^/\\s'\"`])|\\$\\{HOME}|\\${'$'}HOME\\b)")
+    private val HOME = Regex("(?<![\\w.~/-])(?:/home/[^/\\s'\"`]+|/Users/[^/\\s'\"`]+|/root(?![^/\\s'\"`])|\\$\\{HOME\\}|\\${'$'}HOME\\b)")
     private val ASSIGNMENT = Regex("^\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\\s;&|]*)\\s*(?:;|&&)\\s*")
     private const val PATH_CHAR = "[^\\s'\"`;|&<>(){}\\[\\],=]"
     private val PATH = Regex("$PATH_CHAR*/$PATH_CHAR*")

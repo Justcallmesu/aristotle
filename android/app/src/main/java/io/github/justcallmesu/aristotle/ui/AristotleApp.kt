@@ -50,10 +50,35 @@ import io.github.justcallmesu.aristotle.ui.terminal.TerminalViewModel
 import io.github.justcallmesu.aristotle.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import io.github.justcallmesu.aristotle.data.AuthPurpose
+import io.github.justcallmesu.aristotle.data.terminal.TerminalEntry
+import io.github.justcallmesu.aristotle.ui.lock.LockScreen
+import io.github.justcallmesu.aristotle.ui.lock.isScreenLockSet
+import kotlinx.coroutines.launch
 
-/** Top-level route: reading -> blank; no active PC -> pair; paired -> that PC's pages. */
+/**
+ * Top-level route: locked -> the lock screen; reading -> blank; no active PC -> pair; paired -> that PC's pages.
+ * While locked (Q61, TS2) nothing of the app is composed; its saveable state (page, open chat) is kept in a
+ * [rememberSaveableStateHolder] and comes back on unlock, and the route ViewModels stay ([ChatRoute], [CronRoute]).
+ */
 @Composable
 fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
+    val locked by container.appLock.locked.collectAsStateWithLifecycle()
+    val saved = rememberSaveableStateHolder()
+    if (locked) {
+        val scope = rememberCoroutineScope()
+        LockScreen(onUnlock = { scope.launch { container.auth.confirm(AuthPurpose.Unlock) } })
+        return
+    }
+    saved.SaveableStateProvider(UNLOCKED_CONTENT) { UnlockedApp(container, defaultDeviceName) }
+}
+
+@Composable
+private fun UnlockedApp(container: AppContainer, defaultDeviceName: String) {
     val credentials by container.credentials.state.collectAsStateWithLifecycle()
     val notice by container.pairNotice.collectAsStateWithLifecycle()
     val epoch by container.pairEpoch.collectAsStateWithLifecycle()
@@ -98,11 +123,19 @@ private fun RepairRoute(container: AppContainer, routes: RouteStores, pc: PcCred
                 HttpPairingApi(container.httpClients),
                 container.certificateProbe,
                 defaultDeviceName,
-                savePairing = { paired -> container.records.replace(pc.pcId, paired) },
+                savePairing = { paired, wanted -> container.records.replace(pc.pcId, paired, wanted) },
             )
         }
         val note = stringResource(R.string.repair_note, ConnectionRows.revokeCommand(pc.deviceId))
-        PairScreen(pairViewModel, notice = null, repair = RepairMode(note, onCancel))
+        // Back cancels a re-pair under way too (TS1b): a success after it is not stored.
+        PairScreen(
+            pairViewModel,
+            notice = null,
+            repair = RepairMode(note) {
+                pairViewModel.cancel()
+                onCancel()
+            },
+        )
     }
 }
 
@@ -155,6 +188,8 @@ private fun PairedPages(
     val terminalRoutes = viewModel(key = TERMINAL_ROUTES) { RouteStores() }
     val terminalTarget by container.terminalAccess.target.collectAsStateWithLifecycle()
     val settings = container.settings
+    val showTerminal by settings.showTerminal.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     var page by rememberSaveable(pc.pcId) {
         mutableStateOf(if (container.isXiaomiFamily && !settings.batteryGuideShown) PairedPage.FirstRunGuide else PairedPage.Sessions)
     }
@@ -179,6 +214,8 @@ private fun PairedPages(
         focusComposer = false
         page = PairedPage.Chat
     }
+    // "Show Terminal on this phone" off (Q62): the terminal page is never shown, whatever was restored.
+    LaunchedEffect(page, showTerminal) { if (page == PairedPage.Terminal && !showTerminal) page = PairedPage.Sessions }
     BackHandler(enabled = page != PairedPage.Sessions) { page = page.back }
     when (page) {
         PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
@@ -201,8 +238,15 @@ private fun PairedPages(
                     cronLabel = request.label
                     page = PairedPage.Scheduled
                 },
-                terminalAvailable = terminalTarget != null,
-                onTerminal = { page = PairedPage.Terminal },
+                terminalAvailable = TerminalEntry.shown(serverAllows = terminalTarget != null, showOnPhone = showTerminal),
+                // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
+                onTerminal = {
+                    scope.launch {
+                        TerminalEntry.open(container.auth, shown = { container.terminalAccess.target.value != null && settings.showTerminal.value }) {
+                            page = PairedPage.Terminal
+                        }
+                    }
+                },
             )
             NotificationPermissionPrompt(settings, container.notifier::canPost)
         }
@@ -220,7 +264,13 @@ private fun PairedPages(
         PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
             BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
         PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
-        PairedPage.Terminal -> TerminalRoute(container, terminalRoutes, pc.pcId, onBack = { page = page.back })
+        PairedPage.Terminal -> TerminalRoute(
+            container,
+            terminalRoutes,
+            pc.pcId,
+            onBack = { page = page.back },
+            onLeftWithLock = { if (page == PairedPage.Terminal) page = PairedPage.Sessions },
+        )
         PairedPage.Chat -> {
             val id = chatId
             if (id != null) {
@@ -235,8 +285,10 @@ private fun PairedPages(
 /** The settings screen (TS1). Its ViewModel lives in the activity's store: it holds only which sheet is open. */
 @Composable
 private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: () -> Unit, onBatteryGuide: () -> Unit, onRepair: () -> Unit) {
-    val settingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) { SettingsViewModel(container.settings, container.link.state) }
     val context = LocalContext.current
+    val settingsViewModel = viewModel(key = SETTINGS_VIEW_MODEL) {
+        SettingsViewModel(container.settings, container.link.state, prove = container.auth::prove)
+    }
     val activity = LocalActivity.current
     // Leaving Settings closes its sheet; a rotation keeps it.
     DisposableEffect(settingsViewModel) {
@@ -252,6 +304,7 @@ private fun SettingsRoute(container: AppContainer, pc: PcCredentials, onBack: ()
             channelOn = container.notifier::isOn,
             currentLanguage = { AppLocales.current(context, container.settings) },
             pickLanguage = { choice -> activity?.let { AppLocales.apply(it, container.settings, choice) } },
+            screenLockSet = { isScreenLockSet(context) },
         )
     }
     SettingsScreen(settingsViewModel, pc, actions)
@@ -272,12 +325,21 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
         container.openSession.value = sessionId
         onDispose {
             container.openSession.compareAndSet(sessionId, null)
-            if (activity?.isChangingConfigurations != true) chatRoutes.clear()
+            // Hidden by the app lock is not leaving: the chat (and a picked attachment) is there again on unlock.
+            if (activity?.isChangingConfigurations != true && !container.appLock.locked.value) chatRoutes.clear()
         }
     }
     RouteScope(chatRoutes, "chat-${target.profile.orEmpty()}-$sessionId") {
         val chatViewModel = viewModel {
-            ChatViewModel(sessionId, container.link, container.resumedSessions, container.drafts, profile = target.profile, attachments = container.attachments)
+            ChatViewModel(
+                sessionId,
+                container.link,
+                container.resumedSessions,
+                container.drafts,
+                profile = target.profile,
+                attachments = container.attachments,
+                freshAuth = container.auth,
+            )
         }
         val openRequest by container.openChat.collectAsStateWithLifecycle()
         LaunchedEffect(openRequest) {
@@ -300,7 +362,7 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
 private fun CronRoute(container: AppContainer, cronRoutes: RouteStores, profile: String?, label: String?, onBack: () -> Unit) {
     val activity = LocalActivity.current
     DisposableEffect(Unit) {
-        onDispose { if (activity?.isChangingConfigurations != true) cronRoutes.clear() }
+        onDispose { if (activity?.isChangingConfigurations != true && !container.appLock.locked.value) cronRoutes.clear() }
     }
     RouteScope(cronRoutes, "cron-${profile.orEmpty()}") {
         val cronViewModel = viewModel { CronViewModel(container.link, profile) }
@@ -311,9 +373,11 @@ private fun CronRoute(container: AppContainer, cronRoutes: RouteStores, profile:
 /**
  * The PC's terminal screen (T19b). Its shells live only while it is on screen: leaving the page clears its ViewModel,
  * and the app going to the background (not a rotation) closes every terminal; the background service keeps none.
+ * With the app lock on, going to the background also leaves the page ([onLeftWithLock]), so the next shell needs a
+ * fresh check from the menu (Q61).
  */
 @Composable
-private fun TerminalRoute(container: AppContainer, terminalRoutes: RouteStores, pcId: String, onBack: () -> Unit) {
+private fun TerminalRoute(container: AppContainer, terminalRoutes: RouteStores, pcId: String, onBack: () -> Unit, onLeftWithLock: () -> Unit) {
     val activity = LocalActivity.current
     DisposableEffect(Unit) {
         onDispose { if (activity?.isChangingConfigurations != true) terminalRoutes.clear() }
@@ -328,6 +392,9 @@ private fun TerminalRoute(container: AppContainer, terminalRoutes: RouteStores, 
         }
         LifecycleStartEffect(terminalViewModel) {
             onStopOrDispose { if (activity?.isChangingConfigurations != true) terminalViewModel.leave() }
+        }
+        LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+            if (activity?.isChangingConfigurations != true && container.settings.appLock.value) onLeftWithLock()
         }
         TerminalScreen(terminalViewModel, onBack)
     }
@@ -375,3 +442,4 @@ private const val CHAT_ROUTES = "chat-routes"
 private const val CRON_ROUTES = "cron-routes"
 private const val TERMINAL_ROUTES = "terminal-routes"
 private const val SETTINGS_VIEW_MODEL = "settings"
+private const val UNLOCKED_CONTENT = "unlocked"

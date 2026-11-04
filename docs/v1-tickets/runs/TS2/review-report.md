@@ -1,0 +1,28 @@
+# TS2 + TS1b security review — app lock, fresh auth, hide terminal
+
+Scope: `git diff HEAD -- android` + untracked android files (ChatText.kt ignored), spec Q50/Q51/Q61/Q62, build brief and report, TS1 review. Static read only. pm-gate-42 GREEN (android was FROM-CACHE). The PM mutation (`AppLock.kt:50` `>= Long.MAX_VALUE`) was in the tree while I read and has since been reverted (`>= timeout().millis`). It fails 4 tests: `AppLockTest:49,64,78,135`.
+
+**Checked OK**
+- Nothing renders underneath: `AristotleApp.kt:70-77` returns the lock screen before `UnlockedApp`, so the sheets, dialogs, secret field and terminal all leave composition. The lock flips in `onActivityStarted` (`AppContainer.kt:240`), which runs before the lifecycle ON_START that resumes `collectAsStateWithLifecycle`. Process death: `AppLock.kt:38` starts locked, including when a service or receiver started the process. Rotation is skipped through `isChangingConfigurations`. Other activities in the app go through the `started` counter. The clock is `elapsedRealtime` (`AppContainer.kt:110`), so wall-clock changes don't affect it.
+- Notification taps and open-chat intents go only through the non-exported alias. `openChat` waits in the container and is used after unlock. The prompt then re-arms (600 ms). Unlock runs only on a tap. MainActivity has no `showWhenLocked`. Q50 holds.
+- Terminal: the only entry is the ⋮ menu. `TerminalEntry.open` checks `shown` before and after the check. On ON_STOP with the lock on, the page goes back to Sessions (`AristotleApp.kt:396`), before the state is saved, so a restored state never lands on the Terminal page. The hidden switch also overrides a restored Terminal page (`:218`).
+- Always allow / sudo / secret: `afterCheck` (`ChatViewModel.kt:203-217`) runs one check at a time and refuses while a send is in flight. After a pass it checks again that the prompt is still current, open, not withdrawn and answerable, plus `stillWanted`. A failed check leaves the value in the field. No retry path or outbox replays the value: an unconfirmed answer is only answerable again and is never resent. A stale callback can't land: `BiometricHost.finish` resumes the check once, and cancelling the scope cancels the prompt. "Allow once/session" and Decline correctly need no check.
+- Turning the lock off needs a passed check (`SettingsViewModel.kt:82-97`). The only bypass is "no screen lock", and removing the screen lock needs the PIN. Accepted.
+- BiometricPrompt: `STRONG|CREDENTIAL` on 30+ and `WEAK|CREDENTIAL` on 29, the only combination androidx allows there. Android 10's framework prompt only accepted the biometrics it considered secure, so this is acceptable. Not using a CryptoObject is fine for a UI gate: it protects no key, and someone who can hook the process can skip any check in the app anyway. biometric 1.1.0 is the current stable and the fragment pin is sound.
+- TS1b: `cancel()` sets the flag before cancelling the job. The flag is checked before the save and again under the store mutex (`CredentialStore.kt:86`). Each re-pair attempt gets a fresh VM (`repairCount`), so a cancel can't block a later attempt. Re-pair is one commit. Unpair commits settings and drafts to disk on IO before the single wipe commit. The tray is swept before and after the wipe, and revoke sweeps too. Strings: the new EN/ID keys match.
+
+**Findings** (none BLOCKER or MAJOR)
+- MINOR: the recents thumbnail shows content on API 29–32. The snapshot is taken when leaving, while the app is unlocked, and `setRecentsScreenshotEnabled` is 33+ only (`MainActivity.kt:57`). The lock screen's FLAG_SECURE comes too late. Fix: below 33, with the lock on, add FLAG_SECURE in `onPause` and clear it in `onResume`, or keep it on while the lock is on. Also check on HyperOS that its recents honours the 33+ API.
+- MINOR: the auth-in-progress exemption has no limit (`AppLock.kt:56,66`). (a) A check that never calls back leaves `authenticating=1`, and the app then never locks again until the activity is destroyed; androidx `authenticate()` returns silently when called after `onSaveInstanceState` (tap, then Home within a frame), and `AuthBroker.busy` also sticks, so every later check fails closed. (b) On API 29 the PIN activity can be left on the task; a cancel on return then starts the time away at ~0, so the return doesn't lock. Fix: in `BiometricHost.authenticate`, return `Failed` unless the lifecycle is RESUMED and `!supportFragmentManager.isStateSaved`; make `authEnded(passed)` keep the stop-time `awaySince` unless the check passed.
+- MINOR: `AuthBroker` holds one host (`FreshAuth.kt:119-125`, `MainActivity.kt:41,75`). If a second MainActivity instance exists (the activity is exported with standard launch mode) and is destroyed, it detaches the host and the first instance's Unlock stops working (fail-closed lockout). Fix: attach in `onResume` and detach only the host that is attached.
+- MINOR (design): the lock screen is a centred icon-over-headline stack, which design.md §7 forbids (only the quote screen is exempt). The PM decides: add a Q46-style exception or restyle.
+- NOTE: if the PC accepts a re-pair after Back, an orphan device is left on the PC (revoke it there). A cancel that lands after the commit skips `forgetSettings(old)`, leaving harmless profile/pin keys behind.
+
+**Worker decisions**
+- Auto-off when the screen lock is gone: accept.
+- "Immediately" re-locks after the scanner or picker, with results kept through ActivityResultRegistry's pending results and the retained VMs: accept.
+- A check to turn the lock off: correct.
+- Leaving the Terminal page closes it: good.
+- Lock screen layout: see above.
+
+VERDICT: PASS-WITH-FINDINGS

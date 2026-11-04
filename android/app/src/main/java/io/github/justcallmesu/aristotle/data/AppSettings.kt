@@ -59,6 +59,19 @@ class AppSettings(private val store: KeyValueStore) {
     /** The language picked in the app. On Android 13+ the platform keeps the live value ([AppLanguage] via LocaleManager). */
     val language: StateFlow<AppLanguage> = lang.asStateFlow()
 
+    private val lockOn = MutableStateFlow(flag(APP_LOCK) ?: false)
+
+    /** The app lock (Q61, TS2): off by default; turned on only after a passed check ([AuthBroker.prove]). */
+    val appLock: StateFlow<Boolean> = lockOn.asStateFlow()
+
+    private val lockAfter = MutableStateFlow(choice(LOCK_TIMEOUT, LockTimeout.entries, LockTimeout::key) ?: LockTimeout.Default)
+    val lockTimeout: StateFlow<LockTimeout> = lockAfter.asStateFlow()
+
+    private val terminalShown = MutableStateFlow(flag(SHOW_TERMINAL) ?: true)
+
+    /** "Show Terminal on this phone" (Q62): off hides the entry whatever the PC allows; on shows it when the PC does. */
+    val showTerminal: StateFlow<Boolean> = terminalShown.asStateFlow()
+
     val batteryGuideShown: Boolean get() = flag(GUIDE_SHOWN) == true
     val notificationsAsked: Boolean get() = flag(NOTIFICATIONS_ASKED) == true
 
@@ -87,6 +100,21 @@ class AppSettings(private val store: KeyValueStore) {
         lang.value = choice
     }
 
+    fun setAppLock(on: Boolean) {
+        store.put(APP_LOCK, on.toString())
+        lockOn.value = on
+    }
+
+    fun setLockTimeout(choice: LockTimeout) {
+        store.put(LOCK_TIMEOUT, choice.key)
+        lockAfter.value = choice
+    }
+
+    fun setShowTerminal(on: Boolean) {
+        store.put(SHOW_TERMINAL, on.toString())
+        terminalShown.value = on
+    }
+
     fun markGuide(step: GuideStep, done: Boolean) {
         store.put(step.key, done.toString())
         marks.value = if (done) marks.value + step else marks.value - step
@@ -109,6 +137,9 @@ class AppSettings(private val store: KeyValueStore) {
         const val THEME = "theme"
         const val TEXT_SIZE = "text_size"
         const val LANGUAGE = "language"
+        const val APP_LOCK = "app_lock"
+        const val LOCK_TIMEOUT = "lock_timeout"
+        const val SHOW_TERMINAL = "show_terminal"
     }
 }
 
@@ -118,4 +149,9 @@ class ApplyingPreferencesStore(private val prefs: SharedPreferences) : KeyValueS
     override fun put(key: String, value: String) = prefs.edit { putString(key, value) }
     override fun remove(key: String) = prefs.edit { remove(key) }
     override fun keys(): Set<String> = prefs.all.keys.toSet()
+
+    /** One edit; [durable]: committed to disk before it returns (off the main thread then). */
+    override fun edit(changes: Map<String, String?>, durable: Boolean) = prefs.edit(commit = durable) {
+        changes.forEach { (key, value) -> if (value == null) remove(key) else putString(key, value) }
+    }
 }

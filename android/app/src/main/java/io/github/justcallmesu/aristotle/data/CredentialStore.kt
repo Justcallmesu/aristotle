@@ -20,6 +20,14 @@ interface KeyValueStore {
 
     /** Every key held. */
     fun keys(): Set<String>
+
+    /**
+     * Puts (a value) and removes (null) [changes] as one write: a file-backed store writes them in one commit, so a
+     * kill cannot leave half of them (TS1b). [durable]: on disk before this returns; call it off the main thread then.
+     */
+    fun edit(changes: Map<String, String?>, durable: Boolean = false) {
+        changes.forEach { (key, value) -> if (value == null) remove(key) else put(key, value) }
+    }
 }
 
 /** Commits synchronously: the store only calls it off the main thread. */
@@ -28,6 +36,9 @@ class SharedPreferencesStore(private val prefs: SharedPreferences) : KeyValueSto
     override fun put(key: String, value: String) = prefs.edit(commit = true) { putString(key, value) }
     override fun remove(key: String) = prefs.edit(commit = true) { remove(key) }
     override fun keys(): Set<String> = prefs.all.keys.toSet()
+    override fun edit(changes: Map<String, String?>, durable: Boolean) = prefs.edit(commit = true) {
+        changes.forEach { (key, value) -> if (value == null) remove(key) else putString(key, value) }
+    }
 }
 
 /** What the app knows about its pairing; drives the top-level route. */
@@ -65,14 +76,18 @@ class CredentialStore(
 
     /**
      * Throws when the Keystore cannot seal the token; nothing is stored or removed then. [replacing]: the PC entry a
-     * re-pair (TS1) replaces. It stays stored and active until the new pairing is written, and is removed only then.
+     * re-pair (TS1) replaces. It stays stored and active until the new pairing is written, and is removed in the same
+     * commit, so a kill leaves either pairing, never an orphaned sealed token (TS1b). [commitIf] is asked last, under
+     * the lock: false (the re-pair was cancelled meanwhile) writes nothing. Returns whether it was written.
      */
-    suspend fun save(credentials: PcCredentials, replacing: String? = null) = locked {
+    suspend fun save(credentials: PcCredentials, replacing: String? = null, commitIf: () -> Boolean = { true }): Boolean = locked {
         val sealed = codec.encode(credentials)
-        storage.put(entryKey(credentials.pcId), sealed)
-        storage.put(ACTIVE_KEY, credentials.pcId)
-        if (replacing != null && replacing != credentials.pcId) storage.remove(entryKey(replacing))
+        if (!commitIf()) return@locked false
+        val changes = linkedMapOf<String, String?>(entryKey(credentials.pcId) to sealed, ACTIVE_KEY to credentials.pcId)
+        if (replacing != null && replacing != credentials.pcId) changes[entryKey(replacing)] = null
+        storage.edit(changes)
         current.value = CredentialState.Paired(credentials)
+        true
     }
 
     /** Removes the active PC's entry (revoked, or the user chose to pair again). */
@@ -126,9 +141,12 @@ class CredentialStore(
         }
     }
 
+    /** The entry and the active pointer in one commit. */
     private fun removeActive() {
-        storage.get(ACTIVE_KEY)?.let { storage.remove(entryKey(it)) }
-        storage.remove(ACTIVE_KEY)
+        val changes = linkedMapOf<String, String?>()
+        storage.get(ACTIVE_KEY)?.let { changes[entryKey(it)] = null }
+        changes[ACTIVE_KEY] = null
+        storage.edit(changes)
     }
 
     private fun entryKey(pcId: String) = "pc.$pcId"

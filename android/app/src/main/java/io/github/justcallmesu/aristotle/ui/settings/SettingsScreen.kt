@@ -40,6 +40,7 @@ import io.github.justcallmesu.aristotle.background.ChannelPage
 import io.github.justcallmesu.aristotle.background.ChannelSwitch
 import io.github.justcallmesu.aristotle.background.SystemSettings
 import io.github.justcallmesu.aristotle.data.AppLanguage
+import io.github.justcallmesu.aristotle.data.LockTimeout
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.data.TextSize
 import io.github.justcallmesu.aristotle.data.ThemeChoice
@@ -61,6 +62,8 @@ class SettingsActions(
     val channelOn: (AppChannel) -> Boolean,
     val currentLanguage: () -> AppLanguage,
     val pickLanguage: (AppLanguage) -> Unit,
+    /** The phone has a PIN, pattern or password (the app lock needs one, Q61). */
+    val screenLockSet: () -> Boolean = { false },
 )
 
 /** The settings screen (Q60, TS1), grouped like Android's own: connection, notifications, appearance, language, security, about. */
@@ -69,6 +72,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: Set
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val textSize by viewModel.textSize.collectAsStateWithLifecycle()
+    val lockTimeout by viewModel.lockTimeout.collectAsStateWithLifecycle()
     var notificationsOn by remember { mutableStateOf(actions.canPostNotifications()) }
     var channels by remember { mutableStateOf(AppChannel.entries.associateWith(actions.channelOn)) }
     var language by remember { mutableStateOf(actions.currentLanguage()) }
@@ -87,7 +91,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: Set
                 NotificationsSection(notificationsOn, channels, actions.onBatteryGuide)
                 AppearanceSection(theme, textSize, onOpen = viewModel::show)
                 LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
-                SecuritySection()
+                SecuritySection(viewModel, actions.screenLockSet)
                 AboutSection()
                 Spacer(Modifier.height(Spacing.xxl))
             }
@@ -123,6 +127,15 @@ fun SettingsScreen(viewModel: SettingsViewModel, pc: PcCredentials, actions: Set
                 language = choice
                 actions.pickLanguage(choice)
             },
+            onDismiss = viewModel::close,
+        )
+        SettingsSheet.LockTimeout -> ChoiceSheet(
+            title = stringResource(R.string.settings_lock_after),
+            body = stringResource(R.string.settings_lock_after_body),
+            options = LockTimeout.entries,
+            selected = lockTimeout,
+            label = { lockTimeoutLabel(it) },
+            onPick = viewModel::pickLockTimeout,
             onDismiss = viewModel::close,
         )
         SettingsSheet.Unpair -> UnpairDialog(
@@ -195,12 +208,53 @@ private fun LanguageSection(language: AppLanguage, onOpen: () -> Unit) {
     SettingRow(title = stringResource(R.string.settings_language), body = languageLabel(language), modifier = Modifier.clickable(onClick = onOpen))
 }
 
-/** TS2 builds the app lock; until then one honest placeholder row. */
+/**
+ * App lock (Q61) and the phone's Terminal switch (Q62). The lock switch moves only after a fingerprint / screen-lock
+ * check ([SettingsViewModel.setAppLock]); without a screen lock on the phone it says so and stays off.
+ */
 @Composable
-private fun SecuritySection() {
+private fun SecuritySection(viewModel: SettingsViewModel, screenLockSet: () -> Boolean) {
+    val appLock by viewModel.appLock.collectAsStateWithLifecycle()
+    val lockTimeout by viewModel.lockTimeout.collectAsStateWithLifecycle()
+    val showTerminal by viewModel.showTerminal.collectAsStateWithLifecycle()
+    val notice by viewModel.lockNotice.collectAsStateWithLifecycle()
     SectionHeader(stringResource(R.string.settings_section_security))
-    SettingRow(title = stringResource(R.string.settings_app_lock), body = stringResource(R.string.settings_coming_soon), quiet = true)
+    SwitchRow(
+        title = stringResource(R.string.settings_app_lock),
+        body = stringResource(
+            when {
+                notice == LockNotice.NoScreenLock && !appLock -> R.string.settings_app_lock_no_screen_lock
+                appLock -> R.string.settings_app_lock_on_body
+                else -> R.string.settings_app_lock_off_body
+            },
+        ),
+        checked = appLock,
+        onChange = { on -> viewModel.setAppLock(on, screenLockSet()) },
+    )
+    if (appLock) {
+        SettingRow(
+            title = stringResource(R.string.settings_lock_after),
+            body = lockTimeoutLabel(lockTimeout),
+            modifier = Modifier.clickable { viewModel.show(SettingsSheet.LockTimeout) },
+        )
+    }
+    SwitchRow(
+        title = stringResource(R.string.settings_show_terminal),
+        body = stringResource(R.string.settings_show_terminal_body),
+        checked = showTerminal,
+        onChange = viewModel::setShowTerminal,
+    )
 }
+
+@Composable
+private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
+    when (choice) {
+        LockTimeout.Immediately -> R.string.settings_lock_immediately
+        LockTimeout.OneMinute -> R.string.settings_lock_1_min
+        LockTimeout.FiveMinutes -> R.string.settings_lock_5_min
+        LockTimeout.FifteenMinutes -> R.string.settings_lock_15_min
+    },
+)
 
 /** "What's new" is TV2's and the licence notices D45's; both say so until they exist. */
 @Composable

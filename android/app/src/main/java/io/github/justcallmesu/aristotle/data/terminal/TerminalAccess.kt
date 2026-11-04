@@ -1,6 +1,8 @@
 package io.github.justcallmesu.aristotle.data.terminal
 
+import io.github.justcallmesu.aristotle.data.AuthPurpose
 import io.github.justcallmesu.aristotle.data.CredentialState
+import io.github.justcallmesu.aristotle.data.FreshAuth
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.data.ServerEndpoint
@@ -71,5 +73,26 @@ class TerminalAccess(
     companion object {
         /** The visibility rule on its own: both flags, never one. */
         fun visible(enabled: Boolean, granted: Boolean): Boolean = enabled && granted
+    }
+}
+
+/** The Terminal entry in the session list's ⋮ menu (Q61, Q62, TS2). */
+object TerminalEntry {
+    /**
+     * Shown only when the PC allows it ([TerminalAccess.target]) and "Show Terminal on this phone" is on: the phone's
+     * switch hides it whatever the PC says, and never shows it when the PC does not.
+     */
+    fun shown(serverAllows: Boolean, showOnPhone: Boolean): Boolean = serverAllows && showOnPhone
+
+    /**
+     * Opens the terminal ([go]) after a fresh check ([auth]; at once with the app lock off). Nothing opens when the
+     * check fails or is cancelled, or when the entry went away meanwhile ([shown] is read before and after).
+     * Returns whether it opened.
+     */
+    suspend fun open(auth: FreshAuth, shown: () -> Boolean, go: () -> Unit): Boolean {
+        if (!shown()) return false
+        if (!auth.confirm(AuthPurpose.Terminal) || !shown()) return false
+        go()
+        return true
     }
 }

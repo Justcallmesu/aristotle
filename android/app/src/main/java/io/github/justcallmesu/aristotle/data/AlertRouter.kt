@@ -123,6 +123,19 @@ class AlertRouter {
         if (shownPrompts[sessionId] == promptId) dismissed += promptId
     }
 
+    /**
+     * The PC was unpaired or forgotten (TS1b): everything this router knows about its sessions goes, and so do their
+     * notifications in the tray ([NotifyAction.Cancel] for each tag this process posted; the app also sweeps the
+     * tray itself for ones posted before a restart).
+     */
+    fun reset(): List<NotifyAction> {
+        val tags = shownPrompts.keys.map { NotificationText.needsTag(it) }
+        shownPrompts.clear()
+        posted.clear()
+        dismissed.clear()
+        return tags.map { NotifyAction.Cancel(it) }
+    }
+
     private fun forget(promptId: String) {
         posted -= promptId
         dismissed -= promptId

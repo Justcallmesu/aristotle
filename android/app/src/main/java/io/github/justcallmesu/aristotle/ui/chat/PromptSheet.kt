@@ -119,7 +119,7 @@ fun PromptSheet(prompt: Prompt?, sheet: PromptSheetState, context: String, actio
             if (context.isNotEmpty()) {
                 Text(text = context, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            val busy = sheet.sending == shown.key
+            val busy = sheet.sending == shown.key || sheet.authorizing == shown.key
             // Answer buttons stay off until this prompt has been on screen for PromptSheetLogic.ARM_MS (T12b); the
             // ViewModel drops an earlier answer anyway.
             val armed = answerable && sheet.shown?.let { it.key == shown.key && it.armed } == true

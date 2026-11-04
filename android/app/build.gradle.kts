@@ -53,6 +53,8 @@ dependencies {
     implementation(libs.play.services.code.scanner)
     implementation(libs.termux.terminal.emulator)
     implementation(libs.termux.terminal.view)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.tls)

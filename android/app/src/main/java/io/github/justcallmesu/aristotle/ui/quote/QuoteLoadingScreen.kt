@@ -81,8 +81,9 @@ fun QuoteLoadingContent(quote: Quote?, reduced: Boolean) {
     }
 }
 
+/** The static app icon on its tile; the app lock screen (TS2) shows it too. */
 @Composable
-private fun LauncherIcon() {
+internal fun LauncherIcon() {
     // The adaptive icon's 108 dp canvas shows its middle 72 dp; draw it so that part fills the 88 dp tile.
     // The one-colour layer, tinted, so the ink mark stays legible on the dark tile too.
     Box(Modifier.size(88.dp).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {

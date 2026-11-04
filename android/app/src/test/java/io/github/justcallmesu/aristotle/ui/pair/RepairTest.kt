@@ -19,10 +19,12 @@ import io.github.justcallmesu.aristotle.data.SessionPins
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
 import io.github.justcallmesu.aristotle.data.softwareKey
 import java.security.ProviderException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -55,7 +57,13 @@ class RepairTest {
     private val records = PcRecords(credentials, selection, pins, drafts)
 
     private var answer: PairResult = PairResult.Paired("dev_new000000000", DeviceToken("new-token"), listOf(lan))
-    private val pairing = PairingApi { _, _, _, _ -> answer }
+
+    /** When set, the PC's answer waits for it (a slow `POST /v1/pair`). */
+    private var slow: CompletableDeferred<Unit>? = null
+    private val pairing = PairingApi { _, _, _, _ ->
+        slow?.await()
+        answer
+    }
     private val probe = CertificateSource { ProbeResult.Certificate(ByteArray(32) { 1 }) }
 
     init {
@@ -73,7 +81,7 @@ class RepairTest {
             probe,
             "POCO X5 Pro 5G",
             CoroutineScope(Dispatchers.Unconfined),
-            savePairing = { records.replace(old.pcId, it) },
+            savePairing = { paired, wanted -> records.replace(old.pcId, paired, wanted) },
         )
         vm.onAddressChange("192.168.1.23")
         vm.onCodeChange("k7q2m9xd")
@@ -129,5 +137,40 @@ class RepairTest {
         assertNull(settingsStore.get("profile.${old.pcId}"))
         assertEquals(emptySet<String>(), pins.of(old.pcId, null))
         assertEquals("half a thought", drafts.get("s1"))
+    }
+
+    @Test
+    fun backDuringABusyRepairCancelsItAndALateSuccessChangesNothing() {
+        slow = CompletableDeferred()
+        val vm = repair()
+        assertEquals(true, vm.uiState.value.busy)
+        vm.cancel()
+        assertFalse(vm.uiState.value.busy)
+        slow!!.complete(Unit) // the PC accepted after Back
+        assertOldIntact()
+        assertNull(storage.get("pc.dev_new000000000"))
+    }
+
+    @Test
+    fun aCancelThatLandsWhileTheSaveRunsWritesNothing() {
+        lateinit var vm: PairViewModel
+        val racing = PairViewModel(
+            credentials,
+            pairing,
+            probe,
+            "POCO X5 Pro 5G",
+            CoroutineScope(Dispatchers.Unconfined),
+            savePairing = { paired, wanted ->
+                vm.cancel() // Back, between the PC's answer and the commit
+                records.replace(old.pcId, paired, wanted)
+            },
+        )
+        vm = racing
+        racing.onAddressChange("192.168.1.23")
+        racing.onCodeChange("k7q2m9xd")
+        racing.onContinue()
+        racing.onFingerprintMatches()
+        assertOldIntact()
+        assertNull(storage.get("pc.dev_new000000000"))
     }
 }

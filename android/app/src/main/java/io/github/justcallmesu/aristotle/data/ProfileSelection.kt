@@ -47,10 +47,10 @@ class ProfileSelection(private val store: KeyValueStore) {
         return true
     }
 
-    /** [pcId] was unpaired or replaced (TS1): its remembered profile goes; the active one falls back to the launch profile. */
+    /** [pcId] was unpaired or replaced (TS1): its remembered profile goes ([durable]: on disk before it returns); the active one falls back to the launch profile. */
     @Synchronized
-    fun forget(pcId: String) {
-        store.remove(key(pcId))
+    fun forget(pcId: String, durable: Boolean = false) {
+        store.edit(mapOf(key(pcId) to null), durable)
         if (pcId == this.pcId) current.value = null
     }
 
@@ -81,11 +81,11 @@ class SessionPins(private val store: KeyValueStore) {
         return next
     }
 
-    /** [pcId] was unpaired or replaced (TS1): every profile's pins for it go. */
+    /** [pcId] was unpaired or replaced (TS1): every profile's pins for it go, in one write ([durable]: on disk first). */
     @Synchronized
-    fun forget(pcId: String) {
+    fun forget(pcId: String, durable: Boolean = false) {
         val prefix = "pins.$pcId."
-        store.keys().filter { it.startsWith(prefix) }.forEach(store::remove)
+        store.edit(store.keys().filter { it.startsWith(prefix) }.associateWith { null }, durable)
     }
 
     private fun read(key: String): Set<String> =
