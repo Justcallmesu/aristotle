@@ -683,4 +683,39 @@
     <string name="history_reason_app_error">app error</string>
     <string name="settings_address_delete_remembered">%1$s is removed from this phone and won\'t come back from the PC\'s list. Find PC on this Wi-Fi brings a Wi-Fi address back.</string>
     <string name="settings_address_delete_may_return">%1$s is removed from this phone. It is the last of its kind, so the PC may add it again the next time it shares its addresses.</string>
+    <string name="model_search_hint">Search %1$d models</string>
+    <string name="model_search_none">No model matches “%1$s”.</string>
+    <string name="model_count">%1$d models</string>
+    <string name="model_count_of">%1$d of %2$d</string>
+    <string name="model_group_open">Open</string>
+    <string name="model_group_closed">Closed</string>
+    <string name="composer_waiting_chip">Waiting for your approval</string>
+    <string name="composer_model_chip">Model and reasoning: %1$s</string>
+    <!-- TR3: chat transcript v2 (steps line, delegate card, top bar) -->
+    <plurals name="chat_steps">
+        <item quantity="one">%1$d step</item>
+        <item quantity="other">%1$d steps</item>
+    </plurals>
+    <plurals name="chat_steps_running">
+        <item quantity="one">Running · %1$d step</item>
+        <item quantity="other">Running · %1$d steps</item>
+    </plurals>
+    <plurals name="chat_steps_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <plurals name="chat_delegate_count">
+        <item quantity="one">%1$d subagent</item>
+        <item quantity="other">%1$d subagents</item>
+    </plurals>
+    <string name="chat_needs_approval">Needs your approval</string>
+    <!-- TR2: Home C -->
+    <string name="sessions_profile_change">Change profile</string>
+    <string name="sessions_new_chat">New chat</string>
+    <string name="sessions_offline_since">Offline since %1$s</string>
+    <string name="sessions_section_live_now">Live now</string>
+    <string name="sessions_section_today">Today · %1$s</string>
+    <string name="sessions_section_yesterday">Yesterday · %1$s</string>
+    <string name="sessions_section_earlier">Earlier</string>
+    <string name="whats_new_see">See</string>
 </resources>

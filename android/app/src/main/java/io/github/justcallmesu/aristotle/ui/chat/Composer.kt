@@ -1,15 +1,15 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,17 +20,20 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,13 +41,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.runtime.remember
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -60,9 +63,12 @@ import io.github.justcallmesu.aristotle.data.chat.AttachmentRules
 import io.github.justcallmesu.aristotle.data.chat.PickKind
 import io.github.justcallmesu.aristotle.data.chat.SlashCommand
 import io.github.justcallmesu.aristotle.data.chat.SlashMenu
+import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
+import io.github.justcallmesu.aristotle.ui.theme.ComposerShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
+import io.github.justcallmesu.aristotle.ui.theme.SquareIconButtonShape
 
 /** What the composer's controls do; the ViewModel in the app. */
 interface ComposerActions {
@@ -98,16 +104,27 @@ private const val FIELD_MAX_LINES = 6
 /** Queue, Steer and the hint fade in and out over this long (Q69). */
 private const val EXTRAS_FADE_MS = 150
 
-/** The field is one compact line tall when empty; a Material button is 40 dp, so the row stays near that. */
-private val FIELD_MIN_HEIGHT = 44.dp
+/** One line of text; the action row sits under it inside the same field. */
+private val FIELD_MIN_HEIGHT = 40.dp
+
+/** The model chip's label never grows past this (design-notes §5.2). */
+private val CHIP_MAX_WIDTH = 250.dp
+
+/** The floating field is inset 12 dp from the screen edge (design-notes §5.2: padding 12 / 6 / 12 / 8). */
+private val OUTER_PADDING = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 8.dp)
 
 /**
- * design.md §5 composer (mockup screen 3): `surfaceContainer`, top corners `extraLarge`. Idle: field + Send. Busy
- * ([running]): queued rows above the field, then Stop (outlined, error) left, Queue (tonal) and Steer (filled) right,
- * and one hint line. Offline: the text stays, nothing can be sent. A control is on only once it has meant the same
- * thing for [ComposerLogic.ARM_MS] ([ComposerState.armed]); the ViewModel drops an earlier tap anyway.
+ * design-notes §5.2 composer (v2 board): on `surface`, one floating field (`surfaceContainerHigh`, [ComposerShape])
+ * holding the text, attach, the model chip and the trailing action ([ComposerLogic.trailing]). Above it: the waiting
+ * chip while a prompt waits for this phone, queued rows, the `/` menu. Busy (Q69): Stop alone while the field is
+ * empty; with words or an attachment the chip hides and the row reads Stop · Queue · Steer, with one hint line under
+ * the field. Offline: the text stays, nothing can be sent. A control is on only once it has meant the same thing for
+ * [ComposerLogic.ARM_MS] ([ComposerState.armed]); the ViewModel drops an earlier tap anyway.
  * A draft starting with `/` is a command (T15): the `/` menu shows above the field while its name is typed, and Send
- * (shown while busy too) runs it; Queue and Steer are off for it.
+ * runs it, busy too; Queue and Steer are off for it.
+ *
+ * [modelChip] is [ComposerLogic.chipLabel] of the chat's model and effort (null hides the chip); [onOpenModels] opens
+ * the model sheet; [onOpenPrompt] opens the prompt sheet from the waiting chip.
  */
 @Composable
 fun Composer(
@@ -118,6 +135,9 @@ fun Composer(
     slash: SlashState,
     modifier: Modifier = Modifier,
     focusOnStart: Boolean = false,
+    modelChip: String? = null,
+    onOpenModels: () -> Unit = {},
+    onOpenPrompt: () -> Unit = {},
 ) {
     val online = state.mode != ComposerMode.Offline
     val ready = state.armed && online
@@ -126,32 +146,34 @@ fun Composer(
     val hasContent = ComposerLogic.hasContent(state)
     val command = SlashMenu.isCommand(state.draft)
     val query = SlashMenu.query(state.draft)
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        modifier = modifier.fillMaxWidth(),
-    ) {
+    val trailing = ComposerLogic.trailing(online, running, command, state)
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                .padding(horizontal = Spacing.m, vertical = Spacing.s),
+                .padding(OUTER_PADDING),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
+            if (online && state.blocked) ComposerWaitingChip(onOpenPrompt)
             if (online) queued.forEachIndexed { index, row -> QueuedLine(index + 1, row, state, ready, actions) }
             if (online && query != null) SlashMenuPanel(slash, query, onPick = actions::pickCommand, onRetry = actions::retryCommands)
-            if (state.attachments.isNotEmpty()) AttachmentChips(state.attachments, onRemove = actions::removeAttachment)
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                AttachButton(enabled = online && state.attachments.size < AttachmentRules.MAX_ATTACHMENTS, actions = actions)
-                ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, modifier = Modifier.weight(1f))
-                if (!running || !online || command) {
-                    // A command runs idle or busy, and while a prompt waits (it is not a message to the parked turn).
-                    val canSend = if (command) state.mode == ComposerMode.Idle || state.mode == ComposerMode.Busy else state.mode == ComposerMode.Idle && !state.blocked
-                    SendButton(enabled = ready && canSend && (if (command) hasText else hasContent), command = command, onClick = actions::send)
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = ComposerShape, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(start = Spacing.l, top = Spacing.s, end = Spacing.s, bottom = Spacing.s)) {
+                    if (state.attachments.isNotEmpty()) AttachmentChips(state.attachments, onRemove = actions::removeAttachment)
+                    ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        AttachButton(enabled = online && state.attachments.size < AttachmentRules.MAX_ATTACHMENTS, actions = actions)
+                        if (ComposerLogic.showsModelChip(trailing) && modelChip != null) {
+                            ModelChip(modelChip, onOpenModels, modifier = Modifier.weight(1f, fill = false))
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TrailingActions(trailing, state, ready, hasText, hasContent, command, actions)
+                    }
                 }
             }
             when {
                 !online -> HintLine(stringResource(R.string.composer_offline))
-                running -> BusyActions(state, ready, hasText, hasContent, command, actions)
+                running && ComposerLogic.showsBusyExtras(state) -> BusyHint(state, command)
                 state.blocked && !command -> HintLine(stringResource(R.string.composer_blocked_idle_hint))
                 ComposerLogic.hasRefused(state) -> HintLine(stringResource(R.string.attach_refused_hint))
             }
@@ -193,12 +215,7 @@ private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (Strin
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         modifier = modifier.heightIn(min = FIELD_MIN_HEIGHT).focusRequester(focus).semantics { contentDescription = description },
         decorationBox = { inner ->
-            Box(
-                modifier = Modifier
-                    .background(colors.surfaceContainerLowest, MaterialTheme.shapes.large)
-                    .padding(horizontal = Spacing.l, vertical = Spacing.s),
-                contentAlignment = Alignment.CenterStart,
-            ) {
+            Box(modifier = Modifier.padding(end = Spacing.s, top = Spacing.xs, bottom = Spacing.xs), contentAlignment = Alignment.CenterStart) {
                 if (field.text.isEmpty()) {
                     Text(
                         text = stringResource(if (enabled) R.string.composer_placeholder else R.string.composer_offline),
@@ -212,46 +229,83 @@ private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (Strin
     )
 }
 
+/** `surfaceContainerHighest`, no border, mono 13 "model · effort", opens the model sheet. */
+@Composable
+private fun ModelChip(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.composer_model_chip, label)
+    AssistChip(
+        onClick = onClick,
+        label = { Text(text = label, style = AristotleTextStyles.toolSummary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingIcon = { Icon(painter = painterResource(R.drawable.ic_expand_more), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon)) },
+        shape = MaterialTheme.shapes.small,
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            labelColor = MaterialTheme.colorScheme.onSurface,
+            trailingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        border = null,
+        modifier = modifier.widthIn(max = CHIP_MAX_WIDTH).semantics { contentDescription = description },
+    )
+}
+
+/** A prompt waits for this phone: `errorContainer` chip that opens the prompt sheet again. */
+@Composable
+private fun ComposerWaitingChip(onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(stringResource(R.string.composer_waiting_chip), style = MaterialTheme.typography.labelLarge) },
+        leadingIcon = { Icon(painter = painterResource(R.drawable.ic_pan_tool), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon)) },
+        shape = MaterialTheme.shapes.small,
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            labelColor = MaterialTheme.colorScheme.onErrorContainer,
+            leadingIconContentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ),
+        border = null,
+    )
+}
+
 @Composable
 private fun SendButton(enabled: Boolean, command: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = ButtonShape,
-        contentPadding = ButtonDefaults.ContentPadding,
-    ) {
+    FilledIconButton(onClick = onClick, enabled = enabled, shape = SquareIconButtonShape) {
         Icon(painter = painterResource(R.drawable.ic_send), contentDescription = stringResource(if (command) R.string.composer_run else R.string.composer_send), modifier = Modifier.size(Sizes.chipIcon))
     }
 }
 
-/**
- * Busy (Q69): Stop left, always there while the turn runs. Queue and Steer on the right and the one-line hint appear
- * only while the field holds something ([ComposerLogic.showsBusyExtras]), fading over [EXTRAS_FADE_MS].
- */
+/** Stop: a square in `errorContainer`; always there while a turn runs (Q69), never asks to confirm. */
 @Composable
-private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, hasContent: Boolean, command: Boolean, actions: ComposerActions) {
-    val busy = ready && state.mode == ComposerMode.Busy
-    val extras = ComposerLogic.showsBusyExtras(state)
-    val fadeIn = fadeIn(tween(EXTRAS_FADE_MS))
-    val fadeOut = fadeOut(tween(EXTRAS_FADE_MS))
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+private fun StopButton(enabled: Boolean, onClick: () -> Unit) {
+    FilledIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = SquareIconButtonShape,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ),
     ) {
-        OutlinedButton(
-            onClick = actions::stop,
-            enabled = busy && !state.stopping,
-            shape = ButtonShape,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        ) {
-            Icon(painter = painterResource(R.drawable.ic_stop), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon))
-            Spacer(Modifier.size(Spacing.s))
-            Text(stringResource(R.string.composer_stop))
-        }
-        Spacer(Modifier.weight(1f))
-        AnimatedVisibility(visible = extras, enter = fadeIn, exit = fadeOut) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painter = painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.composer_stop), modifier = Modifier.size(Sizes.chipIcon))
+    }
+}
+
+/** The right end of the action row, by [ComposerLogic.trailing]; Queue and Steer fade in over [EXTRAS_FADE_MS]. */
+@Composable
+private fun TrailingActions(trailing: ComposerTrailing, state: ComposerState, ready: Boolean, hasText: Boolean, hasContent: Boolean, command: Boolean, actions: ComposerActions) {
+    val busy = ready && state.mode == ComposerMode.Busy
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+        when (trailing) {
+            ComposerTrailing.Send -> {
+                // A command runs idle, and while a prompt waits (it is not a message to the parked turn).
+                val canSend = if (command) state.mode == ComposerMode.Idle || state.mode == ComposerMode.Busy else state.mode == ComposerMode.Idle && !state.blocked
+                SendButton(enabled = ready && canSend && (if (command) hasText else hasContent), command = command, onClick = actions::send)
+            }
+            ComposerTrailing.Stop -> StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
+            ComposerTrailing.StopSend -> {
+                StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
+                SendButton(enabled = ready && hasText, command = true, onClick = actions::send)
+            }
+            ComposerTrailing.StopQueueSteer -> {
+                StopButton(enabled = busy && !state.stopping, onClick = actions::stop)
                 FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape) {
                     Text(stringResource(R.string.composer_queue))
                 }
@@ -263,40 +317,47 @@ private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, 
             }
         }
     }
+}
+
+/** The one hint line under the field while Queue and Steer show (Q69). */
+@Composable
+private fun BusyHint(state: ComposerState, command: Boolean) {
     val hint = when {
         command -> R.string.composer_command_hint
         ComposerLogic.hasRefused(state) -> R.string.attach_refused_hint
         state.blocked -> R.string.composer_blocked_hint
         else -> R.string.composer_steer_hint
     }
-    AnimatedVisibility(visible = extras, enter = fadeIn + expandVertically(tween(EXTRAS_FADE_MS)), exit = fadeOut + shrinkVertically(tween(EXTRAS_FADE_MS))) {
+    AnimatedVisibility(visible = true, enter = fadeIn(tween(EXTRAS_FADE_MS)) + expandVertically(tween(EXTRAS_FADE_MS)), exit = fadeOut(tween(EXTRAS_FADE_MS)) + shrinkVertically(tween(EXTRAS_FADE_MS))) {
         HintLine(stringResource(hint))
     }
 }
 
-/** "Queued · N — text" with ✕ (Hermes' queue: the Desktop shows and cancels the same rows). */
+/** "Queued · N — text" with ✕ (Hermes' queue: the Desktop shows and cancels the same rows), in `surfaceContainerLow`. */
 @Composable
 private fun QueuedLine(number: Int, row: QueuedRow, state: ComposerState, ready: Boolean, actions: ComposerActions) {
-    Row(modifier = Modifier.fillMaxWidth().padding(start = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-        Text(
-            text = if (row.admissionId == null) stringResource(R.string.composer_sending) else stringResource(R.string.composer_queued, number),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = row.text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        val admission = row.admissionId
-        IconButton(
-            onClick = { admission?.let(actions::cancelQueued) },
-            enabled = ready && admission != null && admission !in state.cancelling,
-        ) {
-            Icon(painter = painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.composer_queue_remove), modifier = Modifier.size(Sizes.toolIcon))
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(start = Spacing.l), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+            Text(
+                text = if (row.admissionId == null) stringResource(R.string.composer_sending) else stringResource(R.string.composer_queued, number),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = row.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            val admission = row.admissionId
+            IconButton(
+                onClick = { admission?.let(actions::cancelQueued) },
+                enabled = ready && admission != null && admission !in state.cancelling,
+            ) {
+                Icon(painter = painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.composer_queue_remove), modifier = Modifier.size(Sizes.toolIcon))
+            }
         }
     }
 }
@@ -307,7 +368,7 @@ private fun HintLine(text: String) {
         text = text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.xs, top = Spacing.xs),
+        modifier = Modifier.padding(start = Spacing.l, top = Spacing.xs),
     )
 }
 

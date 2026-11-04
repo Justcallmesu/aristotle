@@ -671,4 +671,35 @@
     <string name="history_reason_app_error">kesalahan aplikasi</string>
     <string name="settings_address_delete_remembered">%1$s dihapus dari ponsel ini dan tidak akan kembali dari daftar PC. Cari PC di Wi-Fi ini mengembalikan alamat Wi-Fi.</string>
     <string name="settings_address_delete_may_return">%1$s dihapus dari ponsel ini. Ini yang terakhir dari jenisnya, jadi PC dapat menambahkannya lagi saat berikutnya membagikan alamatnya.</string>
+    <string name="model_search_hint">Cari %1$d model</string>
+    <string name="model_search_none">Tidak ada model yang cocok dengan “%1$s”.</string>
+    <string name="model_count">%1$d model</string>
+    <string name="model_count_of">%1$d dari %2$d</string>
+    <string name="model_group_open">Terbuka</string>
+    <string name="model_group_closed">Tertutup</string>
+    <string name="composer_waiting_chip">Menunggu persetujuan Anda</string>
+    <string name="composer_model_chip">Model dan penalaran: %1$s</string>
+    <!-- TR3: chat transcript v2 (steps line, delegate card, top bar) -->
+    <plurals name="chat_steps">
+        <item quantity="other">%1$d langkah</item>
+    </plurals>
+    <plurals name="chat_steps_running">
+        <item quantity="other">Berjalan · %1$d langkah</item>
+    </plurals>
+    <plurals name="chat_steps_failed">
+        <item quantity="other">%1$d gagal</item>
+    </plurals>
+    <plurals name="chat_delegate_count">
+        <item quantity="other">%1$d subagen</item>
+    </plurals>
+    <string name="chat_needs_approval">Perlu persetujuan Anda</string>
+    <!-- TR2: Home C -->
+    <string name="sessions_profile_change">Ganti profil</string>
+    <string name="sessions_new_chat">Chat baru</string>
+    <string name="sessions_offline_since">Offline sejak %1$s</string>
+    <string name="sessions_section_live_now">Aktif sekarang</string>
+    <string name="sessions_section_today">Hari ini · %1$s</string>
+    <string name="sessions_section_yesterday">Kemarin · %1$s</string>
+    <string name="sessions_section_earlier">Sebelumnya</string>
+    <string name="whats_new_see">Lihat</string>
 </resources>

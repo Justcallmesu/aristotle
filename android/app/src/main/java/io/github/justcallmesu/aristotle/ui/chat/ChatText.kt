@@ -219,6 +219,30 @@ data class StatusText(val text: String, val leadEnd: Int) {
     }
 }
 
+/** What leads the chat top bar's subtitle (design-notes §5.6), before the profile. */
+enum class SubtitleLead { None, Link, Waiting, Running }
+
+/**
+ * The chat top bar's subtitle (design-notes §5.2, §5.6): "Running · step 8 · [P] pm", "Needs your approval · [P] pm",
+ * "Offline · [P] pm", idle just "[P] pm". The model and effort live in the composer's chip. Pure.
+ */
+object ChatSubtitle {
+    /**
+     * [linkDown]: the link is not plain online (it names its state); [waiting]: a prompt waits for this phone;
+     * [running]: a turn runs. Priority: link > waiting > running (design.md §5 session row), live states only while
+     * [live] ([ChatLive]).
+     */
+    fun lead(linkDown: Boolean, live: Boolean, waiting: Boolean, running: Boolean): SubtitleLead = when {
+        linkDown -> SubtitleLead.Link
+        live && waiting -> SubtitleLead.Waiting
+        live && running -> SubtitleLead.Running
+        else -> SubtitleLead.None
+    }
+
+    /** The profile mark's letter: the name's first character in upper case, "?" for a blank name. */
+    fun initial(name: String): String = name.trim().take(1).uppercase(Locale.ROOT).ifEmpty { "?" }
+}
+
 /**
  * Markdown tables in the chat (TU1 C6): cells wrap instead of being cut to one line, each column [CELL_MIN]–[CELL_MAX]
  * wide, the table scrolls sideways when the columns do not fit; a table of more than [MAX_COLUMNS] columns shows as

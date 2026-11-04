@@ -16,7 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,15 +75,22 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -202,9 +208,9 @@ private class ViewModelPromptActions(private val vm: ChatViewModel) : PromptActi
 }
 
 /**
- * design.md §5 chat, mockup screen 3: top bar with the session, the transcript with this phone's own messages until
- * Hermes shows them, the waiting chip, the composer (T13) and the prompt sheet (T12). Edge-to-edge: the composer
- * carries the bottom insets (navigation bar, keyboard).
+ * design-notes §5.2 chat (v2 board): top bar with the session, the transcript with this phone's own messages until
+ * Hermes shows them, the composer (T13; it holds the waiting chip and the model chip) and the prompt sheet (T12).
+ * Edge-to-edge: the composer carries the bottom insets (navigation bar, keyboard).
  */
 @Composable
 fun ChatContentView(
@@ -266,7 +272,9 @@ fun ChatContentView(
         // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            ChatTopBar(chat, state.link, live, fallbackTitle, fallbackProfile, onBack, onOpenModels = models::open.takeIf { feed.loaded }, modifier = sides)
+            // A prompt waits for this phone's answer (not while that answer is on its way, T12b).
+            val waiting = state.sheet.current(chat) != null
+            ChatTopBar(chat, state.link, live, waiting, fallbackTitle, fallbackProfile, onBack, modifier = sides)
             if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
             // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
             val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
@@ -276,15 +284,12 @@ fun ChatContentView(
                 val runs = state.slash.runs
                 when {
                     feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
-                    // The chip only when tapping it opens something: not while this phone's own answer is on its way (T12b).
                     feed.loaded -> Transcript(
                         chat,
                         live = live,
-                        waiting = state.sheet.current(chat) != null,
                         composer = state.composer,
                         runs = runs,
                         insets = insets,
-                        onOpenSheet = onOpenSheet,
                         echoes = echoes,
                         onOpenSubagent = onOpenSubagent,
                     )
@@ -302,6 +307,10 @@ fun ChatContentView(
                     actions = composer,
                     slash = state.slash,
                     focusOnStart = focusComposer,
+                    // design-notes §5.2: the model and effort moved from the top bar's subtitle into the composer's chip.
+                    modelChip = ComposerLogic.chipLabel(chat.model, ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) }),
+                    onOpenModels = models::open,
+                    onOpenPrompt = onOpenSheet,
                 )
             }
         }
@@ -376,18 +385,18 @@ private fun promptMessage(message: PromptMessage): String = when (message) {
 }
 
 /**
- * The session's title, live status, profile, model and reasoning level. The title block opens the model and reasoning
- * sheet ([onOpenModels], null until the chat has loaded); the drop-down arrow says it does.
+ * design-notes §5.2 / §5.6: back, the session's title, and one subtitle line (where it stands, then the profile). Not a
+ * control: the model and reasoning switch is the composer's chip, and a chat keeps the profile it was opened in (T14).
  */
 @Composable
 private fun ChatTopBar(
     chat: ChatState,
     link: LinkState,
     live: Boolean,
+    waiting: Boolean,
     fallbackTitle: String?,
     fallbackProfile: String?,
     onBack: () -> Unit,
-    onOpenModels: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -397,9 +406,7 @@ private fun ChatTopBar(
         IconButton(onClick = onBack) {
             Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back))
         }
-        val openLabel = stringResource(R.string.model_open)
-        val open = onOpenModels?.let { Modifier.clickable(role = Role.Button, onClickLabel = openLabel, onClick = it) } ?: Modifier
-        Column(modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget).then(open).padding(horizontal = Spacing.xs), verticalArrangement = Arrangement.Center) {
+        Column(modifier = Modifier.weight(1f).heightIn(min = Sizes.minTouchTarget).padding(horizontal = Spacing.xs), verticalArrangement = Arrangement.Center) {
             Text(
                 text = chat.title ?: fallbackTitle ?: stringResource(R.string.session_untitled),
                 style = AristotleTextStyles.chatTitle,
@@ -407,56 +414,110 @@ private fun ChatTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },
             )
-            Subtitle(chat, fallbackProfile, live = live, switchable = onOpenModels != null)
+            Subtitle(chat, link, fallbackProfile, live = live, waiting = waiting)
         }
-        linkLabel(link)?.let { LinkChip(it, offline = link is LinkState.Offline) }
     }
 }
 
 /**
- * "Running · step N" in verdigris with the spinner, then profile, model and reasoning level; no live colour unless
- * [live]. One text, so every " · " is the same (TU1 C3). The line is always there, empty until the chat loads, so the
- * bar does not move when it fills in (C4). [switchable]: a drop-down arrow marks the model as the control that opens
- * the sheet.
+ * One text, so every " · " is the same (TU1 C3): the lead ([ChatSubtitle.lead]) with its icon, then the 16 dp profile
+ * mark and the profile's name. "Running · step N" in verdigris with the spinner, only while [live]; "Needs your
+ * approval" in red with the hand; a link that is not plain online names its state (cloud-off when offline). The line
+ * is always there, empty until the chat loads, so the bar does not move when it fills in (C4).
  */
 @Composable
-private fun Subtitle(chat: ChatState, fallbackProfile: String?, live: Boolean, switchable: Boolean) {
-    val effort = ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) }
-    val running = chat.running && live
-    val status = if (running) chat.step?.let { stringResource(R.string.chat_running_step, it) } ?: stringResource(R.string.session_running) else null
-    val line = StatusText.of(status, listOf(chat.profileName ?: fallbackProfile, chat.model, effort))
-    val liveSpan = AristotleTextStyles.liveStatusSmall.toSpanStyle().copy(color = MaterialTheme.colorScheme.tertiary)
-    val text = remember(line, liveSpan) {
+private fun Subtitle(chat: ChatState, link: LinkState, fallbackProfile: String?, live: Boolean, waiting: Boolean) {
+    val linkText = linkLabel(link)
+    val lead = ChatSubtitle.lead(linkDown = linkText != null, live = live, waiting = waiting, running = chat.running)
+    val leadText = when (lead) {
+        SubtitleLead.Link -> linkText
+        SubtitleLead.Waiting -> stringResource(R.string.chat_needs_approval)
+        SubtitleLead.Running -> chat.step?.let { stringResource(R.string.chat_running_step, it) } ?: stringResource(R.string.session_running)
+        SubtitleLead.None -> null
+    }
+    val profile = (chat.profileName ?: fallbackProfile)?.takeIf { it.isNotBlank() }
+    val leadSpan = when (lead) {
+        SubtitleLead.Running -> AristotleTextStyles.liveStatusSmall.toSpanStyle().copy(color = MaterialTheme.colorScheme.tertiary)
+        // Red on `surface` (5.7:1, design.md §1); 600 like the live lead.
+        SubtitleLead.Waiting -> AristotleTextStyles.liveStatusSmall.toSpanStyle().copy(color = MaterialTheme.colorScheme.error)
+        SubtitleLead.Link, SubtitleLead.None -> SpanStyle()
+    }
+    val text = remember(leadText, profile, leadSpan) {
         buildAnnotatedString {
-            append(line.text)
-            if (line.leadEnd > 0) addStyle(liveSpan, 0, line.leadEnd)
+            leadText?.let { withStyle(leadSpan) { append(it) } }
+            if (profile != null) {
+                if (leadText != null) append(StatusText.SEPARATOR)
+                // Decorative (the name follows): an invisible stand-in, so TalkBack does not read the letter.
+                appendInlineContent(PROFILE_MARK_ID, MARK_STAND_IN)
+                append(' ')
+                append(profile)
+            }
+        }
+    }
+    val markSize = MaterialTheme.typography.bodySmall.lineHeight
+    val inline = remember(profile, markSize) {
+        if (profile == null) {
+            emptyMap()
+        } else {
+            mapOf(
+                PROFILE_MARK_ID to InlineTextContent(Placeholder(markSize, markSize, PlaceholderVerticalAlign.TextCenter)) {
+                    ProfileMark(profile)
+                },
+            )
         }
     }
     Row(modifier = Modifier.heightIn(min = Sizes.chipIcon), verticalAlignment = Alignment.CenterVertically) {
-        if (running) {
-            RunningSpinner()
-            Spacer(Modifier.width(Spacing.s))
+        when (lead) {
+            SubtitleLead.Running -> RunningSpinner()
+            SubtitleLead.Waiting -> LeadIcon(R.drawable.ic_pan_tool, MaterialTheme.colorScheme.error)
+            SubtitleLead.Link -> if (link is LinkState.Offline) LeadIcon(R.drawable.ic_cloud_off, MaterialTheme.colorScheme.onSurfaceVariant)
+            SubtitleLead.None -> Unit
+        }
+        if (lead == SubtitleLead.Running || lead == SubtitleLead.Waiting || (lead == SubtitleLead.Link && link is LinkState.Offline)) {
+            Spacer(Modifier.width(Spacing.xs))
         }
         Text(
             text = text,
+            inlineContent = inline,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
         )
-        if (switchable) {
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_drop_down),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(Sizes.chipIcon),
-            )
-        }
     }
 }
 
-/** The link state when it is not plain online; null hides the chip. */
+@Composable
+private fun LeadIcon(res: Int, tint: Color) {
+    Icon(painter = painterResource(res), contentDescription = null, tint = tint, modifier = Modifier.size(Sizes.lineIcon))
+}
+
+/**
+ * design-notes §5.6: the profile's initial on a 16 dp Soft square (`extraSmall`, `secondaryContainer`), Literata 600
+ * at `labelSmall` size, so the chat echoes the avatar tapped on Home. Decorative: the name beside it is the text.
+ */
+@Composable
+private fun ProfileMark(name: String) {
+    val style = MaterialTheme.typography.labelSmall.copy(
+        fontFamily = AristotleTextStyles.wordmark.fontFamily,
+        fontWeight = FontWeight.W600,
+        lineHeight = MaterialTheme.typography.labelSmall.fontSize,
+        letterSpacing = 0.sp,
+    )
+    Surface(
+        shape = MaterialTheme.shapes.extraSmall,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier.fillMaxSize().clearAndSetSemantics { },
+    ) {
+        Box(contentAlignment = Alignment.Center) { Text(text = ChatSubtitle.initial(name), style = style, maxLines = 1) }
+    }
+}
+
+private const val PROFILE_MARK_ID = "aristotle.profileMark"
+private const val MARK_STAND_IN = "\u2060"
+
+/** The link state when it is not plain online; null: online. */
 @Composable
 private fun linkLabel(link: LinkState): String? = when (link) {
     is LinkState.Online, LinkState.Revoked -> null
@@ -467,27 +528,6 @@ private fun linkLabel(link: LinkState): String? = when (link) {
     LinkState.Stopped -> stringResource(R.string.chat_link_stopped)
 }
 
-@Composable
-private fun LinkChip(label: String, offline: Boolean) {
-    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.padding(end = Spacing.s)) {
-        Row(
-            modifier = Modifier.heightIn(min = 32.dp).padding(horizontal = Spacing.s),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            if (offline) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_cloud_off),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(Sizes.lineIcon),
-                )
-            }
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
 /**
  * The message list. It follows new content while the user is at the bottom; scrolling up stops that and
  * shows "Jump to latest". Stable keys: a delta recomposes only the last row.
@@ -496,11 +536,9 @@ private fun LinkChip(label: String, offline: Boolean) {
 private fun Transcript(
     chat: ChatState,
     live: Boolean,
-    waiting: Boolean,
     composer: ComposerState,
     runs: List<CommandRun>,
     insets: PaddingValues,
-    onOpenSheet: () -> Unit,
     echoes: EchoActions,
     onOpenSubagent: ((String) -> Unit)?,
 ) {
@@ -522,7 +560,7 @@ private fun Transcript(
     }
     val tail = remember(outbox) { ComposerLogic.tail(outbox) }
     val anchored = remember(outbox) { ComposerLogic.anchored(outbox) }
-    LaunchedEffect(chat.items.size, chat.items.lastOrNull(), thinking, waiting, outbox, runs) {
+    LaunchedEffect(chat.items.size, chat.items.lastOrNull(), thinking, outbox, runs) {
         if (follow.value) listState.scrollToEnd()
     }
     val direction = LocalLayoutDirection.current
@@ -559,10 +597,6 @@ private fun Transcript(
             if (thinking) {
                 val gap = rhythm.next(RowKind.Work)
                 item(key = "thinking") { Box(modifier = Modifier.padding(top = gap)) { ThinkingLine() } }
-            }
-            if (waiting) {
-                val gap = rhythm.next(RowKind.Work)
-                item(key = "waiting") { Box(modifier = Modifier.padding(top = gap)) { WaitingChip(onOpenSheet) } }
             }
         }
         if (!follow.value && listState.canScrollForward) {

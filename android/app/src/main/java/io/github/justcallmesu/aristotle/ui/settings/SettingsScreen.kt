@@ -1,6 +1,18 @@
 package io.github.justcallmesu.aristotle.ui.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import io.github.justcallmesu.aristotle.ui.components.GroupedRows
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -73,6 +85,7 @@ class SettingsActions(
  * The settings screen (Q60, TS1), grouped like Android's own: connection, notifications, appearance, language, security,
  * about. Each category is its own page; its top bar names it, so the page repeats no header (TS3).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -97,10 +110,24 @@ fun SettingsScreen(
         language = actions.currentLanguage()
         onPauseOrDispose { }
     }
+    val listBar = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            SubPageTopBar(stringResource(page?.title ?: R.string.settings_title), actions.onBack)
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).nestedScroll(listBar.nestedScrollConnection)) {
+            if (page == null) {
+                LargeTopAppBar(
+                    title = { Text(stringResource(R.string.settings_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = actions.onBack) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.nav_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface, scrolledContainerColor = MaterialTheme.colorScheme.surface),
+                    scrollBehavior = listBar,
+                )
+            } else {
+                SubPageTopBar(stringResource(page.title), actions.onBack)
+            }
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Spacing.listGutter), verticalArrangement = Arrangement.spacedBy(Spacing.l)) {
                 when (page) {
                     null -> SettingsList(
                         link = link,
@@ -176,7 +203,7 @@ fun SettingsScreen(
     }
 }
 
-/** The category list with a one-line summary each (Q72); no section headers. */
+/** The category list in three grouped blocks, a one-line summary each (Q72); no section headers. */
 @Composable
 private fun SettingsList(
     link: LinkState,
@@ -189,7 +216,9 @@ private fun SettingsList(
     onOpen: (SettingsPage) -> Unit,
 ) {
     val two = R.string.settings_summary_two
-    SettingsPage.entries.forEach { page ->
+    settingsBlocks.forEach { block ->
+        GroupedRows(block.size) { index ->
+        val page = block[index]
         val summary = when (page) {
             SettingsPage.Connection -> {
                 val word = stringResource(
@@ -224,6 +253,7 @@ private fun SettingsList(
             SettingsPage.About -> stringResource(R.string.settings_summary_about, BuildConfig.VERSION_NAME)
         }
         CategoryRow(page, summary) { onOpen(page) }
+        }
     }
 }
 
@@ -232,18 +262,23 @@ private fun SettingsList(
 private fun NotificationsSection(appAllowed: Boolean, channels: Map<AppChannel, Boolean>, onBatteryGuide: () -> Unit) {
     val context = LocalContext.current
     if (!appAllowed) {
-        SettingRow(
-            title = stringResource(R.string.settings_notifications_off),
-            body = stringResource(R.string.settings_notifications_off_body),
-            trailing = {
-                TextButton(onClick = { SystemSettings.openNotificationSettings(context) }, shape = ButtonShape) {
-                    Text(stringResource(R.string.guide_open_settings))
-                }
+        RowGroup(
+            listOf {
+                SettingRow(
+                    title = stringResource(R.string.settings_notifications_off),
+                    body = stringResource(R.string.settings_notifications_off_body),
+                    trailing = {
+                        TextButton(onClick = { SystemSettings.openNotificationSettings(context) }, shape = ButtonShape) {
+                            Text(stringResource(R.string.guide_open_settings))
+                        }
+                    },
+                )
             },
         )
     }
     val openLabel = stringResource(R.string.settings_channel_open)
-    AppChannel.entries.forEach { channel ->
+    RowGroup(AppChannel.entries.map { channel ->
+        {
         SettingRow(
             title = stringResource(channel.title),
             body = stringResource(channel.description),
@@ -255,31 +290,44 @@ private fun NotificationsSection(appAllowed: Boolean, channels: Map<AppChannel, 
             },
             trailing = { Switch(checked = channels[channel] == true, onCheckedChange = null) },
         )
-    }
-    SettingRow(
-        title = stringResource(R.string.settings_battery_guide),
-        body = stringResource(R.string.settings_battery_guide_body),
-        modifier = Modifier.clickable(onClick = onBatteryGuide),
+        }
+    })
+    RowGroup(
+        listOf {
+            SettingRow(
+                title = stringResource(R.string.settings_battery_guide),
+                body = stringResource(R.string.settings_battery_guide_body),
+                modifier = Modifier.clickable(onClick = onBatteryGuide),
+            )
+        },
     )
 }
 
 @Composable
 private fun AppearanceSection(theme: ThemeChoice, textSize: TextSize, onOpen: (SettingsSheet) -> Unit) {
-    SettingRow(
-        title = stringResource(R.string.settings_theme),
-        body = themeLabel(theme),
-        modifier = Modifier.clickable { onOpen(SettingsSheet.Theme) },
-    )
-    SettingRow(
-        title = stringResource(R.string.settings_text_size),
-        body = textSizeLabel(textSize),
-        modifier = Modifier.clickable { onOpen(SettingsSheet.TextSize) },
+    RowGroup(
+        listOf(
+            {
+                SettingRow(
+                    title = stringResource(R.string.settings_theme),
+                    body = themeLabel(theme),
+                    modifier = Modifier.clickable { onOpen(SettingsSheet.Theme) },
+                )
+            },
+            {
+                SettingRow(
+                    title = stringResource(R.string.settings_text_size),
+                    body = textSizeLabel(textSize),
+                    modifier = Modifier.clickable { onOpen(SettingsSheet.TextSize) },
+                )
+            },
+        ),
     )
 }
 
 @Composable
 private fun LanguageSection(language: AppLanguage, onOpen: () -> Unit) {
-    SettingRow(title = stringResource(R.string.settings_language), body = languageLabel(language), modifier = Modifier.clickable(onClick = onOpen))
+    RowGroup(listOf { SettingRow(title = stringResource(R.string.settings_language), body = languageLabel(language), modifier = Modifier.clickable(onClick = onOpen)) })
 }
 
 /**
@@ -292,31 +340,40 @@ private fun SecuritySection(viewModel: SettingsViewModel, screenLockSet: () -> B
     val lockTimeout by viewModel.lockTimeout.collectAsStateWithLifecycle()
     val showTerminal by viewModel.showTerminal.collectAsStateWithLifecycle()
     val notice by viewModel.lockNotice.collectAsStateWithLifecycle()
-    SwitchRow(
-        title = stringResource(R.string.settings_app_lock),
-        body = stringResource(
-            when {
-                notice == LockNotice.NoScreenLock && !appLock -> R.string.settings_app_lock_no_screen_lock
-                appLock -> R.string.settings_app_lock_on_body
-                else -> R.string.settings_app_lock_off_body
-            },
-        ),
-        checked = appLock,
-        onChange = { on -> viewModel.setAppLock(on, screenLockSet()) },
-    )
-    if (appLock) {
-        SettingRow(
-            title = stringResource(R.string.settings_lock_after),
-            body = lockTimeoutLabel(lockTimeout),
-            modifier = Modifier.clickable { viewModel.show(SettingsSheet.LockTimeout) },
-        )
+    val rows = buildList<@Composable () -> Unit> {
+        add {
+            SwitchRow(
+                title = stringResource(R.string.settings_app_lock),
+                body = stringResource(
+                    when {
+                        notice == LockNotice.NoScreenLock && !appLock -> R.string.settings_app_lock_no_screen_lock
+                        appLock -> R.string.settings_app_lock_on_body
+                        else -> R.string.settings_app_lock_off_body
+                    },
+                ),
+                checked = appLock,
+                onChange = { on -> viewModel.setAppLock(on, screenLockSet()) },
+            )
+        }
+        if (appLock) {
+            add {
+                SettingRow(
+                    title = stringResource(R.string.settings_lock_after),
+                    body = lockTimeoutLabel(lockTimeout),
+                    modifier = Modifier.clickable { viewModel.show(SettingsSheet.LockTimeout) },
+                )
+            }
+        }
+        add {
+            SwitchRow(
+                title = stringResource(R.string.settings_show_terminal),
+                body = stringResource(R.string.settings_show_terminal_body),
+                checked = showTerminal,
+                onChange = viewModel::setShowTerminal,
+            )
+        }
     }
-    SwitchRow(
-        title = stringResource(R.string.settings_show_terminal),
-        body = stringResource(R.string.settings_show_terminal_body),
-        checked = showTerminal,
-        onChange = viewModel::setShowTerminal,
-    )
+    RowGroup(rows)
 }
 
 @Composable
@@ -332,46 +389,63 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
 /** The licence notices are D45's and say so until they exist. */
 @Composable
 private fun AboutSection(pcId: String, onWhatsNew: () -> Unit) {
-    SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline))
-    SettingRow(
-        title = stringResource(R.string.settings_version),
-        body = stringResource(R.string.settings_app_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-    )
     val servers by ServerVersions.all.collectAsStateWithLifecycle()
     val server = servers[pcId]
-    SettingRow(
-        title = stringResource(R.string.settings_server_version),
-        body = server?.let { info ->
-            val unknown = stringResource(R.string.settings_server_unknown)
-            stringResource(R.string.settings_server_version_value, info.version ?: unknown, info.protocol)
-        } ?: stringResource(R.string.settings_server_unknown),
+    RowGroup(
+        listOf(
+            { SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline)) },
+            {
+                SettingRow(
+                    title = stringResource(R.string.settings_version),
+                    body = stringResource(R.string.settings_app_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                )
+            },
+            {
+                SettingRow(
+                    title = stringResource(R.string.settings_server_version),
+                    body = server?.let { info ->
+                        val unknown = stringResource(R.string.settings_server_unknown)
+                        stringResource(R.string.settings_server_version_value, info.version ?: unknown, info.protocol)
+                    } ?: stringResource(R.string.settings_server_unknown),
+                )
+            },
+            { SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_whats_new_body), modifier = Modifier.clickable(onClick = onWhatsNew)) },
+            { SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true) },
+            { SettingRow(title = stringResource(R.string.settings_source), body = stringResource(R.string.settings_source_body)) },
+        ),
     )
-    SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_whats_new_body), modifier = Modifier.clickable(onClick = onWhatsNew))
-    SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true)
-    SettingRow(title = stringResource(R.string.settings_source), body = stringResource(R.string.settings_source_body))
 }
 
-/** One settings row (56 dp list row). [quiet]: a placeholder with nothing to do yet, its title dimmed. */
+/** One grouped block of settings rows: `surfaceContainerLow` rows 2 dp apart, outer corners 20, inner 4. */
+@Composable
+internal fun RowGroup(rows: List<@Composable () -> Unit>) {
+    if (rows.isNotEmpty()) GroupedRows(rows.size) { index -> rows[index]() }
+}
+
+/** One settings row (56 dp list row, transparent: it sits in a [RowGroup]). [quiet]: a placeholder with nothing to do yet, its title dimmed. */
 @Composable
 internal fun SettingRow(
     title: String,
     body: String,
     modifier: Modifier = Modifier,
     quiet: Boolean = false,
+    titleColor: Color? = null,
+    titleStyle: TextStyle? = null,
+    bodyStyle: TextStyle? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     ListItem(
         modifier = modifier.heightIn(min = Sizes.listRowHeight),
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         headlineContent = {
             Text(
                 title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (quiet) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                style = titleStyle ?: MaterialTheme.typography.bodyLarge,
+                color = titleColor ?: if (quiet) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
         },
         supportingContent = {
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(body, style = bodyStyle ?: MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         },
         trailingContent = trailing,
     )

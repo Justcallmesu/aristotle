@@ -31,7 +31,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -75,15 +77,18 @@ private fun ProfileSheet(picker: ProfilePicker, current: String?, actions: Sheet
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
+        // §5.6: rows on a 12 dp column inset with 12 dp inside (radio stays on the 24 dp line); text on the 24 dp line.
+        val text = Modifier.padding(horizontal = Spacing.m)
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Spacing.xxl, end = Spacing.xxl, bottom = Spacing.xxl),
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Spacing.m, end = Spacing.m, bottom = Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            Text(text = stringResource(R.string.sessions_profiles_title), style = MaterialTheme.typography.titleLarge)
+            Text(text = stringResource(R.string.sessions_profiles_title), style = MaterialTheme.typography.titleLarge, modifier = text)
             Text(
                 text = stringResource(R.string.sessions_profiles_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = text,
             )
             val options = picker.options
             when {
@@ -97,29 +102,31 @@ private fun ProfileSheet(picker: ProfilePicker, current: String?, actions: Sheet
                     Text(
                         text = stringResource(R.string.sessions_profiles_failed, picker.problem),
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = Spacing.s),
+                        modifier = text.padding(top = Spacing.s),
                     )
-                    Button(onClick = actions::retryProfiles, shape = ButtonShape) { Text(stringResource(R.string.conn_retry_now)) }
+                    Button(onClick = actions::retryProfiles, shape = ButtonShape, modifier = text) { Text(stringResource(R.string.conn_retry_now)) }
                 }
                 else -> Text(
                     text = stringResource(R.string.sessions_profiles_loading),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.s),
+                    modifier = text.padding(top = Spacing.s),
                 )
             }
         }
     }
 }
 
-/** A 56 dp radio row (design.md §4 list/choice row). */
+/** A 56 dp radio row (design.md §4 list/choice row); pressed state is a 16 dp Soft shape (design-notes §5.6). */
 @Composable
 private fun ProfileRow(option: ProfileOption, selected: Boolean, onPick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = Sizes.listRowHeight)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onPick),
+            .clip(MaterialTheme.shapes.medium)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onPick)
+            .padding(horizontal = Spacing.m),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
@@ -154,7 +161,14 @@ private fun RowActionsSheet(row: SessionRow, actions: SheetActions) {
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = Spacing.xxl, vertical = Spacing.s),
+                modifier = Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, top = Spacing.s),
+            )
+            // Q75: the one-line ledger drops the message count; the long-press sheet keeps it.
+            Text(
+                text = pluralStringResource(R.plurals.session_messages, row.messageCount, row.messageCount),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, bottom = Spacing.s),
             )
             ActionRow(R.drawable.ic_edit, stringResource(R.string.session_rename), null) { actions.startRename(row) }
             ActionRow(

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -48,6 +48,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.chat.ChatItem
@@ -70,8 +71,9 @@ interface SubagentActions {
 }
 
 /**
- * A `delegate_task` call as the fan-out it is (the Desktop's delegate card, `delegate.tsx:67-166`): one row per child,
- * goal and model on top, where it stands and its last line below. A row the roster knows opens the child's page.
+ * A `delegate_task` call as the fan-out it is (the Desktop's delegate card, `delegate.tsx:67-166`; design-notes §5.2):
+ * `medium`, `surfaceContainerLow`, a header "delegate_task · 2 subagents", then one 56 dp row per child, goal on top,
+ * where it stands, its model and time below, and its last line. A row the roster knows opens the child's page.
  * Verdigris only while a child runs and the chat is live (design.md §1).
  */
 @Composable
@@ -79,9 +81,9 @@ internal fun DelegateCard(item: ChatItem.Tool, live: Boolean, onOpen: ((String) 
     val running = live && item.subagents.any { it.status.live }
     val now = wallClockTicking(running)
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column {
-            item.subagents.forEachIndexed { index, row ->
-                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = Sizes.divider)
+        Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
+            DelegateHeader(item.name, item.subagents.size)
+            item.subagents.forEach { row ->
                 val id = row.subagentId
                 val open: (() -> Unit)? = if (id != null && onOpen != null) { { onOpen(id) } } else null
                 DelegateRowView(row, live, now, open)
@@ -90,12 +92,35 @@ internal fun DelegateCard(item: ChatItem.Tool, live: Boolean, onOpen: ((String) 
     }
 }
 
+/** "delegate_task · 2 subagents": the call's name in mono, the count beside it (`labelMedium`, `onSurfaceVariant`). */
+@Composable
+private fun DelegateHeader(name: String, count: Int) {
+    val countText = pluralStringResource(R.plurals.chat_delegate_count, count, count)
+    val label = MaterialTheme.typography.labelMedium
+    val nameSpan = AristotleTextStyles.toolName.toSpanStyle().copy(fontSize = label.fontSize)
+    val text = remember(name, countText, nameSpan) {
+        buildAnnotatedString {
+            withStyle(nameSpan) { append(name) }
+            append(StatusText.SEPARATOR)
+            append(countText)
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = Spacing.m, end = Spacing.m, top = Spacing.s, bottom = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+    ) {
+        Icon(painter = painterResource(R.drawable.ic_account_tree), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(HEADER_ICON))
+        Text(text = text, style = label, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 @Composable
 private fun DelegateRowView(row: DelegateRow, live: Boolean, now: Long, onOpen: (() -> Unit)?) {
     val openLabel = stringResource(R.string.subagent_open)
     val clickable = onOpen?.let { Modifier.clickable(role = Role.Button, onClickLabel = openLabel, onClick = it) } ?: Modifier
     Row(
-        modifier = Modifier.fillMaxWidth().then(clickable).heightIn(min = Sizes.minTouchTarget).padding(horizontal = Spacing.m, vertical = Spacing.s),
+        modifier = Modifier.fillMaxWidth().then(clickable).heightIn(min = Sizes.listRowHeight).padding(horizontal = Spacing.m, vertical = Spacing.s),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
@@ -286,7 +311,7 @@ private fun PageTopBar(child: Subagent, running: Boolean, now: Long, onBack: () 
 private fun PageBody(child: Subagent, page: SubagentPageState, running: Boolean) {
     val folds = rememberFolds()
     val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
-    // The child's activity reads like the chat: the same folding (Q68) and rhythm (Q67) between its rows.
+    // The child's activity reads like the chat: the same "N steps" folding (Q75) and rhythm (Q67) between its rows.
     val rows = remember(child.mirror) { ToolFolding.rows(child.mirror) }
     val section = Modifier.padding(top = Spacing.m)
     LazyColumn(
@@ -349,6 +374,9 @@ private fun subagentMessage(message: SubagentMessage): String = when (message) {
     SubagentMessage.Rejected -> stringResource(R.string.subagent_stop_rejected)
     SubagentMessage.NotSent -> stringResource(R.string.subagent_stop_not_sent)
 }
+
+/** The delegate card header's icon (board: 16 dp). */
+private val HEADER_ICON = 16.dp
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val TICK_MS = 1_000L

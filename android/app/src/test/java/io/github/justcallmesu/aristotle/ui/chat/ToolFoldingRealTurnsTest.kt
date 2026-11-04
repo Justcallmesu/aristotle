@@ -15,10 +15,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * TU4b: Q68 folding on two real turns from the Hermes session store, in the `session.resume` row shape the gateway sends
- * (`local_history`; texts, arguments and outputs redacted, `src/test/resources/chat/`). One is the stored turn the phone showed
- * folded ("4 tool calls · last: execute_code"), the other the running turn the phone showed as cards: 10 stored calls with
- * reasoning between them, then a call that arrives live, in the order Hermes publishes a local viewer's tool round.
+ * TU4b, updated for Q75: "N steps" folding on two real turns from the Hermes session store, in the `session.resume` row
+ * shape the gateway sends (`local_history`; texts, arguments and outputs redacted, `src/test/resources/chat/`). One is a
+ * stored turn (reasoning, text, four calls with reasoning between them, a delegation), the other a running turn: 10 stored
+ * calls with reasoning between them, then a call that arrives live, in the order Hermes publishes a local viewer's tool round.
  */
 class ToolFoldingRealTurnsTest {
     private fun messages(name: String): JsonArray {
@@ -27,7 +27,7 @@ class ToolFoldingRealTurnsTest {
     }
 
     private fun describe(row: TranscriptRow): String = when (row) {
-        is TranscriptRow.Folded -> "fold(${row.tools.joinToString(",") { it.name }})"
+        is TranscriptRow.Folded -> "fold(${row.steps.joinToString(",") { if (it is ChatItem.Tool) it.name else "thought" }})"
         is TranscriptRow.Single -> when (val item = row.item) {
             is ChatItem.Tool -> "tool(${item.name})"
             else -> item::class.simpleName!!.lowercase()
@@ -35,20 +35,22 @@ class ToolFoldingRealTurnsTest {
     }
 
     @Test
-    fun aStoredTurnFoldsItsCallsAroundTheirReasoning() {
+    fun aStoredTurnFoldsItsReasoningAndCallsIntoStepsLines() {
         val rows = ToolFolding.rows(HistoryMapper.items(messages("stored-turn-with-calls.json")))
         assertEquals(
-            listOf("user", "reasoning", "assistant", "fold(terminal,write_file,patch,execute_code)", "tool(delegate_task)", "assistant", "card"),
+            listOf("user", "fold(thought)", "assistant", "fold(terminal,thought,write_file,patch,execute_code)", "tool(delegate_task)", "assistant", "card"),
             rows.map(::describe),
         )
+        // The reasoning before the text is a run of one step; the text ends it.
+        assertEquals(StepsSummary(steps = 1, running = false, tool = null, failed = 0), (rows[1] as TranscriptRow.Folded).summary(live = true))
         val fold = rows[3] as TranscriptRow.Folded
         // The reasoning between the first and second call folds with them.
         assertEquals(listOf("tool-toolu_01", "h-15004-r", "tool-toolu_02", "tool-toolu_03", "tool-toolu_04"), fold.items.map { it.key })
-        assertEquals("execute_code", fold.last.name)
+        assertEquals(StepsSummary(steps = 5, running = false, tool = "execute_code", failed = 0), fold.summary(live = true))
     }
 
     @Test
-    fun aRunningTurnFoldsItsStoredAndLiveCallsIntoOneCard() {
+    fun aRunningTurnFoldsItsStoredAndLiveCallsIntoOneLine() {
         val snapshot = buildJsonObject {
             put("session_id", SESSION)
             put("running", true)
@@ -78,10 +80,13 @@ class ToolFoldingRealTurnsTest {
         val fold = rows.last() as TranscriptRow.Folded
         assertEquals(11, fold.tools.size)
         assertEquals(6, fold.items.count { it is ChatItem.Reasoning })
-        assertEquals("live1", fold.last.toolId)
+        assertEquals("live1", fold.lastTool?.toolId)
         assertTrue(fold.running && fold.failed)
+        // Live: "Running · 17 steps" naming the live call, with the stored failure; the spinner only while live.
+        assertEquals(StepsSummary(steps = 17, running = true, tool = "terminal", failed = fold.failedCount), fold.summary(live = true))
+        assertEquals(false, fold.summary(live = false).running)
 
-        // The card keeps its key (LazyColumn key, open state) as the live call ends.
+        // The line keeps its key (LazyColumn key, open state) as the live call ends.
         val key = fold.key
         event("tool.complete", """{$start,"result":"{\"output\":\"ok\"}","is_error":false,"duration_s":0.4}""")
         val after = ToolFolding.rows(state.items).last() as TranscriptRow.Folded

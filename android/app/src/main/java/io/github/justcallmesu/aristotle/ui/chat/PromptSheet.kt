@@ -68,7 +68,10 @@ import io.github.justcallmesu.aristotle.data.chat.Prompt
 import io.github.justcallmesu.aristotle.data.chat.SecretKind
 import io.github.justcallmesu.aristotle.ui.lock.SecureWhileShown
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
+import io.github.justcallmesu.aristotle.ui.components.GroupedRowGap
+import io.github.justcallmesu.aristotle.ui.components.groupedRowShape
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
+import io.github.justcallmesu.aristotle.ui.theme.FieldShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import java.util.Locale
@@ -291,21 +294,27 @@ private fun ClarifyBody(prompt: Prompt.Clarify, busy: Boolean, armed: Boolean, a
 private fun Question(question: ClarifyQuestion, draft: Draft, busy: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text(text = question.question, style = MaterialTheme.typography.titleMedium)
-        question.choices.forEach { choice ->
-            val checked = choice in draft.picked && !(draft.otherPicked && !question.multiSelect)
-            ChoiceRow(choice, checked, question.multiSelect, busy) {
-                if (question.multiSelect) {
-                    draft.picked = if (choice in draft.picked) draft.picked - choice else draft.picked + choice
+        val showOther = question.choices.isNotEmpty() && !question.multiSelect
+        val count = question.choices.size + if (showOther) 1 else 0
+        if (count > 0) {
+            SheetChoiceGroup(count) { index ->
+                if (index < question.choices.size) {
+                    val choice = question.choices[index]
+                    val checked = choice in draft.picked && !(draft.otherPicked && !question.multiSelect)
+                    ChoiceRow(choice, checked, question.multiSelect, busy) {
+                        if (question.multiSelect) {
+                            draft.picked = if (choice in draft.picked) draft.picked - choice else draft.picked + choice
+                        } else {
+                            draft.picked = listOf(choice)
+                            draft.otherPicked = false
+                        }
+                    }
                 } else {
-                    draft.picked = listOf(choice)
-                    draft.otherPicked = false
+                    ChoiceRow(stringResource(R.string.prompt_other), draft.otherPicked, multi = false, busy = busy, muted = true) {
+                        draft.otherPicked = true
+                        draft.picked = emptyList()
+                    }
                 }
-            }
-        }
-        if (question.choices.isNotEmpty() && !question.multiSelect) {
-            ChoiceRow(stringResource(R.string.prompt_other), draft.otherPicked, multi = false, busy = busy, muted = true) {
-                draft.otherPicked = true
-                draft.picked = emptyList()
             }
         }
         val typing = question.choices.isEmpty() || question.multiSelect || draft.otherPicked
@@ -315,6 +324,7 @@ private fun Question(question: ClarifyQuestion, draft: Draft, busy: Boolean) {
                 onValueChange = { draft.other = it },
                 enabled = !busy,
                 label = { Text(stringResource(if (question.choices.isEmpty()) R.string.prompt_your_answer else R.string.prompt_other)) },
+                shape = FieldShape,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -322,7 +332,24 @@ private fun Question(question: ClarifyQuestion, draft: Draft, busy: Boolean) {
     }
 }
 
-/** A 56 dp radio or checkbox row (design.md §5 clarify sheet). */
+/**
+ * One section of choice rows for a sheet (clarify, Settings pickers): grouped rows 2 dp apart. The sheet itself is
+ * `surfaceContainerLow`, so the rows take `surfaceContainerHigh` to stay visible on it.
+ */
+@Composable
+internal fun SheetChoiceGroup(count: Int, row: @Composable (index: Int) -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(GroupedRowGap)) {
+        repeat(count) { index ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = groupedRowShape(index, count),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) { row(index) }
+        }
+    }
+}
+
+/** A 56 dp radio or checkbox row (design.md §5 clarify sheet), inside a [SheetChoiceGroup]. */
 @Composable
 private fun ChoiceRow(label: String, checked: Boolean, multi: Boolean, busy: Boolean, muted: Boolean = false, onPick: () -> Unit) {
     val rowModifier = if (multi) {
@@ -330,7 +357,7 @@ private fun ChoiceRow(label: String, checked: Boolean, multi: Boolean, busy: Boo
     } else {
         Modifier.selectable(selected = checked, enabled = !busy, role = Role.RadioButton, onClick = onPick)
     }
-    Row(modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.listRowHeight).then(rowModifier), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.listRowHeight).then(rowModifier).padding(horizontal = Spacing.l), verticalAlignment = Alignment.CenterVertically) {
         if (multi) Checkbox(checked = checked, onCheckedChange = null) else RadioButton(selected = checked, onClick = null)
         Spacer(Modifier.size(Spacing.m))
         Text(
@@ -359,11 +386,18 @@ private fun SecretBody(prompt: Prompt.Secret, busy: Boolean, armed: Boolean, act
     )
     if (prompt.label.isNotBlank()) CommandBlock(prompt.label)
     prompt.prompt?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        SecretInput(field, visible, enabled = !busy, label = stringResource(if (sudo) R.string.prompt_sudo_field else R.string.prompt_secret_field), modifier = Modifier.weight(1f))
-        val toggle = stringResource(if (visible) R.string.prompt_hide_value else R.string.prompt_show_value)
-        IconButton(onClick = { visible = !visible }, modifier = Modifier.semantics { contentDescription = toggle }) {
-            Icon(painter = painterResource(if (visible) R.drawable.ic_visibility_off else R.drawable.ic_visibility), contentDescription = null)
+    // The platform EditText sits in a FieldShape container (surfaceContainerHigh), as the other v2 fields.
+    Surface(shape = FieldShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SecretInput(
+                field, visible, enabled = !busy,
+                label = stringResource(if (sudo) R.string.prompt_sudo_field else R.string.prompt_secret_field),
+                modifier = Modifier.weight(1f).padding(start = Spacing.l),
+            )
+            val toggle = stringResource(if (visible) R.string.prompt_hide_value else R.string.prompt_show_value)
+            IconButton(onClick = { visible = !visible }, modifier = Modifier.semantics { contentDescription = toggle }) {
+                Icon(painter = painterResource(if (visible) R.drawable.ic_visibility_off else R.drawable.ic_visibility), contentDescription = null)
+            }
         }
     }
     Text(text = stringResource(R.string.prompt_secret_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -399,6 +433,7 @@ private fun SecretInput(field: SecretField, visible: Boolean, enabled: Boolean, 
             // Copy, cut and share are never offered, also with "show" on (T12 review NIT).
             SecretEditText(context).apply {
                 isSaveEnabled = false
+                background = null
                 importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
                 imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_ACTION_DONE
                 isSingleLine = true

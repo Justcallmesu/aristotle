@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.HorizontalDivider
@@ -75,7 +74,12 @@ import org.intellij.markdown.flavours.gfm.GFMTokenTypes
 private const val CURSOR_ID = "aristotle.cursor"
 private val CURSOR_WIDTH = 8.sp
 private val CURSOR_HEIGHT = 17.sp
-private val CODE_CORNER = 6.dp
+
+/**
+ * Code blocks and tables use `shapes.small` (design.md §3: code/output blocks, 12 dp Soft). The renderer's own code
+ * background takes a Dp, so this mirrors `small`; composables here draw with the shape itself.
+ */
+private val CODE_CORNER = 12.dp
 
 /**
  * Assistant text as Markdown (mikepenz multiplatform-markdown-renderer, Material 3), styled from the theme:
@@ -198,7 +202,7 @@ private fun ChatTable(model: MarkdownComponentModel) {
         Column(
             modifier = Modifier
                 .then(if (scrolls) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
-                .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(CODE_CORNER)),
+                .background(MaterialTheme.colorScheme.surfaceContainerLow, MaterialTheme.shapes.small),
         ) {
             node.children.forEach { child ->
                 when (child.type) {
@@ -229,7 +233,7 @@ private fun MonoBlock(text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Spacing.s)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(CODE_CORNER)),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small),
     ) {
         Text(
             text = text,

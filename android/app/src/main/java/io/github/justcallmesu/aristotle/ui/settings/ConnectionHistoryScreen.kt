@@ -5,6 +5,7 @@ import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -24,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -34,7 +36,9 @@ import io.github.justcallmesu.aristotle.data.LogEntry
 import io.github.justcallmesu.aristotle.data.LogKind
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.OfflineReason
+import io.github.justcallmesu.aristotle.ui.components.GroupedRowGap
 import io.github.justcallmesu.aristotle.ui.components.SubPageTopBar
+import io.github.justcallmesu.aristotle.ui.components.groupedRowShape
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import java.util.Date
@@ -57,13 +61,23 @@ fun ConnectionHistoryScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.l),
                 )
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = Spacing.listGutter, end = Spacing.listGutter, bottom = Spacing.xxl),
+                    verticalArrangement = Arrangement.spacedBy(GroupedRowGap),
+                ) {
                     item {
                         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.s), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = viewModel::clearHistory, shape = ButtonShape) { Text(stringResource(R.string.history_clear)) }
                         }
                     }
-                    items(entries) { entry -> HistoryRow(entry) }
+                    itemsIndexed(entries) { index, entry ->
+                        Surface(
+                            shape = groupedRowShape(index, entries.size),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { HistoryRow(entry) }
+                    }
                 }
             }
         }
@@ -73,7 +87,7 @@ fun ConnectionHistoryScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
 @Composable
 private fun HistoryRow(entry: LogEntry) {
     ListItem(
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         leadingContent = {
             Icon(painterResource(iconOf(entry.kind)), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         },

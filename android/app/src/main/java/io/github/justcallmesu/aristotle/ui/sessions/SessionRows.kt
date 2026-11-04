@@ -27,7 +27,15 @@ data class SessionRow(
     val pinned: Boolean = false,
     /** From the stored history: opening it resumes it, as the Desktop does (`session.resume`). */
     val stored: Boolean = false,
+    /** The Home C ledger day this row files under (phone's local date of last activity); null = no time known. */
+    val day: RowDay? = null,
 )
+
+/** Home C ledger day groups (design-notes §5.1), top to bottom. */
+enum class DayGroup { Today, Yesterday, Earlier }
+
+/** [date]: the day as the header writes it ("Wed 4 Nov"); empty for [DayGroup.Earlier], whose header has no date. */
+data class RowDay(val group: DayGroup, val date: String)
 
 /** How the history ends: more pages to load, Hermes' paging limit reached, or nothing more. */
 /** [Failed]: the history call failed (the live rows above are good); the footer offers Retry. */
@@ -92,7 +100,20 @@ fun sessionRow(session: SessionSummary, now: ZonedDateTime, today: LocalDate, lo
     running = session.running,
     messageCount = session.messageCount,
     time = rowTime(session, now, today, locale),
+    day = rowDay(session, now, today, locale),
 )
+
+private fun rowDay(session: SessionSummary, now: ZonedDateTime, today: LocalDate, locale: Locale): RowDay? {
+    val date = zoned(session, now)?.toLocalDate() ?: return null
+    val group = when (date) {
+        today -> DayGroup.Today
+        today.minusDays(1) -> DayGroup.Yesterday
+        else -> return RowDay(DayGroup.Earlier, "")
+    }
+    return RowDay(group, date.format(DateTimeFormatter.ofPattern(DAY_HEADER, locale)))
+}
+
+private const val DAY_HEADER = "EEE d MMM"
 
 private fun rowTime(session: SessionSummary, now: ZonedDateTime, today: LocalDate, locale: Locale): RowTime? {
     if (session.running) return RowTime.Now
@@ -121,3 +142,67 @@ enum class ListMenuEntry { Scheduled, Terminal, Settings }
 fun listMenuEntries(terminalAvailable: Boolean): List<ListMenuEntry> =
     if (terminalAvailable) listOf(ListMenuEntry.Scheduled, ListMenuEntry.Terminal, ListMenuEntry.Settings)
     else listOf(ListMenuEntry.Scheduled, ListMenuEntry.Settings)
+
+/** Home C (Q75): Scheduled has its own bottom-bar button, so the ⋮ menu holds Terminal (when shown) and Settings. */
+fun homeMenuEntries(terminalAvailable: Boolean): List<ListMenuEntry> = listMenuEntries(terminalAvailable) - ListMenuEntry.Scheduled
+
+/** Section headers of the Home C ledger: pinned rows, then history by day. */
+enum class LedgerSection { Pinned, Today, Yesterday, Earlier }
+
+/** One line of the Home C ledger (everything under the live cards). */
+sealed interface LedgerItem {
+    /** [date]: "Wed 4 Nov" after Today / Yesterday; null for Pinned and Earlier. */
+    data class Header(val section: LedgerSection, val date: String? = null) : LedgerItem
+    data class Row(val row: SessionRow) : LedgerItem
+    data class Footer(val end: HistoryEnd) : LedgerItem
+    data object NoMatch : LedgerItem
+}
+
+/** Home C: live sessions as cards on top, then the ledger. */
+data class HomeList(val live: List<SessionRow>, val ledger: List<LedgerItem>)
+
+/**
+ * Home C layout (design-notes §5.1) over [sessionListItems]' order: the Live section becomes the cards; Pinned stays a
+ * ledger section; History splits into Today, Yesterday and Earlier by each row's [SessionRow.day] (no day = Earlier),
+ * keeping Hermes' order inside a day. The no-match line and the history footer keep their places at the end.
+ */
+fun homeList(items: List<SessionListItem>): HomeList {
+    var section: ListSection? = null
+    val live = mutableListOf<SessionRow>()
+    val pinned = mutableListOf<SessionRow>()
+    val history = mutableListOf<SessionRow>()
+    var tail: List<LedgerItem> = emptyList()
+    for (item in items) {
+        when (item) {
+            is SessionListItem.Header -> section = item.section
+            is SessionListItem.Row -> when (section) {
+                ListSection.Pinned -> pinned += item.row
+                ListSection.Live -> live += item.row
+                ListSection.History, null -> history += item.row
+            }
+            is SessionListItem.Footer -> tail = tail + LedgerItem.Footer(item.end)
+            SessionListItem.NoMatch -> tail = tail + LedgerItem.NoMatch
+        }
+    }
+    val ledger = mutableListOf<LedgerItem>()
+    if (pinned.isNotEmpty()) {
+        ledger += LedgerItem.Header(LedgerSection.Pinned)
+        pinned.mapTo(ledger) { LedgerItem.Row(it) }
+    }
+    val byDay = history.groupBy { it.day?.group ?: DayGroup.Earlier }
+    DayGroup.entries.forEach { group ->
+        val rows = byDay[group] ?: return@forEach
+        val header = when (group) {
+            DayGroup.Today -> LedgerItem.Header(LedgerSection.Today, rows.first().day?.date)
+            DayGroup.Yesterday -> LedgerItem.Header(LedgerSection.Yesterday, rows.first().day?.date)
+            DayGroup.Earlier -> LedgerItem.Header(LedgerSection.Earlier)
+        }
+        ledger += header
+        rows.mapTo(ledger) { LedgerItem.Row(it) }
+    }
+    ledger += tail
+    return HomeList(live, ledger)
+}
+
+/** design-notes §5.1: never more than two notices; What's new waits while the offline and compatibility notices both show. */
+fun showWhatsNewNotice(offline: Boolean, incompatible: Boolean): Boolean = !(offline && incompatible)

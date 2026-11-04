@@ -88,11 +88,12 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TD2 | Redesign mockups (Q74): 3 home options, chat, model sheet (collapsible providers + search, effort slider vs segmented), settings, prompt sheet; light+dark | TU5 | docs/design | DONE (board v2) |
 | TD2b | Profile switcher redesign + Home C updated (no counts) on the v2 board | TD2 | docs/design | DONE |
 | TR1 | v2 theme: Soft shapes, grouped-row helper, stepped slider, design.md | TD2 | android | DONE |
-| TR2 | Home C (bottom app bar, live cards, time-column history, no counts) + chosen profile switcher | TR1, TD2b | android | BUILDING |
-| TR3 | Chat transcript: "N steps" line for every run of work items (Q75), assistant without bubble, cards | TR1 | android | BUILDING |
-| TR4 | Floating composer + model chip + Send/Stop/Queue/Steer | TR1 | android | BUILDING |
-| TR5 | Model sheet: search, collapsible providers, effort slider (one call per gesture) | TR1 | android | BUILDING |
-| TR6 | Settings + Connection grouped rows; prompt sheet shapes | TR1 | android | BUILDING |
+| TR2 | Home C (bottom app bar, live cards, time-column history, no counts) + chosen profile switcher | TR1, TD2b | android | DONE (device look pending) |
+| TR3 | Chat transcript: "N steps" line for every run of work items (Q75), assistant without bubble, cards | TR1 | android | DONE (device look pending) |
+| TR4 | Floating composer + model chip + Send/Stop/Queue/Steer | TR1 | android | DONE (device look pending) |
+| TR5 | Model sheet: search, collapsible providers, effort slider (one call per gesture) | TR1 | android | DONE (device look pending) |
+| TR6 | Settings + Connection grouped rows; prompt sheet shapes | TR1 | android | DONE (device look pending) |
+| TB1 | Q77: chat status stack (subagents + background processes with stop) above the composer; relay passes process.list/process.kill | TR3, TR4 | android (+server check) | BUILDING |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -409,3 +410,7 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 User: profile name label beside the icon (Q76 updated); TD2b steered.
 - 2026-11-04 TD2b done (avatar top right, name under by default; board Tweak 'Profile label' under/beside/icon). User chose BESIDE (designer preferred under: long names ellipsize earlier beside, e.g. bkm-reports-bot) -> TR2 builds beside with an ellipsized label.
 - 2026-11-04 TR1: pm-gate-53 GREEN (862); mutation (last grouped row gets middle corners) fails 1. Committed with the v2 board + notes. TR2-TR6 dispatched in parallel (disjoint files; TR2 builds the profile label BESIDE per user, ellipsized).
+- 2026-11-04 User asked for the Desktop-style subagent/background panel in chat -> Q77, TB1. VERIFIED Hermes: process.list ('desktop status stack poll', tui_gateway/contracts/tools_commands.py:121, session-scoped) and process.kill (methods_tools.py:285, session-scoped, 4044 otherwise). ASSUMED: our relay forwards them (no blocking allow-list found in server/internal/relay/phoneframe.go) — TB1 verifies.
+- 2026-11-04 User: stopping a background process needs a confirmation popup -> Q77 updated (dialog with full command + runtime, red Stop / Cancel).
+- 2026-11-04 TR2-TR6 built in parallel (gates collided on shared Gradle); PM clean gate pm-gate-54 GREEN (895). Mutations: slider commit every step fails 2, model search case-sensitive fails 1, busy extras always fails 2. Phone unplugged: device screenshots pending. Deep review of the batch dispatched.
+- 2026-11-04 TR batch review PASS-WITH-FINDINGS (behaviour preserved; Q75 correct; TH1b rule correct). Committed. PM: reasoning-only run stays '1 step' (Q75 literal). Minors 1-5 + unused resources folded into TB1 (same files). Q67 exception recorded in design.md: steps line 36 dp and step rows 44 dp rely on Compose's touch-area expansion.

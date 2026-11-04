@@ -1,7 +1,10 @@
 package io.github.justcallmesu.aristotle.ui.sessions
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,50 +21,61 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.LinkState
@@ -72,6 +85,7 @@ import io.github.justcallmesu.aristotle.data.ProfileOption
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
+import io.github.justcallmesu.aristotle.ui.theme.FieldShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -153,6 +167,10 @@ private class ViewModelSheetActions(private val vm: SessionsViewModel) : SheetAc
 /** The "Scheduled" page for the listed [profile] (null = the launch profile), named [label] on the page. */
 data class ScheduledRequest(val profile: String?, val label: String?)
 
+/**
+ * Home C (Q75, design-notes §5.1 / §5.6): a head row (wordmark, PC line, profile avatar), up to two notices, live
+ * sessions as wide cards over a one-line ledger, and a bottom app bar (search, Scheduled, ⋮, New chat).
+ */
 @Composable
 fun SessionsContentView(
     state: SessionsUiState,
@@ -176,27 +194,36 @@ fun SessionsContentView(
             actions.messageShown()
         }
     }
-    // Edge-to-edge (D8): the surface runs under both system bars; only the list scrolls under the navigation bar.
+    // Edge-to-edge (D8): the surface runs under both system bars; the bottom bar (or, while searching, the list) takes
+    // the navigation bar inset.
     val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+    val page = pageFor(state)
+    val showBar = !state.searching
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-                if (state.searching) SearchBar(state.query, actions) else TopBar(state, address, onSettings, onScheduled, actions, terminalAvailable, onTerminal)
-                val page = pageFor(state)
-                if (page != null) {
-                    Box(modifier = Modifier.windowInsetsPadding(bottom)) { ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) }
-                } else {
-                    val offline = state.link as? LinkState.Offline
-                    offline?.let { OfflineBanner(it, address, state.listedAt, timeText, onRetry) }
-                    CompatibilityBanner(pcId)
-                    whatsNew?.invoke()
-                    ListBody(state, address, bottom.asPaddingValues(), actions)
-                }
+        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+            if (state.searching) SearchHead(state.query, actions) else HomeHead(state, address, timeText, onRetry, actions)
+            if (page == null) {
+                val offline = state.link as? LinkState.Offline
+                val compatibility = compatibilityText(pcId)
+                offline?.let { OfflineNotice(it, address, state.listedAt) }
+                compatibility?.let { CompatibilityNotice(it) }
+                if (showWhatsNewNotice(offline = offline != null, incompatible = compatibility != null)) whatsNew?.invoke()
             }
-            if (!state.searching && state.link is LinkState.Online && pageFor(state) == null) {
-                NewSessionButton(busy = state.creating, onClick = actions::newSession, modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(bottom))
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().then(if (showBar) Modifier else Modifier.windowInsetsPadding(bottom))) {
+                if (page != null) ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) else ListBody(state, address, actions)
+                SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
             }
-            SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(bottom))
+            if (showBar) {
+                HomeBottomBar(
+                    state = state,
+                    newChat = state.link is LinkState.Online && page == null,
+                    onScheduled = onScheduled,
+                    onSettings = onSettings,
+                    actions = actions,
+                    terminalAvailable = terminalAvailable,
+                    onTerminal = onTerminal,
+                )
+            }
         }
     }
 }
@@ -214,145 +241,90 @@ private fun pageFor(state: SessionsUiState): Page? = when (val link = state.link
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ListBody(state: SessionsUiState, address: String, insets: PaddingValues, actions: ListActions) {
+private fun ListBody(state: SessionsUiState, address: String, actions: ListActions) {
     val items = state.items
     when {
         items == null -> if (state.link !is LinkState.Offline) ConnectingBody(address)
         items.isEmpty() -> EmptyBody()
         else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions::refresh, modifier = Modifier.fillMaxSize()) {
-            SessionList(items, state.searching, state.staleAt, insets, actions)
+            HomeListView(items, state.searching, state.staleAt, actions)
         }
     }
 }
 
+/** Home C head (§5.1): not a TopAppBar; wordmark + PC line, the profile avatar at the end, top-aligned. */
 @Composable
-private fun TopBar(
-    state: SessionsUiState,
-    address: String,
-    onSettings: () -> Unit,
-    onScheduled: (ScheduledRequest) -> Unit,
-    actions: ListActions,
-    terminalAvailable: Boolean,
-    onTerminal: () -> Unit,
-) {
+private fun HomeHead(state: SessionsUiState, address: String, timeText: (Long) -> String, onRetry: () -> Unit, actions: ListActions) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = Sizes.topBarHeight)
-            .padding(start = Spacing.l, end = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.s, top = Spacing.m, bottom = Spacing.xs),
+        verticalAlignment = Alignment.Top,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = stringResource(R.string.app_name), style = AristotleTextStyles.wordmark)
-            ConnectionLine(state.link, address)
+            Text(text = stringResource(R.string.app_name), style = homeWordmark(), maxLines = 1)
+            PcLine(state.link, address, timeText, onRetry)
         }
-        state.profileName?.let { ProfileChip(it, enabled = state.link is LinkState.Online, onClick = actions::openProfiles) }
-        IconButton(onClick = actions::openSearch, enabled = state.items != null) {
-            Icon(painter = painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.sessions_search), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        OverflowMenu(
-            entries = listMenuEntries(terminalAvailable),
-            onEntry = { entry ->
-                when (entry) {
-                    // T18: the listed profile's Hermes cron jobs.
-                    ListMenuEntry.Scheduled -> onScheduled(ScheduledRequest(state.profile, state.profileName))
-                    ListMenuEntry.Terminal -> onTerminal()
-                    ListMenuEntry.Settings -> onSettings()
-                }
-            },
-        )
-    }
-}
-
-/** Q70: the ⋮ menu holding Scheduled, Terminal (only when shown) and Settings. */
-@Composable
-private fun OverflowMenu(entries: List<ListMenuEntry>, onEntry: (ListMenuEntry) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) {
-            Icon(painter = painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.sessions_more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            entries.forEach { entry ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            stringResource(
-                                when (entry) {
-                                    ListMenuEntry.Scheduled -> R.string.cron_open
-                                    ListMenuEntry.Terminal -> R.string.terminal_open
-                                    ListMenuEntry.Settings -> R.string.settings_title
-                                },
-                            ),
-                        )
-                    },
-                    onClick = { open = false; onEntry(entry) },
-                )
-            }
-        }
-    }
-}
-
-/** design.md §5 profile chip: `FilterChip`, small shape, the active profile's name only; opens the switcher. */
-@Composable
-private fun ProfileChip(name: String, enabled: Boolean, onClick: () -> Unit) {
-    val description = stringResource(R.string.sessions_profile_description, name)
-    // Mockup `.chip`: 32 dp, 1 dp outlineVariant border, 14/600 label, 12 start / 8 end, 18 dp trailing icon.
-    FilterChip(
-        selected = false,
-        onClick = onClick,
-        enabled = enabled,
-        label = { Text(text = name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        trailingIcon = {
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_drop_down),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(Sizes.chipIcon),
+        state.profileName?.let {
+            ProfileAvatarButton(
+                name = it,
+                enabled = state.link is LinkState.Online,
+                onClick = actions::openProfiles,
+                modifier = Modifier.padding(start = Spacing.s),
             )
-        },
-        shape = MaterialTheme.shapes.small,
-        colors = FilterChipDefaults.filterChipColors(),
-        border = FilterChipDefaults.filterChipBorder(enabled = enabled, selected = false, borderColor = MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.semantics { contentDescription = description },
-    )
+        }
+    }
 }
 
-/** The search field replaces the top bar; it filters the titles loaded on this phone (the relay has no search). */
+/** Literata 600 at 28 / 36 (the wordmark token is 22 / 28), kept at the app's text size. */
 @Composable
-private fun SearchBar(query: String, actions: ListActions) {
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+private fun homeWordmark(): TextStyle {
+    val base = AristotleTextStyles.wordmark
+    return base.copy(fontSize = base.fontSize * WORDMARK_SIZE_SCALE, lineHeight = base.lineHeight * WORDMARK_LINE_SCALE)
+}
+
+/**
+ * "100.74.61.96 · via Tailscale" / "… · via Wi-Fi"; offline: cloud-off icon, "Offline since HH:MM" and an inline
+ * Retry now (§5.1 PC line states). The offline notice under the head carries the cause and the retry countdown.
+ */
+@Composable
+private fun PcLine(link: LinkState, address: String, timeText: (Long) -> String, onRetry: () -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val lineStyle = MaterialTheme.typography.bodySmall
+    if (link is LinkState.Offline) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Icon(painter = painterResource(R.drawable.ic_cloud_off), contentDescription = null, tint = muted, modifier = Modifier.size(Sizes.lineIcon))
+            Text(
+                text = stringResource(R.string.sessions_offline_since, timeText(link.sinceMillis)),
+                style = AristotleTextStyles.tabular(lineStyle),
+                color = muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).semantics { liveRegion = LiveRegionMode.Polite },
+            )
+            TextButton(onClick = onRetry, shape = ButtonShape, contentPadding = RETRY_PADDING) { Text(stringResource(R.string.conn_retry_now)) }
+        }
+        return
+    }
+    val text = when {
+        link is LinkState.Online && link.endpoint.network == Network.Tailscale -> stringResource(R.string.sessions_via_tailscale, address)
+        link is LinkState.Online -> stringResource(R.string.sessions_via_wifi, address)
+        else -> address
+    }
+    Text(text = text, style = lineStyle, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/** Search mode replaces the head: back, then a filled search field (§5.1 field: FieldShape, surfaceContainerHigh). */
+@Composable
+private fun SearchHead(query: String, actions: ListActions) {
     val colors = MaterialTheme.colorScheme
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.topBarHeight).padding(horizontal = Spacing.xs),
+            modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.topBarHeight).padding(start = Spacing.xs, end = Spacing.l),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = actions::closeSearch) {
                 Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.sessions_search_close), tint = colors.onSurfaceVariant)
             }
-            val description = stringResource(R.string.sessions_search)
-            BasicTextField(
-                value = query,
-                onValueChange = actions::search,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
-                cursorBrush = SolidColor(colors.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier.weight(1f).focusRequester(focus).semantics { contentDescription = description },
-                decorationBox = { inner ->
-                    Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.padding(horizontal = Spacing.s)) {
-                        if (query.isEmpty()) Text(stringResource(R.string.sessions_search), style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
-                        inner()
-                    }
-                },
-            )
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { actions.search("") }) {
-                    Icon(painter = painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.sessions_search_clear), tint = colors.onSurfaceVariant)
-                }
-            }
+            SearchField(query, actions, Modifier.weight(1f))
         }
         Text(
             text = stringResource(R.string.sessions_search_scope),
@@ -363,32 +335,48 @@ private fun SearchBar(query: String, actions: ListActions) {
     }
 }
 
-/** "192.168.1.23 · via Wi-Fi", "… · via Tailscale", or "… · offline" with the cloud-off icon. */
+/** Filters the titles loaded on this phone (the relay has no search); focused = 2 dp primary ring (§4). */
 @Composable
-private fun ConnectionLine(link: LinkState, address: String) {
-    val offline = link is LinkState.Offline
-    val text = when {
-        link is LinkState.Online && link.endpoint.network == Network.Tailscale -> stringResource(R.string.sessions_via_tailscale, address)
-        link is LinkState.Online -> stringResource(R.string.sessions_via_wifi, address)
-        offline -> stringResource(R.string.sessions_offline_line, address)
-        else -> address
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        if (offline) {
-            Icon(
-                painter = painterResource(R.drawable.ic_cloud_off),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(Sizes.lineIcon),
+private fun SearchField(query: String, actions: ListActions, modifier: Modifier = Modifier) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    var focused by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    val description = stringResource(R.string.sessions_search)
+    Surface(
+        shape = FieldShape,
+        color = colors.surfaceContainerHigh,
+        border = if (focused) BorderStroke(FOCUS_RING, colors.primary) else null,
+        modifier = modifier,
+    ) {
+        Row(modifier = Modifier.heightIn(min = Sizes.minTouchTarget).padding(start = Spacing.m), verticalAlignment = Alignment.CenterVertically) {
+            Icon(painter = painterResource(R.drawable.ic_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(Sizes.fieldIcon))
+            BasicTextField(
+                value = query,
+                onValueChange = actions::search,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = Spacing.m)
+                    .focusRequester(focus)
+                    .onFocusChanged { focused = it.isFocused }
+                    .semantics { contentDescription = description },
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (query.isEmpty()) Text(description, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant, maxLines = 1)
+                        inner()
+                    }
+                },
             )
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { actions.search("") }) {
+                    Icon(painter = painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.sessions_search_clear), tint = colors.onSurfaceVariant)
+                }
+            }
         }
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -417,18 +405,21 @@ private fun EmptyBody() {
 
 /** [staleAt]: the list is from that time and the link is not up, so nothing reads as live (design.md §5). */
 @Composable
-private fun SessionList(items: List<SessionListItem>, searching: Boolean, staleAt: String?, insets: PaddingValues, actions: ListActions) {
+private fun HomeListView(items: List<SessionListItem>, searching: Boolean, staleAt: String?, actions: ListActions) {
     val list = rememberLazyListState()
     LoadMoreAtTheEnd(list, items, searching, actions::loadMore)
-    // Room under the last row for the extended FAB (56 dp + its 16 dp margin).
-    val padding = PaddingValues(bottom = insets.calculateBottomPadding() + FAB_CLEARANCE)
-    LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-        items(items, key = ::itemKey) { item ->
+    val home = remember(items) { homeList(items) }
+    LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.l)) {
+        if (home.live.isNotEmpty()) {
+            item(key = "live-header") { SectionHeader(stringResource(R.string.sessions_section_live_now)) }
+            item(key = "live-cards") { LiveCards(home.live, staleAt, actions) }
+        }
+        items(home.ledger, key = ::ledgerKey) { item ->
             when (item) {
-                is SessionListItem.Header -> SectionHeader(item.section)
-                is SessionListItem.Row -> SessionRowItem(item.row, staleAt, actions)
-                is SessionListItem.Footer -> HistoryFooter(item.end, actions::loadMore, actions::retryHistory)
-                SessionListItem.NoMatch -> QuietLine(stringResource(R.string.sessions_search_none))
+                is LedgerItem.Header -> LedgerHeader(item)
+                is LedgerItem.Row -> LedgerRow(item.row, staleAt, actions)
+                is LedgerItem.Footer -> HistoryFooter(item.end, actions::loadMore, actions::retryHistory)
+                LedgerItem.NoMatch -> QuietLine(stringResource(R.string.sessions_search_none))
             }
         }
     }
@@ -447,109 +438,173 @@ private fun LoadMoreAtTheEnd(list: LazyListState, items: List<SessionListItem>, 
     }
 }
 
-private fun itemKey(item: SessionListItem): String = when (item) {
-    is SessionListItem.Header -> "header-${item.section}"
-    is SessionListItem.Row -> "row-${item.row.key}"
-    is SessionListItem.Footer -> "footer"
-    SessionListItem.NoMatch -> "no-match"
+private fun ledgerKey(item: LedgerItem): String = when (item) {
+    is LedgerItem.Header -> "header-${item.section}"
+    is LedgerItem.Row -> "row-${item.row.key}"
+    is LedgerItem.Footer -> "footer"
+    LedgerItem.NoMatch -> "no-match"
+}
+
+/** `labelMedium` `onSurfaceVariant` section header on the 16 dp gutter; Pinned carries a 16 dp pin (board `.sec`). */
+@Composable
+private fun SectionHeader(text: String, pinned: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Spacing.listGutter, end = Spacing.listGutter, top = Spacing.l, bottom = Spacing.s)
+            .semantics(mergeDescendants = true) { heading() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+    ) {
+        if (pinned) {
+            Icon(
+                painter = painterResource(R.drawable.ic_push_pin),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(SECTION_ICON),
+            )
+        }
+        Text(text = text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable
-private fun SectionHeader(section: ListSection) {
-    Text(
-        text = stringResource(
-            when (section) {
-                ListSection.Pinned -> R.string.sessions_section_pinned
-                ListSection.Live -> R.string.sessions_section_live
-                ListSection.History -> R.string.sessions_section_history
-            },
-        ),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .padding(start = Spacing.listGutter, end = Spacing.listGutter, top = Spacing.l, bottom = Spacing.s)
-            .semantics { heading() },
-    )
+private fun LedgerHeader(header: LedgerItem.Header) {
+    val date = header.date.orEmpty()
+    when (header.section) {
+        LedgerSection.Pinned -> SectionHeader(stringResource(R.string.sessions_section_pinned), pinned = true)
+        LedgerSection.Today -> SectionHeader(stringResource(R.string.sessions_section_today, date))
+        LedgerSection.Yesterday -> SectionHeader(stringResource(R.string.sessions_section_yesterday, date))
+        LedgerSection.Earlier -> SectionHeader(stringResource(R.string.sessions_section_earlier))
+    }
 }
 
-/** design.md §5 session row: 72 dp, title + one status line, trailing time, pin as leading icon. Long press: actions. */
+/** §5.1 live cards: 300 dp wide, snapping to the start, 12 dp apart on the 16 dp gutter. */
+@Composable
+private fun LiveCards(rows: List<SessionRow>, staleAt: String?, actions: ListActions) {
+    val cards = rememberLazyListState()
+    LazyRow(
+        state = cards,
+        flingBehavior = rememberSnapFlingBehavior(cards, SnapPosition.Start),
+        contentPadding = PaddingValues(start = Spacing.listGutter, end = Spacing.listGutter, top = Spacing.xs, bottom = Spacing.s),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+    ) {
+        items(rows, key = { "card-${it.key}" }) { row -> LiveCard(row, staleAt, actions) }
+    }
+}
+
+/**
+ * One live session (`large`, `surfaceContainerLow`): status + time, the title in two lines, and the message count at
+ * the foot (the relay lists no step number, approval or last step, so those parts of the board's card are absent).
+ * Tap opens; long press opens the row's actions, as on the ledger.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SessionRowItem(row: SessionRow, staleAt: String?, actions: ListActions) {
+private fun LiveCard(row: SessionRow, staleAt: String?, actions: ListActions) {
     val more = stringResource(R.string.session_actions)
-    // A plain Row, not ListItem: M3 centres the trailing slot, the mockup top-aligns the time with the title (L3).
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.width(CARD_WIDTH).heightIn(min = CARD_MIN_HEIGHT),
+    ) {
+        Column(
+            modifier = Modifier
+                .combinedClickable(onClick = { actions.open(row) }, onLongClick = { actions.showActions(row) }, role = Role.Button)
+                .semantics { onLongClick(label = more) { actions.showActions(row); true } }
+                .padding(horizontal = Spacing.l, vertical = CARD_VERTICAL_PADDING),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+                    CardStatus(row, staleAt, Modifier.weight(1f))
+                    row.time?.let { RowTimeText(it, staleAt, AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall)) }
+                }
+                Text(
+                    text = row.title ?: stringResource(R.string.session_untitled),
+                    style = AristotleTextStyles.chatTitle,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = pluralStringResource(R.plurals.session_messages, row.messageCount, row.messageCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(top = CARD_GAP),
+            )
+        }
+    }
+}
+
+/** Running: spinner + "Running" (tertiary); listed while offline: "Was running at HH:MM"; idle: nothing. */
+@Composable
+private fun CardStatus(row: SessionRow, staleAt: String?, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+        if (row.running && staleAt != null) {
+            Text(
+                text = stringResource(R.string.session_was_running, staleAt),
+                style = AristotleTextStyles.liveStatusSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else if (row.running) {
+            RunningSpinner()
+            Text(
+                text = stringResource(R.string.session_running),
+                style = AristotleTextStyles.liveStatusSmall,
+                color = MaterialTheme.colorScheme.tertiary,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/** §5.1 ledger row: one line, 52 dp; a 56 dp time column (today/yesterday a clock, earlier a date) + the title. No count (Q75). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun LedgerRow(row: SessionRow, staleAt: String?, actions: ListActions) {
+    val more = stringResource(R.string.session_actions)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = { actions.open(row) }, onLongClick = { actions.showActions(row) }, role = Role.Button)
             .semantics { onLongClick(label = more) { actions.showActions(row); true } }
-            .heightIn(min = Sizes.sessionRowHeight)
-            .padding(horizontal = Spacing.listGutter, vertical = Spacing.s),
+            .heightIn(min = LEDGER_ROW_HEIGHT)
+            .padding(horizontal = Spacing.listGutter, vertical = LEDGER_VERTICAL_PADDING),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (row.pinned) {
-            Icon(
-                painter = painterResource(R.drawable.ic_push_pin),
-                contentDescription = stringResource(R.string.session_pinned),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = Spacing.l).size(Sizes.chipIcon),
-            )
+        Box(modifier = Modifier.padding(end = Spacing.xs).widthIn(min = TIME_COLUMN)) {
+            row.time?.let { RowTimeText(it, staleAt, ledgerTimeStyle()) }
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = row.title ?: stringResource(R.string.session_untitled),
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            RowStatus(row, staleAt)
-        }
-        row.time?.let { time ->
-            Column(modifier = Modifier.padding(start = Spacing.l).align(Alignment.Top)) {
-                RowTimeText(time, staleAt, Modifier.padding(top = Spacing.xs))
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowStatus(row: SessionRow, staleAt: String?) {
-    if (row.running && staleAt != null) {
         Text(
-            text = stringResource(R.string.session_was_running, staleAt),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = row.title ?: stringResource(R.string.session_untitled),
+            style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
-        )
-    } else if (row.running) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-            RunningSpinner()
-            Text(
-                text = stringResource(R.string.session_running),
-                style = AristotleTextStyles.liveStatus,
-                color = MaterialTheme.colorScheme.tertiary,
-                maxLines = 1,
-            )
-        }
-    } else {
-        Text(
-            text = pluralStringResource(R.plurals.session_messages, row.messageCount, row.messageCount),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
+/** bodyMedium at 13 sp (it is 14), tabular, kept at the app's text size. */
 @Composable
-private fun RowTimeText(time: RowTime, staleAt: String?, modifier: Modifier = Modifier) {
+private fun ledgerTimeStyle(): TextStyle {
+    val base = MaterialTheme.typography.bodyMedium
+    return AristotleTextStyles.tabular(base.copy(fontSize = base.fontSize * LEDGER_TIME_SCALE))
+}
+
+@Composable
+private fun RowTimeText(time: RowTime, staleAt: String?, style: TextStyle, modifier: Modifier = Modifier) {
     Text(
         text = when (time) {
             RowTime.Now -> staleAt ?: stringResource(R.string.session_now)
             is RowTime.At -> time.text
         },
-        style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
+        style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
         modifier = modifier,
     )
 }
@@ -593,16 +648,97 @@ private fun QuietLine(text: String) {
     )
 }
 
-/** design.md §3/§4: extended FAB, `large` shape, the only shadowed control on the list. Shown only while online. */
+/**
+ * §5.1 bottom app bar (`surfaceContainer`, icons `onSurfaceVariant`): search, Scheduled, ⋮ (Terminal when shown,
+ * Settings), and the New chat FAB while online with the list showing. Settings stays reachable on every page.
+ */
 @Composable
-private fun NewSessionButton(busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    ExtendedFloatingActionButton(
-        onClick = { if (!busy) onClick() },
-        icon = { Icon(painter = painterResource(R.drawable.ic_add), contentDescription = null) },
-        text = { Text(stringResource(if (busy) R.string.sessions_new_busy else R.string.sessions_new)) },
-        shape = MaterialTheme.shapes.large,
-        modifier = modifier.padding(Spacing.l),
+private fun HomeBottomBar(
+    state: SessionsUiState,
+    newChat: Boolean,
+    onScheduled: (ScheduledRequest) -> Unit,
+    onSettings: () -> Unit,
+    actions: ListActions,
+    terminalAvailable: Boolean,
+    onTerminal: () -> Unit,
+) {
+    val icons = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    // T18: the listed profile's Hermes cron jobs.
+    val scheduled = { onScheduled(ScheduledRequest(state.profile, state.profileName)) }
+    BottomAppBar(
+        actions = {
+            IconButton(onClick = actions::openSearch, enabled = state.items != null, colors = icons) {
+                Icon(painter = painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.sessions_search))
+            }
+            IconButton(onClick = scheduled, colors = icons) {
+                Icon(painter = painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.cron_open))
+            }
+            OverflowMenu(
+                entries = homeMenuEntries(terminalAvailable),
+                colors = icons,
+                onEntry = { entry ->
+                    when (entry) {
+                        ListMenuEntry.Scheduled -> scheduled()
+                        ListMenuEntry.Terminal -> onTerminal()
+                        ListMenuEntry.Settings -> onSettings()
+                    }
+                },
+            )
+        },
+        floatingActionButton = if (newChat) {
+            { NewChatButton(busy = state.creating, onClick = actions::newSession) }
+        } else {
+            null
+        },
+        windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom),
     )
+}
+
+/** The ⋮ menu (`surfaceContainerHigh`, `medium`, 1 dp `outlineVariant` border; TU1 S6). */
+@Composable
+private fun OverflowMenu(entries: List<ListMenuEntry>, colors: IconButtonColors, onEntry: (ListMenuEntry) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, colors = colors) {
+            Icon(painter = painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.sessions_more))
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = MaterialTheme.shapes.medium,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(Sizes.divider, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            entries.forEach { entry ->
+                val (icon, label) = when (entry) {
+                    ListMenuEntry.Scheduled -> R.drawable.ic_schedule to R.string.cron_open
+                    ListMenuEntry.Terminal -> R.drawable.ic_terminal to R.string.terminal_open
+                    ListMenuEntry.Settings -> R.drawable.ic_settings to R.string.settings_title
+                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    leadingIcon = { Icon(painter = painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = { open = false; onEntry(entry) },
+                )
+            }
+        }
+    }
+}
+
+/** §5.1 FAB in the bottom bar: `large` shape, `primaryContainer`, no shadow inside the bar. Shown only while online. */
+@Composable
+private fun NewChatButton(busy: Boolean, onClick: () -> Unit) {
+    val label = stringResource(if (busy) R.string.sessions_new_busy else R.string.sessions_new_chat)
+    FloatingActionButton(
+        onClick = { if (!busy) onClick() },
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
+        modifier = Modifier.semantics { contentDescription = label },
+    ) {
+        if (busy) RunningSpinner() else Icon(painter = painterResource(R.drawable.ic_add), contentDescription = null)
+    }
 }
 
 @Composable
@@ -612,4 +748,17 @@ private fun sessionsMessage(message: SessionsMessage): String = when (message) {
     is SessionsMessage.ProfileFellBack -> stringResource(R.string.sessions_profile_fell_back, message.name)
 }
 
-private val FAB_CLEARANCE = Sizes.minTouchTarget + Spacing.xxl + Spacing.l
+// Home C tokens (design-notes §5.1 / board `.bighead`, `.lcard`, `.ledger`) not in the theme.
+private const val WORDMARK_SIZE_SCALE = 28f / 22f
+private const val WORDMARK_LINE_SCALE = 36f / 28f
+private const val LEDGER_TIME_SCALE = 13f / 14f
+private val CARD_WIDTH = 300.dp
+private val CARD_MIN_HEIGHT = 132.dp
+private val CARD_VERTICAL_PADDING = 14.dp
+private val CARD_GAP = 6.dp
+private val LEDGER_ROW_HEIGHT = 52.dp
+private val LEDGER_VERTICAL_PADDING = 14.dp
+private val TIME_COLUMN = 56.dp
+private val SECTION_ICON = 16.dp
+private val FOCUS_RING = 2.dp
+private val RETRY_PADDING = PaddingValues(horizontal = Spacing.s, vertical = ButtonDefaults.TextButtonContentPadding.calculateTopPadding())

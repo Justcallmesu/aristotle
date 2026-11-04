@@ -3,7 +3,9 @@ package io.github.justcallmesu.aristotle.ui.settings
 import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,33 +58,53 @@ internal fun ConnectionSection(viewModel: SettingsViewModel, pc: PcCredentials, 
     val keepConnected by viewModel.keepConnected.collectAsStateWithLifecycle()
     val find by viewModel.find.collectAsStateWithLifecycle()
     val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
-    SettingRow(title = ConnectionRows.pcLabel(pc), body = linkStatus(link))
-    FingerprintBlock(pc)
-    SubHeader(stringResource(R.string.settings_saved_addresses))
     val rows = ConnectionRows.addresses(pc, link)
     val now = System.currentTimeMillis()
-    rows.forEach { row -> SavedAddressRow(row, now, onDelete = { viewModel.askDelete(row.endpoint) }) }
-    SettingRow(
-        title = stringResource(R.string.settings_history),
-        body = stringResource(R.string.settings_history_body),
-        modifier = Modifier.clickable(onClick = onHistory),
+    val pin = runCatching { pc.pin }.getOrNull()
+    // PC and fingerprint: one block (name + link state, then the pinned fingerprint, as on pairing).
+    RowGroup(
+        buildList<@Composable () -> Unit> {
+            add { PcRow(ConnectionRows.pcLabel(pc), linkStatus(link)) }
+            if (pin != null) add { FingerprintBlock(pin) }
+        },
     )
-    FindPcRow(find, onFind = viewModel::findPc)
-    SwitchRow(
-        title = stringResource(R.string.settings_keep_connected),
-        body = stringResource(R.string.settings_keep_connected_body),
-        checked = keepConnected,
-        onChange = viewModel::setKeepConnected,
-    )
-    SettingRow(
-        title = stringResource(R.string.settings_repair),
-        body = stringResource(R.string.settings_repair_body),
-        modifier = Modifier.clickable(onClick = onRepair),
-    )
-    SettingRow(
-        title = stringResource(R.string.settings_unpair),
-        body = stringResource(R.string.settings_unpair_body),
-        modifier = Modifier.clickable { viewModel.show(SettingsSheet.Unpair) },
+    SubHeader(stringResource(R.string.settings_saved_addresses))
+    RowGroup(rows.map { row -> { SavedAddressRow(row, now, onDelete = { viewModel.askDelete(row.endpoint) }) } })
+    FindPcBlock(find, onFind = viewModel::findPc)
+    RowGroup(
+        listOf(
+            {
+                SettingRow(
+                    title = stringResource(R.string.settings_history),
+                    body = stringResource(R.string.settings_history_body),
+                    modifier = Modifier.clickable(onClick = onHistory),
+                )
+            },
+            {
+                SwitchRow(
+                    title = stringResource(R.string.settings_keep_connected),
+                    body = stringResource(R.string.settings_keep_connected_body),
+                    checked = keepConnected,
+                    onChange = viewModel::setKeepConnected,
+                )
+            },
+            {
+                SettingRow(
+                    title = stringResource(R.string.settings_repair),
+                    body = stringResource(R.string.settings_repair_body),
+                    modifier = Modifier.clickable(onClick = onRepair),
+                )
+            },
+            {
+                // The only red on the page.
+                SettingRow(
+                    title = stringResource(R.string.settings_unpair),
+                    body = stringResource(R.string.settings_unpair_body),
+                    titleColor = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.clickable { viewModel.show(SettingsSheet.Unpair) },
+                )
+            },
+        ),
     )
     rows.firstOrNull { it.endpoint == pendingDelete }?.let { row ->
         DeleteAddressDialog(row, onConfirm = viewModel::confirmDelete, onDismiss = viewModel::cancelDelete)
@@ -94,6 +117,7 @@ private fun SavedAddressRow(row: AddressRow, now: Long, onDelete: () -> Unit) {
     val address = row.endpoint.displayAddress
     SettingRow(
         title = address,
+        titleStyle = AristotleTextStyles.codeInline,
         body = addressLine(row, now),
         trailing = {
             IconButton(onClick = onDelete, enabled = row.deletable) {
@@ -141,32 +165,37 @@ private fun DeleteAddressDialog(row: AddressRow, onConfirm: () -> Unit, onDismis
     )
 }
 
-/** design.md §5 fingerprint card: `medium`, `surfaceContainerLow`, the same 4 × 4 grid as on pairing. The pin is public. */
+/** The paired PC: its name in `titleMedium` and the link state under it. */
 @Composable
-private fun FingerprintBlock(pc: PcCredentials) {
-    val pin = runCatching { pc.pin }.getOrNull() ?: return
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.listGutter, vertical = Spacing.s),
-    ) {
-        Column(modifier = Modifier.padding(Spacing.l)) {
-            Text(text = stringResource(R.string.settings_fingerprint), style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(Spacing.xs))
-            Text(
-                text = stringResource(R.string.settings_fingerprint_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(Spacing.m))
-            FingerprintGrid(pin)
-        }
+private fun PcRow(name: String, status: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.m)) {
+        Text(text = name, style = MaterialTheme.typography.titleMedium)
+        Text(text = status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** "Find PC on this Wi-Fi" (Q65): only on a tap. The body is the progress, then the result, announced as it changes. */
+/** The pinned fingerprint, the same 4 × 4 grid as on pairing, inside a grouped row. The pin is public. */
 @Composable
-private fun FindPcRow(find: FindState, onFind: () -> Unit) {
+private fun FingerprintBlock(pin: ByteArray) {
+    Column(modifier = Modifier.fillMaxWidth().padding(Spacing.l)) {
+        Text(text = stringResource(R.string.settings_fingerprint), style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(Spacing.xs))
+        Text(
+            text = stringResource(R.string.settings_fingerprint_body),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.m))
+        FingerprintGrid(pin)
+    }
+}
+
+/**
+ * "Find PC on this Wi-Fi" (Q65): a `FilledTonalButton` and one line under it. Only on a tap. The line is the progress,
+ * then the result, announced as it changes.
+ */
+@Composable
+private fun FindPcBlock(find: FindState, onFind: () -> Unit) {
     val looking = find is FindState.Looking
     val body = when (find) {
         FindState.Idle -> stringResource(R.string.settings_find_pc_body)
@@ -175,18 +204,21 @@ private fun FindPcRow(find: FindState, onFind: () -> Unit) {
         FindState.NotFound -> stringResource(R.string.settings_find_pc_not_found)
         FindState.CantScan -> stringResource(R.string.settings_find_pc_cant_scan)
     }
-    SettingRow(
-        title = stringResource(R.string.settings_find_pc),
-        body = body,
-        modifier = Modifier
-            .clickable(enabled = !looking, onClick = onFind)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-        trailing = if (looking) {
-            { RunningSpinner() }
-        } else {
-            null
-        },
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+        FilledTonalButton(onClick = onFind, enabled = !looking, shape = ButtonShape) {
+            if (looking) {
+                RunningSpinner()
+                Spacer(Modifier.width(Spacing.s))
+            }
+            Text(stringResource(R.string.settings_find_pc))
+        }
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
 }
 
 @Composable
@@ -195,7 +227,7 @@ private fun SubHeader(text: String) {
         text = text,
         style = MaterialTheme.typography.titleSmall,
         modifier = Modifier
-            .padding(start = Spacing.listGutter, end = Spacing.listGutter, top = Spacing.l, bottom = Spacing.xs)
+            .padding(horizontal = Spacing.xs)
             .semantics { heading() },
     )
 }
@@ -264,7 +296,7 @@ internal fun UnpairDialog(deviceId: String, onConfirm: () -> Unit, onDismiss: ()
             Column {
                 Text(stringResource(R.string.settings_unpair_text))
                 Spacer(Modifier.height(Spacing.m))
-                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
                     SelectionContainer {
                         Text(
                             text = ConnectionRows.revokeCommand(deviceId),

@@ -16,15 +16,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,17 +34,20 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.R
@@ -69,7 +70,7 @@ const val OUTPUT_PREVIEW_LINES = 40
 private const val BUBBLE_MAX_FRACTION = 0.82f
 private const val TURNED = 180f
 
-/** Expand state of the rows that fold (reasoning, tool cards), kept by the screen. */
+/** Expand state of the rows that fold (steps lines, step rows, outputs, notification cards), kept by the screen. */
 interface FoldState {
     fun isOpen(key: String, default: Boolean): Boolean
     fun toggle(key: String, default: Boolean)
@@ -84,7 +85,7 @@ val RowGap.size: Dp
         RowGap.Turn -> Spacing.chatTurnGap
     }
 
-/** A transcript row ([ToolFolding]): one chat item, or a run of tool calls folded into one card (Q68). */
+/** A transcript row ([ToolFolding]): one chat item, or a run of work items folded into one "N steps" line (Q75). */
 @Composable
 fun TranscriptRowView(
     row: TranscriptRow,
@@ -96,81 +97,11 @@ fun TranscriptRowView(
 ) {
     when (row) {
         is TranscriptRow.Single -> ChatRow(row.item, folds, lastFailedTool, live, attachmentsOf, onOpenSubagent)
-        is TranscriptRow.Folded -> FoldedToolsCard(row, folds, lastFailedTool, live, attachmentsOf, onOpenSubagent)
+        is TranscriptRow.Folded -> StepsBlock(row, folds, lastFailedTool, live)
     }
 }
 
-/**
- * Q68: "N tool calls · last: <name>" as one tool card, collapsed by default; open, the single cards follow it 4 dp apart.
- * The header keeps the spinner while a call in it runs (live only) and says "Failed" when one failed.
- */
-@Composable
-private fun FoldedToolsCard(
-    group: TranscriptRow.Folded,
-    folds: FoldState,
-    lastFailedTool: String?,
-    live: Boolean,
-    attachmentsOf: (ChatItem.User) -> List<UserAttachment>,
-    onOpenSubagent: ((String) -> Unit)?,
-) {
-    val open = folds.isOpen(group.key, default = false)
-    val last = group.last
-    val count = group.tools.size
-    val label = pluralStringResource(R.plurals.chat_tool_group, count, count, last.name)
-    val nameStyle = AristotleTextStyles.toolName.toSpanStyle().copy(color = MaterialTheme.colorScheme.onSurface)
-    val text = remember(label, last.name, nameStyle) {
-        buildAnnotatedString {
-            append(label)
-            val at = label.lastIndexOf(last.name)
-            if (at >= 0) addStyle(nameStyle, at, at + last.name.length)
-        }
-    }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-            FoldHeader(
-                open = open,
-                onToggle = { folds.toggle(group.key, default = false) },
-                minHeight = Sizes.minTouchTarget,
-                modifier = Modifier.padding(horizontal = Spacing.m),
-            ) {
-                Icon(
-                    painter = painterResource(toolIconRes(last.name)),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(Sizes.toolIcon),
-                )
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
-                    if (live && group.running) {
-                        val running = stringResource(R.string.chat_tool_running)
-                        RunningSpinner(modifier = Modifier.semantics { stateDescription = running })
-                    }
-                    // Red only on surfaceContainerLow (design.md §1 contrast trap).
-                    if (group.failed) {
-                        Text(text = stringResource(R.string.chat_tool_failed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                Chevron(open)
-            }
-        }
-        Fold(open) {
-            Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.chatWorkGap), verticalArrangement = Arrangement.spacedBy(Spacing.chatWorkGap)) {
-                for (item in group.items) {
-                    key(item.key) { ChatRow(item, folds, lastFailedTool, live, attachmentsOf, onOpenSubagent) }
-                }
-            }
-        }
-    }
-}
-
-/** [live]: the cursor and tool spinners show only then ([ChatLive]). */
+/** [live]: the cursor and the running spinners show only then ([ChatLive]). */
 @Composable
 fun ChatRow(
     item: ChatItem,
@@ -185,16 +116,175 @@ fun ChatRow(
     when (item) {
         is ChatItem.User -> UserBubble(item.text, attachmentsOf(item).map { it.toBubble() })
         is ChatItem.Assistant -> ChatMarkdown(item.text, streaming = item.streaming && live)
-        is ChatItem.Reasoning -> ReasoningRow(item, folds)
         // A delegation reads as its children, not as a blob of JSON (the Desktop's delegate card, T17).
         is ChatItem.Tool -> if (item.subagents.isNotEmpty()) {
             DelegateCard(item, live, onOpenSubagent)
         } else {
-            ToolCard(item, folds, openByDefault = item.key == lastFailedTool, live = live)
+            StepsBlock(TranscriptRow.Folded(listOf(item)), folds, lastFailedTool, live)
         }
+        // [ToolFolding] folds every step; a lone one handed in here still reads as its own line.
+        is ChatItem.Reasoning -> StepsBlock(TranscriptRow.Folded(listOf(item)), folds, lastFailedTool, live)
         is ChatItem.Notice -> NoticeRow(item)
         is ChatItem.Card -> NotificationCard(item, folds)
     }
+}
+
+/**
+ * Q75, design-notes §5.2: a run of steps as one quiet 36 dp line on `surface` ("5 steps · execute_code"), collapsed by
+ * default. While a step runs and the chat is live it reads "Running · N steps" in verdigris with the spinner and the
+ * running call's name; failed calls add " · N failed" in red. Open, the steps follow in one `surfaceContainerLow`
+ * container of 44 dp rows; a tool row opens its output below it, the reasoning row its text.
+ */
+@Composable
+private fun StepsBlock(group: TranscriptRow.Folded, folds: FoldState, lastFailedTool: String?, live: Boolean) {
+    val open = folds.isOpen(group.key, default = false)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        StepsLine(group.summary(live), open, onToggle = { folds.toggle(group.key, default = false) })
+        Fold(open) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+            ) {
+                Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
+                    for (step in group.steps) {
+                        key(step.key) {
+                            when (step) {
+                                is ChatItem.Tool -> ToolStep(step, folds, openByDefault = step.key == lastFailedTool, live = live)
+                                is ChatItem.Reasoning -> ReasoningStep(step, folds)
+                                else -> Unit
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepsLine(summary: StepsSummary, open: Boolean, onToggle: () -> Unit) {
+    val state = stringResource(if (open) R.string.chat_collapse else R.string.chat_expand)
+    val label = if (summary.running) {
+        pluralStringResource(R.plurals.chat_steps_running, summary.steps, summary.steps)
+    } else {
+        pluralStringResource(R.plurals.chat_steps, summary.steps, summary.steps)
+    }
+    val failed = summary.failed.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.chat_steps_failed, it, it) }
+    val labelColor = if (summary.running) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+    // Red on `surface` is 5.7:1 (design.md §1); the line has no container.
+    val failedColor = MaterialTheme.colorScheme.error
+    val toolSpan = AristotleTextStyles.toolSummary.toSpanStyle()
+    val text = remember(label, failed, summary.tool, labelColor, failedColor, toolSpan) {
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = labelColor)) { append(label) }
+            // The failure before the tool name: a long name is what the ellipsis may cut.
+            failed?.let {
+                append(StatusText.SEPARATOR)
+                withStyle(SpanStyle(color = failedColor)) { append(it) }
+            }
+            summary.tool?.let {
+                append(StatusText.SEPARATOR)
+                withStyle(toolSpan) { append(it) }
+            }
+        }
+    }
+    // 36 dp visible; Compose widens the touch area of a smaller clickable to 48 dp (Q67).
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable(role = Role.Button, onClickLabel = state, onClick = onToggle)
+            .heightIn(min = STEPS_LINE_HEIGHT)
+            .padding(end = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+    ) {
+        if (summary.running) RunningSpinner() else Chevron(open)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (summary.running) Chevron(open)
+    }
+}
+
+/** One call in the open list: icon, name (mono 600), args (mono, shortened, TU1 C1), duration / Failed / spinner. */
+@Composable
+private fun ToolStep(item: ChatItem.Tool, folds: FoldState, openByDefault: Boolean, live: Boolean) {
+    val open = folds.isOpen(item.key, openByDefault)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        StepRow(open, onToggle = { folds.toggle(item.key, openByDefault) }) {
+            Icon(
+                painter = painterResource(toolIconRes(item.name)),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Sizes.stepIcon),
+            )
+            Text(text = item.name, style = AristotleTextStyles.toolName, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+            val summary = remember(item.name, item.summary) { ToolSummary.display(item.name, item.summary) }
+            Text(
+                text = item.progress ?: summary,
+                style = AristotleTextStyles.toolSummary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            ToolTrailing(item, live)
+        }
+        Fold(open) { ToolOutput(item, folds) }
+    }
+}
+
+/** design-notes §5.2: reasoning is a step row in italic ("Thought for 2 s", "Thinking…" while it streams); it opens its text. */
+@Composable
+private fun ReasoningStep(item: ChatItem.Reasoning, folds: FoldState) {
+    val open = folds.isOpen(item.key, default = false)
+    val label = when {
+        item.streaming -> stringResource(R.string.chat_thinking)
+        item.durationMillis != null -> stringResource(R.string.chat_thought_for, ChatFormat.thoughtSeconds(item.durationMillis))
+        else -> stringResource(R.string.chat_reasoning)
+    }
+    val italic = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        StepRow(open, onToggle = { folds.toggle(item.key, default = false) }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_psychology),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Sizes.stepIcon),
+            )
+            Text(text = label, style = italic, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.weight(1f))
+        }
+        Fold(open) {
+            Text(
+                text = item.text,
+                style = italic,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = STEP_CONTENT_START, end = Spacing.m, bottom = Spacing.s),
+            )
+        }
+    }
+}
+
+/** A 44 dp step row; tapping it opens what it holds (the state label says so: no chevron per row, as on the board). */
+@Composable
+private fun StepRow(open: Boolean, onToggle: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    val state = stringResource(if (open) R.string.chat_collapse else R.string.chat_expand)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClickLabel = state, onClick = onToggle)
+            .heightIn(min = STEP_ROW_HEIGHT)
+            .padding(horizontal = Spacing.m),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(STEP_GAP),
+        content = content,
+    )
 }
 
 /**
@@ -209,14 +299,15 @@ private fun NotificationCard(item: ChatItem.Card, folds: FoldState) {
             FoldHeader(
                 open = open,
                 onToggle = { folds.toggle(item.key, default = false) },
-                minHeight = Sizes.minTouchTarget,
+                minHeight = NOTIFICATION_HEIGHT,
+                gap = STEP_GAP,
                 modifier = Modifier.padding(horizontal = Spacing.m),
             ) {
                 Icon(
                     painter = painterResource(if (item.process) R.drawable.ic_terminal else R.drawable.ic_task_alt),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(Sizes.toolIcon),
+                    modifier = Modifier.size(Sizes.stepIcon),
                 )
                 Text(
                     text = item.title,
@@ -245,7 +336,7 @@ private fun NotificationCard(item: ChatItem.Card, folds: FoldState) {
     }
 }
 
-/** The user's own message (design.md §5): right-aligned `secondaryContainer` bubble, at most 82 % wide. */
+/** The user's own message (design-notes §5.2): right-aligned `secondaryContainer` bubble in `shapes.large`, at most 82 % wide. */
 @Composable
 internal fun UserBubble(text: String, attachments: List<BubbleAttachment> = emptyList()) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -257,83 +348,13 @@ internal fun UserBubble(text: String, attachments: List<BubbleAttachment> = empt
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomEnd = 4.dp, bottomStart = 14.dp),
+                    shape = MaterialTheme.shapes.large,
                 ) {
                     SelectionContainer {
                         Text(text = text, style = AristotleTextStyles.chatText, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                     }
                 }
             }
-        }
-    }
-}
-
-/** design.md §5: "Thought for N s" + chevron, collapsed by default; "Thinking…" while it streams. */
-@Composable
-private fun ReasoningRow(item: ChatItem.Reasoning, folds: FoldState) {
-    val open = folds.isOpen(item.key, default = false)
-    val label = when {
-        item.streaming -> stringResource(R.string.chat_thinking)
-        item.durationMillis != null -> stringResource(R.string.chat_thought_for, ChatFormat.thoughtSeconds(item.durationMillis))
-        else -> stringResource(R.string.chat_reasoning)
-    }
-    val state = stringResource(if (open) R.string.chat_collapse else R.string.chat_expand)
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // 32 dp visible (mockup .reason button); Compose widens the touch area of a smaller clickable to 48 dp.
-        Row(
-            modifier = Modifier
-                .clickable(role = Role.Button, onClickLabel = state) { folds.toggle(item.key, default = false) }
-                .height(Sizes.reasoningRow)
-                .padding(end = Spacing.s),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Chevron(open, size = Sizes.chipIcon)
-        }
-        Fold(open) {
-            Text(
-                text = item.text,
-                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = Spacing.xs),
-            )
-        }
-    }
-}
-
-/** design.md §5 tool card: header ≥ 48 dp (icon, name, args, duration or Failed, chevron); output below. */
-@Composable
-private fun ToolCard(item: ChatItem.Tool, folds: FoldState, openByDefault: Boolean, live: Boolean) {
-    val open = folds.isOpen(item.key, openByDefault)
-    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column {
-            FoldHeader(
-                open = open,
-                onToggle = { folds.toggle(item.key, openByDefault) },
-                minHeight = Sizes.minTouchTarget,
-                modifier = Modifier.padding(horizontal = Spacing.m),
-            ) {
-                Icon(
-                    painter = painterResource(toolIconRes(item.name)),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(Sizes.toolIcon),
-                )
-                Text(text = item.name, style = AristotleTextStyles.toolName, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                val summary = remember(item.name, item.summary) { ToolSummary.display(item.name, item.summary) }
-                Text(
-                    text = item.progress ?: summary,
-                    style = AristotleTextStyles.toolSummary,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                ToolTrailing(item, live)
-                Chevron(open)
-            }
-            Fold(open) { ToolOutput(item, folds) }
         }
     }
 }
@@ -363,7 +384,7 @@ private fun ToolTrailing(item: ChatItem.Tool, live: Boolean) {
     }
 }
 
-/** Output in a Highest block, mono 11.5 / 17, no wrap, scrolls sideways; the first lines until "Show all". */
+/** Output in a Highest block under its row, mono 11.5 / 17, no wrap, scrolls sideways; the first lines until "Show all". */
 @Composable
 private fun ToolOutput(item: ChatItem.Tool, folds: FoldState) {
     if (item.output.isEmpty() && item.status == ToolStatus.Running) return // nothing to show until it ends
@@ -371,7 +392,8 @@ private fun ToolOutput(item: ChatItem.Tool, folds: FoldState) {
     val allKey = "${item.key}#all"
     val showAll = folds.isOpen(allKey, default = false) || lines.size <= OUTPUT_PREVIEW_LINES
     val shown = remember(item.output, showAll) { if (showAll) item.output else lines.take(OUTPUT_PREVIEW_LINES).joinToString("\n") }
-    Column(modifier = Modifier.fillMaxWidth().padding(start = Spacing.m, end = Spacing.m, bottom = Spacing.m)) {
+    // Under the row's name, past its icon (board: 40 dp in, 12 dp from the end, 8 dp below).
+    Column(modifier = Modifier.fillMaxWidth().padding(start = STEP_CONTENT_START, end = Spacing.m, bottom = Spacing.s)) {
         Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
             val empty = item.output.isEmpty()
             SelectionContainer {
@@ -380,7 +402,7 @@ private fun ToolOutput(item: ChatItem.Tool, folds: FoldState) {
                     style = AristotleTextStyles.toolOutput,
                     color = if (empty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     softWrap = false,
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.m, vertical = 10.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.m, vertical = Spacing.s),
                 )
             }
         }
@@ -428,33 +450,13 @@ fun ThinkingLine() {
     Text(text = stringResource(R.string.chat_thinking), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** An approval, clarify or password prompt is open (design.md §5): a tap brings the prompt sheet up. */
-@Composable
-fun WaitingChip(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-    ) {
-        Row(
-            // A 32 dp chip (Q67); the clickable Surface keeps the 48 dp touch area.
-            modifier = Modifier.heightIn(min = WAITING_CHIP_HEIGHT).padding(start = Spacing.s, end = Spacing.m),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
-        ) {
-            Icon(painter = painterResource(R.drawable.ic_pan_tool), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon))
-            Text(text = stringResource(R.string.chat_waiting), style = MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-
 @Composable
 private fun FoldHeader(
     open: Boolean,
     onToggle: () -> Unit,
     minHeight: Dp,
     modifier: Modifier = Modifier,
+    gap: Dp = Spacing.m,
     content: @Composable RowScope.() -> Unit,
 ) {
     val state = stringResource(if (open) R.string.chat_collapse else R.string.chat_expand)
@@ -462,7 +464,7 @@ private fun FoldHeader(
         Row(
             modifier = modifier.fillMaxWidth().heightIn(min = minHeight),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+            horizontalArrangement = Arrangement.spacedBy(gap),
             content = content,
         )
     }
@@ -503,8 +505,20 @@ private fun toolIconRes(name: String): Int = when (toolIcon(name)) {
     ToolIcon.Generic -> R.drawable.ic_build
 }
 
-/** Visible height of the waiting chip: Material's chip size (Q67), not a 48 dp slab. */
-private val WAITING_CHIP_HEIGHT = 32.dp
+/** The "N steps" line's visible height (design-notes §5.2). */
+private val STEPS_LINE_HEIGHT = 36.dp
+
+/** A step row in the open list (design-notes §5.2). */
+private val STEP_ROW_HEIGHT = 44.dp
+
+/** Icon-to-text gap in step rows and notification lines (board: 10 px). */
+private val STEP_GAP = 10.dp
+
+/** Where a step row's text starts: row padding + step icon + gap; outputs and reasoning text line up there. */
+private val STEP_CONTENT_START = Spacing.m + Sizes.stepIcon + STEP_GAP
+
+/** The notification line's visible height (board `.qline`: 40 dp). */
+private val NOTIFICATION_HEIGHT = 40.dp
 
 private const val EXPAND_MILLIS = 300
 private const val COLLAPSE_MILLIS = 200

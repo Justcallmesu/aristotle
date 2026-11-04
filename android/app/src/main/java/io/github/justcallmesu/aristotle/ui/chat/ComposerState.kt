@@ -73,6 +73,9 @@ data class ComposerState(
     val armed: Boolean get() = shown?.armed == true
 }
 
+/** What sits at the right end of the field's action row (design-notes §5.2, Q69). */
+enum class ComposerTrailing { Send, Stop, StopSend, StopQueueSteer }
+
 /** How the composer follows the chat, and the tap-through guard of its controls. Pure. */
 object ComposerLogic {
     /** The same window as the prompt sheet's (T12b): a control that just appeared or changed meaning ignores taps. */
@@ -113,6 +116,27 @@ object ComposerLogic {
      * attachment, which Queue can carry); Stop is always there.
      */
     fun showsBusyExtras(composer: ComposerState): Boolean = composer.draft.isNotBlank() || composer.attachments.isNotEmpty()
+
+    /**
+     * The trailing action: Send idle or offline; busy and empty: Stop; busy with words or an attachment: Stop, Queue
+     * and Steer; busy with a `/` command: Stop and Send (a command runs beside the turn).
+     */
+    fun trailing(online: Boolean, running: Boolean, command: Boolean, composer: ComposerState): ComposerTrailing = when {
+        !online || !running -> ComposerTrailing.Send
+        command -> ComposerTrailing.StopSend
+        showsBusyExtras(composer) -> ComposerTrailing.StopQueueSteer
+        else -> ComposerTrailing.Stop
+    }
+
+    /** The model chip shares the row with Stop · Queue · Steer only when there is room: it hides then. */
+    fun showsModelChip(trailing: ComposerTrailing): Boolean = trailing != ComposerTrailing.StopQueueSteer && trailing != ComposerTrailing.StopSend
+
+    /** The chip's text: "model · effort", just the model without an effort, null (no chip) without a model. */
+    fun chipLabel(model: String?, effort: String?): String? {
+        val name = model?.trim().orEmpty().ifEmpty { return null }
+        val level = effort?.trim().orEmpty()
+        return if (level.isEmpty()) name else "$name · $level"
+    }
 
     /** A refused item is in the composer: Send stays off until it is removed. */
     fun hasRefused(composer: ComposerState): Boolean = composer.attachments.any { it.status is AttachmentStatus.Refused }

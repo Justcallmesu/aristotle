@@ -2,83 +2,54 @@ package io.github.justcallmesu.aristotle.ui.sessions
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.OfflineCause
 import io.github.justcallmesu.aristotle.ui.components.reducedMotion
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
-import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import kotlinx.coroutines.delay
 
 /**
- * design.md §5 offline banner, under the top bar: "PC offline since HH:MM", the cause, when the list is
- * from, "Reconnecting… try N, next in S s" and Retry now. The verdigris progress line shows only while a
- * round is running (live work); between rounds the banner counts down to the next one and nothing moves.
+ * design-notes §5.1 offline notice, under the Home C head (whose PC line carries "Offline since HH:MM" and Retry now):
+ * the cause and when the list is from as one quiet text, then "Reconnecting… try N, next in S s". The verdigris
+ * progress line shows only while a round is running (live work); between rounds the line counts down and nothing moves.
  */
 @Composable
-fun OfflineBanner(
-    offline: LinkState.Offline,
-    address: String,
-    listedAt: String?,
-    timeText: (Long) -> String,
-    onRetry: () -> Unit,
-) {
+fun OfflineNotice(offline: LinkState.Offline, address: String, listedAt: String?) {
+    val cause = causeText(offline.cause, address)
+    val text = listedAt?.let { "$cause ${stringResource(R.string.offline_list_from, it)}" } ?: cause
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.m, vertical = Spacing.xs),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.xs),
     ) {
         Column {
-            if (offline.trying) ReconnectingLine() else Spacer(Modifier.height(Sizes.progressLine))
-            Row(modifier = Modifier.padding(start = Spacing.l, end = Spacing.m, top = Spacing.m)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_cloud_off),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(Sizes.fieldIcon),
-                )
-                Column(
-                    modifier = Modifier.padding(start = Spacing.m).weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    Text(
-                        text = stringResource(R.string.offline_title, timeText(offline.sinceMillis)),
-                        style = AristotleTextStyles.tabular(MaterialTheme.typography.titleSmall),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                    BodyLine(causeText(offline.cause, address))
-                    listedAt?.let { BodyLine(stringResource(R.string.offline_list_from, it)) }
-                    RetryStatus(offline)
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().padding(end = Spacing.xs), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onRetry, shape = ButtonShape) { Text(stringResource(R.string.conn_retry_now)) }
+            if (offline.trying) ReconnectingLine()
+            Column(
+                modifier = Modifier
+                    .heightIn(min = NOTICE_MIN_HEIGHT)
+                    .padding(start = Spacing.m, end = Spacing.s, top = Spacing.s, bottom = Spacing.s),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+            ) {
+                Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                RetryStatus(offline)
             }
         }
     }
@@ -91,11 +62,6 @@ private fun causeText(cause: OfflineCause, address: String): String = when (caus
     OfflineCause.Unreachable, OfflineCause.CertificateChanged -> stringResource(R.string.offline_cause_unreachable, address)
     OfflineCause.AppError -> stringResource(R.string.offline_cause_app_error, address)
     OfflineCause.Superseded -> stringResource(R.string.offline_cause_superseded, address)
-}
-
-@Composable
-private fun BodyLine(text: String) {
-    Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /**
@@ -149,6 +115,9 @@ private fun secondsLeft(atMillis: Long): Int {
 }
 
 private fun secondsUntil(atMillis: Long): Int = ((atMillis - System.currentTimeMillis() + 999) / 1000).toInt().coerceAtLeast(0)
+
+/** Each notice (offline, compatibility, what's new) is at least one 48 dp line (board `.notice`). */
+internal val NOTICE_MIN_HEIGHT = 48.dp
 
 private const val TICK_MILLIS = 1_000L
 private const val STATIC_PROGRESS = 0.4f

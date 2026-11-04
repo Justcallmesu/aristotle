@@ -93,7 +93,7 @@ fun AttachButton(enabled: Boolean, actions: ComposerActions) {
     }
     Box {
         IconButton(onClick = { open = true }, enabled = enabled) {
-            Icon(painter = painterResource(R.drawable.ic_attach_file), contentDescription = stringResource(R.string.attach_open))
+            Icon(painter = painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.attach_open))
         }
         DropdownMenu(
             expanded = open,

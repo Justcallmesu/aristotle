@@ -17,6 +17,13 @@ enum class SettingsPage(@StringRes val title: Int, @DrawableRes val icon: Int) {
     About(R.string.settings_section_about, R.drawable.ic_info),
 }
 
+/** The Settings list's three grouped blocks (design-notes §5.4): connection + notifications, look + language, security + about. */
+val settingsBlocks: List<List<SettingsPage>> = listOf(
+    listOf(SettingsPage.Connection, SettingsPage.Notifications),
+    listOf(SettingsPage.Appearance, SettingsPage.Language),
+    listOf(SettingsPage.Security, SettingsPage.About),
+)
+
 /** The link as one word of the Connection & PCs summary. */
 enum class LinkWord { Connected, Connecting, Offline, HermesDown, HermesUpdated, Stopped, Revoked }
 

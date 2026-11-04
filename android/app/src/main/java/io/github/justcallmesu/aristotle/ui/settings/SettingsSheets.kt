@@ -20,12 +20,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import io.github.justcallmesu.aristotle.ui.chat.SheetChoiceGroup
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 
 /**
  * A one-of-N picker (theme, text size, language), as the profile sheet: `ModalBottomSheet` on `surfaceContainerLow` with
- * a radio list of 56 dp rows. Picking applies at once and closes the sheet.
+ * a radio list of 56 dp grouped rows. Picking applies at once and closes the sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +53,8 @@ internal fun <T> ChoiceSheet(
                 Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(modifier = Modifier.padding(top = Spacing.s).selectableGroup()) {
-                options.forEach { option ->
+                SheetChoiceGroup(options.size) { index ->
+                    val option = options[index]
                     ChoiceRow(label(option), option == selected) { onPick(option) }
                 }
             }
@@ -66,7 +68,8 @@ private fun ChoiceRow(text: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = Sizes.listRowHeight)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = Spacing.l),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {

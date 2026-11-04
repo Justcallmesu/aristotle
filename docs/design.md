@@ -240,3 +240,6 @@ App lock screen (TS2) is the second exception to the no-centred-stack rule: icon
 - No default Roboto/Material type; no text below 11 sp; no hard-coded hex in composables.
 - No dynamic colour. No animation that is not a live state or an expand/collapse.
 - No red except Deny/Stop/errors; no colour as the only signal.
+
+
+Q67 exception (v2, TR3): the "N steps" line (36 dp) and opened step rows (44 dp) keep their visual heights; their 48 dp touch area comes from Compose's automatic minimum-touch-target expansion, not layout height, so the 4/12 dp chat rhythm holds.
