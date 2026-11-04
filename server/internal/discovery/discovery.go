@@ -36,8 +36,8 @@ const (
 // Spec is what one interface announces.
 type Spec struct {
 	Iface    string
-	Instance string         // "Aristotle on <short hostname>"
-	Target   string         // SRV target host, TargetHost: "aristotle-<short hostname>.local."
+	Instance string         // "Aristotle on <short hostname> (<8 hex>)"
+	Target   string         // SRV target host, TargetHost: "aristotle-<short hostname>-<8 hex>.local."
 	Port     int            // the LAN listener port
 	Addrs    []netip.Prefix // the LAN listener addresses on this interface, with their on-link prefix length
 	TXT      []string
@@ -74,9 +74,17 @@ type running struct {
 	r     Responder
 }
 
-// InstanceName is the service instance name for a host name.
-func InstanceName(host string) string {
-	return "Aristotle on " + ShortHost(host)
+// InstanceName is the service instance name: "Aristotle on <short hostname>
+// (<8 hex of the fingerprint>)". The whole label stays within 63 bytes: the
+// host part is cut on a rune boundary, never the hint.
+func InstanceName(host, fp string) string {
+	const prefix = "Aristotle on "
+	suffix := ""
+	if h := nameHint(fp); h != "" {
+		suffix = " (" + h + ")"
+	}
+	h := strings.ReplaceAll(ShortHost(host), ".", "-")
+	return prefix + cutRunes(h, maxLabel-len(prefix)-len(suffix)) + suffix
 }
 
 // ShortHost cuts a host name at its first dot.
@@ -203,7 +211,7 @@ func (a *Announcer) stop(name string, r running) {
 
 func (a *Announcer) begin(name string, addrs []netip.Prefix, now time.Time) {
 	host := a.Hostname
-	spec := Spec{Iface: name, Instance: InstanceName(host), Target: TargetHost(host), Port: a.Port, TXT: a.TXT(),
+	spec := Spec{Iface: name, Instance: InstanceName(host, a.Fingerprint), Target: TargetHost(host, a.Fingerprint), Port: a.Port, TXT: a.TXT(),
 		Addrs: addrs, Log: a.Log.With("iface", name)}
 	r, err := a.Start(spec)
 	if err != nil {

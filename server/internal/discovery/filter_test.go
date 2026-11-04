@@ -108,3 +108,21 @@ func TestLegacyQueryGetsUnicastReplyWithShortTTL(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterDropsOversizedQueries(t *testing.T) {
+	z := testZone(t)
+	qs := make([]dnsmessage.Question, 33)
+	for i := range qs {
+		qs[i] = q(svcName, dnsmessage.TypePTR)
+	}
+	if p := z.decide(wlan, pkt(wlanIndex, "192.168.1.20:5353", "224.0.0.251", query(t, 0, false, qs...))); p.mode != drop {
+		t.Fatalf("33 questions: mode %v", p.mode)
+	}
+	if p := z.decide(wlan, pkt(wlanIndex, "192.168.1.20:5353", "224.0.0.251", query(t, 0, false, qs[:32]...))); p.mode != multicast {
+		t.Fatalf("32 questions: mode %v (%s)", p.mode, p.reason)
+	}
+	big := append(ptrQuery(t), make([]byte, maxPacket)...)
+	if p := z.decide(wlan, pkt(wlanIndex, "192.168.1.20:5353", "224.0.0.251", big)); p.mode != drop || p.reason != "oversized packet" {
+		t.Fatalf("oversized: mode %v (%s)", p.mode, p.reason)
+	}
+}

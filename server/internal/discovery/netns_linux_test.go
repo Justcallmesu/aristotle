@@ -76,7 +76,7 @@ func nsServer(t *testing.T) {
 	// Announcements: twice at start.
 	l1 := nsQueryAsync(t, peer, nsQ{Iface: "lanB", Wait: 3 * time.Second})
 	time.Sleep(400 * time.Millisecond)
-	r, err := MDNSStart(Spec{Iface: "lanA", Instance: "Aristotle on nstest", Target: TargetHost("nstest"), Port: 8761,
+	r, err := MDNSStart(Spec{Iface: "lanA", Instance: "Aristotle on nstest", Target: TargetHost("nstest", ""), Port: 8761,
 		Addrs: []netip.Prefix{netip.MustParsePrefix("192.168.50.10/24")}, TXT: []string{"v=1", "fp=0123456789abcdef", "proto=1"}})
 	if err != nil {
 		t.Fatalf("MDNSStart: %v", err)
@@ -388,7 +388,7 @@ func nsTally(out *nsOut, b []byte, unicast, listening bool) {
 	ours, live := false, false
 	for _, r := range append(m.Answers, m.Additionals...) {
 		n := strings.ToLower(r.Header.Name.String())
-		if !strings.HasSuffix(n, "._aristotle._tcp.local.") && n != svcName && n != TargetHost("nstest") {
+		if !strings.HasSuffix(n, "._aristotle._tcp.local.") && n != svcName && n != TargetHost("nstest", "") {
 			continue
 		}
 		ours = true

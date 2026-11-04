@@ -90,7 +90,7 @@ func (r *responder) sendAll(goodbye bool) {
 
 func (r *responder) serve() {
 	defer r.served.Done()
-	buf := make([]byte, 9000)
+	buf := make([]byte, maxPacket+1) // one spare byte so decide can see an oversized datagram
 	for {
 		in, err := r.conn.read(buf)
 		if err != nil {

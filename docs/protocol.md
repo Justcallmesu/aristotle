@@ -945,13 +945,16 @@ matches the one it stored at pairing; a matching announcement alone proves nothi
 
 | Record | Name → data | TTL |
 |---|---|---|
-| PTR (shared) | `_aristotle._tcp.local.` → `Aristotle on <short hostname>._aristotle._tcp.local.` | 4500 |
-| SRV (unique) | instance → `0 0 <port> aristotle-<short hostname>.local.` | 120 |
+| PTR (shared) | `_aristotle._tcp.local.` → `Aristotle on <short hostname> (<8 hex>)._aristotle._tcp.local.` | 4500 |
+| SRV (unique) | instance → `0 0 <port> aristotle-<short hostname>-<8 hex>.local.` | 120 |
 | TXT (unique) | instance → the keys below | 4500 |
-| A (unique) | `aristotle-<short hostname>.local.` → each LAN listener IPv4 address on the interface | 120 |
+| A (unique) | `aristotle-<short hostname>-<8 hex>.local.` → each LAN listener IPv4 address on the interface | 120 |
 
   `<short hostname>` is the hostname cut at its first dot (`PC` when empty); in the target it is lowercased, with anything
-  but `a-z0-9` turned into `-`. **Port**: the LAN listener port (`port` in the config, default 8760). Unique records carry
+  but `a-z0-9` turned into `-`. `<8 hex>` is the first 8 hex digits, lowercase, of the certificate fingerprint (§11.1), so two PCs
+  with the same hostname never share an instance or target name. Each label is at most 63 bytes (RFC 6763): the hostname part is
+  cut (on a UTF-8 boundary in the instance), never the hint. The phone does not depend on the instance name: it filters on TXT `fp`
+  and pins (below). **Port**: the LAN listener port (`port` in the config, default 8760). Unique records carry
   the cache-flush bit. A PTR answer carries SRV, TXT and A as additional records; an SRV answer carries A.
 - **TXT keys** (nothing else is published; no device ids, tokens or full hostnames):
 
@@ -969,7 +972,7 @@ matches the one it stored at pairing; a matching announcement alone proves nothi
     `IP_MULTICAST_ALL=0`; the group joined on that interface only; `IP_MULTICAST_IF` that interface; TTL 255.
   - per-packet filter (`IP_PKTINFO`): a packet is dropped unless it arrived on that interface, was sent to the group,
     comes from an address inside one of the interface's on-link prefixes, is a standard query, and asks for one of the
-    records above.
+    records above. A packet over 9000 bytes or a query with more than 32 questions is dropped before any other work (D46).
 - **Replies**: by multicast to the group on that interface, at most once per record set per second per interface. A query
   whose answered questions all have the QU bit gets a unicast reply to the asker; a query from a port other than 5353
   (legacy, RFC 6762 §6.7) gets a unicast reply to that port with the query ID and questions echoed, TTLs capped at 10 s and
@@ -983,3 +986,19 @@ matches the one it stored at pairing; a matching announcement alone proves nothi
   start failed` with `retry_in`: one warning per distinct error, retries back off 10 s, 20 s, 40 s … up to 5 min. A
   responder whose socket fails later is stopped and restarted the same way.
 - **Config**: `{"discovery": {"enabled": false}}` turns it off (default `true`). Unknown keys inside `discovery` are refused.
+- **Phone side (TL1)**. Automatic: when the phone joins a Wi-Fi network (the first one seen after start counts) it gives
+  the link up to 8 s to come up there; unless the link is then online on a LAN address inside that Wi-Fi's subnet, it
+  browses `_aristotle._tcp` with NSD for at most 10 s. Manual ("Find PC on this Wi-Fi", Settings › Connection, never
+  automatic): NSD for 5 s, then, only on Wi-Fi with a /24 or longer prefix around an RFC1918 address, a TCP connect
+  (300 ms timeout, at most 32 at a time) to every other host of that subnet on the PC's stored LAN port(s) (default
+  8760). Each announcement must carry `v=1` and an `fp` of 16-64 hex digits that is a prefix of the stored pin (any case);
+  each candidate, announced or probed, must then answer `GET /healthz` with `200 {"status":"ok"}` through the PC's pinned
+  client (§11.3). Only then is `https://<ipv4>:<port>` merged into the stored addresses (fresh first, cap 8, typed and
+  last-good kept, §11.2) and tried first by the link on a LAN-first network; the first verified PC ends the search. A PC
+  that fails any check is dropped silently; only counts are logged (debug). API 34+ resolves with
+  `registerServiceInfoCallback`, older with `resolveService`, one at a time across the app. A `WifiManager.MulticastLock`
+  (`CHANGE_WIFI_MULTICAST_STATE`, a normal permission) is held only while NSD runs. No location or nearby-devices
+  permission is needed on API 29-36: NSD asks for none, the Wi-Fi address comes from `LinkProperties`
+  (`ACCESS_NETWORK_STATE`) and no SSID is read. Android 16's local network protection is opt-in only and leaves
+  NsdManager alone; a target SDK of 37 or higher makes every LAN connection of the app (the relay too) need
+  `ACCESS_LOCAL_NETWORK`.

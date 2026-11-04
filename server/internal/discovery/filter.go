@@ -9,6 +9,13 @@ import (
 // mdnsPort is the mDNS port; mdnsGroup the IPv4 mDNS group (RFC 6762 §3).
 const mdnsPort = 5353
 
+// Queries bigger than maxPacket or with more than maxQuestions questions are
+// dropped before any parsing or answering work (D46).
+const (
+	maxPacket    = 9000
+	maxQuestions = 32
+)
+
 var mdnsGroup = netip.AddrFrom4([4]byte{224, 0, 0, 251})
 
 // link is the interface a responder serves: its index and on-link prefixes.
@@ -63,6 +70,8 @@ func dropped(reason string) plan { return plan{mode: drop, reason: reason} }
 // records; otherwise it says what to answer and where.
 func (z *zone) decide(l link, in inbound) plan {
 	switch {
+	case len(in.data) > maxPacket:
+		return dropped("oversized packet")
 	case in.ifIndex != l.index:
 		return dropped("other interface")
 	case in.dst != mdnsGroup:
@@ -78,9 +87,19 @@ func (z *zone) decide(l link, in inbound) plan {
 	if h.Response || h.OpCode != 0 {
 		return dropped("not a query")
 	}
-	qs, err := p.AllQuestions()
-	if err != nil {
-		return dropped("malformed")
+	var qs []dnsmessage.Question
+	for {
+		q, err := p.Question()
+		if err == dnsmessage.ErrSectionDone {
+			break
+		}
+		if err != nil {
+			return dropped("malformed")
+		}
+		if len(qs) == maxQuestions {
+			return dropped("too many questions")
+		}
+		qs = append(qs, q)
 	}
 	answers, extras := z.answer(qs)
 	if len(answers) == 0 {

@@ -3,6 +3,7 @@ package discovery
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/net/dns/dnsmessage"
 )
@@ -24,8 +25,8 @@ const maxLabel = 63
 // instance SRV and TXT, and the A records of a target host name we own.
 type zone struct {
 	service  dnsmessage.Name // _aristotle._tcp.local.
-	instance dnsmessage.Name // Aristotle on <host>._aristotle._tcp.local.
-	target   dnsmessage.Name // aristotle-<host>.local.
+	instance dnsmessage.Name // Aristotle on <host> (<8 hex>)._aristotle._tcp.local.
+	target   dnsmessage.Name // aristotle-<host>-<8 hex>.local.
 	port     uint16
 	addrs    [][4]byte
 	txt      []string
@@ -68,10 +69,36 @@ func label(s string) string {
 	return s
 }
 
+// NameHintLen is how many hex digits of the fingerprint go into the instance
+// and target names, so two PCs with one host name never share a name (D49).
+const NameHintLen = 8
+
+// nameHint is the first NameHintLen hex digits of fp, lowercase ("" if none).
+func nameHint(fp string) string {
+	h := FingerprintHint(fp)
+	if len(h) > NameHintLen {
+		h = h[:NameHintLen]
+	}
+	return h
+}
+
+// cutRunes cuts s to at most n bytes on a rune boundary.
+func cutRunes(s string, n int) string {
+	if n < 0 {
+		n = 0
+	}
+	for len(s) > n {
+		_, size := utf8.DecodeLastRuneInString(s)
+		s = s[:len(s)-size]
+	}
+	return s
+}
+
 // TargetHost is the mDNS host name the A records use: "aristotle-<short
-// hostname>.local.", lowercase letters, digits and hyphens only. It is never
+// hostname>-<8 hex>.local.", lowercase letters, digits and hyphens only, the
+// label at most 63 bytes (the host part is cut, never the hint). It is never
 // "<host>.local.", which avahi owns.
-func TargetHost(host string) string {
+func TargetHost(host, fp string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(ShortHost(host)) {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
@@ -80,10 +107,16 @@ func TargetHost(host string) string {
 			b.WriteByte('-')
 		}
 	}
-	l := strings.Trim("aristotle-"+b.String(), "-")
-	if len(l) > maxLabel {
-		l = strings.TrimRight(l[:maxLabel], "-")
+	hint := nameHint(fp)
+	suffix := ""
+	if hint != "" {
+		suffix = "-" + hint
 	}
+	h := b.String()
+	if room := maxLabel - len("aristotle-") - len(suffix); len(h) > room {
+		h = h[:room]
+	}
+	l := strings.Trim("aristotle-"+h, "-") + suffix
 	return l + ".local."
 }
 

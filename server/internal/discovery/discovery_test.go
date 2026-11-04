@@ -89,7 +89,7 @@ func TestTXTAndInstanceName(t *testing.T) {
 	if !slices.Equal(s.TXT, want) {
 		t.Fatalf("TXT %v, want %v", s.TXT, want)
 	}
-	if s.Instance != "Aristotle on laptop" || s.Target != "aristotle-laptop.local." {
+	if s.Instance != "Aristotle on laptop (ab12cd34)" || s.Target != "aristotle-laptop-ab12cd34.local." {
 		t.Fatalf("instance %q target %q", s.Instance, s.Target)
 	}
 }
