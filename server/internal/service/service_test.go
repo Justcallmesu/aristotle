@@ -49,7 +49,7 @@ func TestUnitText(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, w := range []string{"Type=simple\n", "ExecStart=/opt/a/aristotle-server serve\n", "Restart=on-failure\n", "RestartSec=5\n",
-		"NoNewPrivileges=yes\n", "PrivateTmp=yes\n", "UMask=0077\n", "WantedBy=default.target\n"} {
+		"NoNewPrivileges=yes\n", "PrivateTmp=yes\n", "UMask=0077\n", "Delegate=yes\n", "WantedBy=default.target\n"} {
 		if !strings.Contains(got, w) {
 			t.Errorf("missing %q in\n%s", w, got)
 		}
@@ -202,5 +202,59 @@ func TestLogs(t *testing.T) {
 	got := strings.Join(f.list(), "|")
 	if got != "journalctl --user -u aristotle-server|journalctl --user -u aristotle-server -f" {
 		t.Fatal(got)
+	}
+}
+
+// The whole unit, byte for byte: any change to it is deliberate (an installed unit that differs needs
+// install --force).
+func TestUnitTextGolden(t *testing.T) {
+	got, err := UnitText("/opt/a/aristotle-server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `[Unit]
+Description=Aristotle server (relay between the Aristotle app and Hermes)
+
+[Service]
+Type=simple
+ExecStart=/opt/a/aristotle-server serve
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+UMask=0077
+Delegate=yes
+
+[Install]
+WantedBy=default.target
+`
+	if got != want {
+		t.Fatalf("unit text:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestInstalledUnitDelegates(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	if InstalledUnitDelegates() {
+		t.Fatal("no unit file, yet delegates")
+	}
+	dir := filepath.Join(cfg, "systemd", "user")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := "[Service]\nExecStart=/bin/x serve\nUMask=0077\n"
+	if err := os.WriteFile(filepath.Join(dir, UnitName), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if InstalledUnitDelegates() {
+		t.Fatal("a pre-T19a unit counts as delegating")
+	}
+	unit, _ := UnitText("/bin/x")
+	if err := os.WriteFile(filepath.Join(dir, UnitName), []byte(unit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !InstalledUnitDelegates() {
+		t.Fatal("the current unit does not count as delegating")
 	}
 }

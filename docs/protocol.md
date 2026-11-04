@@ -572,8 +572,9 @@ All listeners use the same port (config `port`, default 8760). The server never 
 |---|---|---|---|
 | `GET /healthz` | none | `200 {"status":"ok","version":"…"}` | — |
 | `POST /v1/pair` | none (one-time code in the body) | `201 {"device_id":"dev_<12 hex>","token":"<43 chars>","addresses":[…]}` | `400`, `401`, `500` (below) |
-| `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…"}` | `401` |
+| `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…","terminal":{"enabled":<bool>,"granted":<bool>}}` (T19a, §14) | `401` |
 | `GET /v1/addresses` | Bearer | `200 {"addresses":[…]}` | `401` |
+| `GET /v1/terminal` | Bearer (WebSocket upgrade, §14) | `101` | `401`; `403 {"error":"terminal_disabled"\|"terminal_not_granted"}` before upgrade |
 | any other `/v1/*` | Bearer | `404` with a valid token | `401` without one |
 
 All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"<message>"}`.
@@ -725,6 +726,12 @@ gets a normal result. Consequences:
 Reasons are at most 123 bytes and never contain tickets or tokens. A dial failure is reported only after the upgrade
 succeeded, so the phone always gets a close code instead of a hang or an HTTP error.
 
+**Terminal socket codes (T19a).** The remote terminal (`/v1/terminal`, §14) is a separate socket with its own table.
+It reuses `1000`, `1001`, `1008`, `1009`, `1011`, `4401` and `4430` with terminal meanings and adds `4403`
+`terminal_disabled` / `terminal_not_granted` (the terminal was switched off on the PC, or this device's grant was
+removed) and `4408` `idle_timeout` / `max_session`. The relay never sends `4403` or `4408`. A revoke (`4401`) and a
+disable or ungrant (`4403`) close the device's terminal sockets at once, like a revoke closes its relays.
+
 **Limits** (per phone socket unless noted): phone frames ≤ 1 MiB each (text only); ≤ 600 phone frames per 60 s
 (sliding); ≤ 4 sockets per device. Messages Hermes -> phone are up to 64 MiB (the relay's read limit on the Hermes
 socket; a whole-transcript `session.resume` can be large, and Hermes itself accepts up to 384 MiB,
@@ -834,3 +841,81 @@ own change. Switch, Delete (with a confirmation, as the Cron page) and Create ar
 arm; `success:false`, a JSON-RPC error, a lost answer or an unsent call is said and never retried. Create sends `name,
 schedule, prompt`, `repeat` and `continuity` only when set, no `deliver` (Hermes' `local`); a one-shot is sent as
 `in <N><unit>`. Detail shows the list row only (prompt preview, schedule, next/last run, last result, Hermes' issue text).
+
+## 14. Remote terminal socket (`/v1/terminal`, T19a)
+A login shell on the laptop, streamed to a paired phone (spec Q35, Q52-Q55; code in `server/internal/terminal`; the
+PC-side switch, grants and lost-phone runbook are in `docs/terminal.md`). Not a Hermes feature (§9): aristotle-server
+starts the shell itself. **The shell has full access to the user's account** (files, SSH keys, Hermes credentials);
+it runs as a child of the aristotle-server service, so `sudo`/`su`/`pkexec` fail (NoNewPrivileges), `/tmp` is the
+service's private one and the umask is `077`.
+
+**Switch and grant.** Off by default. A phone may open a terminal only while the terminal is enabled on the PC
+(`aristotle-server terminal enable`) **and** its device holds a grant (`aristotle-server devices grant-terminal <id>`).
+Neither can be changed over HTTP. `GET /v1/me` (§11.2) carries both:
+`{"device_id":"…","name":"…","terminal":{"enabled":<bool>,"granted":<bool>}}`. The phone shows the terminal only when
+both are `true`, and re-reads `/v1/me` on each connect.
+
+**Upgrade.** `GET /v1/terminal` as `wss://` on the LAN and Tailscale listeners, like §12: `Authorization: Bearer
+<token>`, HTTP/1.1, no subprotocol, no compression, optional `Origin` whose host must equal `Host`. Before any upgrade:
+- `401 {"error":"unauthorized"}`: missing, unknown or revoked token (pair again).
+- `403 {"error":"terminal_disabled"}` / `403 {"error":"terminal_not_granted"}`: the token is fine, but the terminal is
+  off or this device has no grant. **These 403s carry a JSON body and are not the listener's peer gate** (§11.2,
+  whose 403 has the text body `forbidden`): the phone must not switch addresses or re-pair on them; it shows "Terminal
+  is off on the PC" / "This phone has no terminal grant" with the PC command.
+- No size in the URL or query: the size comes as the first control frame.
+
+After the upgrade the server registers the socket, checks again that the device is paired, the terminal enabled and
+the device granted, and only then starts the shell; a revoke, disable or ungrant at any moment closes the socket
+(`4401`/`4403`) and no shell is left running.
+
+**Frames.**
+| Direction | Type | Content |
+|---|---|---|
+| server -> phone | binary | PTY output bytes, unchanged (any encoding; UTF-8 sequences may be split across frames). The first frame is the one-line banner `Aristotle terminal — sudo is unavailable (service sandbox); this shell has full access to your account.` + CRLF. At most 32 KiB per frame |
+| phone -> server | binary | keystrokes / paste bytes, written to the PTY unchanged |
+| phone -> server | text | `{"type":"resize","cols":C,"rows":R}`: sets the PTY size, clamped to cols 20-500 and rows 5-200. Send one right after the upgrade (default 80x24) and on every size change. Unknown `type` values are ignored; a text frame that is not a JSON object closes `1008` |
+| server -> phone | text | `{"type":"exit","code":N}` (the shell exited with status N, 128+signal when killed by a signal), then close `1000`. `{"type":"closing","reason":"<reason>"}` before every close the server decides (the reason as in the table below) |
+
+**Limits.** Phone frames ≤ 64 KiB each (a larger one closes `1009`; the phone splits a paste into 64 KiB frames). Input is
+limited by bytes, not frames: 64 KiB burst, then 64 KiB/s; above that the server simply reads the phone more slowly
+(never a close), so typing and held keys are never throttled. Output has backpressure: the server reads the PTY only as
+fast as the phone takes the frames (no server-side queue), so `yes` or `cat /dev/urandom` cost neither side memory as
+long as the phone also reads into a bounded queue. At most 2 terminals per device and 4 in all. Idle limit 30 minutes
+counted from **input only** (output and resizes do not count), maximum session 8 hours.
+
+**Keepalive.** As §12: a ping every 25 s, close `1011 pong_timeout` when within 15 s nothing came from the phone and no
+write that waited for it got bytes out (not counted while the server has stopped reading the phone for the input
+rate or a full PTY). Same client obligations: answer every ping, never block the reading thread.
+
+**No reattach (Q55).** Any close ends the shell: the server sends SIGHUP to the shell's session, then after 5 s kills
+what is left (the whole terminal cgroup with `cgroup.kill` when the service unit delegates its cgroup, else every
+process still in the shell's session). Revoke and disable kill at once. A network switch therefore ends the shell; the
+phone shows "Terminal closed (connection changed)" with a Reopen button.
+
+**Close codes** (server -> phone):
+| Code | Reason | When | Phone should |
+|---|---|---|---|
+| `1000` | `exit` | the shell exited (after the `exit` message) | show the status; offer Reopen |
+| `1001` | `going_away` | aristotle-server is stopping | offer Reopen later |
+| `1008` | `bad_control_frame` | a text frame that is not a JSON object | fix the client |
+| `1009` | `read limited at …` | a frame over 64 KiB (sent by the WebSocket library) | split pastes into 64 KiB frames |
+| `1011` | `pong_timeout` / `shell_start_failed` | keepalive (above) / the shell could not be started (see the PC log) | offer Reopen |
+| `4401` | `revoked` | the device was revoked; within 0.5 s, else a TCP close | wipe the pairing, pair again |
+| `4403` | `terminal_disabled` / `terminal_not_granted` | the terminal was disabled, or this device's grant removed, on the PC | hide the terminal until `/v1/me` says otherwise; no auto-reopen |
+| `4408` | `idle_timeout` / `max_session` | 30 min without input / 8 h in all | say why; offer Reopen (no auto-reopen) |
+| `4430` | `too_many_terminals` | 2 open on this device, or 4 in all | close one |
+
+The phone never reopens a terminal by itself after any close.
+
+**Audit (server log).** `terminal open` (`device_id`, `terminal_id`, `listener`, `pid`, `cleanup` = `cgroup`|`session`),
+`terminal exit` (`exit_code`), `terminal kill` (`method`, `killed` = processes still there for the final SIGKILL,
+`ended_before_kill`), `terminal closed` (`device_id`, `terminal_id`, `listener`, `pid`, `duration`, `bytes_in`,
+`bytes_out`, `close_code`, `close_reason`, `closed_by` = `phone`|`shell`|`server`, `exit_code`), `terminal refused`.
+Never terminal content, keystrokes, control-frame text, the shell's path or its working directory. Typed commands do
+land in the shell's own history file (`~/.bash_history` etc.) as on any shell.
+
+**Phone obligations** (T19b): a bounded receive queue between OkHttp's reading thread and the emulator (`yes` must not
+exhaust memory), with the reading thread never blocked long enough to miss the 15 s pong window; FLAG_SECURE on
+the terminal screen by default; keyboard input without suggestions or learning (`TYPE_NULL` or
+`VISIBLE_PASSWORD|NO_SUGGESTIONS` plus `IME_FLAG_NO_PERSONALIZED_LEARNING`); the emulator ignores OSC 52 clipboard
+writes and does not answer terminal queries that echo data back.

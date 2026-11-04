@@ -129,7 +129,7 @@ func addrNote(a pairAddr) string {
 	return "LAN, HTTPS"
 }
 
-const devicesUsage = "usage: aristotle-server devices list | devices revoke <id>"
+const devicesUsage = "usage: aristotle-server devices list | revoke <id> | grant-terminal <id> | ungrant-terminal <id>"
 
 func runDevices(args []string, stdout, stderr io.Writer) int {
 	switch {
@@ -137,6 +137,10 @@ func runDevices(args []string, stdout, stderr io.Writer) int {
 		return devicesList(stdout, stderr)
 	case len(args) == 2 && args[0] == "revoke":
 		return devicesRevoke(args[1], stdout, stderr)
+	case len(args) == 2 && args[0] == "grant-terminal":
+		return devicesGrant(args[1], true, stdout, stderr)
+	case len(args) == 2 && args[0] == "ungrant-terminal":
+		return devicesGrant(args[1], false, stdout, stderr)
 	}
 	fmt.Fprintln(stderr, devicesUsage)
 	return 2
@@ -167,7 +171,7 @@ func devicesRevoke(id string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "Revoked %s (%s). Its token stops working on the next request.\n", dev.ID, sanitize(dev.Name))
+	fmt.Fprintf(stdout, "Revoked %s (%s). Its token stops working on the next request; its relays and terminals were closed.\n", dev.ID, sanitize(dev.Name))
 	return 0
 }
 

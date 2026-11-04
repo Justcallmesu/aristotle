@@ -102,7 +102,7 @@ func New(opts Options) *Hub {
 // listener kind (for the audit line). It returns when the relay is over.
 func (h *Hub) ServeRelay(w http.ResponseWriter, r *http.Request, deviceID, listener string) {
 	s := newSession(h, deviceID, listener)
-	pc, err := websocket.Accept(hijacker{w, s}, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	pc, err := websocket.Accept(s.Hijacker(w), r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
 		return // Accept has answered with an HTTP error
 	}

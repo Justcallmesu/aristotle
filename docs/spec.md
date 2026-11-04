@@ -116,6 +116,14 @@ Rules that hold everywhere:
 | Q49 | Every phone-facing listener (LAN and Tailscale) serves HTTPS with the same pinned self-signed certificate; no cleartext anywhere. The phone pins one fingerprint per PC for all its addresses. Replaces "plain HTTP inside Tailscale". | User chose (a) 2026-11-03 after the third cleartext finding (T05, T07, T07b). Resolves D23. |
 | Q50 | No prompt (approval, clarify, sudo, secret) can be answered from the lock screen or a notification action; the "Hermes needs you" notification only opens the app. | User 2026-11-03 ("no approve from lock screen"). T12. |
 | Q51 | The phone answers sudo password and secret requests (flexibility). Safeguards: masked field with show/hide, no autofill/suggestions, value held only in the sheet's state, sent once over the pinned TLS relay then cleared, never logged, persisted or shown in a notification; FLAG_SECURE while the sheet is open; decline button. Replaces the PM's proposed "answer on the PC only". | User 2026-11-03 ("i want sudo password and secret from phone, i want flexibility"). T12. |
+| Q44b | Q44 narrowed: the quote screen covers only the first connection attempt (min ~1.2 s); later reconnects before content show the offline page with the cause and Retry. | User "do all" 2026-11-04 = recommended option A. |
+| Q52 | Remote terminal (T19) is built in v1 with the red-team safeguards (`runs/T19/redteam-report.md`): terminal = full account access, documented; pair/grant/enable refused from terminal processes; lost-phone runbook. | User "do all" 2026-11-04 = A. |
+| Q53 | A device needs an explicit terminal grant typed on the PC (`aristotle-server devices grant-terminal <id>`), on top of `terminal.enabled`. | User "do all" = A. |
+| Q54 | The shell runs as a child of the aristotle-server service (NoNewPrivileges: no sudo/su/pkexec; private /tmp); the terminal says so. | User "do all" = A. |
+| Q55 | No reattach: socket close or network switch ends the shell; idle limit 30 min counted from input; maximum session length 8 h (PM value). | User "do all" = A. |
+| Q56 | Attachments: max 765 KiB per file (one relay frame); photos are downscaled to fit; bigger files refused with a clear message. | User "do all" = A. |
+| Q57 | Cron edit / Run now / run history stay on the Desktop in v1 (REST-only in Hermes; no REST proxy in aristotle-server). | User "do all" = A. |
+| Q58 | D40: strip the Google code scanner's datatransport/CCT telemetry components from the merged manifest; the scanner must still work on the Poco (device check), else revisit. | User "do all" = A. |
 
 ## 4. Risks
 

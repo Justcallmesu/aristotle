@@ -41,7 +41,7 @@ type revokeArgs struct {
 }
 
 func (s *server) controlHandlers() map[string]control.Handler {
-	return map[string]control.Handler{
+	handlers := map[string]control.Handler{
 		cmdPairStart:     s.pairStart,
 		cmdDevicesList:   func(json.RawMessage) (any, error) { return s.devices.List(), nil },
 		cmdDevicesRevoke: s.revoke,
@@ -49,6 +49,10 @@ func (s *server) controlHandlers() map[string]control.Handler {
 			return statusResult{Version: s.version, Addresses: s.addresses()}, nil
 		},
 	}
+	for cmd, h := range s.terminalHandlers() {
+		handlers[cmd] = h
+	}
+	return handlers
 }
 
 func (s *server) pairStart(raw json.RawMessage) (any, error) {
@@ -96,6 +100,10 @@ func (s *server) revoke(raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	s.log.Info("device revoked", "device_id", dev.ID, "name", dev.Name)
+	// Its terminals are already closed (revoke hook, 4401); the grant would only be a stale entry.
+	if _, err := s.grants.Ungrant(dev.ID); err != nil {
+		s.log.Warn("could not remove the revoked device's terminal grant", "device_id", dev.ID, "err", err)
+	}
 	return dev, nil
 }
 

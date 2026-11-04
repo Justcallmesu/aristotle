@@ -44,6 +44,8 @@ func UnitDir() (string, error) {
 // UnitText renders the unit file for the binary at bin.
 // No Environment=HERMES_HOME (the connector finds the gateway itself) and no
 // StateDirectory= (systemd would create 0755 dirs; the server enforces 0700).
+// Delegate=yes hands the service its own cgroup subtree: each remote terminal
+// runs in a child cgroup that is killed whole when it closes (T19a).
 func UnitText(bin string) (string, error) {
 	q, err := quoteExec(bin)
 	if err != nil {
@@ -59,8 +61,29 @@ func UnitText(bin string) (string, error) {
 		"NoNewPrivileges=yes\n" +
 		"PrivateTmp=yes\n" +
 		"UMask=0077\n" +
+		"Delegate=yes\n" +
 		"\n[Install]\n" +
 		"WantedBy=default.target\n", nil
+}
+
+// InstalledUnitDelegates reports whether the installed unit file says Delegate=yes (a unit installed
+// before T19a does not; install --force replaces it). systemd's user manager does not mark delegated
+// cgroups with an xattr, so the server learns it here.
+func InstalledUnitDelegates() bool {
+	dir, err := UnitDir()
+	if err != nil {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(dir, UnitName))
+	if err != nil {
+		return false
+	}
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if strings.TrimSpace(line) == "Delegate=yes" {
+			return true
+		}
+	}
+	return false
 }
 
 // quoteExec makes a path safe as the ExecStart= program.

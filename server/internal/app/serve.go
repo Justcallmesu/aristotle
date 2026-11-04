@@ -18,6 +18,8 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
 	"github.com/justcallmesu/aristotle/server/internal/relay"
+	"github.com/justcallmesu/aristotle/server/internal/service"
+	"github.com/justcallmesu/aristotle/server/internal/terminal"
 	"github.com/justcallmesu/aristotle/server/internal/tlscert"
 )
 
@@ -59,6 +61,8 @@ type server struct {
 	control  *control.Server
 	rejects  *httpapi.RejectLog // one limiter for every listener
 	relay    *relay.Hub
+	grants   *terminal.Grants // terminal switch and per-device grants (terminal.json)
+	terms    *terminal.Hub    // /v1/terminal shells
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -78,6 +82,11 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		ctl.Unlock()
 		return nil, err
 	}
+	grants, err := terminal.OpenGrants(stateDir)
+	if err != nil {
+		ctl.Unlock()
+		return nil, err
+	}
 	cert, err := loadCert(cfg, stateDir, scan, log)
 	if err != nil {
 		ctl.Unlock()
@@ -90,14 +99,26 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 	}
 	s := &server{cfg: cfg, stateDir: stateDir, version: version, log: log, cert: cert, codes: &pairing.Codes{}, devices: store,
 		rejects: httpapi.NewRejectLog(log), control: ctl,
-		relay: relay.New(relay.Options{Dialer: connector, Devices: store, Log: log})}
+		relay:  relay.New(relay.Options{Dialer: connector, Devices: store, Log: log}),
+		grants: grants, terms: terminal.New(terminal.Options{Grants: grants, Devices: store, Log: log,
+			DelegatedUnit: delegatedUnit()})}
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
 		Wrap: relay.WrapListener, // the relay sees exactly when a write to a phone waits for it
 	}
 	ctl.Handlers = s.controlHandlers()
+	ctl.Authorize = s.authorizeControl
 	return s, nil
+}
+
+// delegatedUnit names the unit whose cgroup the terminal may split (docs/terminal.md): the installed
+// unit when its file has Delegate=yes. The terminal also checks that it really runs in that cgroup.
+func delegatedUnit() string {
+	if service.InstalledUnitDelegates() {
+		return service.UnitName
+	}
+	return ""
 }
 
 func listenPolicy(cfg config.Config) listen.Policy {
@@ -122,8 +143,8 @@ func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, e
 }
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
-	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Listener: string(kind),
-		Addresses: s.addresses}
+	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Terminal: s.terms,
+		Listener: string(kind), Addresses: s.addresses}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 
@@ -147,6 +168,7 @@ func (s *server) run(ctx context.Context) error {
 	err = serveListener(ctx, ln, httpapi.NewRouter(s.version, s.log), s.log)
 	cancel()
 	s.closeRelays()
+	s.closeTerminals()
 	wg.Wait()
 	return err
 }
@@ -158,6 +180,18 @@ func (s *server) closeRelays() {
 	defer cancel()
 	if err := s.relay.Shutdown(ctx); err != nil {
 		s.log.Warn("relays did not close in time; cut", "err", err)
+	}
+}
+
+// terminalShutdownTimeout covers a shell's SIGHUP grace (terminal.DefaultKillGrace) plus the close.
+const terminalShutdownTimeout = terminal.DefaultKillGrace + 3*time.Second
+
+// closeTerminals ends every terminal with 1001 and kills its processes, bounded.
+func (s *server) closeTerminals() {
+	ctx, cancel := context.WithTimeout(context.Background(), terminalShutdownTimeout)
+	defer cancel()
+	if err := s.terms.Shutdown(ctx); err != nil {
+		s.log.Warn("terminals did not close in time; cut", "err", err)
 	}
 }
 

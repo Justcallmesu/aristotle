@@ -27,6 +27,9 @@ type Deps struct {
 	Rejects *RejectLog
 	// Relay serves GET /v1/ws; nil leaves the route out (404 with a valid token).
 	Relay RelayServer
+	// Terminal serves GET /v1/terminal and the /v1/me terminal flags; nil leaves the route out and
+	// reports the terminal disabled.
+	Terminal TerminalServer
 	// Listener is the listener kind ("lan", "tailscale") for the relay's audit line.
 	Listener string
 	// Addresses lists the listeners bound right now, for the pair response and GET /v1/addresses;
@@ -61,6 +64,14 @@ type RelayServer interface {
 	ServeRelay(w http.ResponseWriter, r *http.Request, deviceID, listener string)
 }
 
+// TerminalServer is the remote terminal (package terminal, docs/protocol.md §14).
+type TerminalServer interface {
+	// Status reports the terminal switch and whether the device holds a grant.
+	Status(deviceID string) (enabled, granted bool)
+	// ServeTerminal upgrades an authenticated, admitted /v1/terminal request and runs the shell.
+	ServeTerminal(w http.ResponseWriter, r *http.Request, deviceID, listener string)
+}
+
 // NewRouter returns the loopback handler: health only.
 func NewRouter(version string, log *slog.Logger) http.Handler {
 	return logRequests(log, newMux(version))
@@ -74,10 +85,13 @@ func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 		d.Rejects = NewRejectLog(log)
 	}
 	mux.Handle("POST /v1/pair", pairHandler(d, log, d.Rejects))
-	mux.Handle("GET /v1/me", requireDevice(d.Devices, http.HandlerFunc(meHandler)))
+	mux.Handle("GET /v1/me", requireDevice(d.Devices, meHandler(d.Terminal)))
 	mux.Handle("GET /v1/addresses", requireDevice(d.Devices, addressesHandler(d)))
 	if d.Relay != nil {
 		mux.Handle("GET /v1/ws", requireDevice(d.Devices, relayHandler(d.Relay, d.Listener)))
+	}
+	if d.Terminal != nil {
+		mux.Handle("GET /v1/terminal", requireDevice(d.Devices, terminalHandler(d.Terminal, d.Listener)))
 	}
 	mux.Handle("/v1/", requireDevice(d.Devices, http.NotFoundHandler()))
 	return logRequests(log, mux)
@@ -118,5 +132,21 @@ func relayHandler(relay RelayServer, listener string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dev, _ := DeviceFrom(r.Context())
 		relay.ServeRelay(w, r, dev.ID, listener)
+	})
+}
+
+// terminalHandler refuses a device that may not open a terminal with 403 and a JSON reason, after the
+// token check (401) and before any upgrade; the terminal re-checks after it registers the socket.
+func terminalHandler(t TerminalServer, listener string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dev, _ := DeviceFrom(r.Context())
+		switch enabled, granted := t.Status(dev.ID); {
+		case !enabled:
+			writeError(w, http.StatusForbidden, "terminal_disabled")
+		case !granted:
+			writeError(w, http.StatusForbidden, "terminal_not_granted")
+		default:
+			t.ServeTerminal(w, r, dev.ID, listener)
+		}
 	})
 }

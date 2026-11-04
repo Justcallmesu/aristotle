@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -211,5 +212,66 @@ func TestConcurrentListenOneWinner(t *testing.T) {
 		}
 		next.ln.Close()
 		next.lock.Close()
+	}
+}
+
+// A fake terminal peer: Authorize sees the peer's pid and its refusal reaches the CLI; the handler never runs.
+func TestAuthorizeRefusesByPeerPID(t *testing.T) {
+	var calls atomic.Int32
+	path := SocketPath(shortTempDir(t))
+	const terminalPID = 4242
+	s := &Server{
+		Path: path, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Handlers: map[string]Handler{
+			"pair.start": func(json.RawMessage) (any, error) { calls.Add(1); return "code", nil },
+			"status":     func(json.RawMessage) (any, error) { calls.Add(1); return "ok", nil },
+		},
+		PeerPID: func(*net.UnixConn) (int, error) { return terminalPID, nil },
+		Authorize: func(cmd string, pid int) error {
+			if cmd == "pair.start" && pid == terminalPID {
+				return errors.New("refused: from a terminal")
+			}
+			return nil
+		},
+	}
+	if err := s.Listen(); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { s.Serve(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	if err := Call(path, "pair.start", nil, nil); err == nil || !strings.Contains(err.Error(), "refused: from a terminal") {
+		t.Fatalf("pair.start from the terminal peer: %v", err)
+	}
+	if calls.Load() != 0 {
+		t.Fatal("refused handler ran")
+	}
+	var out string
+	if err := Call(path, "status", nil, &out); err != nil || out != "ok" {
+		t.Fatalf("status: %q %v", out, err)
+	}
+}
+
+func TestRealPeerPIDIsOwnPID(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "s")
+	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		if c, err := net.Dial("unix", path); err == nil {
+			time.Sleep(100 * time.Millisecond)
+			c.Close()
+		}
+	}()
+	conn, err := ln.AcceptUnix()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if pid, err := PeerPID(conn); err != nil || pid != os.Getpid() {
+		t.Fatalf("pid = %d, %v", pid, err)
 	}
 }

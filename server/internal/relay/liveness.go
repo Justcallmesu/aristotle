@@ -106,13 +106,11 @@ func (s *session) sleep(d time.Duration) bool {
 	}
 }
 
-func (s *session) now() int64 { return s.hub.opts.Now().UnixNano() }
-
 // hijacker hands websocket.Accept the phone's connection wrapped so that its reads and waiting writes
-// move the liveness clocks, and keeps the TCP connection for kill.
+// move the liveness clocks, and keeps the TCP connection for Cut.
 type hijacker struct {
 	http.ResponseWriter
-	s *session
+	p *PhoneConn
 }
 
 func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
@@ -120,13 +118,13 @@ func (w hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	w.s.raw = transportOf(c) // closing it under TLS does not wait to send close_notify to a stalled phone
-	setNotSentLowat(w.s.raw)
-	pc := &progressConn{Conn: c, s: w.s, timed: true}
+	w.p.raw = transportOf(c) // closing it under TLS does not wait to send close_notify to a stalled phone
+	setNotSentLowat(w.p.raw)
+	pc := &progressConn{Conn: c, p: w.p, timed: true}
 	// Under TLS the records reach the TCP connection through tls.Conn, below pc: only the listener's
 	// own wrapper (WrapListener) sees whether those writes waited.
-	if d, ok := w.s.raw.(drainNotifier); ok {
-		d.notifyDrain(w.s.drained)
+	if d, ok := w.p.raw.(drainNotifier); ok {
+		d.notifyDrain(w.p.drained)
 		pc.timed = false
 	}
 	// coder/websocket reads through pc (accept.go resets brw.Reader onto it) but writes through
@@ -161,34 +159,31 @@ func transportOf(c net.Conn) net.Conn {
 // maxConnLayers bounds transportOf; production has two (tls.Conn over the WrapListener wrapper).
 const maxConnLayers = 8
 
-// drained records that a write which had to wait for the phone got bytes out.
-func (s *session) drained() { s.lastDrain.Store(s.now()) }
-
 // progressConn is the phone's connection. Bytes read move lastRead: a phone slowly uploading a large
 // frame (its pong waiting behind it) still shows progress. When timed (the connection underneath
 // cannot report waits), a write that took at least drainWait moves lastDrain when it completes.
 type progressConn struct {
 	net.Conn
-	s     *session
+	p     *PhoneConn
 	timed bool
 }
 
-func (c *progressConn) Read(p []byte) (int, error) {
-	n, err := c.Conn.Read(p)
+func (c *progressConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
 	if n > 0 {
-		c.s.lastRead.Store(c.s.now())
+		c.p.lastRead.Store(c.p.now())
 	}
 	return n, err
 }
 
-func (c *progressConn) Write(p []byte) (int, error) {
+func (c *progressConn) Write(b []byte) (int, error) {
 	if !c.timed {
-		return c.Conn.Write(p)
+		return c.Conn.Write(b)
 	}
 	start := time.Now()
-	n, err := c.Conn.Write(p)
+	n, err := c.Conn.Write(b)
 	if n > 0 && time.Since(start) >= drainWait {
-		c.s.drained()
+		c.p.drained()
 	}
 	return n, err
 }

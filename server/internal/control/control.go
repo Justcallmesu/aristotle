@@ -51,6 +51,12 @@ type Server struct {
 	Log      *slog.Logger
 	// PeerUID returns the connecting process's uid; default SO_PEERCRED.
 	PeerUID func(*net.UnixConn) (int, error)
+	// PeerPID returns the connecting process's pid; default SO_PEERCRED.
+	PeerPID func(*net.UnixConn) (int, error)
+	// Authorize, when set, runs before every known command with the peer's pid (0 when it could not be
+	// read); an error refuses the command with that text. The server uses it to refuse pair, terminal
+	// enable and grant-terminal to processes inside a remote terminal (T19 red-team B2).
+	Authorize func(cmd string, pid int) error
 
 	ln   *net.UnixListener
 	lock io.Closer
@@ -175,7 +181,20 @@ func (s *Server) handle(conn *net.UnixConn) {
 		writeResponse(conn, Response{Error: "bad request"})
 		return
 	}
-	writeResponse(conn, s.dispatch(req))
+	writeResponse(conn, s.dispatch(req, s.peerPID(conn)))
+}
+
+// peerPID is the connecting process's pid, or 0 when it cannot be read.
+func (s *Server) peerPID(conn *net.UnixConn) int {
+	peerPID := s.PeerPID
+	if peerPID == nil {
+		peerPID = PeerPID
+	}
+	pid, err := peerPID(conn)
+	if err != nil {
+		return 0
+	}
+	return pid
 }
 
 func (s *Server) checkPeer(conn *net.UnixConn) error {
@@ -193,10 +212,15 @@ func (s *Server) checkPeer(conn *net.UnixConn) error {
 	return nil
 }
 
-func (s *Server) dispatch(req Request) Response {
+func (s *Server) dispatch(req Request, pid int) Response {
 	h, ok := s.Handlers[req.Cmd]
 	if !ok {
 		return Response{Error: fmt.Sprintf("unknown command %q", req.Cmd)}
+	}
+	if s.Authorize != nil {
+		if err := s.Authorize(req.Cmd, pid); err != nil {
+			return Response{Error: err.Error()}
+		}
 	}
 	s.Log.Info("control command", "cmd", req.Cmd) // never args: they may name a device, results may hold a code
 	result, err := h(req.Args)

@@ -3,7 +3,6 @@ package relay
 import (
 	"context"
 	"log/slog"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,13 +16,14 @@ import (
 // them (coder/websocket closes a conn whose call context ends); stopCtx only signals that a close was
 // requested, so the close handshake can still run on intact sockets.
 type session struct {
+	*PhoneConn // liveness clocks and the TCP connection (phoneconn.go)
+
 	hub      *Hub
 	pc       *websocket.Conn
 	dev      string
 	listener string
 	log      *slog.Logger
 
-	raw      net.Conn // the phone's TCP connection (a trackedConn behind WrapListener), set at hijack (liveness.go)
 	ioCtx    context.Context
 	cancelIO context.CancelFunc
 	stopCtx  context.Context
@@ -37,15 +37,14 @@ type session struct {
 	in, out traffic // in: phone->Hermes (owned by pumpPhone), out: Hermes->phone (owned by pumpHermes)
 	dropped int64   // Hermes frames that could not be redacted (owned by pumpHermes)
 
-	// Liveness (liveness.go). Clocks are unix nanoseconds of opts.Now, read by keepalive. lastRead moves
-	// whenever bytes arrive from the phone (frames, pongs); lastDrain when a write to the phone that had
-	// to wait for it gets bytes out. forwarding is set while a phone frame waits for Hermes to take it (the
-	// phone is not read then, so its pongs are not seen); lastForwarded is when the last such wait ended.
+	// Liveness (liveness.go). Clocks are unix nanoseconds of opts.Now, read by keepalive. PhoneConn's
+	// lastRead moves whenever bytes arrive from the phone (frames, pongs); its lastDrain when a write to
+	// the phone that had to wait for it gets bytes out. forwarding is set while a phone frame waits for
+	// Hermes to take it (the phone is not read then, so its pongs are not seen); lastForwarded is when
+	// the last such wait ended.
 	pings         sync.WaitGroup // ping goroutines (liveness.go), waited for after the sockets are cut
 	pingsOut      atomic.Int32   // pings waiting for their pong
 	forwarding    atomic.Bool
-	lastRead      atomic.Int64
-	lastDrain     atomic.Int64
 	lastForwarded atomic.Int64
 }
 
@@ -58,7 +57,7 @@ type upstream interface {
 
 // newSession builds a session before its socket exists; ServeRelay sets pc after the upgrade.
 func newSession(h *Hub, dev, listener string) *session {
-	s := &session{hub: h, dev: dev, listener: listener, log: h.opts.Log}
+	s := &session{PhoneConn: NewPhoneConn(h.opts.Now), hub: h, dev: dev, listener: listener, log: h.opts.Log}
 	s.ioCtx, s.cancelIO = context.WithCancel(context.Background())
 	s.stopCtx, s.stop = context.WithCancel(context.Background())
 	return s
@@ -199,9 +198,7 @@ func (s *session) pumpHermes(hc upstream) {
 // own 5 s context and so is not reached by ioCtx.
 func (s *session) kill() {
 	s.cancelIO()
-	if s.raw != nil {
-		_ = s.raw.Close()
-	}
+	s.Cut()
 }
 
 // teardown closes the phone with the recorded code and Hermes normally, both at once. After

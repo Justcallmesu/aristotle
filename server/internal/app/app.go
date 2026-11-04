@@ -19,7 +19,13 @@ commands:
   pair [--name NAME] [--no-qr]
                         get a one-time pairing code (and its QR code) from the running server
   devices list          list paired devices
-  devices revoke <id>   revoke a paired device
+  devices revoke <id>   revoke a paired device (closes its relays and terminals)
+  devices grant-terminal <id>
+                        let a paired device open the remote terminal (full account access)
+  devices ungrant-terminal <id>
+                        remove that grant; closes the device's terminals
+  terminal enable|disable|status
+                        switch the remote terminal (default off); status lists grants and open terminals
   install [--start] [--force]
                         install as a systemd user service (starts at login)
   uninstall [--purge [--yes]]
@@ -49,6 +55,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return runPair(args[1:], stdout, stderr)
 	case "devices":
 		return runDevices(args[1:], stdout, stderr)
+	case "terminal":
+		return runTerminal(args[1:], stdout, stderr)
 	case "install":
 		return runInstall(args[1:], stdout, stderr)
 	case "uninstall":

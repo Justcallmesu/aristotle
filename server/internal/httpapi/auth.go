@@ -40,11 +40,24 @@ func DeviceFrom(ctx context.Context) (devices.Public, bool) {
 }
 
 type meResponse struct {
-	DeviceID string `json:"device_id"`
-	Name     string `json:"name"`
+	DeviceID string        `json:"device_id"`
+	Name     string        `json:"name"`
+	Terminal terminalFlags `json:"terminal"`
 }
 
-func meHandler(w http.ResponseWriter, r *http.Request) {
-	dev, _ := DeviceFrom(r.Context())
-	writeJSON(w, http.StatusOK, meResponse{DeviceID: dev.ID, Name: dev.Name})
+// terminalFlags tell the phone whether to show the terminal: both must be true (docs/protocol.md §14).
+type terminalFlags struct {
+	Enabled bool `json:"enabled"`
+	Granted bool `json:"granted"`
+}
+
+func meHandler(t TerminalServer) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dev, _ := DeviceFrom(r.Context())
+		res := meResponse{DeviceID: dev.ID, Name: dev.Name}
+		if t != nil {
+			res.Terminal.Enabled, res.Terminal.Granted = t.Status(dev.ID)
+		}
+		writeJSON(w, http.StatusOK, res)
+	})
 }
