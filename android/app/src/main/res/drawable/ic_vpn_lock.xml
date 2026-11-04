@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Network lock, Material Symbols Outlined 400 style, 24 dp. Tinted by the composable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="80"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M480,120A360,360 0 1,0 840,480" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="60"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M120,480L840,480" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="60"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M480,120C380,240 380,720 480,840" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="60"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M600,300L600,240A80,80 0 0,1 760,240L760,300" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M560,300L800,300L800,420L560,420Z" />
+</vector>

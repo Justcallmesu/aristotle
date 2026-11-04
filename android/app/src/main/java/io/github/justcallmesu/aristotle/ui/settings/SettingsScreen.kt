@@ -79,6 +79,8 @@ class SettingsActions(
     val pickLanguage: (AppLanguage) -> Unit,
     /** The phone has a PIN, pattern or password (the app lock needs one, Q61). */
     val screenLockSet: () -> Boolean = { false },
+    /** About › Send debug log (Q80b): opens the share sheet with the log file. */
+    val onSendDebugLog: () -> Unit = {},
 )
 
 /**
@@ -144,7 +146,7 @@ fun SettingsScreen(
                     SettingsPage.Appearance -> AppearanceSection(theme, textSize, onOpen = viewModel::show)
                     SettingsPage.Language -> LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
                     SettingsPage.Security -> SecuritySection(viewModel, actions.screenLockSet)
-                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew)
+                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew, actions.onSendDebugLog)
                 }
                 Spacer(Modifier.height(Spacing.xxl))
             }
@@ -386,9 +388,12 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
     },
 )
 
-/** The licence notices are D45's and say so until they exist. */
+/**
+ * The licence notices are D45's and say so until they exist. "Send debug log" (Q80b) says what the log holds and
+ * what it never holds; it only opens the share sheet.
+ */
 @Composable
-private fun AboutSection(pcId: String, onWhatsNew: () -> Unit) {
+private fun AboutSection(pcId: String, onWhatsNew: () -> Unit, onSendDebugLog: () -> Unit) {
     val servers by ServerVersions.all.collectAsStateWithLifecycle()
     val server = servers[pcId]
     RowGroup(
@@ -410,6 +415,7 @@ private fun AboutSection(pcId: String, onWhatsNew: () -> Unit) {
                 )
             },
             { SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_whats_new_body), modifier = Modifier.clickable(onClick = onWhatsNew)) },
+            { SettingRow(title = stringResource(R.string.settings_debug_log), body = stringResource(R.string.settings_debug_log_body), modifier = Modifier.clickable(onClick = onSendDebugLog)) },
             { SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true) },
             { SettingRow(title = stringResource(R.string.settings_source), body = stringResource(R.string.settings_source_body)) },
         ),

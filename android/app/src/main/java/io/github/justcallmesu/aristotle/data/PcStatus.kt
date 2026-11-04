@@ -97,6 +97,18 @@ object PcStatusFormat {
         }
     }
 
+    /** Meter fills, 0..1, null when the reading is missing or has no usable total. */
+    fun batteryFraction(battery: PcBattery?): Float? = battery?.let { (it.percent / 100f).coerceIn(0f, 1f) }
+
+    fun cpuFraction(cpuPercent: Double?): Float? = cpuPercent?.takeIf { it.isFinite() }?.let { (it / 100).toFloat().coerceIn(0f, 1f) }
+
+    fun ramFraction(memory: PcMemory?): Float? =
+        memory?.takeIf { it.totalBytes > 0 }?.let { (it.usedBytes.toDouble() / it.totalBytes).toFloat().coerceIn(0f, 1f) }
+
+    /** Disk used, not free: the bar fills as the drive does. */
+    fun diskUsedFraction(disk: PcDisk?): Float? =
+        disk?.takeIf { it.totalBytes > 0 }?.let { (1.0 - it.freeBytes.toDouble() / it.totalBytes).toFloat().coerceIn(0f, 1f) }
+
     fun percent(value: Double): Int = Math.round(value).toInt().coerceIn(0, 100)
 
     /** The two biggest non-zero units of [seconds], as days+hours, hours+minutes or minutes. */

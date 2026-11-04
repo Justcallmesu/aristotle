@@ -2,8 +2,8 @@ package io.github.justcallmesu.aristotle.background
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.core.content.ContextCompat
+import io.github.justcallmesu.aristotle.data.AppLog
 import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.BackgroundPolicy
 import io.github.justcallmesu.aristotle.data.CredentialState
@@ -70,11 +70,7 @@ class BackgroundController(
             ContextCompat.startForegroundService(context, Intent(context, LinkService::class.java))
         } catch (e: IllegalStateException) {
             // ForegroundServiceStartNotAllowedException; only the type is logged.
-            Log.w(TAG, "background link not started: ${e.javaClass.name}")
+            AppLog.w("background link not started", e)
         }
-    }
-
-    private companion object {
-        const val TAG = "Aristotle"
     }
 }

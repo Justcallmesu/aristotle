@@ -56,11 +56,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -290,73 +292,109 @@ fun ChatContentView(
     // hidden from accessibility services while covered.
     val child = state.subagent.open?.let { chat.subagents.byId(it) }?.takeIf { subagents != null }
     val covered = if (child != null) Modifier.clearAndSetSemantics {} else Modifier
-    Surface(modifier = Modifier.fillMaxSize().then(covered), color = MaterialTheme.colorScheme.surface) {
-        // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
-        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
-            val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            // A prompt waits for this phone's answer (not while that answer is on its way, T12b).
-            val waitingFor = ChatSubtitle.waitingFor(state.sheet.current(chat))
-            ChatTopBar(chat, state.link, live, waitingFor, fallbackTitle, fallbackProfile, onBack, modifier = sides)
-            if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
-            // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
-            val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
-            val insets = WindowInsets.safeDrawing.only(edge).asPaddingValues()
-            // The stack sits in the room left after the top bar and the composer, so it is measured against that (TB1b).
-            Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    val outbox = state.composer.outbox
-                    val runs = state.slash.runs
-                    when {
-                        feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
-                        feed.loaded -> Transcript(
-                            chat,
-                            live = live,
-                            composer = state.composer,
-                            runs = runs,
-                            insets = insets,
-                            echoes = echoes,
-                            onOpenSubagent = onOpenSubagent,
-                        )
-                        feed.problem != null -> LoadFailed(feed.problem, onRetry)
-                        else -> QuietLine(stringResource(R.string.chat_loading))
-                    }
-                    if (quotes != null && feed.problem == null) LoadingQuote(quotes, feed.loaded)
-                    SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
+    // Q80a: long-press actions. The host is rebuilt only when Steer's availability flips.
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var sheetFor by remember { mutableStateOf<MessageTarget?>(null) }
+    var selecting by remember { mutableStateOf<MessageTarget?>(null) }
+    var draftEdit by remember { mutableStateOf<DraftEdit?>(null) }
+    val steerAllowed = MessageActions.steerAllowed(state.composer)
+    val copiedText = stringResource(R.string.msg_copied)
+    val actionHost = remember(steerAllowed, context, snackbar, scope, copiedText) {
+        val copied: () -> Unit = { scope.launch { snackbar.showSnackbar(copiedText) } }
+        MessageActionHost(
+            steerAllowed = steerAllowed,
+            open = { sheetFor = it },
+            copied = copied,
+            perform = { action, target ->
+                when (action) {
+                    MessageAction.Copy -> if (!copyToClipboard(context, target.text)) copied()
+                    MessageAction.Share -> shareText(context, target.text)
+                    MessageAction.SelectText -> selecting = target
+                    MessageAction.Quote -> draftEdit = DraftEdit(System.currentTimeMillis(), MessageActions.quote(target.text), reply = true)
+                    // Puts the words in the draft and nothing else: Steer stays the user's tap.
+                    MessageAction.Steer -> if (steerAllowed) draftEdit = DraftEdit(System.currentTimeMillis(), target.text, reply = false)
                 }
-                if (feed.loaded && background != null) {
-                    StatusStack(
-                        sessionId = chat.sessionId,
-                        children = chat.subagents.items,
-                        background = state.background,
-                        live = live,
-                        onOpenSubagent = onOpenSubagent,
-                        onStop = background::askStop,
-                        modifier = sides,
+            },
+        )
+    }
+    CompositionLocalProvider(LocalMessageActions provides actionHost) {
+        Surface(modifier = Modifier.fillMaxSize().then(covered), color = MaterialTheme.colorScheme.surface) {
+            // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
+            Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
+                val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                // A prompt waits for this phone's answer (not while that answer is on its way, T12b).
+                val waitingFor = ChatSubtitle.waitingFor(state.sheet.current(chat))
+                ChatTopBar(chat, state.link, live, waitingFor, fallbackTitle, fallbackProfile, onBack, modifier = sides)
+                if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
+                // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
+                val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+                val insets = WindowInsets.safeDrawing.only(edge).asPaddingValues()
+                // The stack sits in the room left after the top bar and the composer, so it is measured against that (TB1b).
+                Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        val outbox = state.composer.outbox
+                        val runs = state.slash.runs
+                        when {
+                            feed.loaded && chat.items.isEmpty() && outbox.isEmpty() && runs.isEmpty() && !chat.running && chat.prompts.isEmpty() -> QuietLine(stringResource(R.string.chat_empty))
+                            feed.loaded -> Transcript(
+                                chat,
+                                live = live,
+                                composer = state.composer,
+                                runs = runs,
+                                insets = insets,
+                                echoes = echoes,
+                                onOpenSubagent = onOpenSubagent,
+                            )
+                            feed.problem != null -> LoadFailed(feed.problem, onRetry)
+                            else -> QuietLine(stringResource(R.string.chat_loading))
+                        }
+                        if (quotes != null && feed.problem == null) LoadingQuote(quotes, feed.loaded)
+                        SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(insets))
+                    }
+                    if (feed.loaded && background != null) {
+                        StatusStack(
+                            sessionId = chat.sessionId,
+                            children = chat.subagents.items,
+                            background = state.background,
+                            live = live,
+                            onOpenSubagent = onOpenSubagent,
+                            onStop = background::askStop,
+                            modifier = sides,
+                        )
+                    }
+                }
+                if (feed.loaded) {
+                    Composer(
+                        state.composer,
+                        running = chat.running,
+                        queued = ComposerLogic.queuedRows(feed, state.composer.outbox),
+                        actions = composer,
+                        slash = state.slash,
+                        focusOnStart = focusComposer,
+                        // design-notes §5.2: the model and effort moved from the top bar's subtitle into the composer's chip.
+                        // TR MINOR-1: without a model name the chip still shows ("Model"), so the sheet stays reachable.
+                        modelChip = ComposerLogic.chipLabel(
+                            chat.model,
+                            ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) },
+                            fallback = stringResource(R.string.composer_model_fallback),
+                        ),
+                        onOpenModels = models::open,
+                        onOpenPrompt = onOpenSheet,
+                        waitingFor = ChatSubtitle.waitingFor(state.sheet.current(chat) ?: chat.prompts.firstOrNull()) ?: WaitingFor.Approval,
+                    draftEdit = draftEdit,
                     )
                 }
             }
-            if (feed.loaded) {
-                Composer(
-                    state.composer,
-                    running = chat.running,
-                    queued = ComposerLogic.queuedRows(feed, state.composer.outbox),
-                    actions = composer,
-                    slash = state.slash,
-                    focusOnStart = focusComposer,
-                    // design-notes §5.2: the model and effort moved from the top bar's subtitle into the composer's chip.
-                    // TR MINOR-1: without a model name the chip still shows ("Model"), so the sheet stays reachable.
-                    modelChip = ComposerLogic.chipLabel(
-                        chat.model,
-                        ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) },
-                        fallback = stringResource(R.string.composer_model_fallback),
-                    ),
-                    onOpenModels = models::open,
-                    onOpenPrompt = onOpenSheet,
-                    waitingFor = ChatSubtitle.waitingFor(state.sheet.current(chat) ?: chat.prompts.firstOrNull()) ?: WaitingFor.Approval,
-                )
-            }
         }
     }
+    sheetFor?.let { target ->
+        MessageActionSheet(target, steerAllowed, onDismiss = { sheetFor = null }) { action ->
+            sheetFor = null
+            actionHost.perform(action, target)
+        }
+    }
+    selecting?.let { SelectTextScreen(it, onClose = { selecting = null }) }
     if (child != null && subagents != null) SubagentPage(child, state.subagent, live, subagents)
     if (state.sheet.visible(chat)) {
         val context = listOfNotNull(chat.title ?: fallbackTitle, chat.profileName).joinToString(" · ")

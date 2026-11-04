@@ -115,7 +115,7 @@ fun ChatRow(
 ) {
     when (item) {
         is ChatItem.User -> UserBubble(item.text, attachmentsOf(item).map { it.toBubble() })
-        is ChatItem.Assistant -> ChatMarkdown(item.text, streaming = item.streaming && live)
+        is ChatItem.Assistant -> ChatMarkdown(item.text, streaming = item.streaming && live, modifier = Modifier.messageActions(MessageRole.Assistant, item.text))
         // A delegation reads as its children, not as a blob of JSON (the Desktop's delegate card, T17).
         is ChatItem.Tool -> if (item.subagents.isNotEmpty()) {
             DelegateCard(item, live, onOpenSubagent)
@@ -349,10 +349,10 @@ internal fun UserBubble(text: String, attachments: List<BubbleAttachment> = empt
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     shape = MaterialTheme.shapes.large,
+                    // Q80a: a long-press opens the message actions (Select text is one of them), so no inline selection here.
+                    modifier = Modifier.messageActions(MessageRole.User, text),
                 ) {
-                    SelectionContainer {
-                        Text(text = text, style = AristotleTextStyles.chatText, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
-                    }
+                    Text(text = text, style = AristotleTextStyles.chatText, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                 }
             }
         }

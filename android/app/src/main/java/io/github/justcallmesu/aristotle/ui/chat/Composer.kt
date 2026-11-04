@@ -142,6 +142,8 @@ fun Composer(
     onOpenModels: () -> Unit = {},
     onOpenPrompt: () -> Unit = {},
     waitingFor: WaitingFor = WaitingFor.Approval,
+    /** A quote or a steer text from a message action (Q80a), put into the field at the cursor once. */
+    draftEdit: DraftEdit? = null,
 ) {
     val online = state.mode != ComposerMode.Offline
     val ready = state.armed && online
@@ -164,7 +166,7 @@ fun Composer(
             Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = ComposerShape, modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(start = Spacing.l, top = Spacing.s, end = Spacing.s, bottom = Spacing.s)) {
                     if (state.attachments.isNotEmpty()) AttachmentChips(state.attachments, onRemove = actions::removeAttachment)
-                    ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, modifier = Modifier.fillMaxWidth())
+                    ComposerField(state, enabled = online, onEdit = actions::edit, focusOnStart = focusOnStart, draftEdit = draftEdit, modifier = Modifier.fillMaxWidth())
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         AttachButton(enabled = online && state.attachments.size < AttachmentRules.MAX_ATTACHMENTS, actions = actions)
                         if (ComposerLogic.showsModelChip(trailing) && modelChip != null) {
@@ -194,7 +196,7 @@ fun Composer(
  * changes the draft itself (sent, put back), and only then is the field reset, so a late state never undoes typing.
  */
 @Composable
-private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (String) -> Unit, focusOnStart: Boolean, modifier: Modifier = Modifier) {
+private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (String) -> Unit, focusOnStart: Boolean, draftEdit: DraftEdit?, modifier: Modifier = Modifier) {
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(state.draft, TextRange(state.draft.length))) }
     // Focused once (a new session, T14); not again after a rotation, which would pop the keyboard back up.
     val focus = remember { FocusRequester() }
@@ -207,6 +209,15 @@ private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (Strin
     }
     LaunchedEffect(state.draftEpoch) {
         if (field.text != state.draft) field = TextFieldValue(state.draft, TextRange(state.draft.length))
+    }
+    // Q80a: a quote or steer text goes in at the cursor, the draft stays; each edit once (rotation keeps the id).
+    var appliedEdit by rememberSaveable { mutableStateOf(0L) }
+    LaunchedEffect(draftEdit?.id) {
+        if (draftEdit == null || draftEdit.id == appliedEdit) return@LaunchedEffect
+        appliedEdit = draftEdit.id
+        field = applyDraftEdit(field, draftEdit)
+        onEdit(field.text)
+        if (enabled) focus.requestFocus()
     }
     val description = stringResource(R.string.composer_field)
     val colors = MaterialTheme.colorScheme

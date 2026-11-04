@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
+import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.compose.elements.MarkdownTableBasicText
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
@@ -62,6 +67,7 @@ import com.mikepenz.markdown.model.rememberMarkdownState
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
+import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
@@ -181,7 +187,37 @@ private fun chatMarkdownPadding() = markdownPadding(
 )
 
 /** One instance for the process, like [cursorInline]. */
-private val chatComponents = markdownComponents(table = { model -> ChatTable(model) })
+private val chatComponents = markdownComponents(
+    table = { model -> ChatTable(model) },
+    codeFence = { model -> CodeWithCopy(model) { MarkdownCodeFence(model.content, model.node, model.typography.code) } },
+    codeBlock = { model -> CodeWithCopy(model) { MarkdownCodeBlock(model.content, model.node, model.typography.code) } },
+)
+
+/**
+ * Q80a: a code block with a Copy icon at its top-right (48 dp touch). Copies the code only ([CodeBlocks.extract]): no fences, no language tag.
+ */
+@Composable
+private fun CodeWithCopy(model: MarkdownComponentModel, block: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val host = LocalMessageActions.current
+    val code = remember(model.content, model.node) { CodeBlocks.extract(model.content.substring(model.node.startOffset, model.node.endOffset)) }
+    val toast = stringResource(R.string.msg_copied)
+    val label = stringResource(R.string.code_copy)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        block()
+        IconButton(
+            onClick = { copyWithFeedback(context, code, host, toast) },
+            modifier = Modifier.align(Alignment.TopEnd),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_content_copy),
+                contentDescription = label,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Sizes.chipIcon),
+            )
+        }
+    }
+}
 
 /**
  * C6: a table whose cells wrap ([ChatTables]: 120–240 dp columns, sideways scroll when they do not fit); more than

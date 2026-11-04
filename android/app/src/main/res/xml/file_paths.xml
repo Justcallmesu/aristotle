@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- T16: only the camera's capture folder in the app cache is shared (with the camera app, write once). -->
+<!-- T16: the camera's capture folder in the app cache is shared (with the camera app, write once).
+     TL2 (Q80b): the cache's share/ folder holds the one file a "Send debug log" / "Send report" hands to the share
+     sheet (Diagnostics.SHARE_DIR in data/CrashReports.kt); the log and crash files themselves are never exposed. -->
 <paths>
     <cache-path name="camera" path="camera/" />
+    <cache-path name="share" path="share/" />
 </paths>

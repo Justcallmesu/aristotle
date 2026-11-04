@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hard drive, Material Symbols Outlined 400 style, 24 dp. Tinted by the composable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="80"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M200,560L280,200L680,200L760,560L760,720L200,720Z M200,560L760,560" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M640,680m-40,0a40,40 0 1,0 80,0a40,40 0 1,0 -80,0" />
+</vector>

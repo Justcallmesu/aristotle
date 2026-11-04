@@ -5,9 +5,9 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import androidx.core.app.ServiceCompat
 import io.github.justcallmesu.aristotle.AristotleApplication
+import io.github.justcallmesu.aristotle.data.AppLog
 import io.github.justcallmesu.aristotle.data.ConnectionNotice
 import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.LinkState
@@ -46,7 +46,7 @@ class LinkService : Service() {
             ServiceCompat.startForeground(this, Notifier.ID_LINK, container.notifier.ongoing(notice), foregroundType())
         } catch (e: IllegalStateException) {
             // A sticky restart from the background may be refused (not exempt from battery optimisation).
-            Log.w(TAG, "background link refused: ${e.javaClass.name}")
+            AppLog.w("background link refused", e)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -86,6 +86,5 @@ class LinkService : Service() {
 
     companion object {
         const val ACTION_STOP = "io.github.justcallmesu.aristotle.action.STOP_LINK"
-        private const val TAG = "Aristotle"
     }
 }

@@ -64,6 +64,9 @@ import io.github.justcallmesu.aristotle.data.terminal.TerminalEntry
 import io.github.justcallmesu.aristotle.ui.lock.LockScreen
 import io.github.justcallmesu.aristotle.ui.lock.isScreenLockSet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import io.github.justcallmesu.aristotle.background.DebugShare
 
 /**
  * Top-level route: locked -> the lock screen; reading -> blank; no active PC -> pair; paired -> that PC's pages.
@@ -80,6 +83,8 @@ fun AristotleApp(container: AppContainer, defaultDeviceName: String) {
         return
     }
     saved.SaveableStateProvider(UNLOCKED_CONTENT) { UnlockedApp(container, defaultDeviceName) }
+    // After a crash (Q80b): over the unlocked app only, never above the lock screen.
+    CrashReportDialog(container.diagnostics)
 }
 
 @Composable
@@ -349,6 +354,9 @@ private fun SettingsRoute(
     val context = LocalContext.current
     val settingsViewModel = settingsViewModel(container)
     val activity = LocalActivity.current
+    val scope = rememberCoroutineScope()
+    val logSubject = stringResource(R.string.debug_log_share_subject)
+    val chooserTitle = stringResource(R.string.share_chooser_title)
     // Leaving Settings closes its sheet; a rotation keeps it.
     DisposableEffect(settingsViewModel) {
         onDispose { if (activity?.isChangingConfigurations != true) settingsViewModel.close() }
@@ -361,6 +369,13 @@ private fun SettingsRoute(
             onRepair = onRepair,
             onHistory = onHistory,
             onUnpair = { container.unpair(pc.pcId) },
+            // About › Send debug log (Q80b): the log as one file through the share sheet; nothing is uploaded.
+            onSendDebugLog = {
+                scope.launch {
+                    val file = withContext(Dispatchers.IO) { container.diagnostics.debugLogFile() }
+                    activity?.let { DebugShare.open(it, file, logSubject, chooserTitle) }
+                }
+            },
             canPostNotifications = container.notifier::canPost,
             channelOn = container.notifier::isOn,
             currentLanguage = { AppLocales.current(context, container.settings) },

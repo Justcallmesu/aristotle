@@ -4,6 +4,7 @@ Status: **chosen** (Q75, 2026-11-04): Home **C** without message counts, **Soft*
 line; TD2b: the profile is an **avatar button top right** on Home C opening today's profile sheet (§5.6). Board:
 `docs/design/v2/mockups.html` (Tweaks: view, theme, corners, PC link state, profile label). The PM folds the chosen parts
 into `docs/design.md`; A, B and the Round / v1 / segmented alternatives stay on the board for the record only.
+TD3 adds §5.7 and board section 6: three PC status card options (open, **A recommended**), for the user to pick on the phone.
 
 What does not change: palette A (every `ColorScheme` value in design.md §1), the role rules (verdigris = live work only,
 red = Deny / Stop / errors only), the fonts (Literata titles, Atkinson Hyperlegible Next / Mono, design.md §2), tonal
@@ -288,6 +289,166 @@ PlaceholderVerticalAlign.TextCenter))`), so the chat echoes the avatar the user 
 chat keeps the profile it was opened in (T14). States: running "◌ Running · step 8 · [P] pm", waiting "✋ Needs your
 approval · [P] pm" (error), idle "[P] pm", offline "☁ Offline · [P] pm". `fallbackProfile` (TU1 C4) unchanged.
 
+### 5.7 PC status card (TD3, Q78)
+
+The user: "make the pc status card more beautiful, its kinda bare and rough". Board section 6 draws three options of the
+same §16 reading inside the top of Home C (wordmark + avatar above, Live now below), collapsed and opened, light and dark,
+with his PC's values (battery 58 %, CPU 27 %, RAM 7.0 / 11.5 GB, disk 34 GB free of 184 GB, Hermes Running, Tailscale Up,
+up 28 m, 192.168.100.88 · Wi-Fi), plus charging, Hermes not running and offline "as of 17:40". Tweak "PC card (Home C)"
+puts each option into the full Home C screens. What stays: the card's place and rules from today's `PcStatusCard.kt`
+(online it replaces the head's PC line and carries the address when opened; offline the head shows the offline line and
+the card shows the last values with "as of"; the whole head row is one ≥ 48 dp button read as one sentence).
+
+| | **A — Meters (recommended)** | B — Dials | C — Ledger line |
+|---|---|---|---|
+| Collapsed | Battery · CPU · RAM, each label 12 / value 16 sp / 4 dp linear bar | Three 48 dp circular dials (percent inside) + a Hermes disc, 11 sp captions | "● Hermes ● Tailscale Up 28 m", then a strip of three 3 dp bars with 13 sp values |
+| Opened | 2-column tonal tiles (Disk + bar, Uptime, Hermes, Tailscale), address tile full width | Grouped rows (Disk + bar, Tailscale, Uptime, Address) | Ledger: 72 dp label column, value, 56 dp bar |
+| Height (collapsed / opened; today 48 / ~112) | 76 / 294 dp | 110 / 316 dp | 91 / 224 dp |
+| Exact RAM GB while collapsed | 16 sp | 11 sp under a 61 % dial | 13 sp |
+
+**Recommendation: A.** It answers "bare" with shape (three bars) without hiding the numbers the user reads today; values
+stay 16 sp text, so nothing depends on judging a bar. Collapsed it costs 28 dp over today, B costs 62 dp and turns the
+head into a dashboard (rings, a centred cluster) above the live cards that are the page's point; B's RAM dial can only
+show a percent, so the GB he knows move to 11 sp. C is the most coherent with the ledger but is still mostly text, the
+thing he called bare. A's opened tiles reuse the tonal step of the live cards (`surfaceContainer` on `surfaceContainerLow`).
+
+**Colour roles** (palette A; no verdigris, nothing here is live work; red only for Hermes not running):
+
+| Part | Colour | Contrast (light / dark) |
+|---|---|---|
+| Card | `surfaceContainerLow`, `shapes.large` (20) | |
+| Labels, sub-lines, chevron, tile icons | `onSurfaceVariant` | 6.8 / 9.2 on Low; 6.4 / 8.8 on tiles |
+| Values | `onSurface` | 12.8 / 13.6 |
+| Bar indicator / track | `primary` / `surfaceContainerHighest` | indicator vs track 8.9 / 9.0; track vs card 1.2 (M3 default; the value is always text) |
+| Tiles | `surfaceContainer`, `shapes.small` (12 = 20 − 8 inset, concentric) | |
+| Hermes not running (line, tile icon + value) | `error` | 5.3 / 10.2 on Low; 5.0 / 9.7 on tiles |
+| Offline (as of) | values `onSurfaceVariant`, bars `outline` (replaces today's 0.6 alpha, which had no contrast floor) | 6.8 / 9.2; bars 3.5 / 4.8 on Low |
+
+**Compose (A)** — replaces the body of `ui/sessions/PcStatusCard.kt`; the signature gains `network` for the address icon:
+```kotlin
+@Composable
+fun PcStatusCard(status: PcStatus, address: String, network: Network?, expanded: Boolean, onToggle: () -> Unit,
+                 asOf: String?, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val locale = LocalLocale.current.platformLocale
+    val stale = asOf != null
+    val sentence = cardSentence(status, locale, asOf)   // compactSentence today + ", Hermes not running" + ", values as of 17:40"
+    val toggleLabel = stringResource(if (expanded) R.string.pc_collapse else R.string.pc_expand)
+    Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainerLow, modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.animateContentSize()) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth()
+                    .clickable(onClickLabel = toggleLabel, role = Role.Button, onClick = onToggle)
+                    .heightIn(min = Sizes.minTouchTarget)
+                    .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 14.dp)
+                    .clearAndSetSemantics { contentDescription = sentence },
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (asOf != null) AsOfLine(asOf)                                   // history 14 dp + "As of 17:40", labelMedium
+                    if (status.hermesRunning == false) HermesDownLine()                // error 18 dp + "Hermes is not running", titleSmall, error
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        status.battery?.let { Meter(stringResource(R.string.pc_battery_label), AnnotatedString("${it.percent}%"),
+                            it.percent / 100f, stale, charging = it.charging, modifier = Modifier.weight(1f)) }
+                        status.cpuPercent?.let { Meter(stringResource(R.string.pc_cpu_label),
+                            AnnotatedString("${PcStatusFormat.percent(it)}%"), (it / 100).toFloat(), stale, modifier = Modifier.weight(1f)) }
+                        status.memory?.let { Meter(stringResource(R.string.pc_ram_label), ramValue(it, locale),   // "7.0 / 11.5" + " GB" span (bodySmall, onSurfaceVariant)
+                            it.usedBytes.toFloat() / it.totalBytes, stale, modifier = Modifier.weight(1.55f)) }
+                    }
+                    // battery, CPU and RAM all null: show the uptime here as text ("Up 28 m") so the row is never empty
+                }
+                val turn by animateFloatAsState(if (expanded) 180f else 0f, label = "pc-chevron")
+                Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, tint = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp).size(Sizes.fieldIcon).rotate(turn))
+            }
+            AnimatedVisibility(visible = expanded) { DetailTiles(status, address, network, locale, stale) }
+        }
+    }
+}
+
+@Composable
+private fun Meter(label: String, value: AnnotatedString, fraction: Float, stale: Boolean, charging: Boolean = false,
+                  modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1)
+            if (charging) Icon(painterResource(R.drawable.ic_bolt), null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
+        }
+        Text(value, style = AristotleTextStyles.tabular(MaterialTheme.typography.titleMedium),
+            color = if (stale) colors.onSurfaceVariant else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        LinearProgressIndicator(
+            progress = { fraction.coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp),
+            color = if (stale) colors.outline else colors.primary,
+            trackColor = colors.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round, gapSize = 4.dp, drawStopIndicator = {},
+        )
+    }
+}
+
+private data class PcTile(@DrawableRes val icon: Int, val label: String, val value: String,
+                          val sub: String? = null, val fraction: Float? = null, val error: Boolean = false)
+
+@Composable
+private fun DetailTiles(status: PcStatus, address: String, network: Network?, locale: Locale, stale: Boolean) {
+    val tiles = buildList {                  // order: Disk, Uptime, Hermes, Tailscale; a null field drops its tile
+        status.disk?.let { add(PcTile(R.drawable.ic_hard_drive, s(R.string.pc_disk_label), s(R.string.pc_disk_free, diskSize(it.freeBytes)),
+            sub = s(R.string.pc_disk_of, diskSize(it.totalBytes)), fraction = 1f - it.freeBytes.toFloat() / it.totalBytes)) }
+        status.uptimeSeconds?.let { add(PcTile(R.drawable.ic_timer, s(R.string.pc_uptime_label), uptimeValue(it), sub = s(R.string.pc_uptime_since_boot))) }
+        status.hermesRunning?.let { add(PcTile(if (it) R.drawable.ic_check_circle else R.drawable.ic_error, s(R.string.pc_hermes_label),
+            s(if (it) R.string.pc_hermes_running else R.string.pc_hermes_not_running), error = !it)) }
+        status.tailscaleUp?.let { add(PcTile(R.drawable.ic_vpn_lock, s(R.string.pc_tailscale_label), s(if (it) R.string.pc_tailscale_up else R.string.pc_tailscale_down))) }
+    }
+    Column(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        tiles.chunked(2).forEach { pair ->
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { Tile(it, stale, Modifier.weight(1f).fillMaxHeight()) }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        if (address.isNotBlank()) Tile(PcTile(if (network == Network.Tailscale) R.drawable.ic_vpn_lock else R.drawable.ic_wifi,
+            s(R.string.pc_address_label), address), stale, Modifier.fillMaxWidth())   // address part in Mono 500, as on the board
+    }
+}
+
+@Composable
+private fun Tile(t: PcTile, stale: Boolean, modifier: Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Surface(shape = MaterialTheme.shapes.small, color = colors.surfaceContainer, modifier = modifier.semantics(mergeDescendants = true) {}) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(painterResource(t.icon), null, tint = if (t.error) colors.error else colors.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp).size(20.dp))
+            Column(Modifier.weight(1f)) {
+                Text(t.label, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                Text(t.value, style = AristotleTextStyles.tabular(MaterialTheme.typography.titleSmall),
+                    color = when { t.error -> colors.error; stale -> colors.onSurfaceVariant; else -> colors.onSurface })
+                t.sub?.let { Text(it, style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall), color = colors.onSurfaceVariant) }
+                t.fraction?.let { /* same LinearProgressIndicator as Meter, padding(top = 6.dp) */ }
+            }
+        }
+    }
+}
+```
+- `s(...)` = `stringResource`; `diskSize` / `uptimeValue` wrap `PcStatusFormat` (unchanged). `SessionsScreen` passes
+  `network = (state.link as? LinkState.Online)?.endpoint?.network`; the rest of its call site is unchanged.
+- TalkBack: head row = one button, "PC status. Battery 58 percent, processor 27 percent, memory 7.0 of 11.5 gigabytes
+  used. Hermes not running. Values as of 17:40." + "double-tap to Show more PC details". Each tile is one merged node
+  ("Disk, 34 GB free, of 184 GB"); bars and icons are decorative (the value is always text).
+- Motion unchanged: `animateContentSize` + `AnimatedVisibility` (expand + fade), chevron 180° at 300 ms, emphasized
+  decelerate (design.md §4). No colour thresholds on high CPU / low disk / low battery: red is errors only.
+- Desktop PC (battery null): CPU and RAM meters share the row (weights 1 : 1.55).
+- **New icons** (Material Symbols Outlined, 24 dp vectors): `ic_hard_drive`, `ic_timer`, `ic_vpn_lock`, `ic_wifi`,
+  `ic_history`. Existing: `ic_bolt`, `ic_error`, `ic_check_circle`, `ic_expand_more`.
+- **New strings** (EN; ID needed): `pc_battery_label` "Battery", `pc_cpu_label` "CPU", `pc_ram_label` "RAM",
+  `pc_ram_gb` "%1$s / %2$s" (+ " GB" span), `pc_disk_label` "Disk", `pc_disk_free` "%1$s free", `pc_disk_of` "of %1$s",
+  `pc_uptime_label` "Uptime", `pc_uptime_value_dh` / `_hm` / `_m` "%1$d d %2$d h" / "%1$d h %2$d m" / "%1$d m",
+  `pc_uptime_since_boot` "since boot", `pc_address_label` "Address", `pc_hermes_down_line` "Hermes is not running",
+  `pc_as_of_title` "As of %1$s", `pc_say_title` "PC status", `pc_say_as_of` "values as of %1$s". Today's `pc_cpu_value`,
+  `pc_ram_value`, `pc_disk_value` and `pc_uptime_*` ("Up 28 m") become unused.
+- Tests: `data/PcStatusTest.kt` (parser + `PcStatusFormat`) is untouched; add a Compose UI test for the sentence with
+  Hermes down + as-of and one for the battery-null row (there is no card UI test today).
+
 ## 6. Spec / design.md changes this needs (PM)
 
 | Where | Change |
@@ -330,6 +491,12 @@ approval · [P] pm" (error), idle "[P] pm", offline "☁ Offline · [P] pm". `fa
 TD2b re-check (avatar, sheet, chat mark): no new tells; the avatar is a monogram button in a row, not an icon topper
 above a heading, and uses palette A roles.
 
+TD3 re-check (PC card, board section 6): no gradient, blur, accent rail or icon topper; dials are 48 dp with 13 sp inside
+(no monument stat). Closest call is #3 on A's opened tiles (icon + label + value, 2 × 2); kept because each tile is a real
+reading of different weight (disk carries a bar, Hermes can turn red), icons sit in-row at 20 dp, and the tiles are the
+secondary layer under the meters. First pass had a layout bug, not slop: C's strip collided with the chevron column and
+its dot line wrapped with a dangling separator; the strip now spans the card and the line wraps by group. Score 0/10.
+
 **Score 0/10 (first pass and after).** Bugs fixed during review (not slop): approval status lost its red in list rows
 (CSS specificity), fingerprint grid overflowed (now 4 × 4 as design.md says), the model sheet scrolled the collapsed
 providers out of view (now minimal scroll), New chat button not full width, chip truncating "Medium".
@@ -352,4 +519,6 @@ providers out of view (now minimal scroll), New chat button not full width, chip
 - **TR5 Model sheet**: search, collapsible providers, effort footer + slider (`ModelSheet.kt`); unit-test filtering and
   the one-call-per-gesture rule.
 - **TR6 Settings + sheets**: grouped rows in `SettingsScreen.kt` / `SettingsConnection.kt`; shapes in `PromptSheet.kt`.
+- **TR7 PC card** (after the user picks in board section 6): `PcStatusCard.kt` per §5.7, the `network` argument in
+  `SessionsScreen.kt`, five icons, strings EN + ID.
 Each ticket re-shoots its screens on the Poco against this board.

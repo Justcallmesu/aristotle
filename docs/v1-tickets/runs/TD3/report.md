@@ -1,0 +1,7 @@
+# TD3 report — PC status card, 3 options (Q78)
+- Board: `docs/design/v2/mockups.html` §6 shows options A Meters, B Dials and C Ledger line. Each one is drawn in the Home C top in 5 states (collapsed, opened, charging + Hermes not running ×2, offline "as of 17:40"), light + dark, with the real values. Tap a card to open or close it. A new Tweak "PC card (Home C)" (default None) puts any option into the full Home C screens. Nothing else on the board changed.
+- **Recommend A**: three label · 16 sp value · 4 dp `LinearProgressIndicator` meters. Opened, it shows tonal tiles. Collapsed it is 76 dp (today 48). B is 110 dp, and its RAM dial can only show a percent. C is 91 dp and is still mostly text.
+- `design-notes.md` §5.7 has the comparison, colour roles + contrast, the Compose code for A (new `network` param), new icons/strings, TalkBack sentence and TR7 ticket. §8 has the slop re-check (0/10; #3 borderline on A's tiles, explained).
+- Rules kept: M3 parts only, no blur/gradients, verdigris unused, red only for Hermes not running, offline uses role colours instead of 0.6 alpha, head row ≥ 48 dp with one sentence.
+- Verified in Chromium (file://): no console errors on load, on reload or when switching the tweak. Card toggle and aria-expanded work. Heights were measured. Layout issue fixed: C's strip and its dot line.
+- Open: the user picks A/B/C on the phone; Indonesian strings are needed. No app code, git or adb was touched.

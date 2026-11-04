@@ -216,6 +216,7 @@ fun SessionsContentView(
                 PcStatusCard(
                     status = pcStatus,
                     address = if (online) pcLineText(state.link, address) else "",
+                    network = (state.link as? LinkState.Online)?.endpoint?.network,
                     expanded = pcExpanded,
                     onToggle = { pcExpanded = !pcExpanded },
                     asOf = if (online) null else state.pcStatus.fetchedAtMillis?.let(timeText),

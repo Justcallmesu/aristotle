@@ -1,0 +1,12 @@
+# TM2 build report — message actions + copy code (Q80a)
+- New `ui/chat/MessageActions.kt`: pure `MessageActions` (available / steerAllowed / quote / insert-at-cursor), `CodeBlocks.extract`, `Modifier.messageActions` (long-press + haptic + TalkBack long-click and one custom action per item), `MessageActionSheet` (ModalBottomSheet), `SelectTextScreen` (full-screen `SelectionContainer`), copy/share helpers.
+- Actions: Copy (Markdown source for replies), Share (ACTION_SEND), Select text, Quote (`> ` lines, inserted at the cursor, draft kept, cursor left after it), Steer with this (only when composer is Busy, no prompt waiting, no attachments, draft not `/`: the same rules as the Steer button). It only puts the text in the draft; it never sends.
+- `ChatItems.kt`: user bubble and assistant reply get the long-press. I removed the bubble's inline `SelectionContainer`, which would have swallowed the long-press (Select text is now the action). Steps and cards are untouched.
+- `ChatMarkdown.kt`: every fenced and indented code block has a Copy icon button (top-right, 48 dp). It copies the code only, with no fences or language tag.
+- `Composer.kt` takes a `draftEdit` (applied once, at the cursor). `ChatScreen.kt` holds the host, sheet, select view and snackbar. The subagent page gets no host, so it has no long-press.
+- Feedback: the system "Copied" toast on Android 13+, a snackbar below 13 (a Toast where there is no chat, e.g. What's new).
+- Only chat message text is reachable here. Prompt-sheet values (sudo/secret/clarify) never enter a message, so none can be copied from this path.
+- Strings EN+ID appended (`msg_*`, `code_copy`). New icons: `ic_content_copy`, `ic_share`, `ic_format_quote`, `ic_select_all`.
+- Tests: `MessageActionsTest` has 14 cases (quote, draft insert, code extraction, which actions show), all passing.
+- Gate: `GATE_ONLY=android` exits 1. Kotlin compiles, and unit tests pass with 0 failures. `lintAnalyzeDebug` crashes in lint's `ExperimentalDetector` while analysing `DebugShare.kt`, which is TL2's file, not mine. Re-run after TL2 settles.
+- Not verified on a device (no adb): haptics, TalkBack actions, sheet and select-dialog look, and the code-block overlay position.

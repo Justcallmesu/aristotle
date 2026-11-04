@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Timer, Material Symbols Outlined 400 style, 24 dp. Tinted by the composable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="80"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M380,100L580,100" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="80"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M480,200A300,300 0 1,0 480,800A300,300 0 1,0 480,200Z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="80"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M480,500L620,360" />
+</vector>

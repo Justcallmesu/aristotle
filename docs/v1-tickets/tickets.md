@@ -98,7 +98,11 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TP1a | Q78 server: GET /v1/pc-status (battery, CPU, RAM, disk, Hermes, Tailscale, uptime), protocol §16 | — | server | DONE |
 | TP1b | Q78 phone: PC status card on Home C (compact + expand), 10 s poll while visible+online | TP1a contract | android | DONE |
 | TP1c | Flaky pcstatus CPU test + zero-delta pair erases CPU % | TP1a | server | DONE |
-| TD3 | PC status card: 3 more beautiful options on the v2 board (user: 'bare and rough') | TP1b | docs/design | BUILDING |
+| TD3 | PC status card: 3 more beautiful options on the v2 board (user: 'bare and rough') | TP1b | docs/design | DONE |
+| TR7 | PC status card option A Meters (Q79) | TD3 | android | DONE |
+| TM2 | Q80a: message actions (copy, share, select, quote, steer-with) + copy on code blocks | TR3 | android | DONE |
+| TL2 | Q80b: redacted on-phone debug log, crash capture + next-launch crash screen, Send debug log in About | TH1 | android | DONE |
+| TQ3 | Review-Q80 minors: crash message allow-list, claim crash report when the dialog shows, long-press during streaming, CPU meter keeps last value (no jump), disk.path '~', revoked clears log, NITs | TL2, TM2, TR7, TP1a | android, server | BUILDING |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -427,3 +431,7 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TP1a/TP1b built. Mutation (pc-status without requireDevice) fails 1. Full gate pm-gate-57: android PASS, server 380/381 — TestStatusAssemblesEveryField flaky (passes 2/3 alone). TP1c dispatched to fix the cause. Demo server restarted from the tree; app installed.
 - 2026-11-04 DEVICE: PC status card shows real values (58%, CPU 27%, RAM 7.0/11.5 GB, 34 GB free of 184 GB, Hermes Running, Tailscale Up, Up 28 m). User: too bare -> TD3 mockups (3 options). TP1c: PM's product-bug guess was wrong (keep-last-value already existed); cause = test race; fixed deterministic.
 - 2026-11-04 pm-gate-58 GREEN (381 Go, android). TP1a+TP1b+TP1c committed without a separate review (read-only endpoint behind requireDevice, mutation-proven); diff folds into the card-redesign review. Card look being redone (TD3).
+- 2026-11-04 User picked PC card option A (Meters) -> Q79, TR7 dispatched.
+- 2026-11-04 User picked for before v1.0: message actions + copy code, debug log + crash screen -> Q80; TM2 (std) + TL2 (deep) dispatched in parallel with TR7.
+- 2026-11-04 TR7, TM2, TL2 built; PM clean gate + mutations running; deep review (TL2 privacy focus + TP1 server unreviewed part) dispatched.
+- 2026-11-04 Review-Q80 PASS-WITH-FINDINGS: TL2 privacy clean; TM2 steer-with never sends; TR7 matches §5.7; TP1 OK. Mutations: bearer redaction off fails 2, quote prefix off fails 1. pm-gate-59 GREEN (Gradle cache is content-addressed, restored files hash-match). PM added the CHANGELOG lines (MINOR-4). Committed TR7+TM2+TL2. TQ3 for the rest.

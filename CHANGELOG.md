@@ -16,6 +16,8 @@ file at build time and shows the `Phone:` entries only.
 - Phone: Above the message field, a chat lists its running subagents and background processes; a process can be stopped after you confirm.
 - Server: Announce itself on your Wi-Fi (never over Tailscale) so the phone can find it after a network change.
 - Phone: Home shows your PC's battery, CPU and memory under the title (tap for disk, Hermes, Tailscale and uptime), refreshed every 10 seconds while Home is open and the PC is reachable.
+- Phone: Long-press a message to copy, share, select, quote it or steer with it; every code block has a copy button.
+- Phone: Settings › About › "Send debug log" shares a privacy-filtered log through the share sheet; after a crash the app offers to share a report on the next start. Nothing is sent automatically.
 - Server: Report the PC's battery, CPU, memory, disk, Hermes and Tailscale state to the phone (read-only, `GET /v1/pc-status`).
 
 ## [1.0.0] - 2026-11-04

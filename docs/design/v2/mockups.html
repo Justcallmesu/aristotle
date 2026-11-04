@@ -376,9 +376,113 @@ body[data-plabel="icon"] .bighead .avbtn .pl{display:none}
 .bigtitle{font:500 28px/36px var(--f-display);padding:4px 16px 16px}
 .kv{font:400 13px/18px var(--f-mono);color:var(--on-surface);letter-spacing:.2px}
 .fp{font:500 15px/22px var(--f-mono);color:var(--on-surface);display:grid;grid-template-columns:repeat(4,auto);gap:0 16px;justify-content:start}
+
+/* ===== PC status card (TD3, Q78): three options, board section 6; design-notes §5.7 ===== */
+.phone.crop{height:auto;border-radius:46px 46px 18px 18px}
+.crop .screen{height:auto;border-radius:36px 36px 10px 10px}
+.crop .cut{height:92px;overflow:hidden}
+.crop .cut .cards{overflow:hidden}
+.pcwrap{padding:4px 16px 8px}
+.pcx{background:var(--surface-low);border-radius:var(--r-lg);color:var(--on-surface);cursor:pointer;outline:none;font:400 14px/20px var(--f-ui)}
+.pcx:hover{background-image:linear-gradient(var(--state),var(--state))}
+.pcx:focus-visible{box-shadow:0 0 0 2px var(--primary)}
+.pcx .chevbox{width:40px;height:40px;flex:none;display:grid;place-items:center;margin-top:-8px}
+.pcx .chev{color:var(--on-surface-variant);transition:transform .3s cubic-bezier(.05,.7,.1,1)}
+.pcx.open .chev{transform:rotate(180deg)}
+.pcx .more{display:none}
+.pcx.open .less{display:none}
+.ms.s14{font-size:14px}
+.pc-lbl{display:flex;align-items:center;gap:2px;font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant);white-space:nowrap}
+.pc-val{font:600 16px/24px var(--f-ui);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-val .u{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.pc-v2{font:600 14px/20px var(--f-ui);font-variant-numeric:tabular-nums}
+.pc-sub{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.pc-asof{display:flex;align-items:center;gap:4px;font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant)}
+.pc-alert{display:flex;align-items:center;gap:6px;font:600 14px/20px var(--f-ui);color:var(--error)}
+.pc-alert .ms{font-size:18px}
+.pcx .err{color:var(--error)}
+/* M3 LinearProgressIndicator (1.3+): 4 dp, round caps, 4 dp gap to the track, stop indicator off */
+.lin{display:flex;gap:4px;height:4px;width:100%}
+.lin i,.lin b{display:block;height:4px;border-radius:2px;flex-basis:0}
+.lin i{background:var(--primary)}
+.lin b{background:var(--surface-highest)}
+.lin.thin,.lin.thin i,.lin.thin b{height:3px}
+.stale .lin i{background:var(--outline)}
+.stale .pc-val,.stale .pc-v2,.stale .rv{color:var(--on-surface-variant)}
+/* A — meters */
+.pa-head{display:flex;gap:8px;align-items:flex-start;padding:12px 4px 14px 16px;min-height:48px}
+.pa-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.pa-meters{display:grid;grid-template-columns:1fr 1fr 1.55fr;gap:16px}
+.pa-m{display:flex;flex-direction:column;min-width:0}
+.pa-m .lin{margin-top:6px}
+.pa-tiles{grid-template-columns:1fr 1fr;gap:8px;padding:0 8px 8px}
+.pcx.open .pa-tiles{display:grid}
+.pa-t{display:flex;gap:12px;align-items:flex-start;padding:10px 8px 10px 8px;border-radius:var(--r-sm);background:var(--surface-c);min-width:0}
+.pa-t>.ms{color:var(--on-surface-variant);margin-top:8px}
+.pa-t>div{min-width:0;flex:1}
+.pa-t .lin{margin-top:6px}
+.pa-t.wide{grid-column:1 / -1}
+.pa-t.e>.ms{color:var(--error)}
+/* B — dials */
+.pb-head{display:flex;gap:8px;align-items:flex-start;padding:12px 4px 12px 12px}
+.pb-dials{flex:1;display:flex;gap:4px;justify-content:space-between;min-width:0}
+.pb-g{width:70px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.pb-g .ring{margin-bottom:4px}
+.pb-g .pc-lbl{justify-content:center}
+.pb-sub{font:400 11px/14px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums;white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis}
+.pb-sub.err{color:var(--error)}
+.ring{position:relative;width:48px;height:48px;display:grid;place-items:center;flex:none}
+.ring svg{position:absolute;inset:0}
+.ring .rt,.ring .rp{fill:none;stroke-width:4;stroke-linecap:round}
+.ring .rt{stroke:var(--surface-highest)}
+.ring .rp{stroke:var(--primary)}
+.stale .ring .rp{stroke:var(--outline)}
+.ring .rv{position:relative;font:600 13px/16px var(--f-ui);font-variant-numeric:tabular-nums}
+.disc{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--secondary-container);color:var(--on-secondary-container);margin-bottom:4px}
+.disc.e{background:var(--error-container);color:var(--on-error-container)}
+.stale .disc{opacity:.6}
+.pb-asof{padding:12px 16px 0}
+.pb-rows{flex-direction:column;gap:2px;padding:0 8px 8px}
+.pcx.open .pb-rows{display:flex}
+.pb-r{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;background:var(--surface-c);border-radius:var(--r-xs)}
+.pb-r:first-child{border-top-left-radius:var(--r-sm);border-top-right-radius:var(--r-sm)}
+.pb-r:last-child{border-bottom-left-radius:var(--r-sm);border-bottom-right-radius:var(--r-sm)}
+.pb-r>.ms{color:var(--on-surface-variant);font-size:20px}
+.pb-r .k{flex:1;min-width:0}
+.pb-r .v{font:600 14px/20px var(--f-ui);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.pb-r.tall{flex-wrap:wrap;row-gap:6px}
+.pb-r.tall .lin{flex-basis:100%;margin-left:32px}
+/* C — ledger line */
+.pc3-head{display:flex;gap:8px;align-items:flex-start;padding:12px 4px 8px 16px}
+.pc3-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.pc3-line{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px;font:600 14px/20px var(--f-ui);min-height:24px}
+.pc3-line .grp{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pc3-line .up{color:var(--on-surface-variant);font-weight:400;font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--primary);flex:none}
+.dot.off{background:transparent;box-shadow:inset 0 0 0 1.5px var(--outline)}
+.dot.e{background:var(--error)}
+.pc3-strip{display:grid;grid-template-columns:1.15fr .8fr 1.45fr;gap:16px;padding:0 16px 14px}
+.pc3-c{min-width:0}
+.pc3-c .t{display:flex;align-items:center;gap:3px;font:400 13px/18px var(--f-ui);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--on-surface-variant)}
+.pc3-c .t b{font-weight:600;color:var(--on-surface)}
+.stale .pc3-c .t b{color:var(--on-surface-variant)}
+.pc3-c .lin{margin-top:4px}
+.pc3-tab{padding:0 16px 12px}
+.pcx.open .pc3-tab{display:block}
+.pc3-r{display:grid;grid-template-columns:72px 1fr 56px;column-gap:8px;align-items:center;min-height:32px}
+.pc3-r .k{font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant)}
+.pc3-r .v{font:400 14px/20px var(--f-ui);font-variant-numeric:tabular-nums;min-width:0}
+.stale .pc3-r .v{color:var(--on-surface-variant)}
+.pc3-r .v .ms{vertical-align:-2px;color:var(--on-surface-variant)}
+/* board-only comparison table */
+.pccmp{border-collapse:collapse;font-size:13px;line-height:1.45;margin:0 0 22px;max-width:1200px}
+.pccmp th,.pccmp td{border-top:1px solid rgb(0 0 0 / .14);padding:7px 14px 7px 0;text-align:left;vertical-align:top}
+.pccmp th{font-weight:600}
+.pcopt>h3{font:600 18px/1.25 var(--f-display);margin:8px 0 4px}
+.pcopt>p{margin:0 0 14px;max-width:100ch;opacity:.78;font-size:14px;text-wrap:pretty}
 </style>
 </head>
-<body data-theme="both" data-corners="soft" data-link="online" data-view="board" data-plabel="under">
+<body data-theme="both" data-corners="soft" data-link="online" data-view="board" data-plabel="under" data-pccard="none">
 
 <div class="tweaks" role="toolbar" aria-label="Tweaks">
   <b>Tweaks</b>
@@ -392,6 +496,8 @@ body[data-plabel="icon"] .bighead .avbtn .pl{display:none}
     <button data-v="online">Online</button><button data-v="offline">Offline</button><button data-v="update">Update notices</button></div></div>
   <div class="seg"><span>Profile label (Home C)</span><div class="opts" data-tweak="plabel">
     <button data-v="under">Under (rec.)</button><button data-v="beside">Beside</button><button data-v="icon">Icon only</button></div></div>
+  <div class="seg"><span>PC card (Home C, TD3)</span><div class="opts" data-tweak="pccard">
+    <button data-v="none">None (as drawn)</button><button data-v="a">A meters (rec.)</button><button data-v="b">B dials</button><button data-v="c">C ledger</button></div></div>
 </div>
 
 <section class="intro">
@@ -540,8 +646,11 @@ function homeCInner(){
       : kind==="run"?`<span class="spin"></span><span class="live">Running · step 8</span>`:`<span class="err" style="display:flex;gap:4px;align-items:center">${I("front_hand","s16")}Needs your approval · 4:32</span>`;
     return `<div class="lcard tap" data-go="chat"><div class="top">${top}<span class="tm">now</span></div><div class="t">${esc(s.t)}</div><div class="last ell">${last}</div></div>`};
   const led=(k)=>{const s=SESS[k];return `<div class="ledger one tap" data-go="chat"><div class="tm">${s.time||s.date}</div><div class="t ell">${esc(s.t)}</div></div>`};
+  const pcopt=document.body.dataset.pccard||"none";
+  const pcCardOn=pcopt!=="none";   // TD3: online, the card replaces the PC line (it carries the address when opened)
   return `
-  <header class="bighead"><div class="tt"><div class="wordmark">Aristotle</div>${pcLine()}</div>${avatarBtn()}</header>
+  <header class="bighead"><div class="tt"><div class="wordmark">Aristotle</div>${pcCardOn&&!off?"":pcLine()}</div>${avatarBtn()}</header>
+  ${pcCardOn?`<div class="pcwrap">${pcCard(pcopt,off?{asOf:"22:09"}:{})}</div>`:""}
   ${notices()}
   <div class="scroll">
     <div class="sec">Live now</div>
@@ -760,6 +869,132 @@ function specimens(){
   </div><figcaption><b>Avatar and chat top bar · ${m}</b>${m==="light"?"bkm-reports-bot ellipsizes at 72 dp under the avatar; the sheet and TalkBack carry the full name.":""}</figcaption></figure>`;
   return `<div class="row" style="margin-bottom:28px">${panel("light")}${panel("dark")}</div>`;
 }
+/* ---------------- PC STATUS CARD (TD3, Q78; protocol §16; design-notes §5.7) ----------------
+   Real values from the user's PC (device screenshot 91-pc.png, 2026-11-04). The address is the link's, as today's card shows. */
+const PCS={bat:58,chg:false,cpu:27,ramU:"7.0",ramT:"11.5",dFree:34,dTot:184,hermes:true,ts:true,up:"28 m",addr:"192.168.100.88",net:"Wi-Fi",asOf:null,open:false};
+const ramPct=s=>Math.round(parseFloat(s.ramU)/parseFloat(s.ramT)*100);          // 61
+const diskUsed=s=>Math.round((s.dTot-s.dFree)/s.dTot*100);                     // 82
+const lin=(p,thin=false)=>{p=Math.max(0,Math.min(100,p));return `<span class="lin${thin?" thin":""}" aria-hidden="true"><i style="flex-grow:${p}"></i><b style="flex-grow:${100-p}"></b></span>`};
+/* TalkBack: the head row is one button whose label is this sentence (today's pc_say_* strings + two new parts) */
+const pcSay=s=>[`PC status. Battery ${s.bat} percent${s.chg?", charging":""}`,`processor ${s.cpu} percent`,`memory ${s.ramU} of ${s.ramT} gigabytes used`].join(", ")
+  +(s.hermes===false?". Hermes not running":"")+(s.asOf?`. Values as of ${s.asOf}`:"")+".";
+const pcAttrs=s=>`data-pcx role="button" tabindex="0" aria-expanded="${!!s.open}" aria-label="${pcSay(s)}"`;
+const pcCls=(base,s)=>`pcx ${base}${s.open?" open":""}${s.asOf?" stale":""}`;
+const asOfLine=s=>`<div class="pc-asof">${I("history","s14")}As of ${s.asOf}</div>`;
+const downLine=()=>`<div class="pc-alert">${I("error")}Hermes is not running</div>`;
+const chev=()=>`<span class="chevbox">${I("expand_more","chev")}</span>`;
+
+/* A — meters: label · value · thin linear bar, three in a row; opened = 2-column tiles with icons */
+function pcA(s){
+  const m=(lbl,val,p,extra="")=>`<div class="pa-m"><div class="pc-lbl">${lbl}${extra}</div><div class="pc-val">${val}</div>${lin(p)}</div>`;
+  const tile=(ic,lbl,val,{sub="",bar=null,e=false,wide=false}={})=>`<div class="pa-t${e?" e":""}${wide?" wide":""}">${I(ic,"s20")}<div>
+      <div class="pc-lbl">${lbl}</div><div class="pc-v2${e?" err":""}">${val}</div>${sub?`<div class="pc-sub">${sub}</div>`:""}${bar!=null?lin(bar):""}</div></div>`;
+  return `<div class="${pcCls("pa",s)}" ${pcAttrs(s)}>
+    <div class="pa-head"><div class="pa-main">
+      ${s.asOf?asOfLine(s):""}${s.hermes===false?downLine():""}
+      <div class="pa-meters">
+        ${m("Battery",`${s.bat}%`,s.bat,s.chg?I("bolt","s14"):"")}
+        ${m("CPU",`${s.cpu}%`,s.cpu)}
+        ${m("RAM",`${s.ramU} / ${s.ramT}<span class="u"> GB</span>`,ramPct(s))}
+      </div></div>${chev()}</div>
+    <div class="more pa-tiles">
+      ${tile("hard_drive","Disk",`${s.dFree} GB free`,{sub:`of ${s.dTot} GB`,bar:diskUsed(s)})}
+      ${tile("timer","Uptime",s.up,{sub:"since boot"})}
+      ${tile(s.hermes?"check_circle":"error","Hermes",s.hermes?"Running":"Not running",{e:!s.hermes})}
+      ${tile("vpn_lock","Tailscale",s.ts?"Up":"Down")}
+      ${s.asOf?"":tile("wifi","Address",`<span class="mono" style="font-weight:500">${s.addr}</span> · via ${s.net}`,{wide:true})}
+    </div></div>`;
+}
+
+/* B — dials: CircularProgressIndicator trio + a Hermes disc; opened = grouped rows */
+function ring(p,inner){
+  const r=22,C=2*Math.PI*r,gap=8;                 // gap includes the 2 dp round caps: ~4 dp visible, as M3's gapSize
+  const a=Math.max(0,Math.min(1,p/100))*C,tl=Math.max(0,C-a-2*gap);
+  return `<span class="ring"><svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true"><g transform="rotate(-90 24 24)">
+    ${tl>0?`<circle class="rt" cx="24" cy="24" r="${r}" stroke-dasharray="${tl.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-(a+gap)).toFixed(1)}"/>`:""}
+    <circle class="rp" cx="24" cy="24" r="${r}" stroke-dasharray="${a.toFixed(1)} ${C.toFixed(1)}"/></g></svg><span class="rv">${inner}</span></span>`;
+}
+function pcB(s){
+  const g=(top,lbl,sub,subErr=false)=>`<div class="pb-g">${top}<div class="pc-lbl">${lbl}</div><div class="pb-sub${subErr?" err":""}">${sub}</div></div>`;
+  const row=(ic,k,v,bar=null)=>`<div class="pb-r${bar!=null?" tall":""}">${I(ic)}<span class="k">${k}</span><span class="v">${v}</span>${bar!=null?lin(bar):""}</div>`;
+  const hermes=`<span class="disc${s.hermes?"":" e"}" aria-hidden="true">${I(s.hermes?"check":"priority_high")}</span>`;
+  return `<div class="${pcCls("pb",s)}" ${pcAttrs(s)}>
+    ${s.asOf?`<div class="pb-asof">${asOfLine(s)}</div>`:""}
+    <div class="pb-head"><div class="pb-dials">
+      ${g(ring(s.bat,`${s.bat}%`),`Battery${s.chg?I("bolt","s14"):""}`,s.chg?"Charging":"On battery")}
+      ${g(ring(s.cpu,`${s.cpu}%`),"CPU","All cores")}
+      ${g(ring(ramPct(s),`${ramPct(s)}%`),"RAM",`${s.ramU}/${s.ramT} GB`)}
+      ${g(hermes,"Hermes",s.hermes?"Running":"Not running",!s.hermes)}
+    </div>${chev()}</div>
+    <div class="more pb-rows">
+      ${row("hard_drive","Disk",`${s.dFree} GB free of ${s.dTot} GB`,diskUsed(s))}
+      ${row("vpn_lock","Tailscale",s.ts?"Up":"Down")}
+      ${row("timer","Uptime",s.up)}
+      ${s.asOf?"":row("wifi","Address",`<span class="mono" style="font-weight:500">${s.addr}</span> · ${s.net}`)}
+    </div></div>`;
+}
+
+/* C — ledger: one health line with status dots, a bar strip under it; opened = a label/value ledger like Home C's */
+function pcC(s){
+  const dot=(on,err=false)=>`<span class="dot${err?" e":on?"":" off"}" aria-hidden="true"></span>`;
+  const cell=(t,p)=>`<div class="pc3-c"><div class="t">${t}</div>${lin(p,true)}</div>`;
+  const r=(k,v,bar=null)=>`<div class="pc3-r"><span class="k">${k}</span><span class="v">${v}</span>${bar!=null?lin(bar):"<span></span>"}</div>`;
+  return `<div class="${pcCls("pc3",s)}" ${pcAttrs(s)}>
+    <div class="pc3-head"><div class="pc3-main">
+      ${s.asOf?asOfLine(s):""}
+      <div class="pc3-line"><span class="grp${s.hermes?"":" err"}">${dot(s.hermes,!s.hermes)}${s.hermes?"Hermes":"Hermes not running"}</span><span class="grp">${dot(s.ts)}Tailscale</span><span class="up">Up ${s.up}</span></div>
+      </div>${chev()}</div>
+    <div class="pc3-strip less">
+      ${cell(`Battery <b>${s.bat}%</b>${s.chg?I("bolt","s14"):""}`,s.bat)}
+      ${cell(`CPU <b>${s.cpu}%</b>`,s.cpu)}
+      ${cell(`RAM <b>${s.ramU}/${s.ramT}</b> GB`,ramPct(s))}
+    </div>
+    <div class="more pc3-tab">
+      ${r("Battery",`${s.bat}% · ${s.chg?`${I("bolt","s16")}charging`:"on battery"}`,s.bat)}
+      ${r("CPU",`${s.cpu}% · all cores`,s.cpu)}
+      ${r("RAM",`${s.ramU} of ${s.ramT} GB`,ramPct(s))}
+      ${r("Disk",`${s.dFree} GB free of ${s.dTot}`,diskUsed(s))}
+      ${s.asOf?"":r("Address",`<span class="mono">${s.addr}</span> · ${s.net}`)}
+    </div></div>`;
+}
+function pcCard(opt,st={}){const s={...PCS,...st};return opt==="b"?pcB(s):opt==="c"?pcC(s):pcA(s)}
+
+/* Home C top, cropped: head (wordmark + avatar), the card, "Live now" and the first live card cut off */
+function pcCrop(opt,st,mode){
+  const s={...PCS,...st},off=!!s.asOf;
+  const av=`<button class="avbtn" ${off?'aria-disabled="true"':'data-go="profile-sheet"'} aria-label="Hermes profile: pm. Change profile"><span class="avatar" aria-hidden="true">P</span><span class="pl" aria-hidden="true">pm</span></button>`;
+  const top=off?`<span class="muted">Was running at 17:40</span>`:`<span class="spin"></span><span class="live">Running · step 8</span>`;
+  return `<div class="phone crop" data-mode="${mode}"><div class="screen">${statusbar()}<div class="app">
+    <header class="bighead"><div class="tt"><div class="wordmark">Aristotle</div>${off?`<div class="subline">${I("cloud_off")}<span>Offline since 17:40</span><button class="retry">Retry now</button></div>`:""}</div>${av}</header>
+    <div class="pcwrap">${pcCard(opt,s)}</div>
+    ${off?`<div class="notice"><span class="tx muted">little-boy stopped answering. This list is from 17:40.</span></div>`:""}
+    <div class="sec">Live now</div>
+    <div class="cut"><div class="cards"><div class="lcard tap" data-go="chat"><div class="top">${top}<span class="tm">now</span></div><div class="t">${esc(SESS.aristotle.t)}</div><div class="last ell">vision_analyze  ~/…/scratch/ui/91-pc.png</div></div></div></div>
+  </div></div></div>`;
+}
+const PC_STATES=[
+  ["Collapsed","Battery 58 %, not charging.",{}],
+  ["Opened","Tap the card (on the board too).",{open:true}],
+  ["Charging + Hermes not running","Hermes down is the only red; it shows while collapsed.",{chg:true,hermes:false}],
+  ["Charging + Hermes not running, opened","",{chg:true,hermes:false,open:true}],
+  ["Offline — as of 17:40, opened","Old values in onSurfaceVariant, bars in outline; no address (the head says offline).",{asOf:"17:40",open:true}],
+];
+const PC_OPTS=[
+  {id:"a",h:"A — Meters (recommended)",p:"Three meters in a row: label, the value in 16 sp, a 4 dp <code>LinearProgressIndicator</code> under it. Opened, a 2-column grid of tonal tiles (disk with its bar, uptime, Hermes, Tailscale) and the address across the bottom. The numbers stay text-first; the bars give the card shape at a glance. Collapsed 76 dp (today 48)."},
+  {id:"b",h:"B — Dials",p:"Three 48 dp <code>CircularProgressIndicator</code> dials with the percent inside, plus a Hermes disc (check / error) so the most important state is visible without opening. Opened, grouped rows (disk with a bar, Tailscale, uptime, address). The richest look; RAM inside its dial must be a percent (61 %), the GB go under it in 11 sp. Collapsed 110 dp."},
+  {id:"c",h:"C — Ledger line",p:"Health first: one line \"● Hermes · ● Tailscale · Up 28 m\" with status dots (filled = up, ring = down, red = Hermes down), a strip of three 3 dp bars with small values under it. Opened, the strip becomes a ledger (72 dp label column, value, bar) that echoes Home C's time column. The quietest; closest to today's text. Collapsed 91 dp."},
+];
+function pcBoard(){
+  const cmp=`<table class="pccmp"><tr><th></th><th>A — Meters (rec.)</th><th>B — Dials</th><th>C — Ledger line</th></tr>
+    <tr><td>Collapsed / opened height (today 48 / ~112)</td><td>76 / 294 dp</td><td>110 / 316 dp</td><td>91 / 224 dp</td></tr>
+    <tr><td>Reads first</td><td>Three numbers, each with a bar</td><td>Four round shapes: load and Hermes</td><td>Hermes and Tailscale are up</td></tr>
+    <tr><td>Exact RAM (7.0 / 11.5 GB) collapsed</td><td>Yes, 16 sp</td><td>11 sp under a 61 % dial</td><td>Yes, 13 sp</td></tr>
+    <tr><td>Hermes down while collapsed</td><td>Red line above the meters</td><td>Red disc</td><td>Red dot + \"Hermes not running\"</td></tr>
+    <tr><td>Fits the Home C language</td><td>Tiles = the live-card tonal steps</td><td>Grouped rows (Settings)</td><td>Ledger (history rows)</td></tr>
+    <tr><td>Risk</td><td>Live cards move 28 dp down</td><td>Dials look like a dashboard; live cards 62 dp lower</td><td>May still feel \"bare\"; 43 dp lower</td></tr></table>`;
+  return cmp+PC_OPTS.map(o=>`<div class="pcopt"><h3>${o.h}</h3><p>${o.p}</p>
+    ${["light","dark"].map(m=>`<div class="row" style="margin-bottom:24px">${PC_STATES.map(([cap,note,st],i)=>`<figure class="shot" data-mode="${m}" id="pc-${o.id}-${i}-${m}">${pcCrop(o.id,st,m)}<figcaption><b>${o.id.toUpperCase()} · ${cap} · ${m}</b>${m==="light"?note:""}</figcaption></figure>`).join("")}</div>`).join("")}</div>`).join("");
+}
 const GROUPS=[
   {h:"1 · Home — three options (C chosen, Q75)",p:"The user picked <b>C</b> (Q75): no message counts, the profile avatar top right (1b). A and B stay for the record. They differ in composition, not colour. A keeps today's list; B is the chat-app home the user pointed at (ChatGPT / Claude): search on top, live block, one-line history by day, big New chat; C puts live work first as cards and moves every control to the bottom. Use the PC link tweak for offline and update states: each is one quiet line, never a banner stack.",ids:["home-a","home-b","home-c"]},
   {h:"1b · Profile switcher (TD2b)",p:"The user's call: the profile is an <b>avatar button top right</b> on Home C, opening <b>the same sheet as today</b>. The avatar is a 40 dp Soft square (16 dp corners, below half its side, so no pill) in <code>secondaryContainer</code> with the profile's initial in Literata; its name sits under it in 11 sp. The name is needed: <code>default</code> and <code>developer</code> share the initial D, and names run up to <code>bkm-reports-bot</code>. The Tweak \"Profile label\" compares under (recommended) / beside / icon only. In chat the profile is the last part of the subtitle, a 16 dp copy of the avatar plus the name; a chat cannot switch profile (it keeps the one it was opened in, T14), so it is not a button.",ids:["profile-sheet","profile-sheet-failed"],extra:specimens},
@@ -767,6 +1002,7 @@ const GROUPS=[
   {h:"3 · Model sheet — collapsible providers, search, effort",p:"Slider vs segmented, side by side. Recommendation: <b>slider</b> (design-notes §5.3): Hermes always offers 7 or 8 ordered levels, which do not fit one segmented row, and the slider keeps one control that names the level in text and steps one level per TalkBack swipe or arrow key.",ids:["model","model-seg","model-search"]},
   {h:"4 · Settings",p:"The category list (Q72) and one sub-page in the grouped-row language.",ids:["settings","settings-connection"]},
   {h:"5 · Prompt sheet",p:"Approval in the new shapes; information order unchanged (Q41).",ids:["prompt"]},
+  {h:"6 · PC status card — three options (TD3, Q78)",p:"The user: \"make the pc status card more beautiful, its kinda bare and rough\". Three compositions of the same §16 reading, drawn inside the top of Home C (wordmark + avatar above, Live now below) with the real values from his PC. Rules kept: palette A roles only (no verdigris: nothing here is live work; red only for Hermes not running), Soft corners, M3 parts only (<code>Surface</code>, <code>LinearProgressIndicator</code>, <code>CircularProgressIndicator</code>, <code>Icon</code>), the whole head row is one ≥ 48 dp button whose TalkBack label is one sentence. Tap any card to open or close it. The Tweak \"PC card (Home C)\" puts each option into the full Home C screens of section 1. <b>Recommended: A</b> (design-notes §5.7).",ids:[],extra:pcBoard},
 ];
 function phone(id,mode){return `<div class="phone" data-mode="${mode}" data-screen="${id}">${SCREENS[id].f()}</div>`}
 function renderBoard(){
@@ -837,9 +1073,12 @@ document.addEventListener("click",e=>{
   if(lv){lv.closest("[role=radiogroup]").querySelectorAll("button").forEach(b=>b.setAttribute("aria-checked",b===lv));lv.closest(".effort").querySelector(".val").textContent=LEVELS.find(l=>l[0]===lv.dataset.lv)[1];lv.closest(".phone").dataset.level=lv.dataset.lv;return}
   const act=t.closest("[data-act]");
   if(act){act.closest(".psheet").classList.toggle("confirming",act.dataset.act==="always");return}
+  const px=t.closest("[data-pcx]");
+  if(px){px.classList.toggle("open");px.setAttribute("aria-expanded",px.classList.contains("open"));return}
   const g=t.closest("[data-go]");
   if(g){go(g.dataset.go,g)}
 });
+document.addEventListener("keydown",e=>{const px=e.target.closest?.("[data-pcx]");if(px&&(e.key==="Enter"||e.key===" ")){e.preventDefault();px.click()}});
 function pickProfile(pr){
   const ph=pr.closest(".phone"),n=pr.dataset.prof;
   ph.querySelectorAll("[data-prof]").forEach(r=>r.setAttribute("aria-checked",r===pr));
@@ -869,7 +1108,7 @@ Object.entries(saved).forEach(([k,v])=>{document.body.dataset[k]=v});
 function syncTweaks(){document.querySelectorAll("[data-tweak]").forEach(g=>g.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",document.body.dataset[g.dataset.tweak]===b.dataset.v)))}
 document.querySelectorAll("[data-tweak]").forEach(g=>g.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   document.body.dataset[g.dataset.tweak]=b.dataset.v;saved[g.dataset.tweak]=b.dataset.v;localStorage.setItem("aristotle-td2",JSON.stringify(saved));syncTweaks();
-  if(["link","theme","view"].includes(g.dataset.tweak)) render(); else document.querySelectorAll(".slider").forEach(s=>setSlider(s,+s.dataset.i));
+  if(["link","theme","view","pccard"].includes(g.dataset.tweak)) render(); else document.querySelectorAll(".slider").forEach(s=>setSlider(s,+s.dataset.i));
 }));
 syncTweaks();
 document.fonts?.ready.then(()=>{render()});

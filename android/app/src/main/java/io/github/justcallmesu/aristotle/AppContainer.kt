@@ -8,10 +8,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
 import io.github.justcallmesu.aristotle.background.BackgroundController
 import io.github.justcallmesu.aristotle.background.Notifier
 import io.github.justcallmesu.aristotle.data.AlertRouter
+import io.github.justcallmesu.aristotle.data.AppLog
+import io.github.justcallmesu.aristotle.data.Diagnostics
+import io.github.justcallmesu.aristotle.background.DebugShare
 import io.github.justcallmesu.aristotle.data.AppLock
 import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.AuthBroker
@@ -61,9 +63,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Why the app went back to the pair screen on its own. */
 enum class PairNotice {
@@ -80,8 +85,11 @@ enum class PairNotice {
  */
 data class OpenChat(val sessionId: String, val title: String?, val showPrompt: Boolean, val profile: String? = null)
 
-/** The app's long-lived objects, built once per process. No DI framework. */
-class AppContainer(context: Context) {
+/**
+ * The app's long-lived objects, built once per process. No DI framework. [diagnostics]: the debug log and crash report
+ * (Q80b, TL2), started by the application before this.
+ */
+class AppContainer(context: Context, val diagnostics: Diagnostics) {
     /** Process-lifetime work (credential reads and wipes); the store moves it off the main thread. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -109,7 +117,7 @@ class AppContainer(context: Context) {
      * its own errors into an offline round; the handler is the last guard, so nothing it starts can crash
      * the app (only the error's type is logged, never a message that could hold a token).
      */
-    private val linkScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.w(TAG, "link: ${e.javaClass.name}") })
+    private val linkScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> AppLog.w("link: uncaught", e) })
     private val dialer = HttpLinkDialer(httpClients)
 
     /** The phone's network; the link follows it, and a change ends every open terminal (Q55). */
@@ -124,7 +132,7 @@ class AppContainer(context: Context) {
     )
 
     /** The phone's Wi-Fi (Q65): its joins start LAN discovery, its /24 is what "Find PC on this Wi-Fi" probes. */
-    private val wifi = AndroidWifiWatch(context, log = { Log.d(TAG, it) })
+    private val wifi = AndroidWifiWatch(context, log = AppLog::d)
 
     /** LAN discovery (Q65, TL1): finds the paired PC's new Wi-Fi address; trusted only through the pinned `/healthz`. */
     private val finder = PcFinder(
@@ -133,7 +141,7 @@ class AppContainer(context: Context) {
         health = dialer,
         ports = TcpPortProbe(),
         onFound = link::useFound,
-        log = { Log.d(TAG, it) },
+        log = AppLog::d,
         events = connectionLog,
     )
 
@@ -187,8 +195,14 @@ class AppContainer(context: Context) {
     val pins = SessionPins(ApplyingPreferencesStore(context.getSharedPreferences(PINS_FILE, Context.MODE_PRIVATE)))
     val notifier = Notifier(context)
 
-    /** What this phone keeps per PC, ended together by Unpair and a finished re-pair (TS1). */
-    val records = PcRecords(credentials, profileSelection, pins, drafts, clearHistory = connectionLog::clear)
+    /**
+     * What this phone keeps per PC, ended together by Unpair and a finished re-pair (TS1). Unpair also empties the
+     * debug log and any crash report (Q80b, TL2).
+     */
+    val records = PcRecords(credentials, profileSelection, pins, drafts, clearHistory = {
+        connectionLog.clear()
+        withContext(Dispatchers.IO) { diagnostics.clear() }
+    })
     val background = BackgroundController(context, link, credentials.state, settings, scope)
 
     /** HyperOS stops background apps unless told otherwise; the battery guide is for these phones (spec Q27). */
@@ -219,6 +233,7 @@ class AppContainer(context: Context) {
         LanAutoFind(linkScope, wifi.current, wifi, link.state, { (credentials.state.value as? CredentialState.Paired)?.credentials }, finder).start()
         terminalAccess.start()
         scope.launch { link.state.collect { if (it == LinkState.Revoked) forgetPc(PairNotice.Revoked) } }
+        scope.launch { link.state.map(::linkLogLine).distinctUntilChanged().collect { AppLog.i(it) } }
         scope.launch { credentials.state.collect { profileSelection.follow((it as? CredentialState.Paired)?.credentials?.pcId) } }
         notifier.createChannels()
         watchSessions()
@@ -287,21 +302,30 @@ class AppContainer(context: Context) {
         notice.value = null
     }
 
+    /** The debug log's line for a link state: its kind, cause and network only (no address, no server text). */
+    private fun linkLogLine(state: LinkState): String = when (state) {
+        is LinkState.Online -> "link state=Online network=${state.endpoint.network}"
+        is LinkState.Offline -> "link state=Offline cause=${state.cause}"
+        else -> "link state=${state.javaClass.simpleName}"
+    }
+
     private companion object {
         const val CREDENTIALS_FILE = "credentials"
         const val SETTINGS_FILE = "settings"
         const val DRAFTS_FILE = "drafts"
         const val PINS_FILE = "pins"
         const val HISTORY_FILE = "connection_history"
-        const val TAG = "Aristotle"
     }
 }
 
 class AristotleApplication : Application() {
-    val container: AppContainer by lazy { AppContainer(this) }
+    private lateinit var diagnostics: Diagnostics
+    val container: AppContainer by lazy { AppContainer(this, diagnostics) }
 
     override fun onCreate() {
         super.onCreate()
+        // First, so the crash handler and the debug log (Q80b, TL2) cover everything after it.
+        diagnostics = DebugShare.diagnostics(this).also { it.start() }
         registerActivityLifecycleCallbacks(VisibilityCallbacks())
     }
 
