@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.BuildConfig
+import io.github.justcallmesu.aristotle.data.ServerVersions
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.background.AppChannel
 import io.github.justcallmesu.aristotle.background.ChannelPage
@@ -263,7 +264,15 @@ private fun AboutSection() {
     SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline))
     SettingRow(
         title = stringResource(R.string.settings_version),
-        body = stringResource(R.string.settings_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+        body = stringResource(R.string.settings_app_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+    )
+    val server by ServerVersions.current.collectAsStateWithLifecycle()
+    SettingRow(
+        title = stringResource(R.string.settings_server_version),
+        body = server?.let { info ->
+            val unknown = stringResource(R.string.settings_server_unknown)
+            stringResource(R.string.settings_server_version_value, info.version ?: unknown, info.protocol)
+        } ?: stringResource(R.string.settings_server_unknown),
     )
     SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_coming_soon), quiet = true)
     SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true)

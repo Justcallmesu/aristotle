@@ -1,0 +1,243 @@
+{
+ "source": "Hermes session.resume messages (gateway local_history shape), pm profile main session rows 26369-26408, the running turn the phone showed as tool cards on 2026-11-04 (TU4b). Texts, arguments and outputs redacted; roles, order, row ids, tool names, reasoning and failure shapes kept.",
+ "messages": [
+  {
+   "role": "assistant",
+   "row_id": 26369,
+   "content": "Assistant answer.",
+   "finish_reason": "stop"
+  },
+  {
+   "role": "user",
+   "row_id": 26370,
+   "content": "already plugged"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26371,
+   "content": "",
+   "tool_calls": [
+    {
+     "id": "toolu_01",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26372,
+   "tool_call_id": "toolu_01",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26375,
+   "content": "",
+   "tool_calls": [
+    {
+     "id": "toolu_02",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26379,
+   "tool_call_id": "toolu_02",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26380,
+   "content": "",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_03",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26382,
+   "tool_call_id": "toolu_03",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26383,
+   "content": "",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_04",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26385,
+   "tool_call_id": "toolu_04",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26388,
+   "content": "",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_05",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26389,
+   "tool_call_id": "toolu_05",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26391,
+   "content": "",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_06",
+     "type": "function",
+     "function": {
+      "name": "patch",
+      "arguments": "{\"path\": \"/home/user/project/app/ChatText.kt\"}"
+     }
+    },
+    {
+     "id": "toolu_07",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26393,
+   "tool_call_id": "toolu_06",
+   "tool_name": "patch",
+   "content": "{\"success\": false, \"error\": \"redacted\"}"
+  },
+  {
+   "role": "tool",
+   "row_id": 26394,
+   "tool_call_id": "toolu_07",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26395,
+   "content": "",
+   "tool_calls": [
+    {
+     "id": "toolu_08",
+     "type": "function",
+     "function": {
+      "name": "patch",
+      "arguments": "{\"path\": \"/home/user/project/app/ChatText.kt\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26396,
+   "tool_call_id": "toolu_08",
+   "tool_name": "patch",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26399,
+   "content": "",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_09",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26406,
+   "tool_call_id": "toolu_09",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"redacted\", \"exit_code\": 1, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 26407,
+   "content": "",
+   "tool_calls": [
+    {
+     "id": "toolu_10",
+     "type": "function",
+     "function": {
+      "name": "vision_analyze",
+      "arguments": "{\"image_url\": \"/home/user/shot.png\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 26408,
+   "tool_call_id": "toolu_10",
+   "tool_name": "vision_analyze",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  }
+ ]
+}

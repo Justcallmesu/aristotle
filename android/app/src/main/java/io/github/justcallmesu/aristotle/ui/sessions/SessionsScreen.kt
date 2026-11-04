@@ -182,6 +182,7 @@ fun SessionsContentView(
                 } else {
                     val offline = state.link as? LinkState.Offline
                     offline?.let { OfflineBanner(it, address, state.listedAt, timeText, onRetry) }
+                    CompatibilityBanner()
                     ListBody(state, address, bottom.asPaddingValues(), actions)
                 }
             }

@@ -105,6 +105,9 @@ object ToolSummary {
     private const val MAX_SEGMENTS = 4
     private const val TAIL_SEGMENTS = 2
 
+    // Android compiles these with ICU, stricter than the JDK the unit tests run on: an unescaped `}` here crashed the app
+    // (TU4b). A literal brace outside a character class is escaped (`\{`, `\}`) and a lookbehind has a bounded length;
+    // IcuRegexGuardTest holds every pattern in the app to those rules.
     private val HOME = Regex("(?<![\\w.~/-])(?:/home/[^/\\s'\"`]+|/Users/[^/\\s'\"`]+|/root(?![^/\\s'\"`])|\\$\\{HOME\\}|\\${'$'}HOME\\b)")
     private val ASSIGNMENT = Regex("^\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\\s;&|]*)\\s*(?:;|&&)\\s*")
     private const val PATH_CHAR = "[^\\s'\"`;|&<>(){}\\[\\],=]"

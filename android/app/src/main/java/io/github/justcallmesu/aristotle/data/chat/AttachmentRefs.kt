@@ -79,6 +79,8 @@ object AttachmentRefs {
         return if ((head == '`' || head == '"' || head == '\'') && raw.last() == head) raw.substring(1, raw.length - 1) else raw
     }
 
+    // Android compiles these with ICU, stricter than the JDK the unit tests run on: a literal brace outside a character
+    // class is escaped (`\{`, `\}`) and a lookbehind has a bounded length. IcuRegexGuardTest holds every pattern to that.
     private val NATIVE_SUFFIX = Regex("""\n\n((?:\[Image attached(?: at)?: [^\n]+]\n)+)((?:\[screenshot](?:\n|$))+)\z""")
     private val HINT_LINE = Regex("""(?m)^\[Image attached(?: at)?: (.+)]$""")
     private val SCREENSHOT = Regex("""\[screenshot]""")

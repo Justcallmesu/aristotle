@@ -19,8 +19,9 @@ android {
         applicationId = "io.github.justcallmesu.aristotle"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // versionCode = major*10000 + minor*100 + patch (1.0.0 -> 10000); the PC server bumps its own semver.
+        versionCode = 10000
+        versionName = "1.0.0"
     }
 
     // quotes.json has one source, docs/quotes.json: copied into a generated assets dir at build time (TQ1).

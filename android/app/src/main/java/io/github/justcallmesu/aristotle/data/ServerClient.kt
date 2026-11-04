@@ -52,7 +52,14 @@ private data class PairBody(
 private data class AddressesBody(val addresses: List<WireAddress>)
 
 @Serializable
-private data class MeBody(val terminal: TerminalFlags? = null)
+private data class MeBody(val terminal: TerminalFlags? = null, val server: ServerBlock? = null)
+
+@Serializable
+private data class ServerBlock(
+    val version: String? = null,
+    val protocol: Int = 1,
+    @SerialName("min_phone_protocol") val minPhoneProtocol: Int = 1,
+)
 
 @Serializable
 private data class TerminalFlags(val enabled: Boolean = false, val granted: Boolean = false)
@@ -117,7 +124,10 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
     suspend fun terminalAllowed(token: DeviceToken): Boolean? {
         val request = Request.Builder().url(base.resolve("/v1/me")!!).header("Authorization", "Bearer ${token.value}").build()
         return execute(request, { null }) { response ->
-            if (response.code != 200) null else decode(response, MeBody.serializer())?.let { me -> me.terminal?.let { TerminalAccess.visible(it.enabled, it.granted) } ?: false }
+            if (response.code != 200) null else decode(response, MeBody.serializer())?.let { me ->
+                // A missing `server` block is an old server: version unknown, protocol 1 (Q63).
+                ServerVersions.record(me.server?.let { ServerInfo(it.version, it.protocol, it.minPhoneProtocol) } ?: ServerInfo.OLD)
+                me.terminal?.let { TerminalAccess.visible(it.enabled, it.granted) } ?: false }
         }
     }
 

@@ -1,0 +1,128 @@
+{
+ "source": "Hermes session.resume messages (gateway local_history shape), pm profile session 20261014_152331_10fdb4 rows 15001-15011, the turn the phone showed folded on 2026-11-04 (TU4b). Texts, arguments and outputs redacted; roles, order, row ids, tool names, reasoning and failure shapes kept.",
+ "messages": [
+  {
+   "role": "user",
+   "row_id": 15001,
+   "content": "review it then"
+  },
+  {
+   "role": "assistant",
+   "row_id": 15002,
+   "content": "Assistant text before the calls.",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_01",
+     "type": "function",
+     "function": {
+      "name": "terminal",
+      "arguments": "{\"command\": \"cd ~/project/app && ./gradlew test\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 15003,
+   "tool_call_id": "toolu_01",
+   "tool_name": "terminal",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 15004,
+   "content": "",
+   "reasoning": "Reasoning about the next step.",
+   "tool_calls": [
+    {
+     "id": "toolu_02",
+     "type": "function",
+     "function": {
+      "name": "write_file",
+      "arguments": "{\"path\": \"/home/user/project/docs/brief.md\"}"
+     }
+    },
+    {
+     "id": "toolu_03",
+     "type": "function",
+     "function": {
+      "name": "patch",
+      "arguments": "{\"path\": \"/home/user/project/app/ChatText.kt\"}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 15005,
+   "tool_call_id": "toolu_02",
+   "tool_name": "write_file",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "tool",
+   "row_id": 15006,
+   "tool_call_id": "toolu_03",
+   "tool_name": "patch",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 15007,
+   "content": "",
+   "tool_calls": [
+    {
+     "id": "toolu_04",
+     "type": "function",
+     "function": {
+      "name": "execute_code",
+      "arguments": "{\"code\": \"print('ok')\"}"
+     }
+    },
+    {
+     "id": "toolu_05",
+     "type": "function",
+     "function": {
+      "name": "delegate_task",
+      "arguments": "{\"goal\": \"Do the fix round\", \"background\": true}"
+     }
+    }
+   ],
+   "finish_reason": "tool_calls"
+  },
+  {
+   "role": "tool",
+   "row_id": 15008,
+   "tool_call_id": "toolu_04",
+   "tool_name": "execute_code",
+   "content": "{\"output\": \"ok\", \"exit_code\": 0, \"error\": null}"
+  },
+  {
+   "role": "tool",
+   "row_id": 15009,
+   "tool_call_id": "toolu_05",
+   "tool_name": "delegate_task",
+   "content": "{\"status\": \"dispatched\", \"mode\": \"background\", \"count\": 1, \"delegation_id\": \"deleg_1\"}"
+  },
+  {
+   "role": "assistant",
+   "row_id": 15010,
+   "content": "Assistant answer.",
+   "finish_reason": "stop"
+  },
+  {
+   "role": "user",
+   "row_id": 15011,
+   "content": "[ASYNC DELEGATION BATCH COMPLETE — deleg_1]\nA background unit finished.",
+   "display_kind": "async_delegation_complete",
+   "display_metadata": {
+    "display_text": "Subagent task finished: Do the fix round",
+    "delegation_id": "deleg_1",
+    "task_count": 1
+   }
+  }
+ ]
+}

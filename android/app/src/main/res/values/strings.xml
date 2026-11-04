@@ -609,4 +609,11 @@
     <string name="settings_lock_15_min">15 minutes</string>
     <string name="settings_show_terminal">Show Terminal on this phone</string>
     <string name="settings_show_terminal_body">Off hides the Terminal entry here. Whether a terminal can open at all is set on the PC.</string>
+    <!-- Versions and compatibility (TV1b) -->
+    <string name="settings_app_version_value">Aristotle %1$s (%2$d)</string>
+    <string name="settings_server_version">PC server</string>
+    <string name="settings_server_version_value">PC server %1$s · protocol %2$d</string>
+    <string name="settings_server_unknown">unknown</string>
+    <string name="compat_server_older">PC server is older than this app — update aristotle-server</string>
+    <string name="compat_app_older">This app is older than the PC server — update Aristotle</string>
 </resources>

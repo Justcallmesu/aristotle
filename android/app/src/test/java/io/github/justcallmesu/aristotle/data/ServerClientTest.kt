@@ -107,6 +107,23 @@ class ServerClientTest {
         assertNull(client.addresses(DeviceToken("t")))
     }
 
+    @Test
+    fun meRecordsTheServerBlock() = runBlocking {
+        ServerVersions.clear()
+        respond(200, """{"terminal":{"enabled":true,"granted":true},"server":{"version":"1.2.3","protocol":2,"min_phone_protocol":1}}""")
+        assertEquals(true, client.terminalAllowed(DeviceToken("t")))
+        assertEquals(ServerInfo("1.2.3", 2, 1), ServerVersions.current.value)
+    }
+
+    @Test
+    fun meWithoutAServerBlockIsAnOldServer() = runBlocking {
+        ServerVersions.clear()
+        respond(200, """{"device_id":"d","name":"n"}""")
+        client.terminalAllowed(DeviceToken("t"))
+        assertEquals(ServerInfo.OLD, ServerVersions.current.value)
+        assertNull(ServerInfo.OLD.version)
+    }
+
     // T09 review 2: cancelling the caller cancels the HTTP call at once; the PC sees the connection end.
     @Test
     fun cancellingTheCallerAbandonsTheRequestAtOnce() = runBlocking {
