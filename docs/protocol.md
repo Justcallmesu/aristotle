@@ -1065,3 +1065,80 @@ last CPU value, shown as stale, until a fresh one arrives.
 Every field except `at` may be `null` when it can't be read (logged once at debug, never an error response). The server samples CPU
 in the background only while requests arrive (stops 60 s after the last one). The phone polls every 10 s only while Home is visible and
 the link is online, and shows the last values with "as of HH:MM" when offline. Linux only; other OSes return nulls.
+
+## 17. Running work across profiles (`session.active_list` + `subagent.roster`, spec Q81a / Q82 D1, TY1)
+
+Hermes has no single all-profiles call (`agents.list` is blocked on the shared socket, `hermes/tui_gateway/ws_legacy_fallback.py:46`;
+`delegation.status` has no profile filter, `hermes/tui_gateway/methods_session.py:2196-2201`). The phone fans out (TX1 §1):
+`profiles.list {include_sessions:true}` (§1 "Profile list", the served rows only), then for each profile at once
+`session.active_list` and `subagent.roster`, both `{profile}` for a sibling and `{}` for the launch profile (§3). 1 + 2×P calls per read.
+
+- `session.active_list {profile?}` → `{sessions:[{current, id, session_key, last_active, started_at, message_count, model, preview, title,
+  source, status}]}` on the authority (`hermes/gateway/session_active_list.py:23-44`, registered `hermes/gateway/session_controls.py:266-267`);
+  any other key is refused `invalid_params` (`:24-25`). `status`: `working` (turn running), `waiting` (a prompt is open), `starting`
+  (admitted, not claimed) or `idle` (`:15-20`); the sidecar fallback uses the same four (`hermes/tui_gateway/session_registry.py:648-655`,
+  allowed through `hermes/tui_gateway/ws_legacy_fallback.py:33-35`). `id` is the live session id; `session_key` equals it on the
+  authority and is the agent's stored id on the sidecar (`session_registry.py:679-690`). `title` may be null. Hidden chats are included.
+- `subagent.roster {profile?}` → `{sessions:[{session_id, subagents, background}]}`: counts of running top-level children and running
+  background processes, keyed by STORED session id, only conversations stored in that profile's state.db; no session needs to be attached
+  (`hermes/tui_gateway/methods_subagents.py:66-83`, `:114-138`). Served by the sidecar fallback (not an authority verb).
+- Matching (TX1 §1 risk): a roster row counts for the live row that answers to its id on `id`, `session_key` or `resolved_id` (Hermes sends
+  no `resolved_id` on this feed today; read in case it comes). The Desktop maps lineage aliases instead
+  (`hermes/apps/desktop/src/store/live-work-roster.ts:5-14`), which the phone cannot see here. A roster row no live row claims is still
+  listed ("Session not live", by its stored id); its `process.list` may answer `not_found` (TX1 §1, ASSUMED how often).
+- Shown: rows whose status is not `idle`, plus idle ones with subagents or background work; waiting first, then working, starting, idle;
+  newest `last_active` (else `started_at`) first; grouped by profile, groups ordered by their first row. A failed call names its profile
+  under the list; the other profiles still show. Only a failed `profiles.list` fails the page.
+- When: only while the Running page is resumed AND the link is online (the Desktop polls the roster every 10 s while visible,
+  `hermes/apps/desktop/src/app/contrib/hooks/use-live-work-roster.ts:72-81`, `:118`): at once on showing, then every 10 s after the last
+  read, after `sessions.changed` (one read per 3 s window), and on pull to refresh. Home's ⋮ menu makes one read when it opens, for the
+  "Running" badge; nothing polls from Home. Tapping a row opens that chat in its profile, whose status stack lists the subagents and
+  processes (`subagent.list` / `process.list`) and offers Stop (TB1).
+
+
+## 18. Projects: Home grouping and sort (TY3, spec Q81d / Q82 D3, from source, not exercised)
+
+Two sidecar RPCs, profile-scoped through the relay ticket's `profile` param like every other call (TX1 §3; `tui_gateway/methods_config.py:137-165`,
+contracts `tui_gateway/contracts/projects_pets.py:263-304`). The phone sends them only while Home needs them: grouping = Project, sort =
+Tokens / Cost, or the "Group and sort" sheet open (for the cost rule). The default view (Date, Updated) makes no project call.
+
+- `projects.tree {profile?, preview_limit, session_limit: 300}` → `{projects:[{id, label, path, color, icon, isAuto, isNoProject,
+  sessionCount, lastActive, totalTokens, totalCostUsd, repos[], previewSessions[], sessionIds[]}], active_id, scoped_session_ids}`
+  (`tui_gateway/project_tree.py:350-367`). `preview_limit` is 3 (the Desktop's preview, `apps/desktop/src/app/chat/sidebar/projects/model.ts:17`),
+  or 300 while the sort is Tokens / Cost: tokens and cost exist only on tree rows (`session.list` has neither), and the tree reads at most
+  `session_limit` sessions in all, so this is bounded. Hermes' default `session_limit` is 2000 (`methods_config.py:147`); the phone caps it.
+  Home bucket = `id "__no_project__"`, `isNoProject` (`project_tree.py:29-30`), always first. Projects with no session are not shown.
+- Row (`previewSessions[]`, lanes): `id, title, started_at, last_active, message_count, input_tokens, output_tokens, actual_cost_usd,
+  estimated_cost_usd, _lineage_root_id, _lineage_ids, …` (`methods_projects.py:324-338`). Cron, kanban, oneshot and child sessions are
+  left out (`methods_projects.py:320-321`). A tree row is matched to a `session.list` row by any shared id (`id`, lineage ids,
+  `session_id`, `resolved_id`); when listed, the list row's key opens the chat and holds the pin.
+- `projects.project_sessions {profile?, project_id, session_limit: 500}` → `{project: <node with repos[].groups[].sessions[] filled> | null}`
+  (`methods_config.py:152-165`; Hermes' default 5000). Sent by a project's "Load more" when Hermes counts more sessions than the preview
+  carries; each tap then shows 50 more (`PROJECT_SESSION_PAGE`, `projects/model.ts:23`).
+- `projects.changed` (process-wide, `session_id:""`, `tui_gateway/change_watcher.py:386`, §2) → the tree is read again 2 s later
+  (drill-ins already open are read again quietly). `sessions.changed` reads it again at most every 30 s, only while a view needs it.
+
+Desktop rules copied (all client-side on the Desktop, `apps/desktop/src/lib/persisted.ts:74`):
+- Project order: Home first, the active explicit project (`active_id`, not auto), explicit before auto, with sessions before empty, newest
+  `lastActive`, then label case-insensitive (`projects/model.ts:84-114`). Phone order over it like `orderProjectsByIds`
+  (`projects/model.ts:128-147`): unknown projects with sessions above the saved order, empty ones below, Home still first. The phone moves a
+  project by long press on its header (Move up / Move down / Use the PC's order), not by drag.
+- Groupings `date | project | status` (`store/layout.ts:275`; `profile` has no use on a one-profile list). Sort keys `updated | created |
+  status | tokens | cost` (`store/layout.ts:304`), ranked inside each group (`store/sidebar-sort.ts:14-34`): updated = the order rows came
+  in; created = newest `started_at`; status = needs-input < working < unread < draft < idle (`store/session-dot-state.ts:107-116`); tokens
+  = input + output; cost = `actual_cost_usd || estimated_cost_usd` (`store/sidebar-archive.ts:140-142`). The phone knows working
+  (`running`) and its own drafts only; history rows are stored rows, so Status groups them into Draft and Idle in practice.
+- Cost sort hidden when nothing costs (`store/sidebar-archive.ts:144-148`): the phone checks every project's `totalCostUsd` and every
+  tree row. While the tree has not answered, a kept Tokens / Cost choice ranks as Updated.
+
+Kept on the phone per PC and profile (SharedPreferences `pins`, key `pins.<pcId>.<profile>#view`; Unpair removes it with the pins):
+grouping, sort, folded project ids, the phone's project order. Pins stay phone-local and on top in every grouping.
+
+## 19. Claude plan limits (`model.options` usage, spec Q81e, TY6)
+
+No new RPC: the phone reads the answer of the `model.options {session_id, explicit_only:true}` it already sends for the model sheet (`ControlFrames.modelOptions`). Hermes attaches `providers[].usage` to signed-in providers that can report it, from a cache, and starts a background refresh on each call (`hermes/hermes_cli/inventory.py:292-357`; TX1 §5).
+
+- Provider `slug == "anthropic"`: `usage.windows[{label, used_percent, resets_at, scope}]` (`hermes/apps/shared/src/gateway-contract.generated.ts:879-890`). `used_percent` is already a percent (0..100): Hermes scales the API's `utilization` fraction when it is ≤ 1 (`hermes/agent/account_usage.py:610-628`), so the phone does not scale again, only clamps. `resets_at` is ISO or null; `scope` is `account` or `model` (Opus/Sonnet).
+- Labels shown, in this order: `Current session`, `Current week`, `Opus week`, `Sonnet week` (`account_usage.py:866-867`). Other labels are ignored; there is no Fable row (Hermes drops that window, TX1 D5).
+- A multi-entry credential pool sends `usage.accounts[{id,label,windows,state,resets_at}]` and an empty `windows`; the phone shows the first `ready` account with windows (else the first with windows) and says it is one of N.
+- Cold cache: the first call can carry no `usage`. The phone shows "Loading limits…" and calls `model.options` once more after 3 s; if that is empty too the section is hidden. Hermes drops snapshots older than 15 min (`hermes/agent/account_usage_cache.py:26-30`); the phone hides numbers it has shown for 15 min.

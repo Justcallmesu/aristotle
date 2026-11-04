@@ -31,6 +31,10 @@ import io.github.justcallmesu.aristotle.ui.chat.ChatViewModel
 import io.github.justcallmesu.aristotle.ui.cron.CronScreen
 import io.github.justcallmesu.aristotle.ui.cron.CronViewModel
 import io.github.justcallmesu.aristotle.ui.quote.QuoteLoadingScreen
+import io.github.justcallmesu.aristotle.ui.running.ProvideRunningNav
+import io.github.justcallmesu.aristotle.ui.running.RunningOpen
+import io.github.justcallmesu.aristotle.ui.running.RunningScreen
+import io.github.justcallmesu.aristotle.ui.running.RunningViewModel
 import io.github.justcallmesu.aristotle.ui.pair.PairScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairViewModel
 import io.github.justcallmesu.aristotle.ui.sessions.ScheduledRequest
@@ -180,7 +184,7 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
  */
 internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew,
-    SettingsHistory,
+    SettingsHistory, Running,
     SettingsConnection(SettingsPage.Connection),
     SettingsNotifications(SettingsPage.Notifications),
     SettingsAppearance(SettingsPage.Appearance),
@@ -218,6 +222,7 @@ private fun PairedPages(
     defaultDeviceName: String,
 ) {
     val terminalRoutes = viewModel(key = TERMINAL_ROUTES) { RouteStores() }
+    val runningRoutes = viewModel(key = RUNNING_ROUTES) { RouteStores() }
     val terminalTarget by container.terminalAccess.target.collectAsStateWithLifecycle()
     val settings = container.settings
     val showTerminal by settings.showTerminal.collectAsStateWithLifecycle()
@@ -249,90 +254,106 @@ private fun PairedPages(
     // "Show Terminal on this phone" off (Q62): the terminal page is never shown, whatever was restored.
     LaunchedEffect(page, showTerminal) { if (page == PairedPage.Terminal && !showTerminal) page = PairedPage.Sessions }
     BackHandler(enabled = page != PairedPage.Sessions) { page = page.back }
-    when (page) {
-        PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
-            val sessionsViewModel = viewModel {
-                SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins, statusSource = container.pcStatus)
+    // TY1: Home's ⋮ menu and a chat's status stack open the Running page.
+    ProvideRunningNav(container.link, onOpen = { page = PairedPage.Running }) {
+        when (page) {
+            PairedPage.Sessions -> RouteScope(routes, "sessions-${pc.pcId}") {
+                val sessionsViewModel = viewModel {
+                    SessionsViewModel(pc, container.link, container.drafts, selection = container.profileSelection, pins = container.pins, views = container.homeViews, statusSource = container.pcStatus)
+                }
+                SessionsScreen(
+                    sessionsViewModel,
+                    onPairAgain = { container.forgetPc(reason = null) },
+                    onSettings = { page = PairedPage.Settings },
+                    pcId = pc.pcId,
+                    onOpen = { request ->
+                        chatId = request.sessionId
+                        chatTitle = request.title
+                        chatProfile = request.profile
+                        focusComposer = request.focusComposer
+                        page = PairedPage.Chat
+                    },
+                    onScheduled = { request: ScheduledRequest ->
+                        cronProfile = request.profile
+                        cronLabel = request.label
+                        page = PairedPage.Scheduled
+                    },
+                    whatsNew = {
+                        val due by container.whatsNew.visible.collectAsStateWithLifecycle()
+                        if (due) {
+                            WhatsNewCard(
+                                version = BuildConfig.VERSION_NAME,
+                                onOpen = {
+                                    container.whatsNew.dismiss()
+                                    page = PairedPage.WhatsNew
+                                },
+                                onDismiss = container.whatsNew::dismiss,
+                            )
+                        }
+                    },
+                    terminalAvailable = TerminalEntry.shown(serverAllows = terminalTarget != null, showOnPhone = showTerminal),
+                    // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
+                    onTerminal = {
+                        scope.launch {
+                            TerminalEntry.open(container.auth, shown = { container.terminalAccess.target.value != null && settings.showTerminal.value }) {
+                                page = PairedPage.Terminal
+                            }
+                        }
+                    },
+                )
+                NotificationPermissionPrompt(settings, container.notifier::canPost)
             }
-            SessionsScreen(
-                sessionsViewModel,
-                onPairAgain = { container.forgetPc(reason = null) },
-                onSettings = { page = PairedPage.Settings },
-                pcId = pc.pcId,
-                onOpen = { request ->
-                    chatId = request.sessionId
-                    chatTitle = request.title
-                    chatProfile = request.profile
-                    focusComposer = request.focusComposer
+            PairedPage.Settings, PairedPage.SettingsConnection, PairedPage.SettingsNotifications, PairedPage.SettingsAppearance,
+            PairedPage.SettingsLanguage, PairedPage.SettingsSecurity, PairedPage.SettingsAbout -> SettingsRoute(
+                container,
+                pc,
+                page = page.settingsPage,
+                onOpen = { page = PairedPage.of(it) },
+                onBack = { page = page.back },
+                onBatteryGuide = { page = PairedPage.SettingsGuide },
+                onWhatsNew = {
+                    container.whatsNew.dismiss()
+                    page = PairedPage.SettingsWhatsNew
+                },
+                onRepair = {
+                    repairCount += 1
+                    page = PairedPage.Repair
+                },
+                onHistory = { page = PairedPage.SettingsHistory },
+            )
+            PairedPage.SettingsHistory -> ConnectionHistoryScreen(settingsViewModel(container), onBack = { page = page.back })
+            PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
+            PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
+                BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
+            PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
+            PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
+            PairedPage.Terminal -> TerminalRoute(
+                container,
+                terminalRoutes,
+                pc.pcId,
+                onBack = { page = page.back },
+                onLeftWithLock = { if (page == PairedPage.Terminal) page = PairedPage.Sessions },
+            )
+            PairedPage.Running -> RunningRoute(
+                container,
+                runningRoutes,
+                onBack = { page = page.back },
+                // A row opens its chat as a Home row does (T14: the chat keeps the row's profile).
+                onOpen = { open ->
+                    chatId = open.sessionId
+                    chatTitle = open.title
+                    chatProfile = open.profile
+                    focusComposer = false
                     page = PairedPage.Chat
                 },
-                onScheduled = { request: ScheduledRequest ->
-                    cronProfile = request.profile
-                    cronLabel = request.label
-                    page = PairedPage.Scheduled
-                },
-                whatsNew = {
-                    val due by container.whatsNew.visible.collectAsStateWithLifecycle()
-                    if (due) {
-                        WhatsNewCard(
-                            version = BuildConfig.VERSION_NAME,
-                            onOpen = {
-                                container.whatsNew.dismiss()
-                                page = PairedPage.WhatsNew
-                            },
-                            onDismiss = container.whatsNew::dismiss,
-                        )
-                    }
-                },
-                terminalAvailable = TerminalEntry.shown(serverAllows = terminalTarget != null, showOnPhone = showTerminal),
-                // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
-                onTerminal = {
-                    scope.launch {
-                        TerminalEntry.open(container.auth, shown = { container.terminalAccess.target.value != null && settings.showTerminal.value }) {
-                            page = PairedPage.Terminal
-                        }
-                    }
-                },
             )
-            NotificationPermissionPrompt(settings, container.notifier::canPost)
-        }
-        PairedPage.Settings, PairedPage.SettingsConnection, PairedPage.SettingsNotifications, PairedPage.SettingsAppearance,
-        PairedPage.SettingsLanguage, PairedPage.SettingsSecurity, PairedPage.SettingsAbout -> SettingsRoute(
-            container,
-            pc,
-            page = page.settingsPage,
-            onOpen = { page = PairedPage.of(it) },
-            onBack = { page = page.back },
-            onBatteryGuide = { page = PairedPage.SettingsGuide },
-            onWhatsNew = {
-                container.whatsNew.dismiss()
-                page = PairedPage.SettingsWhatsNew
-            },
-            onRepair = {
-                repairCount += 1
-                page = PairedPage.Repair
-            },
-            onHistory = { page = PairedPage.SettingsHistory },
-        )
-        PairedPage.SettingsHistory -> ConnectionHistoryScreen(settingsViewModel(container), onBack = { page = page.back })
-        PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
-        PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
-            BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
-        PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
-        PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
-        PairedPage.Terminal -> TerminalRoute(
-            container,
-            terminalRoutes,
-            pc.pcId,
-            onBack = { page = page.back },
-            onLeftWithLock = { if (page == PairedPage.Terminal) page = PairedPage.Sessions },
-        )
-        PairedPage.Chat -> {
-            val id = chatId
-            if (id != null) {
-                ChatRoute(container, chatRoutes, ChatTarget(id, chatTitle, chatProfile, focusComposer), onBack = { page = page.back })
-            } else {
-                LaunchedEffect(Unit) { page = PairedPage.Sessions }
+            PairedPage.Chat -> {
+                val id = chatId
+                if (id != null) {
+                    ChatRoute(container, chatRoutes, ChatTarget(id, chatTitle, chatProfile, focusComposer), onBack = { page = page.back })
+                } else {
+                    LaunchedEffect(Unit) { page = PairedPage.Sessions }
+                }
             }
         }
     }
@@ -447,6 +468,19 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
     }
 }
 
+/** The Running page (TY1); leaving it clears its ViewModel, which ends its polling. */
+@Composable
+private fun RunningRoute(container: AppContainer, runningRoutes: RouteStores, onBack: () -> Unit, onOpen: (RunningOpen) -> Unit) {
+    val activity = LocalActivity.current
+    DisposableEffect(Unit) {
+        onDispose { if (activity?.isChangingConfigurations != true && !container.appLock.locked.value) runningRoutes.clear() }
+    }
+    RouteScope(runningRoutes, "running") {
+        val runningViewModel = viewModel { RunningViewModel(container.link) }
+        RunningScreen(runningViewModel, onBack, onOpen)
+    }
+}
+
 /** The "Scheduled" page of [profile]; leaving it clears its ViewModel, which ends its listing and polling. */
 @Composable
 private fun CronRoute(container: AppContainer, cronRoutes: RouteStores, profile: String?, label: String?, onBack: () -> Unit) {
@@ -531,5 +565,6 @@ class RouteStores : ViewModel() {
 private const val CHAT_ROUTES = "chat-routes"
 private const val CRON_ROUTES = "cron-routes"
 private const val TERMINAL_ROUTES = "terminal-routes"
+private const val RUNNING_ROUTES = "running-routes"
 private const val SETTINGS_VIEW_MODEL = "settings"
 private const val UNLOCKED_CONTENT = "unlocked"

@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Badge
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -80,11 +81,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.HistoryGrouping
+import io.github.justcallmesu.aristotle.data.HistorySort
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.OfflineCause
 import io.github.justcallmesu.aristotle.data.ProfileOption
+import io.github.justcallmesu.aristotle.data.ProjectFrames
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
+import io.github.justcallmesu.aristotle.ui.running.LocalRunningNav
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.FieldShape
@@ -144,6 +149,12 @@ interface ListActions {
     fun refresh()
     fun newSession()
     fun messageShown()
+    fun openView()
+    fun toggleProject(projectId: String)
+    fun moreInProject(projectId: String)
+    fun moveProject(projectId: String, by: Int)
+    fun resetProjectOrder()
+    fun retryProjects()
 }
 
 private class ViewModelListActions(private val vm: SessionsViewModel) : ListActions {
@@ -158,6 +169,12 @@ private class ViewModelListActions(private val vm: SessionsViewModel) : ListActi
     override fun refresh() = vm.refresh()
     override fun newSession() = vm.newSession()
     override fun messageShown() = vm.messageShown()
+    override fun openView() = vm.openView()
+    override fun toggleProject(projectId: String) = vm.toggleProject(projectId)
+    override fun moreInProject(projectId: String) = vm.moreInProject(projectId)
+    override fun moveProject(projectId: String, by: Int) = vm.moveProject(projectId, by)
+    override fun resetProjectOrder() = vm.resetProjectOrder()
+    override fun retryProjects() = vm.retryProjects()
 }
 
 private class ViewModelSheetActions(private val vm: SessionsViewModel) : SheetActions {
@@ -169,6 +186,9 @@ private class ViewModelSheetActions(private val vm: SessionsViewModel) : SheetAc
     override fun startRename(row: SessionRow) = vm.startRename(row)
     override fun cancelRename() = vm.cancelRename()
     override fun rename(title: String) = vm.rename(title)
+    override fun closeView() = vm.closeView()
+    override fun setGrouping(grouping: HistoryGrouping) = vm.setGrouping(grouping)
+    override fun setSort(sort: HistorySort) = vm.setSort(sort)
 }
 
 /** The "Scheduled" page for the listed [profile] (null = the launch profile), named [label] on the page. */
@@ -268,7 +288,7 @@ private fun ListBody(state: SessionsUiState, address: String, actions: ListActio
         items == null -> if (state.link !is LinkState.Offline) ConnectingBody(address)
         items.isEmpty() -> EmptyBody()
         else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions::refresh, modifier = Modifier.fillMaxSize()) {
-            HomeListView(items, state.searching, state.staleAt, actions)
+            HomeListView(items, state.ledger, state.searching, state.staleAt, actions)
         }
     }
 }
@@ -437,10 +457,10 @@ private fun EmptyBody() {
 
 /** [staleAt]: the list is from that time and the link is not up, so nothing reads as live (design.md §5). */
 @Composable
-private fun HomeListView(items: List<SessionListItem>, searching: Boolean, staleAt: String?, actions: ListActions) {
+private fun HomeListView(items: List<SessionListItem>, arranged: List<LedgerItem>?, searching: Boolean, staleAt: String?, actions: ListActions) {
     val list = rememberLazyListState()
-    LoadMoreAtTheEnd(list, items, searching, actions::loadMore)
-    val home = remember(items) { homeList(items) }
+    val home = remember(items, arranged) { homeList(items).let { if (arranged != null) it.copy(ledger = arranged) else it } }
+    LoadMoreAtTheEnd(list, home.ledger, searching, actions::loadMore)
     LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.l)) {
         if (home.live.isNotEmpty()) {
             item(key = "live-header") { SectionHeader(stringResource(R.string.sessions_section_live_now)) }
@@ -452,6 +472,14 @@ private fun HomeListView(items: List<SessionListItem>, searching: Boolean, stale
                 is LedgerItem.Row -> LedgerRow(item.row, staleAt, actions)
                 is LedgerItem.Footer -> HistoryFooter(item.end, actions::loadMore, actions::retryHistory)
                 LedgerItem.NoMatch -> QuietLine(stringResource(R.string.sessions_search_none))
+                is LedgerItem.ViewBar -> ViewBarRow(item, actions::openView)
+                is LedgerItem.StatusHeader -> SectionHeader(statusLabel(item.bucket))
+                is LedgerItem.ProjectHeader -> ProjectHeaderRow(item, actions)
+                is LedgerItem.ProjectFooter -> ProjectFooterRow(item, actions)
+                LedgerItem.ProjectsLoading -> QuietLine(stringResource(R.string.sessions_projects_loading))
+                LedgerItem.ProjectsFailed -> ProjectsFailedRow(actions::retryProjects)
+                LedgerItem.ProjectsEmpty -> QuietLine(stringResource(R.string.sessions_projects_empty))
+                LedgerItem.ProjectsCapped -> QuietLine(stringResource(R.string.sessions_projects_capped, ProjectFrames.SESSION_LIMIT))
             }
         }
     }
@@ -459,9 +487,10 @@ private fun HomeListView(items: List<SessionListItem>, searching: Boolean, stale
 
 /** History pages in as the end of the list comes into view (protocol §4: the same `session.list`, a larger limit). */
 @Composable
-private fun LoadMoreAtTheEnd(list: LazyListState, items: List<SessionListItem>, searching: Boolean, loadMore: () -> Unit) {
-    // Not while searching: a few matches must not page the whole history in (the footer button still can).
-    val wantsMore = !searching && (items.lastOrNull() as? SessionListItem.Footer)?.end == HistoryEnd.More
+private fun LoadMoreAtTheEnd(list: LazyListState, ledger: List<LedgerItem>, searching: Boolean, loadMore: () -> Unit) {
+    // Not while searching: a few matches must not page the whole history in (the footer button still can). Grouped by
+    // project the history comes from the tree, so `session.list` does not page under it.
+    val wantsMore = !searching && (ledger.lastOrNull() as? LedgerItem.Footer)?.end == HistoryEnd.More
     LaunchedEffect(list, wantsMore) {
         if (!wantsMore) return@LaunchedEffect
         snapshotFlow { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == list.layoutInfo.totalItemsCount - 1 }
@@ -475,11 +504,19 @@ private fun ledgerKey(item: LedgerItem): String = when (item) {
     is LedgerItem.Row -> "row-${item.row.key}"
     is LedgerItem.Footer -> "footer"
     LedgerItem.NoMatch -> "no-match"
+    is LedgerItem.ViewBar -> "view-bar"
+    is LedgerItem.StatusHeader -> "status-${item.bucket}"
+    is LedgerItem.ProjectHeader -> "project-${item.id}"
+    is LedgerItem.ProjectFooter -> "project-more-${item.id}"
+    LedgerItem.ProjectsLoading -> "projects-loading"
+    LedgerItem.ProjectsFailed -> "projects-failed"
+    LedgerItem.ProjectsEmpty -> "projects-empty"
+    LedgerItem.ProjectsCapped -> "projects-capped"
 }
 
 /** `labelMedium` `onSurfaceVariant` section header on the 16 dp gutter; Pinned carries a 16 dp pin (board `.sec`). */
 @Composable
-private fun SectionHeader(text: String, pinned: Boolean = false) {
+internal fun SectionHeader(text: String, pinned: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -671,7 +708,7 @@ private fun HistoryFooter(end: HistoryEnd, loadMore: () -> Unit, retry: () -> Un
 }
 
 @Composable
-private fun QuietLine(text: String) {
+internal fun QuietLine(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
@@ -730,6 +767,9 @@ private fun HomeBottomBar(
 @Composable
 private fun OverflowMenu(entries: List<ListMenuEntry>, colors: IconButtonColors, onEntry: (ListMenuEntry) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    // TY1: "Running" first, its badge from one read when the menu opens (never a poll from Home).
+    val running = LocalRunningNav.current
+    LaunchedEffect(open) { if (open) running?.countNow() }
     Box {
         IconButton(onClick = { open = true }, colors = colors) {
             Icon(painter = painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.sessions_more))
@@ -741,6 +781,20 @@ private fun OverflowMenu(entries: List<ListMenuEntry>, colors: IconButtonColors,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             border = BorderStroke(Sizes.divider, MaterialTheme.colorScheme.outlineVariant),
         ) {
+            running?.let { nav ->
+                val count = nav.count
+                val badge = if (count > 0) pluralStringResource(R.plurals.running_badge, count, count) else null
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.running_title)) },
+                    leadingIcon = { Icon(painter = painterResource(R.drawable.ic_bolt), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    trailingIcon = if (badge != null) {
+                        { Badge(modifier = Modifier.semantics { contentDescription = badge }) { Text(count.toString()) } }
+                    } else {
+                        null
+                    },
+                    onClick = { open = false; nav.open() },
+                )
+            }
             entries.forEach { entry ->
                 val (icon, label) = when (entry) {
                     ListMenuEntry.Scheduled -> R.drawable.ic_schedule to R.string.cron_open

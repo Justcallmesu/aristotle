@@ -1,6 +1,8 @@
 package io.github.justcallmesu.aristotle.ui.sessions
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -36,10 +39,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.HistoryGrouping
+import io.github.justcallmesu.aristotle.data.HistorySort
 import io.github.justcallmesu.aristotle.data.ProfileOption
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
@@ -55,6 +63,9 @@ interface SheetActions {
     fun startRename(row: SessionRow)
     fun cancelRename()
     fun rename(title: String)
+    fun closeView()
+    fun setGrouping(grouping: HistoryGrouping)
+    fun setSort(sort: HistorySort)
 }
 
 /** The profile switcher, a row's actions and the rename dialog, whichever [state] has open. */
@@ -63,6 +74,62 @@ fun SessionSheets(state: SessionsUiState, actions: SheetActions) {
     state.picker?.let { ProfileSheet(it, state.profile, actions) }
     state.actionsFor?.let { RowActionsSheet(it, actions) }
     state.renaming?.let { RenameDialog(it, state.renameBusy, actions) }
+    if (state.viewSheet) ViewSheet(state.view.grouping, state.view.sort, state.costSort, actions)
+}
+
+/**
+ * Q81d "Group and sort": the Desktop's groupings (date, project, status) and sort keys (updated, created, status, tokens,
+ * cost) as two `FilterChip` rows. Cost is offered only when some session reports spend (`sidebar-archive.ts:144-148`).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ViewSheet(grouping: HistoryGrouping, sort: HistorySort, costShown: Boolean, actions: SheetActions) {
+    ModalBottomSheet(
+        onDismissRequest = actions::closeView,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Spacing.xxl, end = Spacing.xxl, bottom = Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.s),
+        ) {
+            Text(text = stringResource(R.string.sessions_view_open), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = stringResource(R.string.sessions_view_scope),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ChipGroup(stringResource(R.string.sessions_view_group), HistoryGrouping.entries, grouping, { groupingLabel(it) }, actions::setGrouping)
+            val sorts = HistorySort.entries.filter { it != HistorySort.Cost || costShown }
+            ChipGroup(stringResource(R.string.sessions_view_sort), sorts, sort, { sortLabel(it) }, actions::setSort)
+            if (!costShown) {
+                Text(
+                    text = stringResource(R.string.sessions_view_cost_hidden),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** A titled row of single-choice `FilterChip`s (32 dp, `shapes.small`; Q67), wrapping on narrow screens. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChipGroup(title: String, options: List<T>, selected: T, label: @Composable (T) -> String, onPick: (T) -> Unit) {
+    Text(text = title, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = Spacing.s).semantics { heading() })
+    FlowRow(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+        options.forEach { option ->
+            val text = label(option)
+            FilterChip(
+                selected = option == selected,
+                onClick = { onPick(option) },
+                label = { Text(text) },
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.semantics { role = Role.RadioButton },
+            )
+        }
+    }
 }
 
 /**

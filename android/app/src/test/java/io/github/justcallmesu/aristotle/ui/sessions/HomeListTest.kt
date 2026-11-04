@@ -27,6 +27,7 @@ class HomeListTest {
             is LedgerItem.Row -> it.row.key
             is LedgerItem.Footer -> "footer:${it.end}"
             LedgerItem.NoMatch -> "no-match"
+            else -> it.toString()
         }
     }
 

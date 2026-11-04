@@ -32,7 +32,13 @@ data class ModelGroup(
  * The `model.options` answer (`ModelOptionsResult`, `apps/shared/src/gateway-contract.generated.ts:822-856`): the
  * providers grouped as the Desktop's picker groups them, and the session's current [model] / [provider].
  */
-data class ModelCatalog(val groups: List<ModelGroup>, val model: String?, val provider: String?) {
+data class ModelCatalog(
+    val groups: List<ModelGroup>,
+    val model: String?,
+    val provider: String?,
+    /** The Claude plan windows of the same answer (TY6). */
+    val plan: PlanUsage = PlanUsage.NONE,
+) {
     /** The capabilities of [model] under [provider], or null while unknown (`apps/desktop/src/lib/model-options.ts:31-40`). */
     fun capabilities(provider: String?, model: String?): ModelCaps? =
         groups.firstOrNull { it.matches(provider) }?.capabilities?.get(model ?: return null)
@@ -50,7 +56,7 @@ data class ModelCatalog(val groups: List<ModelGroup>, val model: String?, val pr
             val groups = (answer["providers"] as? JsonArray).orEmpty().mapNotNull { it.asObject()?.let(::group) }
                 .filter { it.models.isNotEmpty() && it.slug != LOCAL_PROVIDER }
                 .distinctBy { it.slug }
-            return ModelCatalog(groups, answer.text("model")?.ifBlank { null }, answer.text("provider")?.ifBlank { null })
+            return ModelCatalog(groups, answer.text("model")?.ifBlank { null }, answer.text("provider")?.ifBlank { null }, PlanUsage.of(result))
         }
 
         private fun group(row: JsonObject): ModelGroup? {

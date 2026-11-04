@@ -150,6 +150,7 @@ fun ModelSheet(sheet: ModelSheetState, chat: ChatState, actions: ModelActions) {
             if (groups.isNotEmpty()) {
                 SearchField(query, ModelFilter.modelCount(groups), onChange = { query = it })
             }
+            if (catalog != null && !searching) PlanLimits(catalog.plan, onRetry = actions::retry)
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),

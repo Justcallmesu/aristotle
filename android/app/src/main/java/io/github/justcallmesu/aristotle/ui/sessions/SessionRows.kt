@@ -1,6 +1,9 @@
 package io.github.justcallmesu.aristotle.ui.sessions
 
+import io.github.justcallmesu.aristotle.data.HistoryGrouping
+import io.github.justcallmesu.aristotle.data.HistorySort
 import io.github.justcallmesu.aristotle.data.SessionSummary
+import io.github.justcallmesu.aristotle.data.StatusBucket
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -156,6 +159,30 @@ sealed interface LedgerItem {
     data class Row(val row: SessionRow) : LedgerItem
     data class Footer(val end: HistoryEnd) : LedgerItem
     data object NoMatch : LedgerItem
+
+    /** Q81d: the history's "Group · Sort" control, above Pinned; [sort] is the one applied. */
+    data class ViewBar(val grouping: HistoryGrouping, val sort: HistorySort) : LedgerItem
+
+    /** Grouped by status: one bucket, in the Desktop's order. */
+    data class StatusHeader(val bucket: StatusBucket) : LedgerItem
+
+    /** Grouped by project: its name ([home] = Hermes' Home bucket), Hermes' session count, folded or open. */
+    data class ProjectHeader(val id: String, val label: String, val count: Int, val collapsed: Boolean, val home: Boolean = false) : LedgerItem
+
+    /** Under a project's rows: more to show, the drill-in loading, or it failed. */
+    data class ProjectFooter(val id: String, val more: ProjectMore) : LedgerItem
+
+    /** The project tree is being read. */
+    data object ProjectsLoading : LedgerItem
+
+    /** `projects.tree` failed; the line offers Retry. */
+    data object ProjectsFailed : LedgerItem
+
+    /** The tree came back without a project that has sessions. */
+    data object ProjectsEmpty : LedgerItem
+
+    /** The tree reads only the newest [io.github.justcallmesu.aristotle.data.ProjectFrames.SESSION_LIMIT] sessions. */
+    data object ProjectsCapped : LedgerItem
 }
 
 /** Home C: live sessions as cards on top, then the ledger. */

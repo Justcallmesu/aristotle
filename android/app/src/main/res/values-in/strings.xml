@@ -777,4 +777,78 @@
     <string name="settings_debug_log">Kirim log debug</string>
     <string name="settings_debug_log_body">Membagikan log aplikasi di ponsel ini sebagai file. Isinya kejadian aplikasi, status koneksi, dan jenis galat; tidak pernah pesan, prompt, balasan, token, kata sandi, atau kode penyandingan. Tidak ada yang diunggah dengan sendirinya.</string>
     <string name="pc_cpu_meter_value">%1$d%%</string>
+    <string name="plan_title">Batas Claude</string>
+    <string name="plan_loading">Memuat batas…</string>
+    <string name="plan_session">Sesi saat ini</string>
+    <string name="plan_week">Minggu ini</string>
+    <string name="plan_opus">Minggu Opus</string>
+    <string name="plan_sonnet">Minggu Sonnet</string>
+    <string name="plan_percent">%1$d%%</string>
+    <string name="plan_resets_in_hm">direset dalam %1$d j %2$d m</string>
+    <string name="plan_resets_in_m">direset dalam %1$d m</string>
+    <string name="plan_resets_at">direset %1$s</string>
+    <string name="plan_resets_passed">jendela sudah direset</string>
+    <string name="plan_pool">Menampilkan akun pertama dari %1$d akun</string>
+    <string name="plan_pool_named">Menampilkan %2$s, akun pertama dari %1$d akun</string>
+    <!-- TY1: halaman Berjalan (semua kerja yang berjalan di semua profil). -->
+    <string name="running_title">Berjalan</string>
+    <plurals name="running_badge">
+        <item quantity="other">%1$d berjalan</item>
+    </plurals>
+    <string name="running_see_all">Lihat semua</string>
+    <string name="running_see_all_label">Lihat semua kerja yang berjalan</string>
+    <string name="running_empty">Tidak ada yang berjalan</string>
+    <string name="running_empty_body">Giliran, subagen, dan kerja latar belakang dari semua profil muncul di sini.</string>
+    <string name="running_loading">Membaca semua profil…</string>
+    <string name="running_offline">Tidak terhubung ke PC. Daftar ini mungkin sudah usang.</string>
+    <string name="running_failed">Gagal membaca %1$s</string>
+    <string name="running_problem">Gagal membaca daftar profil: %1$s</string>
+    <string name="running_retry">Coba lagi</string>
+    <string name="running_status_working">Bekerja</string>
+    <string name="running_status_waiting">Menunggu Anda</string>
+    <string name="running_status_starting">Memulai</string>
+    <string name="running_not_live">Sesi tidak aktif</string>
+    <string name="running_session_id">Sesi %1$s</string>
+    <string name="running_profile_launch">Profil PC ini</string>
+    <plurals name="running_subagents">
+        <item quantity="other">%1$d subagen</item>
+    </plurals>
+    <plurals name="running_background">
+        <item quantity="other">%1$d latar belakang</item>
+    </plurals>
+    <!-- TY3: Home history group and sort (Q81d) -->
+    <string name="sessions_view_open">Kelompokkan dan urutkan</string>
+    <string name="sessions_view_summary">%1$s \u00b7 %2$s</string>
+    <string name="sessions_view_group">Kelompokkan menurut</string>
+    <string name="sessions_view_sort">Urutkan menurut</string>
+    <string name="sessions_view_scope">Disimpan di ponsel ini untuk profil ini.</string>
+    <string name="sessions_view_cost_hidden">Biaya muncul setelah ada sesi yang melaporkan biaya; pemakaian langganan tidak diberi harga.</string>
+    <string name="sessions_group_date">Tanggal</string>
+    <string name="sessions_group_project">Proyek</string>
+    <string name="sessions_group_status">Status</string>
+    <string name="sessions_sort_updated">Diperbarui</string>
+    <string name="sessions_sort_created">Dibuat</string>
+    <string name="sessions_sort_status">Status</string>
+    <string name="sessions_sort_tokens">Token</string>
+    <string name="sessions_sort_cost">Biaya</string>
+    <string name="sessions_status_needs_input">Perlu jawaban</string>
+    <string name="sessions_status_working">Berjalan</string>
+    <string name="sessions_status_unread">Belum dibaca</string>
+    <string name="sessions_status_draft">Draf di ponsel ini</string>
+    <string name="sessions_status_idle">Diam</string>
+    <string name="sessions_project_home">Home</string>
+    <plurals name="sessions_project_sessions">
+        <item quantity="other">%d sesi</item>
+    </plurals>
+    <string name="sessions_project_expand">Tampilkan sesi</string>
+    <string name="sessions_project_collapse">Sembunyikan sesi</string>
+    <string name="sessions_project_actions">Urutan proyek</string>
+    <string name="sessions_project_move_up">Naikkan</string>
+    <string name="sessions_project_move_down">Turunkan</string>
+    <string name="sessions_project_order_reset">Pakai urutan PC</string>
+    <string name="sessions_project_failed">Proyek ini gagal dimuat \u00b7</string>
+    <string name="sessions_projects_loading">Memuat proyek…</string>
+    <string name="sessions_projects_failed">Proyek gagal dimuat \u00b7</string>
+    <string name="sessions_projects_empty">Belum ada proyek yang punya sesi.</string>
+    <string name="sessions_projects_capped">Proyek mencakup %1$d sesi terbaru.</string>
 </resources>

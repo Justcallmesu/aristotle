@@ -94,6 +94,18 @@ class SessionRepository(private val link: RelayLink, private val timings: FeedTi
     /** The relay's profile roster for the picker ([ProfileRoster.of]); throws [RpcException]. */
     suspend fun profiles(): List<ProfileOption> = ProfileRoster.of(link.call("profiles.list", SessionFrames.profiles()))
 
+    /**
+     * [profile]'s project tree (`projects.tree`, protocol §18): Home first, explicit, auto and discovered projects with
+     * counts and [previewLimit] newest rows each, over the [ProjectFrames.SESSION_LIMIT] newest sessions. Throws
+     * [RpcException]; an answer of another shape throws IllegalArgumentException.
+     */
+    suspend fun projectTree(profile: String?, previewLimit: Int = ProjectFrames.PREVIEW): ProjectTree =
+        HermesJson.decodeFromJsonElement(ProjectTree.serializer(), link.call("projects.tree", ProjectFrames.tree(profile, previewLimit)))
+
+    /** One project of [profile] with every row in its lanes (`projects.project_sessions`), or null when it is gone. */
+    suspend fun projectSessions(profile: String?, projectId: String): ProjectNode? =
+        HermesJson.decodeFromJsonElement(ProjectSessionsResult.serializer(), link.call("projects.project_sessions", ProjectFrames.projectSessions(profile, projectId))).project
+
     /** Creates a session in [profile] and returns its id; throws [RpcException]. */
     suspend fun create(profile: String?, requestId: String = newId()): String {
         val result = link.call("session.create", SessionFrames.create(requestId, profile)) as? JsonObject

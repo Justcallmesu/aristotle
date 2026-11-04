@@ -40,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -54,6 +55,7 @@ import io.github.justcallmesu.aristotle.data.chat.ProcessKill
 import io.github.justcallmesu.aristotle.data.chat.Subagent
 import io.github.justcallmesu.aristotle.data.chat.SubagentStatus
 import io.github.justcallmesu.aristotle.ui.components.RunningSpinner
+import io.github.justcallmesu.aristotle.ui.running.LocalRunningNav
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
@@ -100,6 +102,8 @@ internal fun StatusStack(
     var processesOpen by rememberSaveable(sessionId) { mutableStateOf(true) }
     val now = wallClockTicking(live)
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    // TY1: the first header links to the Running page (every profile's work).
+    val seeAll: (() -> Unit)? = LocalRunningNav.current?.open
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -116,13 +120,18 @@ internal fun StatusStack(
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = Spacing.xs)) {
             if (subagents.isNotEmpty()) {
                 val running = live && subagents.any { it.status == SubagentStatus.Running }
-                SectionHeader(pluralStringResource(R.plurals.status_subagents, subagents.size, subagents.size), subagentsOpen && !imeVisible, running) { subagentsOpen = !subagentsOpen }
+                SectionHeader(pluralStringResource(R.plurals.status_subagents, subagents.size, subagents.size), subagentsOpen && !imeVisible, running, seeAll) { subagentsOpen = !subagentsOpen }
                 Fold(subagentsOpen && !imeVisible) {
                     Column { subagents.forEach { child -> SubagentStatusRow(child, live, now, onOpenSubagent) } }
                 }
             }
             if (processes.isNotEmpty()) {
-                SectionHeader(pluralStringResource(R.plurals.status_background, processes.size, processes.size), processesOpen && !imeVisible, running = live) { processesOpen = !processesOpen }
+                SectionHeader(
+                    pluralStringResource(R.plurals.status_background, processes.size, processes.size),
+                    processesOpen && !imeVisible,
+                    running = live,
+                    seeAll = seeAll.takeIf { subagents.isEmpty() },
+                ) { processesOpen = !processesOpen }
                 Fold(processesOpen && !imeVisible) {
                     Column {
                         processes.forEach { process ->
@@ -135,9 +144,12 @@ internal fun StatusStack(
     }
 }
 
-/** "2 Subagents": 36 dp like the "N steps" line (48 dp touch), chevron, spinner while something there runs. */
+/**
+ * "2 Subagents": 36 dp like the "N steps" line (48 dp touch), chevron, spinner while something there runs; [seeAll]
+ * adds a "See all" link to the Running page at the end (TY1).
+ */
 @Composable
-private fun SectionHeader(label: String, open: Boolean, running: Boolean, onToggle: () -> Unit) {
+private fun SectionHeader(label: String, open: Boolean, running: Boolean, seeAll: (() -> Unit)? = null, onToggle: () -> Unit) {
     val action = stringResource(if (open) R.string.chat_collapse else R.string.chat_expand)
     val state = stringResource(if (open) R.string.status_section_open else R.string.status_section_closed)
     Row(
@@ -164,6 +176,12 @@ private fun SectionHeader(label: String, open: Boolean, running: Boolean, onTogg
             modifier = Modifier.weight(1f),
         )
         if (running) RunningSpinner()
+        seeAll?.let { go ->
+            val description = stringResource(R.string.running_see_all_label)
+            TextButton(onClick = go, shape = ButtonShape, modifier = Modifier.semantics { contentDescription = description }) {
+                Text(stringResource(R.string.running_see_all), style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 

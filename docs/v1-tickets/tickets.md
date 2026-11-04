@@ -103,6 +103,12 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TM2 | Q80a: message actions (copy, share, select, quote, steer-with) + copy on code blocks | TR3 | android | DONE |
 | TL2 | Q80b: redacted on-phone debug log, crash capture + next-launch crash screen, Send debug log in About | TH1 | android | DONE |
 | TQ3 | Review-Q80 minors: crash message allow-list, claim crash report when the dialog shows, long-press during streaming, CPU meter keeps last value (no jump), disk.path '~', revoked clears log, NITs | TL2, TM2, TR7, TP1a | android, server | DONE (long-press while streaming: device check) |
+| TX1 | Q81 discovery: running work across sessions, usage/cost, Desktop projects grouping/sorting, clipboard design | — | research | DONE |
+| TY1 | Q81a: Running screen across all profiles | TX1 | android | DONE |
+| TY3 | Q81d: Home history grouping by project + Desktop sort keys | TX1 | android | DONE |
+| TY6 | Q81e: Claude plan limits in the model sheet | TX1 | android | DONE |
+| TY7 | Q83: Claude limits row on Home under the PC card (model.options without session; ≤ every 5 min while visible) | TY3, TY6 | android | BUILDING |
+| TY2 | Q81b: usage per session (tokens; $ when > 0) in chat header + list | TY3 | android | TODO |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -436,3 +442,9 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TR7, TM2, TL2 built; PM clean gate + mutations running; deep review (TL2 privacy focus + TP1 server unreviewed part) dispatched.
 - 2026-11-04 Review-Q80 PASS-WITH-FINDINGS: TL2 privacy clean; TM2 steer-with never sends; TR7 matches §5.7; TP1 OK. Mutations: bearer redaction off fails 2, quote prefix off fails 1. pm-gate-59 GREEN (Gradle cache is content-addressed, restored files hash-match). PM added the CHANGELOG lines (MINOR-4). Committed TR7+TM2+TL2. TQ3 for the rest.
 - 2026-11-04 TQ3: pm-gate-60 GREEN (381 Go, 1008 android); mutation (crash message kept for all classes) fails 2. Committed (minor round, folds into T22 review). Demo server restarted; installed.
+- 2026-11-04 User picked: all running work, usage/cost, clipboard, + grouping/sorting by projects like Desktop -> Q81. TX1 discovery (deep, read-only) before any design.
+- 2026-11-04 User added: Claude plan usage (session, weekly, 'fable' weekly) -> Q81(e); TX1 steered to research it.
+- 2026-11-04 TX1 report in. User decisions -> Q82 (all profiles; tokens + $>0; projects.tree; clipboard skipped; no Fable). TY1, TY3, TY6 dispatched in parallel; TY2 after TY3.
+- 2026-11-04 TY1/TY3/TY6 built; PM clean gate pm-gate-61 GREEN (1079; TY6's lint crash was a parallel-edit collision). Mutations: project order fails 2, plan clamp fails 1. Installed. Deep review dispatched.
+- 2026-11-04 User: Claude limits on Home too -> Q83 (row of 4 bars under the PC card). PM refresh rule: open + ≤5 min while visible (Hermes refreshes from Anthropic per call). TY7 waits for the TY review/commit (same files).
+- 2026-11-04 Review-TY PASS-WITH-FINDINGS (all RPC names/fields match Hermes; sort rules copied faithfully). Committed TY1+TY3+TY6. Minors folded into TY7.

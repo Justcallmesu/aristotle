@@ -1,0 +1,10 @@
+# TY6 build report — Claude plan limits
+- **Parsing** (`data/chat/PlanUsage.kt`, new): `PlanUsage.of(model.options)` reads provider `anthropic` `usage.windows` (or the first `ready` account of `usage.accounts[]`, flagged "first of N"). It keeps only the four labels, in order, drops Fable and clamps `used_percent` to 0..100. The wire value is already a percent: Hermes does the fraction→% scaling (`account_usage.py:610-628`), so the phone does not scale again.
+- **Pure rules** (`PlanLimitsLogic`): reset text as In(h,m) under a day, else `At("Mon 09:00")` in local time, plus Passed and Unknown. 15-min stale hide, one retry after 3 s on an empty first answer.
+- **Catalog**: `ModelCatalog` gets `plan: PlanUsage = NONE`, filled in `of()`; additive, no change to `ModelControl.kt`.
+- **UI** (`ui/chat/PlanLimits.kt`, new): a collapsible "Claude limits" section under the search field in `ModelSheet.kt`, hidden while searching. Thin meters use the PC card's bar look and turn error-coloured at ≥90%, each with its reset text. It shows "Loading limits…", retries once via `actions.retry()`, then hides if still empty.
+- **Not done**: PC-card tile (b). Home never calls `model.options`, so it isn't trivial.
+- **Strings**: `plan_*` appended, EN and ID. **Docs**: `docs/protocol.md` §19, with the TX1 citations.
+- **Tests**: `PlanUsageTest` (7 cases): windows, order, clamp, Fable dropped, pool, reset formatting, stale/empty/retry.
+- **Gate**: `GATE_ONLY=android gates.sh` exits 1. `compileDebugKotlin`, the unit-test compile and `testDebugUnitTest` all ran with no failure. The failure is `lintAnalyzeDebug` and `lintAnalyzeDebugUnitTest`, which crash inside lint (`ExperimentalDetector`, "Unexpected owner function: null") while analysing `AristotleApp.kt`, which is not my file. It is a lint-tool crash, not a finding in my code. I did not isolate whether another worker's in-flight edit triggers it.
+- Files: new `data/chat/PlanUsage.kt`, `ui/chat/PlanLimits.kt`, `PlanUsageTest.kt`; edited `ModelCatalog.kt`, `ModelSheet.kt`, both `strings.xml`, `docs/protocol.md`.

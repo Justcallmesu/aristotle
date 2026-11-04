@@ -19,6 +19,7 @@ import io.github.justcallmesu.aristotle.data.AppSettings
 import io.github.justcallmesu.aristotle.data.AuthBroker
 import io.github.justcallmesu.aristotle.data.AttachmentFiles
 import io.github.justcallmesu.aristotle.data.ApplyingPreferencesStore
+import io.github.justcallmesu.aristotle.data.HomeViewStore
 import io.github.justcallmesu.aristotle.data.DeviceMaker
 import io.github.justcallmesu.aristotle.data.QuoteGate
 import io.github.justcallmesu.aristotle.data.QuoteSource
@@ -192,7 +193,11 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
     val profileSelection = ProfileSelection(ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)))
 
     /** Session pins on this phone only (T14; Hermes' own pin is not readable over the relay). */
-    val pins = SessionPins(ApplyingPreferencesStore(context.getSharedPreferences(PINS_FILE, Context.MODE_PRIVATE)))
+    private val pinsStore = ApplyingPreferencesStore(context.getSharedPreferences(PINS_FILE, Context.MODE_PRIVATE))
+    val pins = SessionPins(pinsStore)
+
+    /** Home's history view per profile (Q81d, TY3); beside the pins, so Unpair ends it with them. */
+    val homeViews = HomeViewStore(pinsStore)
     val notifier = Notifier(context)
 
     /**

@@ -795,4 +795,82 @@
     <string name="settings_debug_log">Send debug log</string>
     <string name="settings_debug_log_body">Shares this phone\'s app log as a file. It holds app events, connection states and error types; never messages, prompts, replies, tokens, passwords or pairing codes. Nothing is uploaded on its own.</string>
     <string name="pc_cpu_meter_value">%1$d%%</string>
+    <string name="plan_title">Claude limits</string>
+    <string name="plan_loading">Loading limits…</string>
+    <string name="plan_session">Current session</string>
+    <string name="plan_week">Current week</string>
+    <string name="plan_opus">Opus week</string>
+    <string name="plan_sonnet">Sonnet week</string>
+    <string name="plan_percent">%1$d%%</string>
+    <string name="plan_resets_in_hm">resets in %1$d h %2$d m</string>
+    <string name="plan_resets_in_m">resets in %1$d m</string>
+    <string name="plan_resets_at">resets %1$s</string>
+    <string name="plan_resets_passed">window reset</string>
+    <string name="plan_pool">Showing the first of %1$d accounts</string>
+    <string name="plan_pool_named">Showing %2$s, the first of %1$d accounts</string>
+    <!-- TY1: the Running page (all running work across profiles). -->
+    <string name="running_title">Running</string>
+    <plurals name="running_badge">
+        <item quantity="one">%1$d running</item>
+        <item quantity="other">%1$d running</item>
+    </plurals>
+    <string name="running_see_all">See all</string>
+    <string name="running_see_all_label">See all running work</string>
+    <string name="running_empty">Nothing running</string>
+    <string name="running_empty_body">Turns, subagents and background work from every profile show here.</string>
+    <string name="running_loading">Reading every profile…</string>
+    <string name="running_offline">Not connected to the PC. This list may be out of date.</string>
+    <string name="running_failed">Couldn\'t read %1$s</string>
+    <string name="running_problem">Couldn\'t list the profiles: %1$s</string>
+    <string name="running_retry">Retry</string>
+    <string name="running_status_working">Working</string>
+    <string name="running_status_waiting">Waiting for you</string>
+    <string name="running_status_starting">Starting</string>
+    <string name="running_not_live">Session not live</string>
+    <string name="running_session_id">Session %1$s</string>
+    <string name="running_profile_launch">This PC\'s profile</string>
+    <plurals name="running_subagents">
+        <item quantity="one">%1$d subagent</item>
+        <item quantity="other">%1$d subagents</item>
+    </plurals>
+    <plurals name="running_background">
+        <item quantity="one">%1$d background</item>
+        <item quantity="other">%1$d background</item>
+    </plurals>
+    <!-- TY3: Home history group and sort (Q81d) -->
+    <string name="sessions_view_open">Group and sort</string>
+    <string name="sessions_view_summary">%1$s \u00b7 %2$s</string>
+    <string name="sessions_view_group">Group by</string>
+    <string name="sessions_view_sort">Sort by</string>
+    <string name="sessions_view_scope">Kept on this phone for this profile.</string>
+    <string name="sessions_view_cost_hidden">Cost appears once a session reports spend; subscription use is not priced.</string>
+    <string name="sessions_group_date">Date</string>
+    <string name="sessions_group_project">Project</string>
+    <string name="sessions_group_status">Status</string>
+    <string name="sessions_sort_updated">Updated</string>
+    <string name="sessions_sort_created">Created</string>
+    <string name="sessions_sort_status">Status</string>
+    <string name="sessions_sort_tokens">Tokens</string>
+    <string name="sessions_sort_cost">Cost</string>
+    <string name="sessions_status_needs_input">Needs input</string>
+    <string name="sessions_status_working">Working</string>
+    <string name="sessions_status_unread">Unread</string>
+    <string name="sessions_status_draft">Draft on this phone</string>
+    <string name="sessions_status_idle">Idle</string>
+    <string name="sessions_project_home">Home</string>
+    <plurals name="sessions_project_sessions">
+        <item quantity="one">%d session</item>
+        <item quantity="other">%d sessions</item>
+    </plurals>
+    <string name="sessions_project_expand">Show sessions</string>
+    <string name="sessions_project_collapse">Hide sessions</string>
+    <string name="sessions_project_actions">Project order</string>
+    <string name="sessions_project_move_up">Move up</string>
+    <string name="sessions_project_move_down">Move down</string>
+    <string name="sessions_project_order_reset">Use the PC\u2019s order</string>
+    <string name="sessions_project_failed">Couldn\u2019t load this project \u00b7</string>
+    <string name="sessions_projects_loading">Loading projects…</string>
+    <string name="sessions_projects_failed">Couldn\u2019t load projects \u00b7</string>
+    <string name="sessions_projects_empty">No project has sessions yet.</string>
+    <string name="sessions_projects_capped">Projects cover the newest %1$d sessions.</string>
 </resources>
