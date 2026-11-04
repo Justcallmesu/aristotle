@@ -46,10 +46,10 @@ class CrashReportsTest {
         d.pipeline.log(LogLevel.Info, "link state=Online network=Lan", null)
         val chained = mutableListOf<Throwable>()
         val handler = d.crashHandler { _, e -> chained += e }
-        val error = IllegalStateException("boom token=abc", RuntimeException("cause prompt=my words"))
+        val error = OwnError("boom token=abc", RuntimeException("cause prompt=my words"))
         handler.uncaughtException(Thread.currentThread(), error)
         assertSame(error, chained.single())
-        d.loadOffer()
+        d.claimCrash()
         assertTrue(d.crashOffered.value)
         val file = d.crashReportFile()
         assertNotNull(file)
@@ -58,8 +58,8 @@ class CrashReportsTest {
         assertTrue(text.contains("App: Aristotle 1.0.0 (12)"))
         assertTrue(text.contains("Android: 14 (SDK 34)"))
         assertTrue(text.contains("Device: Xiaomi 22101320G"))
-        assertTrue(text.contains("java.lang.IllegalStateException: boom token=[redacted]"))
-        assertTrue(text.contains("Caused by: java.lang.RuntimeException: cause prompt= [redacted]"))
+        assertTrue(text.contains("io.github.justcallmesu.aristotle.data.OwnError: boom token=[redacted]"))
+        assertTrue(text.contains("Caused by: java.lang.RuntimeException\n"))
         assertTrue(text.contains("    at io.github.justcallmesu.aristotle.data.CrashReportsTest"))
         assertTrue(text.contains("link state=Online network=Lan"))
         assertFalse(text.contains("abc") || text.contains("my words"))
@@ -74,21 +74,21 @@ class CrashReportsTest {
     fun dismissDeletesTheCrashFile() {
         val d = diagnostics()
         assertTrue(d.record("main", IllegalArgumentException()))
-        d.loadOffer()
+        d.claimCrash()
         assertTrue(d.crashOffered.value)
         d.dismissCrash()
         assertFalse(d.crashOffered.value)
         assertEquals(emptyList<String>(), File(root, "crash").list()!!.toList())
-        d.loadOffer()
+        d.claimCrash()
         assertFalse(d.crashOffered.value)
     }
 
     @Test
     fun deepCauseChainsAreCut() {
         val d = diagnostics()
-        val deep = generateSequence<Throwable>(RuntimeException("a")) { if (it.message!!.length < 20) RuntimeException(it.message + "a", it) else null }.last()
+        val deep = generateSequence<Throwable>(RuntimeException("a")) { if (it.message!!.length < 20) OwnError(it.message + "a", it) else null }.last()
         assertTrue(d.record("worker", deep))
-        d.loadOffer()
+        d.claimCrash()
         val text = d.crashReportFile()!!.readText()
         assertTrue(text.contains("Thread: worker"))
         assertTrue(text.lines().count { it.startsWith("Caused by: ") } <= CrashText.MAX_CAUSES)
@@ -96,8 +96,29 @@ class CrashReportsTest {
 
     @Test
     fun longExceptionMessagesAreCut() {
-        val message = CrashText.describe(IllegalStateException("w ".repeat(400)))
-        assertTrue(message.length <= "java.lang.IllegalStateException: ".length + CrashText.MAX_MESSAGE + 1)
+        val message = CrashText.describe(OwnError("w ".repeat(400)))
+        assertTrue(message.length <= "io.github.justcallmesu.aristotle.data.OwnError: ".length + CrashText.MAX_MESSAGE + 1)
+    }
+
+    @Test
+    fun onlyTheAppsOwnExceptionsKeepTheirMessage() {
+        assertEquals("java.lang.NumberFormatException", CrashText.describe(NumberFormatException("For input string: \"my secret words\"")))
+        assertEquals("io.github.justcallmesu.aristotle.data.OwnError: bad state", CrashText.describe(OwnError("bad state")))
+    }
+
+    @Test
+    fun aHeadlessStartDoesNotUseUpTheOfferAndTheClaimHappensOnce() {
+        Diagnostics(File(root, "log"), File(root, "crash"), File(root, "share"), info).record("main", OwnError("x"))
+        // A restart that never shows the dialog: sweeping runs, claiming does not.
+        val headless = diagnostics()
+        headless.sweepShares()
+        assertFalse(headless.crashOffered.value)
+        // The next process shows the dialog: the first claim gets the report, a repeat (rotation, relock) keeps it.
+        val shown = diagnostics()
+        shown.claimCrash()
+        shown.claimCrash()
+        assertTrue(shown.crashOffered.value)
+        assertNotNull(shown.crashReportFile())
     }
 
     @Test
@@ -112,7 +133,7 @@ class CrashReportsTest {
         assertTrue(text.contains("lan scan: probed=12 verified=1"))
         // One file at a time in the share folder.
         d.record("main", IllegalStateException())
-        d.loadOffer()
+        d.claimCrash()
         d.crashReportFile()
         assertEquals(listOf(Diagnostics.CRASH_FILE), File(root, Diagnostics.SHARE_DIR).list()!!.toList())
     }
@@ -123,7 +144,7 @@ class CrashReportsTest {
         d.pipeline.log(LogLevel.Info, "old pairing event", null)
         d.debugLogFile()
         d.record("main", IllegalStateException())
-        d.loadOffer()
+        d.claimCrash()
         d.clear()
         assertFalse(d.crashOffered.value)
         assertEquals(emptyList<String>(), d.pipeline.lines())
@@ -135,7 +156,9 @@ class CrashReportsTest {
     fun oldShareFilesAreSweptAtLaunch() {
         val share = File(root, Diagnostics.SHARE_DIR).apply { mkdirs() }
         val old = File(share, "old.txt").apply { writeText("x"); setLastModified(0L) }
-        Diagnostics(File(root, "log"), File(root, "crash"), share, info, clock = { Diagnostics.SHARE_MAX_AGE_MILLIS + 10_000L }).loadOffer()
+        Diagnostics(File(root, "log"), File(root, "crash"), share, info, clock = { Diagnostics.SHARE_MAX_AGE_MILLIS + 10_000L }).sweepShares()
         assertFalse(old.exists())
     }
 }
+
+private class OwnError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

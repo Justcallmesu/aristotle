@@ -794,4 +794,5 @@
     <string name="share_chooser_title">Send with</string>
     <string name="settings_debug_log">Send debug log</string>
     <string name="settings_debug_log_body">Shares this phone\'s app log as a file. It holds app events, connection states and error types; never messages, prompts, replies, tokens, passwords or pairing codes. Nothing is uploaded on its own.</string>
+    <string name="pc_cpu_meter_value">%1$d%%</string>
 </resources>

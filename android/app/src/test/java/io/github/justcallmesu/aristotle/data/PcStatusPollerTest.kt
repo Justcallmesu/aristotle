@@ -138,6 +138,33 @@ class PcStatusPollerTest {
     }
 
     @Test
+    fun aReadingWithoutCpuKeepsTheLastValueAsStaleUntilAFreshOne() {
+        poller.start()
+        link.value = LinkState.Online(lan, 1)
+        visible.value = true
+        waitFor("read") { reads.size == 1 }
+        answer = { PcStatus(cpuPercent = null, hermesRunning = true) }
+        ticks.trySend(Unit)
+        waitFor("second read") { reads.size == 2 }
+        waitFor("carried") { poller.view.value.status?.cpuStale == true }
+        assertEquals(1.0, poller.view.value.status!!.cpuPercent!!, 0.0)
+        answer = { PcStatus(cpuPercent = 40.0) }
+        ticks.trySend(Unit)
+        waitFor("fresh") { poller.view.value.status?.cpuPercent == 40.0 }
+        assertEquals(false, poller.view.value.status!!.cpuStale)
+    }
+
+    @Test
+    fun carryCpuOnlyFillsAGapInAReadingThatHasOtherData() {
+        val old = PcStatus(cpuPercent = 30.0)
+        assertEquals(PcStatus(cpuPercent = 30.0, hermesRunning = true, cpuStale = true), carryCpu(old, PcStatus(hermesRunning = true)))
+        assertEquals(PcStatus(cpuPercent = 5.0), carryCpu(old, PcStatus(cpuPercent = 5.0)))
+        assertEquals(PcStatus(), carryCpu(old, PcStatus())) // nothing at all: nothing to carry into
+        assertEquals(PcStatus(hermesRunning = true), carryCpu(null, PcStatus(hermesRunning = true)))
+        assertEquals(PcStatus(hermesRunning = true), carryCpu(PcStatus(hermesRunning = false), PcStatus(hermesRunning = true)))
+    }
+
+    @Test
     fun startsEmpty() {
         assertNull(poller.view.value.status)
     }

@@ -34,6 +34,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -220,6 +222,8 @@ fun Modifier.messageActions(role: MessageRole, text: String): Modifier {
     val actions = MessageActions.available(role, target.text, host.steerAllowed)
     if (actions.isEmpty()) return this
     val haptic = LocalHapticFeedback.current
+    val latestHost by rememberUpdatedState(host)
+    val latestTarget by rememberUpdatedState(target)
     val openLabel = stringResource(R.string.msg_actions_open)
     val custom = actions.map { action ->
         CustomAccessibilityAction(stringResource(action.label())) {
@@ -228,10 +232,11 @@ fun Modifier.messageActions(role: MessageRole, text: String): Modifier {
         }
     }
     return this
-        .pointerInput(host, target) {
+        // Keyed on the role only: the text changes with every streamed token, and a changed key would restart the gesture.
+        .pointerInput(role) {
             detectTapGestures(onLongPress = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                host.open(target)
+                latestHost.open(latestTarget)
             })
         }
         .semantics {

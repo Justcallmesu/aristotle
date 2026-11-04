@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ import io.github.justcallmesu.aristotle.data.PcStatus
 import io.github.justcallmesu.aristotle.data.PcStatusFormat
 import io.github.justcallmesu.aristotle.data.Uptime
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
+import io.github.justcallmesu.aristotle.ui.theme.AtkinsonMonoFamily
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import java.util.Locale
 
@@ -83,7 +85,7 @@ fun PcStatusCard(
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (asOf != null) AsOfLine(asOf)
-                    if (status.hermesRunning == false) HermesDownLine()
+                    if (status.hermesRunning == false && !stale) HermesDownLine()
                     MeterRow(status, locale, stale)
                 }
                 val turn by animateFloatAsState(if (expanded) 180f else 0f, label = "pc-chevron")
@@ -130,9 +132,9 @@ private fun MeterRow(status: PcStatus, locale: Locale, stale: Boolean) {
         if (cpu != null && status.cpuPercent != null) {
             Meter(
                 stringResource(R.string.pc_cpu_label),
-                AnnotatedString(stringResource(R.string.pc_battery_value, PcStatusFormat.percent(status.cpuPercent))),
+                AnnotatedString(stringResource(R.string.pc_cpu_meter_value, PcStatusFormat.percent(status.cpuPercent))),
                 cpu,
-                stale,
+                stale || status.cpuStale,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -218,6 +220,7 @@ private data class PcTile(
     @DrawableRes val icon: Int,
     val label: String,
     val value: String,
+    val mono: Boolean = false,
     val sub: String? = null,
     val fraction: Float? = null,
     val error: Boolean = false,
@@ -281,6 +284,7 @@ private fun DetailTiles(status: PcStatus, address: String, network: Network?, lo
                     if (network == Network.Tailscale) R.drawable.ic_vpn_lock else R.drawable.ic_wifi,
                     stringResource(R.string.pc_address_label),
                     address,
+                    mono = true,
                 ),
                 stale,
                 Modifier.fillMaxWidth(),
@@ -304,7 +308,11 @@ private fun Tile(t: PcTile, stale: Boolean, modifier: Modifier) {
                 Text(t.label, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                 Text(
                     t.value,
-                    style = AristotleTextStyles.tabular(MaterialTheme.typography.titleSmall),
+                    style = if (t.mono) {
+                        MaterialTheme.typography.titleSmall.copy(fontFamily = AtkinsonMonoFamily, fontWeight = FontWeight.W500)
+                    } else {
+                        AristotleTextStyles.tabular(MaterialTheme.typography.titleSmall)
+                    },
                     color = when {
                         t.error -> colors.error
                         stale -> colors.onSurfaceVariant

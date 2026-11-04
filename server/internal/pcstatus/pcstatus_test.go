@@ -136,7 +136,7 @@ func TestUptime(t *testing.T) {
 func TestDisk(t *testing.T) {
 	dir := t.TempDir()
 	d := ReadDisk(dir)
-	if d == nil || d.Path != dir || d.TotalBytes == 0 || d.FreeBytes > d.TotalBytes {
+	if d == nil || d.Path != "~" || d.TotalBytes == 0 || d.FreeBytes > d.TotalBytes {
 		t.Errorf("disk = %+v", d)
 	}
 	if ReadDisk(filepath.Join(dir, "nope")) != nil || ReadDisk("") != nil {

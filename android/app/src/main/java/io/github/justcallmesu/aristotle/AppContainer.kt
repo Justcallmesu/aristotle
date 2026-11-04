@@ -263,6 +263,9 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         epoch.value += 1
         clearAlerts()
         scope.launch {
+            // A pairing that ended (Revoked, lost key) leaves no log of it behind, like Unpair.
+            connectionLog.clear()
+            withContext(Dispatchers.IO) { diagnostics.clear() }
             credentials.wipeActive()
             ServerVersions.clearAll()
             clearAlerts()

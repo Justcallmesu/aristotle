@@ -6,6 +6,7 @@ import java.util.Collections
 import java.util.Date
 import java.util.IdentityHashMap
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +29,7 @@ data class AppInfo(
 }
 
 /**
- * The last crash, on disk (Q80b, TL2). The crash handler [write]s `crash.txt`; the next launch [takeOffer]s it once
+ * The last crash, on disk (Q80b, TL2). The crash handler [write]s `crash.txt`; the dialog's first composition [takeOffer]s it once
  * (renamed to `crash-offered.txt`; an offer left from an earlier launch is deleted first, so a report is never offered
  * twice). Send and Dismiss both end it ([dismiss]).
  */
@@ -97,9 +98,15 @@ object CrashText {
         logTail.forEach(::appendLine)
     }
 
-    /** `class: message`, the message redacted and cut to [MAX_MESSAGE]. */
+    const val OWN_PACKAGE = "io.github.justcallmesu.aristotle"
+
+    /**
+     * `class: message` for the app's own exception classes (message redacted, cut to [MAX_MESSAGE]); the class name alone
+     * for every other class, since a library's message can quote its input.
+     */
     fun describe(error: Throwable): String {
-        val message = error.message?.let { LogRedactor.redact(it) }?.let { if (it.length > MAX_MESSAGE) it.take(MAX_MESSAGE) + "…" else it }
+        val own = error.javaClass.name.startsWith("$OWN_PACKAGE.")
+        val message = error.message?.takeIf { own }?.let { LogRedactor.redact(it) }?.let { if (it.length > MAX_MESSAGE) it.take(MAX_MESSAGE) + "…" else it }
         return if (message.isNullOrBlank()) error.javaClass.name else "${error.javaClass.name}: $message"
     }
 
@@ -124,6 +131,7 @@ class Diagnostics(
     val pipeline = LogPipeline(ring, clock, logcat)
     private val crashes = CrashStore(crashDir)
     private val offer = MutableStateFlow(false)
+    private val claimed = AtomicBoolean(false)
 
     /** True while a crash from an earlier run waits for Send report or Dismiss. */
     val crashOffered: StateFlow<Boolean> = offer.asStateFlow()
@@ -133,13 +141,21 @@ class Diagnostics(
         pipeline.start()
         AppLog.install(pipeline)
         Thread.setDefaultUncaughtExceptionHandler(crashHandler(Thread.getDefaultUncaughtExceptionHandler()))
-        thread(name = "aristotle-diagnostics", isDaemon = true) { loadOffer() }
+        thread(name = "aristotle-diagnostics", isDaemon = true) { sweepShares() }
         AppLog.i("app start version=${info.versionName} code=${info.versionCode} sdk=${info.sdk}")
     }
 
-    /** The launch's crash offer and the share files left by an earlier run (blocking; [start] runs it on a thread). */
-    fun loadOffer() {
+    /**
+     * Claims the crash from an earlier run, once per process; the crash dialog calls it when it first composes (blocking).
+     * A headless start (a service restart) never reaches it, so it cannot use the report up.
+     */
+    fun claimCrash() {
+        if (!claimed.compareAndSet(false, true)) return
         if (crashes.takeOffer()) offer.value = true
+    }
+
+    /** Deletes share files left by an earlier run (blocking; [start] runs it on a thread). */
+    fun sweepShares() {
         val stale = clock() - SHARE_MAX_AGE_MILLIS
         shareDir.listFiles()?.filter { it.lastModified() < stale }?.forEach { it.delete() }
     }

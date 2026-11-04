@@ -776,4 +776,5 @@
     <string name="share_chooser_title">Kirim dengan</string>
     <string name="settings_debug_log">Kirim log debug</string>
     <string name="settings_debug_log_body">Membagikan log aplikasi di ponsel ini sebagai file. Isinya kejadian aplikasi, status koneksi, dan jenis galat; tidak pernah pesan, prompt, balasan, token, kata sandi, atau kode penyandingan. Tidak ada yang diunggah dengan sendirinya.</string>
+    <string name="pc_cpu_meter_value">%1$d%%</string>
 </resources>

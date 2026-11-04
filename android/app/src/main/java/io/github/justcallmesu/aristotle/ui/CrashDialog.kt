@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
@@ -27,6 +28,7 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 internal fun CrashReportDialog(diagnostics: Diagnostics) {
+    LaunchedEffect(diagnostics) { withContext(Dispatchers.IO) { diagnostics.claimCrash() } }
     val offered by diagnostics.crashOffered.collectAsStateWithLifecycle()
     if (!offered) return
     val activity = LocalActivity.current

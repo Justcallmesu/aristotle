@@ -27,6 +27,7 @@ class PcStatusPoller(
     private val pause: suspend (Long) -> Unit = { delay(it) },
 ) {
     private val current = MutableStateFlow(PcStatusView.None)
+    private var lastHost: String? = null
     val view: StateFlow<PcStatusView> = current.asStateFlow()
 
     fun start(): Job = scope.launch {
@@ -42,7 +43,12 @@ class PcStatusPoller(
                     } catch (_: Exception) {
                         null
                     }
-                    if (status != null) current.value = PcStatusView(status, clock())
+                    if (status != null) {
+                        // The last CPU value belongs to this PC only: another address of the same PC keeps it, a new one does not.
+                        val before = current.value.status.takeIf { lastHost == online.endpoint.host }
+                        lastHost = online.endpoint.host
+                        current.value = PcStatusView(carryCpu(before, status), clock())
+                    }
                     pause(intervalMillis)
                 }
             }

@@ -102,7 +102,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TR7 | PC status card option A Meters (Q79) | TD3 | android | DONE |
 | TM2 | Q80a: message actions (copy, share, select, quote, steer-with) + copy on code blocks | TR3 | android | DONE |
 | TL2 | Q80b: redacted on-phone debug log, crash capture + next-launch crash screen, Send debug log in About | TH1 | android | DONE |
-| TQ3 | Review-Q80 minors: crash message allow-list, claim crash report when the dialog shows, long-press during streaming, CPU meter keeps last value (no jump), disk.path '~', revoked clears log, NITs | TL2, TM2, TR7, TP1a | android, server | BUILDING |
+| TQ3 | Review-Q80 minors: crash message allow-list, claim crash report when the dialog shows, long-press during streaming, CPU meter keeps last value (no jump), disk.path '~', revoked clears log, NITs | TL2, TM2, TR7, TP1a | android, server | DONE (long-press while streaming: device check) |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -435,3 +435,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 User picked for before v1.0: message actions + copy code, debug log + crash screen -> Q80; TM2 (std) + TL2 (deep) dispatched in parallel with TR7.
 - 2026-11-04 TR7, TM2, TL2 built; PM clean gate + mutations running; deep review (TL2 privacy focus + TP1 server unreviewed part) dispatched.
 - 2026-11-04 Review-Q80 PASS-WITH-FINDINGS: TL2 privacy clean; TM2 steer-with never sends; TR7 matches §5.7; TP1 OK. Mutations: bearer redaction off fails 2, quote prefix off fails 1. pm-gate-59 GREEN (Gradle cache is content-addressed, restored files hash-match). PM added the CHANGELOG lines (MINOR-4). Committed TR7+TM2+TL2. TQ3 for the rest.
+- 2026-11-04 TQ3: pm-gate-60 GREEN (381 Go, 1008 android); mutation (crash message kept for all classes) fails 2. Committed (minor round, folds into T22 review). Demo server restarted; installed.

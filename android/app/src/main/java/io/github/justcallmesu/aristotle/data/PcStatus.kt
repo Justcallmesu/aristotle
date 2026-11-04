@@ -18,6 +18,8 @@ data class PcStatus(
     val hermesRunning: Boolean? = null,
     val tailscaleUp: Boolean? = null,
     val uptimeSeconds: Long? = null,
+    /** True when [cpuPercent] is the last value the phone had, kept because this reading came back without one. */
+    val cpuStale: Boolean = false,
 ) {
     /** False for an all-null reading: there is nothing to draw, so the card stays out. */
     val hasData: Boolean
@@ -36,6 +38,16 @@ data class PcStatusView(val status: PcStatus? = null, val fetchedAtMillis: Long?
     companion object {
         val None = PcStatusView()
     }
+}
+
+/**
+ * The meter keeps its last CPU value while the PC cannot give one (the first read after a long idle has `cpu_percent:
+ * null`, protocol §16): [previous]'s value is carried into [fresh], marked [PcStatus.cpuStale], so the meter does not vanish
+ * and the layout does not jump. A reading with a CPU value of its own, or with nothing at all, is returned as it is.
+ */
+fun carryCpu(previous: PcStatus?, fresh: PcStatus): PcStatus {
+    if (fresh.cpuPercent != null || !fresh.hasData || previous?.cpuPercent == null) return fresh
+    return fresh.copy(cpuPercent = previous.cpuPercent, cpuStale = true)
 }
 
 /** The PC-status call; [HttpLinkDialer] in the app, a fake in tests. Null when the call failed. */

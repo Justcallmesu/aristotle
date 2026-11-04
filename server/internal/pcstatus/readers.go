@@ -23,6 +23,9 @@ type Memory struct {
 	TotalBytes uint64 `json:"total_bytes"`
 }
 
+// DiskPath is what the response names the drive: the home directory, never its real path (the phone does not read it).
+const DiskPath = "~"
+
 // Disk is the filesystem of the user's home.
 type Disk struct {
 	Path       string `json:"path"`
@@ -163,7 +166,7 @@ func ReadUptime(root string) *int64 {
 	return &n
 }
 
-// ReadDisk reports the filesystem holding path (the user's home).
+// ReadDisk reports the filesystem holding path (the user's home); the result's Path is [DiskPath], not path.
 func ReadDisk(path string) *Disk {
 	if path == "" {
 		return nil
@@ -172,5 +175,5 @@ func ReadDisk(path string) *Disk {
 	if !ok || total == 0 {
 		return nil
 	}
-	return &Disk{Path: path, FreeBytes: free, TotalBytes: total}
+	return &Disk{Path: DiskPath, FreeBytes: free, TotalBytes: total}
 }
