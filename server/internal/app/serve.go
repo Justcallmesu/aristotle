@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/justcallmesu/aristotle/server/internal/config"
 	"github.com/justcallmesu/aristotle/server/internal/control"
 	"github.com/justcallmesu/aristotle/server/internal/devices"
+	"github.com/justcallmesu/aristotle/server/internal/discovery"
 	"github.com/justcallmesu/aristotle/server/internal/hermes"
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
@@ -21,6 +23,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/service"
 	"github.com/justcallmesu/aristotle/server/internal/terminal"
 	"github.com/justcallmesu/aristotle/server/internal/tlscert"
+	protover "github.com/justcallmesu/aristotle/server/internal/version"
 )
 
 const shutdownTimeout = 5 * time.Second
@@ -43,6 +46,8 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// Only the real server announces on the network; tests build servers without a responder.
+	srv.discovery.Start = discovery.MDNSStart
 	return srv.run(ctx)
 }
 
@@ -50,19 +55,20 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 // LAN/Tailscale HTTPS listener manager, control socket and the /v1/ws relay hub, sharing the pairing
 // codes and devices.
 type server struct {
-	cfg      config.Config
-	stateDir string
-	version  string
-	log      *slog.Logger
-	cert     tlscert.Cert
-	codes    *pairing.Codes
-	devices  *devices.Store
-	listen   *listen.Manager
-	control  *control.Server
-	rejects  *httpapi.RejectLog // one limiter for every listener
-	relay    *relay.Hub
-	grants   *terminal.Grants // terminal switch and per-device grants (terminal.json)
-	terms    *terminal.Hub    // /v1/terminal shells
+	cfg       config.Config
+	stateDir  string
+	version   string
+	log       *slog.Logger
+	cert      tlscert.Cert
+	codes     *pairing.Codes
+	devices   *devices.Store
+	listen    *listen.Manager
+	discovery *discovery.Announcer // mDNS on LAN-listener interfaces (Start nil: off)
+	control   *control.Server
+	rejects   *httpapi.RejectLog // one limiter for every listener
+	relay     *relay.Hub
+	grants    *terminal.Grants // terminal switch and per-device grants (terminal.json)
+	terms     *terminal.Hub    // /v1/terminal shells
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -108,6 +114,10 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,
 		Wrap: relay.WrapListener, // the relay sees exactly when a write to a phone waits for it
 	}
+	host, _ := os.Hostname()
+	s.discovery = &discovery.Announcer{Enabled: cfg.Discovery.Enabled, Port: cfg.Port, Fingerprint: cert.Fingerprint,
+		Proto: protover.ProtocolVersion, Hostname: host, Log: log}
+	s.listen.OnChange = s.syncDiscovery
 	ctl.Handlers = s.controlHandlers()
 	ctl.Authorize = s.authorizeControl
 	return s, nil
@@ -141,6 +151,18 @@ func loadCert(cfg config.Config, stateDir string, scan func() ([]listen.Iface, e
 	}
 	log.Info("tls certificate", "created", created, "fingerprint", cert.Fingerprint)
 	return cert, nil
+}
+
+// syncDiscovery follows the listener set; nil endpoints (manager closed) stop every announcement.
+func (s *server) syncDiscovery(eps []listen.Endpoint) {
+	if s.discovery.Start == nil {
+		return
+	}
+	if eps == nil {
+		s.discovery.Close()
+		return
+	}
+	s.discovery.Sync(eps)
 }
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {

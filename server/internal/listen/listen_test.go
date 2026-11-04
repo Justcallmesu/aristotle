@@ -620,3 +620,25 @@ func TestManagerServesThroughWrap(t *testing.T) {
 		}
 	}
 }
+
+func TestManagerOnChangeFollowsActiveSet(t *testing.T) {
+	f := &fakeNet{}
+	m := newTestManager(t, f, &syncBuffer{})
+	var mu sync.Mutex
+	var calls [][]Endpoint
+	m.OnChange = func(eps []Endpoint) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls = append(calls, eps)
+	}
+	f.set([]Iface{wifiIface}, nil)
+	m.Reconcile()
+	f.set(nil, nil)
+	m.Reconcile()
+	m.Close()
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) != 3 || !slices.Equal(calls[0], []Endpoint{wifiEP}) || len(calls[1]) != 0 || calls[1] == nil || calls[2] != nil {
+		t.Fatalf("calls = %v", calls)
+	}
+}

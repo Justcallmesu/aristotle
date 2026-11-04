@@ -934,3 +934,52 @@ exhaust memory), with the reading thread never blocked long enough to miss the 1
 the terminal screen by default; keyboard input without suggestions or learning (`TYPE_NULL` or
 `VISIBLE_PASSWORD|NO_SUGGESTIONS` plus `IME_FLAG_NO_PERSONALIZED_LEARNING`); the emulator ignores OSC 52 clipboard
 writes and does not answer terminal queries that echo data back.
+
+## 15. LAN discovery (mDNS/DNS-SD, TL1a/TL1b, spec Q65)
+
+aristotle-server announces itself on the Wi-Fi so a phone can find it after a network change. **Discovery is a hint; trust is
+the pinned certificate fingerprint.** The phone connects over HTTPS (§11) and accepts the server only if the full pin
+matches the one it stored at pairing; a matching announcement alone proves nothing and a missing one means nothing.
+
+- **Records** (IPv4 only; nothing else is answered — no service enumeration, no AAAA, no `<host>.local.`, which avahi owns):
+
+| Record | Name → data | TTL |
+|---|---|---|
+| PTR (shared) | `_aristotle._tcp.local.` → `Aristotle on <short hostname>._aristotle._tcp.local.` | 4500 |
+| SRV (unique) | instance → `0 0 <port> aristotle-<short hostname>.local.` | 120 |
+| TXT (unique) | instance → the keys below | 4500 |
+| A (unique) | `aristotle-<short hostname>.local.` → each LAN listener IPv4 address on the interface | 120 |
+
+  `<short hostname>` is the hostname cut at its first dot (`PC` when empty); in the target it is lowercased, with anything
+  but `a-z0-9` turned into `-`. **Port**: the LAN listener port (`port` in the config, default 8760). Unique records carry
+  the cache-flush bit. A PTR answer carries SRV, TXT and A as additional records; an SRV answer carries A.
+- **TXT keys** (nothing else is published; no device ids, tokens or full hostnames):
+
+| Key | Value |
+|---|---|
+| `v` | `1`: the discovery format. Additive keys do not bump it; the phone ignores unknown keys. |
+| `fp` | first 16 hex digits, lowercase, of the certificate fingerprint (§11.1). A hint to pick the right PC; **never** a pin. |
+| `proto` | `ProtocolVersion` (§0) of the server. |
+
+- **Where**: only on interfaces that currently carry a LAN listener (RFC1918 address on a physical interface or one named in
+  `lan_interfaces`). Never on Tailscale, loopback, docker or any other interface. The server runs its own small responder
+  (no mDNS library), one IPv4 socket per announced interface:
+  - bound to the group address `224.0.0.251:5353`, never `0.0.0.0`/`::`, so a unicast datagram to one of our addresses never
+    reaches it; `SO_REUSEADDR`/`SO_REUSEPORT` so avahi/systemd-resolved keep working; `SO_BINDTODEVICE` to the interface;
+    `IP_MULTICAST_ALL=0`; the group joined on that interface only; `IP_MULTICAST_IF` that interface; TTL 255.
+  - per-packet filter (`IP_PKTINFO`): a packet is dropped unless it arrived on that interface, was sent to the group,
+    comes from an address inside one of the interface's on-link prefixes, is a standard query, and asks for one of the
+    records above.
+- **Replies**: by multicast to the group on that interface, at most once per record set per second per interface. A query
+  whose answered questions all have the QU bit gets a unicast reply to the asker; a query from a port other than 5353
+  (legacy, RFC 6762 §6.7) gets a unicast reply to that port with the query ID and questions echoed, TTLs capped at 10 s and
+  no cache-flush bit. Both only for on-link askers (the filter above). No probing, conflict resolution or known-answer
+  suppression: the names carry the `aristotle-` prefix and the instance name is ours.
+- **Lifecycle**: follows the listener set (re-scan every 10 s). A new LAN listener starts a responder on its interface,
+  which announces the record set twice, 1 s apart; a removed listener stops it with a goodbye (all records, TTL 0); a changed
+  address restarts it (goodbye, then announce). Log lines: `discovery started` / `discovery stopped` with `iface`. All stop
+  (with goodbye) at shutdown.
+- **Errors**: a socket setup failure (e.g. port 5353 held without address reuse) is returned and logged as `discovery
+  start failed` with `retry_in`: one warning per distinct error, retries back off 10 s, 20 s, 40 s … up to 5 min. A
+  responder whose socket fails later is stopped and restarted the same way.
+- **Config**: `{"discovery": {"enabled": false}}` turns it off (default `true`). Unknown keys inside `discovery` are refused.

@@ -33,6 +33,9 @@ type Manager struct {
 	Wrap     func(net.Listener) net.Listener           // applied to each bound listener; nil: none
 	Interval time.Duration
 	Log      *slog.Logger
+	// OnChange, when set, is called with the active endpoints after every
+	// reconcile and with nil once the manager has closed (never under the lock).
+	OnChange func([]Endpoint)
 
 	mu           sync.Mutex
 	active       map[Endpoint]*http.Server
@@ -64,6 +67,13 @@ func (m *Manager) Run(ctx context.Context) {
 
 // Reconcile scans once and makes the bound set match the selected endpoints.
 func (m *Manager) Reconcile() {
+	m.reconcile()
+	if m.OnChange != nil {
+		m.OnChange(m.Active())
+	}
+}
+
+func (m *Manager) reconcile() {
 	ifaces, err := m.scan()
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -190,6 +200,9 @@ func (m *Manager) Close() {
 			_ = srv.Close()
 		}
 		m.Log.Info("listener removed", "kind", e.Kind, "iface", e.Iface, "addr", e.Addr)
+	}
+	if m.OnChange != nil {
+		m.OnChange(nil)
 	}
 }
 

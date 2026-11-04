@@ -247,3 +247,19 @@ func TestCheckDirSafe(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoveryDefaultsOnAndCanBeDisabled(t *testing.T) {
+	cfg, err := Parse([]byte(`{}`))
+	if err != nil || !cfg.Discovery.Enabled {
+		t.Fatalf("default: %+v %v", cfg, err)
+	}
+	cfg, err = Parse([]byte(`{"discovery":{"enabled":false}}`))
+	if err != nil || cfg.Discovery.Enabled {
+		t.Fatalf("off: %+v %v", cfg, err)
+	}
+	for _, bad := range []string{`{"discovery":{"enable":true}}`, `{"discovery":null}`, `{"discovery":{"enabled":null}}`, `{"Discovery":{}}`} {
+		if _, err := Parse([]byte(bad)); err == nil {
+			t.Errorf("%s accepted", bad)
+		}
+	}
+}

@@ -29,12 +29,19 @@ const (
 // LANInterfaces, when not empty, names the only interfaces that get a LAN
 // listener (default: every physical interface).
 type Config struct {
-	Host             string   `json:"host"`
-	Port             int      `json:"port"`
-	LANEnabled       bool     `json:"lan_enabled"`
-	TailscaleEnabled bool     `json:"tailscale_enabled"`
-	LANInterfaces    []string `json:"lan_interfaces"`
-	Terminal         Terminal `json:"terminal"`
+	Host             string    `json:"host"`
+	Port             int       `json:"port"`
+	LANEnabled       bool      `json:"lan_enabled"`
+	TailscaleEnabled bool      `json:"tailscale_enabled"`
+	LANInterfaces    []string  `json:"lan_interfaces"`
+	Terminal         Terminal  `json:"terminal"`
+	Discovery        Discovery `json:"discovery"`
+}
+
+// Discovery configures the LAN mDNS announcement (docs/protocol.md §15).
+type Discovery struct {
+	// Enabled turns the _aristotle._tcp announcement on (default) or off.
+	Enabled bool `json:"enabled"`
 }
 
 // Terminal holds the remote terminal's PC-side settings (docs/terminal.md). The switch and the grants
@@ -47,7 +54,7 @@ type Terminal struct {
 
 // Default returns the configuration used when no file exists.
 func Default() Config {
-	return Config{Host: DefaultHost, Port: DefaultPort, LANEnabled: true, TailscaleEnabled: true}
+	return Config{Host: DefaultHost, Port: DefaultPort, LANEnabled: true, TailscaleEnabled: true, Discovery: Discovery{Enabled: true}}
 }
 
 // Addr returns the host:port listen address.
@@ -130,10 +137,10 @@ func Parse(data []byte) (Config, error) {
 }
 
 var knownKeys = map[string]bool{"host": true, "port": true, "lan_enabled": true, "tailscale_enabled": true, "lan_interfaces": true,
-	"terminal": true}
+	"terminal": true, "discovery": true}
 
 // knownObjects lists, for each key whose value is an object, that object's keys.
-var knownObjects = map[string]map[string]bool{"terminal": {"keep_env": true}}
+var knownObjects = map[string]map[string]bool{"terminal": {"keep_env": true}, "discovery": {"enabled": true}}
 
 // checkKeys requires a JSON object whose top-level keys (and those of the nested objects in
 // knownObjects) match exactly (case-sensitive), appear once and are not null. Syntax errors inside
