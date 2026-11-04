@@ -26,14 +26,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SnackbarHost
@@ -44,6 +44,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -237,21 +239,48 @@ private fun TopBar(
             ConnectionLine(state.link, address)
         }
         state.profileName?.let { ProfileChip(it, enabled = state.link is LinkState.Online, onClick = actions::openProfiles) }
-        // T19b: only while /v1/me (read on this connect) says the terminal is on and this phone granted.
-        if (terminalAvailable) {
-            IconButton(onClick = onTerminal) {
-                Icon(painter = painterResource(R.drawable.ic_terminal), contentDescription = stringResource(R.string.terminal_open))
-            }
-        }
-        // T18: the listed profile's Hermes cron jobs.
-        IconButton(onClick = { onScheduled(ScheduledRequest(state.profile, state.profileName)) }) {
-            Icon(painter = painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.cron_open))
-        }
         IconButton(onClick = actions::openSearch, enabled = state.items != null) {
-            Icon(painter = painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.sessions_search))
+            Icon(painter = painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.sessions_search), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        IconButton(onClick = onSettings) {
-            Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings_title))
+        OverflowMenu(
+            entries = listMenuEntries(terminalAvailable),
+            onEntry = { entry ->
+                when (entry) {
+                    // T18: the listed profile's Hermes cron jobs.
+                    ListMenuEntry.Scheduled -> onScheduled(ScheduledRequest(state.profile, state.profileName))
+                    ListMenuEntry.Terminal -> onTerminal()
+                    ListMenuEntry.Settings -> onSettings()
+                }
+            },
+        )
+    }
+}
+
+/** Q70: the ⋮ menu holding Scheduled, Terminal (only when shown) and Settings. */
+@Composable
+private fun OverflowMenu(entries: List<ListMenuEntry>, onEntry: (ListMenuEntry) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(painter = painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.sessions_more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            entries.forEach { entry ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                when (entry) {
+                                    ListMenuEntry.Scheduled -> R.string.cron_open
+                                    ListMenuEntry.Terminal -> R.string.terminal_open
+                                    ListMenuEntry.Settings -> R.string.settings_title
+                                },
+                            ),
+                        )
+                    },
+                    onClick = { open = false; onEntry(entry) },
+                )
+            }
         }
     }
 }
@@ -260,14 +289,23 @@ private fun TopBar(
 @Composable
 private fun ProfileChip(name: String, enabled: Boolean, onClick: () -> Unit) {
     val description = stringResource(R.string.sessions_profile_description, name)
+    // Mockup `.chip`: 32 dp, 1 dp outlineVariant border, 14/600 label, 12 start / 8 end, 18 dp trailing icon.
     FilterChip(
         selected = false,
         onClick = onClick,
         enabled = enabled,
-        label = { Text(text = name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        trailingIcon = { Icon(painter = painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null, modifier = Modifier.size(Sizes.chipIcon)) },
+        label = { Text(text = name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_arrow_drop_down),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(Sizes.chipIcon),
+            )
+        },
         shape = MaterialTheme.shapes.small,
         colors = FilterChipDefaults.filterChipColors(),
+        border = FilterChipDefaults.filterChipBorder(enabled = enabled, selected = false, borderColor = MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.semantics { contentDescription = description },
     )
 }
@@ -284,7 +322,7 @@ private fun SearchBar(query: String, actions: ListActions) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = actions::closeSearch) {
-                Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.sessions_search_close))
+                Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.sessions_search_close), tint = colors.onSurfaceVariant)
             }
             val description = stringResource(R.string.sessions_search)
             BasicTextField(
@@ -304,7 +342,7 @@ private fun SearchBar(query: String, actions: ListActions) {
             )
             if (query.isNotEmpty()) {
                 IconButton(onClick = { actions.search("") }) {
-                    Icon(painter = painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.sessions_search_clear))
+                    Icon(painter = painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.sessions_search_clear), tint = colors.onSurfaceVariant)
                 }
             }
         }
@@ -358,7 +396,7 @@ private fun ConnectingBody(address: String) {
 
 @Composable
 private fun EmptyBody() {
-    Column(modifier = Modifier.padding(horizontal = Spacing.xxl, vertical = Spacing.xxxl)) {
+    Column(modifier = Modifier.padding(horizontal = Spacing.listGutter, vertical = Spacing.l)) {
         Text(text = stringResource(R.string.sessions_empty_title), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(Spacing.xs))
         Text(
@@ -431,35 +469,39 @@ private fun SectionHeader(section: ListSection) {
 @Composable
 private fun SessionRowItem(row: SessionRow, staleAt: String?, actions: ListActions) {
     val more = stringResource(R.string.session_actions)
-    ListItem(
+    // A plain Row, not ListItem: M3 centres the trailing slot, the mockup top-aligns the time with the title (L3).
+    Row(
         modifier = Modifier
+            .fillMaxWidth()
             .combinedClickable(onClick = { actions.open(row) }, onLongClick = { actions.showActions(row) }, role = Role.Button)
             .semantics { onLongClick(label = more) { actions.showActions(row); true } }
-            .heightIn(min = Sizes.sessionRowHeight),
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        leadingContent = if (row.pinned) {
-            {
-                Icon(
-                    painter = painterResource(R.drawable.ic_push_pin),
-                    contentDescription = stringResource(R.string.session_pinned),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(Sizes.chipIcon),
-                )
-            }
-        } else {
-            null
-        },
-        headlineContent = {
+            .heightIn(min = Sizes.sessionRowHeight)
+            .padding(horizontal = Spacing.listGutter, vertical = Spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (row.pinned) {
+            Icon(
+                painter = painterResource(R.drawable.ic_push_pin),
+                contentDescription = stringResource(R.string.session_pinned),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = Spacing.l).size(Sizes.chipIcon),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = row.title ?: stringResource(R.string.session_untitled),
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        },
-        supportingContent = { RowStatus(row, staleAt) },
-        trailingContent = row.time?.let { time -> { RowTimeText(time, staleAt) } },
-    )
+            RowStatus(row, staleAt)
+        }
+        row.time?.let { time ->
+            Column(modifier = Modifier.padding(start = Spacing.l).align(Alignment.Top)) {
+                RowTimeText(time, staleAt, Modifier.padding(top = Spacing.xs))
+            }
+        }
+    }
 }
 
 @Composable
@@ -492,7 +534,7 @@ private fun RowStatus(row: SessionRow, staleAt: String?) {
 }
 
 @Composable
-private fun RowTimeText(time: RowTime, staleAt: String?) {
+private fun RowTimeText(time: RowTime, staleAt: String?, modifier: Modifier = Modifier) {
     Text(
         text = when (time) {
             RowTime.Now -> staleAt ?: stringResource(R.string.session_now)
@@ -500,6 +542,7 @@ private fun RowTimeText(time: RowTime, staleAt: String?) {
         },
         style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
     )
 }
 

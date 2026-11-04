@@ -113,3 +113,11 @@ private fun zoned(session: SessionSummary, now: ZonedDateTime): ZonedDateTime? {
 }
 
 private const val MILLIS = 1000.0
+
+/** Entries of the session list's ⋮ menu (Q70), in display order. */
+enum class ListMenuEntry { Scheduled, Terminal, Settings }
+
+/** Scheduled and Settings always; Terminal only while the terminal is on and this phone is granted (T19b). */
+fun listMenuEntries(terminalAvailable: Boolean): List<ListMenuEntry> =
+    if (terminalAvailable) listOf(ListMenuEntry.Scheduled, ListMenuEntry.Terminal, ListMenuEntry.Settings)
+    else listOf(ListMenuEntry.Scheduled, ListMenuEntry.Settings)

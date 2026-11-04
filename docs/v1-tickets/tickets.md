@@ -68,9 +68,9 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TQ2 | Quote while a chat loads (Q59) | TQ1 | android | TODO |
 | TU1 | UI refinement: design audit of every screen from real Poco screenshots (needs the phone) -> TU tickets | TS2, TQ2 | android | DONE (runs/TU1/audit.md: 26 findings) |
 | TU2 | Fonts bundled (Q66), icon set unified, Spacing/Type tokens, 40dp controls (Q67) — then re-capture screens | TU1 | android | DONE |
-| TU3 | Session list top bar (Q70) + Scheduled + sub-page top bars | TU2 | android | BUILDING |
-| TU4 | Chat transcript: rhythm (Q67), tool-call folding + path shortening (Q68), markdown spacing, tables, stable top bar | TU2 | android | BUILDING |
-| TU5 | Composer (Q69) + slash menu + model sheet + attach menu + prompt sheet | TU2 | android | BUILDING |
+| TU3 | Session list top bar (Q70) + Scheduled + sub-page top bars | TU2 | android | DONE (device look pending) |
+| TU4 | Chat transcript: rhythm (Q67), tool-call folding + path shortening (Q68), markdown spacing, tables, stable top bar | TU2 | android | DONE (device look pending) |
+| TU5 | Composer (Q69) + slash menu + model sheet + attach menu + prompt sheet | TU2 | android | DONE (device look pending) |
 | T20 | Icon: concept B (hand on chin) from `docs/design/icon/`, simplified to read at 48 dp; adaptive + monochrome; user approves on device (Q42) | T02 | android, docs/assets | DONE (user approved on device 2026-11-04) |
 | T21 | Server install: `aristotle-server install` (systemd user unit), uninstall, logs | T06 | server | DONE |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
@@ -351,3 +351,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 TS1 review PASS-WITH-FINDINGS (re-pair atomic, unpair clears all, no loops). Committed. Minors -> TS1b, folded into TS2's run (same files: AppSettings, PcRecords).
 - 2026-11-04 TU1 audit in (3 HIGH, 12 MED, 11 LOW). User answered D3-D5 (Q68-Q70); PM took D1/D2 (Q66/Q67). TU2 dispatched first (tokens/fonts), then TU3/TU4/TU5 in parallel, then re-capture.
 - 2026-11-04 TU2 PM gate GREEN runs/pm-gate-40; installed: device screenshot confirms Atkinson now renders (heavier strokes, slashed zero in 100.74.61.96) — audit G1 fixed. Committed. TU3/TU4/TU5 dispatched in parallel (disjoint files per audit).
+- 2026-11-04 TU3/TU4/TU5 built in parallel; PM wired TU4's fallbackProfile in AristotleApp.kt:288. PM gate GREEN runs/pm-gate-41 (667); mutation (fold at 2) fails 3. Committed as one UI commit (shared strings.xml appends). Phone unplugged before install: device screenshots pending.

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -70,6 +73,101 @@ private const val TURNED = 180f
 interface FoldState {
     fun isOpen(key: String, default: Boolean): Boolean
     fun toggle(key: String, default: Boolean)
+}
+
+/** The gap a [RowGap] stands for (Q67, design.md §4 chat rhythm). */
+val RowGap.size: Dp
+    get() = when (this) {
+        RowGap.None -> 0.dp
+        RowGap.Work -> Spacing.chatWorkGap
+        RowGap.Message -> Spacing.chatMessageGap
+        RowGap.Turn -> Spacing.chatTurnGap
+    }
+
+/** A transcript row ([ToolFolding]): one chat item, or a run of tool calls folded into one card (Q68). */
+@Composable
+fun TranscriptRowView(
+    row: TranscriptRow,
+    folds: FoldState,
+    lastFailedTool: String?,
+    live: Boolean,
+    attachmentsOf: (ChatItem.User) -> List<UserAttachment> = { it.attachments },
+    onOpenSubagent: ((String) -> Unit)? = null,
+) {
+    when (row) {
+        is TranscriptRow.Single -> ChatRow(row.item, folds, lastFailedTool, live, attachmentsOf, onOpenSubagent)
+        is TranscriptRow.Folded -> FoldedToolsCard(row, folds, lastFailedTool, live, attachmentsOf, onOpenSubagent)
+    }
+}
+
+/**
+ * Q68: "N tool calls · last: <name>" as one tool card, collapsed by default; open, the single cards follow it 4 dp apart.
+ * The header keeps the spinner while a call in it runs (live only) and says "Failed" when one failed.
+ */
+@Composable
+private fun FoldedToolsCard(
+    group: TranscriptRow.Folded,
+    folds: FoldState,
+    lastFailedTool: String?,
+    live: Boolean,
+    attachmentsOf: (ChatItem.User) -> List<UserAttachment>,
+    onOpenSubagent: ((String) -> Unit)?,
+) {
+    val open = folds.isOpen(group.key, default = false)
+    val last = group.last
+    val count = group.tools.size
+    val label = pluralStringResource(R.plurals.chat_tool_group, count, count, last.name)
+    val nameStyle = AristotleTextStyles.toolName.toSpanStyle().copy(color = MaterialTheme.colorScheme.onSurface)
+    val text = remember(label, last.name, nameStyle) {
+        buildAnnotatedString {
+            append(label)
+            val at = label.lastIndexOf(last.name)
+            if (at >= 0) addStyle(nameStyle, at, at + last.name.length)
+        }
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+            FoldHeader(
+                open = open,
+                onToggle = { folds.toggle(group.key, default = false) },
+                minHeight = Sizes.minTouchTarget,
+                modifier = Modifier.padding(horizontal = Spacing.m),
+            ) {
+                Icon(
+                    painter = painterResource(toolIconRes(last.name)),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(Sizes.toolIcon),
+                )
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+                    if (live && group.running) {
+                        val running = stringResource(R.string.chat_tool_running)
+                        RunningSpinner(modifier = Modifier.semantics { stateDescription = running })
+                    }
+                    // Red only on surfaceContainerLow (design.md §1 contrast trap).
+                    if (group.failed) {
+                        Text(text = stringResource(R.string.chat_tool_failed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                Chevron(open)
+            }
+        }
+        Fold(open) {
+            Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.chatWorkGap), verticalArrangement = Arrangement.spacedBy(Spacing.chatWorkGap)) {
+                for (item in group.items) {
+                    key(item.key) { ChatRow(item, folds, lastFailedTool, live, attachmentsOf, onOpenSubagent) }
+                }
+            }
+        }
+    }
 }
 
 /** [live]: the cursor and tool spinners show only then ([ChatLive]). */
@@ -112,7 +210,7 @@ private fun NotificationCard(item: ChatItem.Card, folds: FoldState) {
                 open = open,
                 onToggle = { folds.toggle(item.key, default = false) },
                 minHeight = Sizes.minTouchTarget,
-                modifier = Modifier.padding(horizontal = Spacing.m, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = Spacing.m),
             ) {
                 Icon(
                     painter = painterResource(if (item.process) R.drawable.ic_terminal else R.drawable.ic_task_alt),
@@ -179,10 +277,19 @@ private fun ReasoningRow(item: ChatItem.Reasoning, folds: FoldState) {
         item.durationMillis != null -> stringResource(R.string.chat_thought_for, ChatFormat.thoughtSeconds(item.durationMillis))
         else -> stringResource(R.string.chat_reasoning)
     }
+    val state = stringResource(if (open) R.string.chat_collapse else R.string.chat_expand)
     Column(modifier = Modifier.fillMaxWidth()) {
-        FoldHeader(open = open, onToggle = { folds.toggle(item.key, default = false) }, minHeight = Sizes.minTouchTarget) {
+        // 32 dp visible (mockup .reason button); Compose widens the touch area of a smaller clickable to 48 dp.
+        Row(
+            modifier = Modifier
+                .clickable(role = Role.Button, onClickLabel = state) { folds.toggle(item.key, default = false) }
+                .height(Sizes.reasoningRow)
+                .padding(end = Spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
             Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Chevron(open)
+            Chevron(open, size = Sizes.chipIcon)
         }
         Fold(open) {
             Text(
@@ -205,7 +312,7 @@ private fun ToolCard(item: ChatItem.Tool, folds: FoldState, openByDefault: Boole
                 open = open,
                 onToggle = { folds.toggle(item.key, openByDefault) },
                 minHeight = Sizes.minTouchTarget,
-                modifier = Modifier.padding(horizontal = Spacing.m, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = Spacing.m),
             ) {
                 Icon(
                     painter = painterResource(toolIconRes(item.name)),
@@ -214,8 +321,9 @@ private fun ToolCard(item: ChatItem.Tool, folds: FoldState, openByDefault: Boole
                     modifier = Modifier.size(Sizes.toolIcon),
                 )
                 Text(text = item.name, style = AristotleTextStyles.toolName, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                val summary = remember(item.name, item.summary) { ToolSummary.display(item.name, item.summary) }
                 Text(
-                    text = item.progress ?: item.summary,
+                    text = item.progress ?: summary,
                     style = AristotleTextStyles.toolSummary,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -234,7 +342,7 @@ private fun ToolCard(item: ChatItem.Tool, folds: FoldState, openByDefault: Boole
 private fun ToolTrailing(item: ChatItem.Tool, live: Boolean) {
     val locale = LocalConfiguration.current.locales[0]
     val duration = item.durationSeconds?.let { stringResource(R.string.chat_tool_seconds, ChatFormat.seconds(it, locale)) }
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
         when (item.status) {
             // No spinner while the chat is not live (offline, or the session could not be reattached).
             ToolStatus.Running -> if (live) {
@@ -263,7 +371,7 @@ private fun ToolOutput(item: ChatItem.Tool, folds: FoldState) {
     val allKey = "${item.key}#all"
     val showAll = folds.isOpen(allKey, default = false) || lines.size <= OUTPUT_PREVIEW_LINES
     val shown = remember(item.output, showAll) { if (showAll) item.output else lines.take(OUTPUT_PREVIEW_LINES).joinToString("\n") }
-    Column(modifier = Modifier.fillMaxWidth().padding(start = Spacing.m, end = Spacing.m, bottom = 6.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(start = Spacing.m, end = Spacing.m, bottom = Spacing.m)) {
         Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
             val empty = item.output.isEmpty()
             SelectionContainer {
@@ -330,7 +438,8 @@ fun WaitingChip(onClick: () -> Unit) {
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
     ) {
         Row(
-            modifier = Modifier.heightIn(min = Sizes.minTouchTarget).padding(start = 10.dp, end = 14.dp),
+            // A 32 dp chip (Q67); the clickable Surface keeps the 48 dp touch area.
+            modifier = Modifier.heightIn(min = WAITING_CHIP_HEIGHT).padding(start = Spacing.s, end = Spacing.m),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
         ) {
@@ -353,14 +462,14 @@ private fun FoldHeader(
         Row(
             modifier = modifier.fillMaxWidth().heightIn(min = minHeight),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
             content = content,
         )
     }
 }
 
 @Composable
-private fun Chevron(open: Boolean) {
+private fun Chevron(open: Boolean, size: Dp = Sizes.toolIcon) {
     val instant = reducedMotion()
     val angle by animateFloatAsState(
         targetValue = if (open) TURNED else 0f,
@@ -371,7 +480,7 @@ private fun Chevron(open: Boolean) {
         painter = painterResource(R.drawable.ic_expand_more),
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(Sizes.toolIcon).rotate(angle),
+        modifier = Modifier.size(size).rotate(angle),
     )
 }
 
@@ -393,6 +502,9 @@ private fun toolIconRes(name: String): Int = when (toolIcon(name)) {
     ToolIcon.File -> R.drawable.ic_description
     ToolIcon.Generic -> R.drawable.ic_build
 }
+
+/** Visible height of the waiting chip: Material's chip size (Q67), not a 48 dp slab. */
+private val WAITING_CHIP_HEIGHT = 32.dp
 
 private const val EXPAND_MILLIS = 300
 private const val COLLAPSE_MILLIS = 200

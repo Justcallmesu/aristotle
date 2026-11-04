@@ -573,4 +573,8 @@
     <string name="terminal_key_right">Kanan</string>
     <string name="terminal_key_on">aktif</string>
     <string name="terminal_key_off">mati</string>
+    <string name="sessions_more">Tindakan lainnya</string>
+    <plurals name="chat_tool_group">
+        <item quantity="other">%1$d panggilan alat · terakhir: %2$s</item>
+    </plurals>
 </resources>

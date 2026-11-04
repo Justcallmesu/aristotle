@@ -15,10 +15,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +44,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.justcallmesu.aristotle.R
@@ -93,7 +97,7 @@ private fun DelegateRowView(row: DelegateRow, live: Boolean, now: Long, onOpen: 
     Row(
         modifier = Modifier.fillMaxWidth().then(clickable).heightIn(min = Sizes.minTouchTarget).padding(horizontal = Spacing.m, vertical = Spacing.s),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
         StatusGlyph(row.status, live)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -116,35 +120,33 @@ private fun DelegateRowView(row: DelegateRow, live: Boolean, now: Long, onOpen: 
     }
 }
 
-/** "Running · 1 m 05 s · model" while live (verdigris), else "Done · model · 12 s". */
+/** "Running · 1 m 05 s · model" while live (verdigris), else "Done · model · 12 s"; one text, even separators (TU1 C3). */
 @Composable
 private fun MetaLine(row: DelegateRow, live: Boolean, now: Long) {
     val running = live && row.status.live
     val elapsed = row.startedAtMillis?.takeIf { running }?.let { elapsedText((now - it).coerceAtLeast(0) / 1000) }
     val duration = row.durationSeconds?.takeIf { !running }?.let { elapsedText(it.toLong()) }
     val status = statusLabel(row.status)
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = listOfNotNull(status, elapsed).joinToString(" · "),
-            style = if (running) AristotleTextStyles.liveStatusSmall else MaterialTheme.typography.bodySmall,
-            color = when {
-                running -> MaterialTheme.colorScheme.tertiary
-                row.status.red -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            maxLines = 1,
-        )
-        val details = listOfNotNull(row.model, duration).joinToString(" · ")
-        if (details.isNotEmpty()) {
-            Text(
-                text = "· $details",
-                style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+    val lead = listOfNotNull(status, elapsed).joinToString(StatusText.SEPARATOR)
+    val line = StatusText.of(lead, listOf(row.model, duration))
+    val leadColor = when {
+        running -> MaterialTheme.colorScheme.tertiary
+        row.status.red -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val leadSpan = (if (running) AristotleTextStyles.liveStatusSmall.toSpanStyle() else SpanStyle()).copy(color = leadColor)
+    Text(
+        text = remember(line, leadSpan) { styledLead(line, leadSpan) },
+        style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+private fun styledLead(line: StatusText, lead: SpanStyle): AnnotatedString = buildAnnotatedString {
+    append(line.text)
+    if (line.leadEnd > 0) addStyle(lead, 0, line.leadEnd)
 }
 
 @Composable
@@ -259,19 +261,22 @@ private fun PageTopBar(child: Subagent, running: Boolean, now: Long, onBack: () 
         }
         Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.xs)) {
             Text(text = child.goal, style = AristotleTextStyles.chatTitle, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() })
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (running) RunningSpinner()
+            Row(modifier = Modifier.heightIn(min = Sizes.chipIcon), verticalAlignment = Alignment.CenterVertically) {
+                if (running) {
+                    RunningSpinner()
+                    Spacer(Modifier.width(Spacing.s))
+                }
                 val status = statusLabel(child.status.asRow())
                 val time = if (running) elapsedText((now - child.startedAtMillis).coerceAtLeast(0) / 1000) else child.durationSeconds?.let { elapsedText(it.toLong()) }
+                val line = StatusText.of(listOfNotNull(status, time).joinToString(StatusText.SEPARATOR), listOf(child.model))
+                val lead = if (running) AristotleTextStyles.liveStatusSmall.toSpanStyle().copy(color = MaterialTheme.colorScheme.tertiary) else SpanStyle()
                 Text(
-                    text = listOfNotNull(status, time).joinToString(" · "),
-                    style = if (running) AristotleTextStyles.liveStatusSmall else MaterialTheme.typography.bodySmall,
-                    color = if (running) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = remember(line, lead) { styledLead(line, lead) },
+                    style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                child.model?.let {
-                    Text(text = "· $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
             }
         }
     }
@@ -281,21 +286,32 @@ private fun PageTopBar(child: Subagent, running: Boolean, now: Long, onBack: () 
 private fun PageBody(child: Subagent, page: SubagentPageState, running: Boolean) {
     val folds = rememberFolds()
     val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+    // The child's activity reads like the chat: the same folding (Q68) and rhythm (Q67) between its rows.
+    val rows = remember(child.mirror) { ToolFolding.rows(child.mirror) }
+    val section = Modifier.padding(top = Spacing.m)
     LazyColumn(
         modifier = Modifier.fillMaxSize().windowInsetsPadding(bottom),
         contentPadding = PaddingValues(horizontal = Spacing.listGutter, vertical = Spacing.s),
-        verticalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
         item(key = "hint") {
             Text(text = stringResource(R.string.subagent_read_only), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        item(key = "activity") { SectionLabel(stringResource(R.string.subagent_activity)) }
+        item(key = "activity") { SectionLabel(stringResource(R.string.subagent_activity), section) }
         if (child.mirror.isEmpty()) {
-            item(key = "waiting") { SectionNote(stringResource(R.string.subagent_waiting)) }
+            item(key = "waiting") { SectionNote(stringResource(R.string.subagent_waiting), section) }
         }
-        items(child.mirror, key = { it.key }, contentType = { it::class }) { item -> ChatRow(item, folds, lastFailedTool = null, live = running) }
-        item(key = "transcript") { SectionLabel(stringResource(R.string.subagent_transcript)) }
-        item(key = "tail") { TailBlock(page) }
+        val rhythm = Rhythm()
+        rows.forEachIndexed { index, row ->
+            // The first row sits a section gap under its label; the rest follow the chat rhythm.
+            val rowGap = rhythm.next(ChatRhythm.kindOf(row))
+            val gap = if (index == 0) Spacing.m else rowGap
+            val contentType: Any = if (row is TranscriptRow.Single) row.item::class else TranscriptRow.Folded::class
+            item(key = row.key, contentType = contentType) {
+                Box(modifier = Modifier.padding(top = gap)) { TranscriptRowView(row, folds, lastFailedTool = null, live = running) }
+            }
+        }
+        item(key = "transcript") { SectionLabel(stringResource(R.string.subagent_transcript), Modifier.padding(top = Spacing.l)) }
+        item(key = "tail") { Box(modifier = section) { TailBlock(page) } }
     }
 }
 
@@ -318,13 +334,13 @@ private fun TailBlock(page: SubagentPageState) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
-    Text(text = text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.semantics { heading() })
+private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(text = text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = modifier.semantics { heading() })
 }
 
 @Composable
-private fun SectionNote(text: String) {
-    Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun SectionNote(text: String, modifier: Modifier = Modifier) {
+    Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = modifier)
 }
 
 @Composable

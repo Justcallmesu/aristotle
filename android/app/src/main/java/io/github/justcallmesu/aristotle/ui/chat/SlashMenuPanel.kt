@@ -46,11 +46,21 @@ import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 
-/** The menu never covers more than this of the screen above the keyboard; then it scrolls. */
-private val MENU_MAX_HEIGHT = 240.dp
+/** A command row: 48 dp minimum, about 52 with a mono name line and a one-line description. */
+private val COMMAND_ROW_HEIGHT = 52.dp
+
+/** Four and a half rows, so the cut-off row reads as "scrolls" instead of a clipped last row (S2). */
+private val MENU_MAX_HEIGHT = COMMAND_ROW_HEIGHT * 4.5f
 
 /** Output lines shown before "Show all" (the tool card's rule, design.md §5). */
 private const val OUTPUT_LINES = 12
+
+/** The menu shows a description on one line, so Hermes' trailing "(usage: …)" is left out (S2); the catalog keeps it. */
+object SlashDescription {
+    private val USAGE_TAIL = Regex("""\s*[(\[]\s*usage:[^)\]]*[)\]]\s*$""", RegexOption.IGNORE_CASE)
+
+    fun display(description: String): String = description.replace(USAGE_TAIL, "").trim()
+}
 
 private enum class MenuSection { Commands, Skills, Blocked }
 
@@ -68,7 +78,7 @@ private fun SlashCommand.section(): MenuSection = when {
 fun SlashMenuPanel(slash: SlashState, query: String, onPick: (SlashCommand) -> Unit, onRetry: () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.s),
     ) {
         val catalog = slash.catalog
@@ -139,8 +149,8 @@ private fun CommandRow(command: SlashCommand, onPick: (SlashCommand) -> Unit) {
         Modifier.semantics { disabled() }
     }
     Column(
-        modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.minTouchTarget).then(tap).padding(horizontal = Spacing.m, vertical = Spacing.xs),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.minTouchTarget).then(tap).padding(horizontal = Spacing.m, vertical = Spacing.s),
+        verticalArrangement = Arrangement.Top,
     ) {
         Text(
             text = command.name,
@@ -149,9 +159,9 @@ private fun CommandRow(command: SlashCommand, onPick: (SlashCommand) -> Unit) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        val detail = block?.let { blockReason(it) } ?: command.description
+        val detail = block?.let { blockReason(it) } ?: SlashDescription.display(command.description)
         if (detail.isNotBlank()) {
-            Text(text = detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(text = detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

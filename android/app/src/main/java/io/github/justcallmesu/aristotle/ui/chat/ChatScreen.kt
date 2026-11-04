@@ -20,11 +20,11 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.material3.Button
@@ -65,7 +65,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -89,7 +91,14 @@ import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> Unit, focusComposer: Boolean = false) {
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    fallbackTitle: String?,
+    onBack: () -> Unit,
+    focusComposer: Boolean = false,
+    /** The opened row's profile, shown until the session says its own (TU1 C4). */
+    fallbackProfile: String? = null,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onStart() }
@@ -117,6 +126,7 @@ fun ChatScreen(viewModel: ChatViewModel, fallbackTitle: String?, onBack: () -> U
         focusComposer = focusComposer,
         subagents = subagents,
         onOpenSubagent = viewModel::openSubagent,
+        fallbackProfile = fallbackProfile,
     )
 }
 
@@ -196,6 +206,8 @@ fun ChatContentView(
     subagents: SubagentActions? = null,
     /** A `delegate_task` child row was tapped (T17); null: rows do not open. */
     onOpenSubagent: ((String) -> Unit)? = null,
+    /** The opened row's profile, shown in the top bar until the session says its own (TU1 C4). */
+    fallbackProfile: String? = null,
 ) {
     val feed = state.feed
     val chat = feed.chat
@@ -233,7 +245,7 @@ fun ChatContentView(
         // Top and sides: the top bar and banner stay clear of a landscape cut-out (T11 review NIT).
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             val sides = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            ChatTopBar(chat, state.link, live, fallbackTitle, onBack, onOpenModels = models::open.takeIf { feed.loaded }, modifier = sides)
+            ChatTopBar(chat, state.link, live, fallbackTitle, fallbackProfile, onBack, onOpenModels = models::open.takeIf { feed.loaded }, modifier = sides)
             if (ChatLive.reattachFailed(feed)) ReattachBanner(onRetry, sides)
             // Without the composer (still loading, load failed) this area reaches the bottom edge itself.
             val edge = if (feed.loaded) WindowInsetsSides.Horizontal else WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
@@ -323,6 +335,7 @@ private fun ChatTopBar(
     link: LinkState,
     live: Boolean,
     fallbackTitle: String?,
+    fallbackProfile: String?,
     onBack: () -> Unit,
     onOpenModels: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -344,7 +357,7 @@ private fun ChatTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },
             )
-            Subtitle(chat, live = live, switchable = onOpenModels != null)
+            Subtitle(chat, fallbackProfile, live = live, switchable = onOpenModels != null)
         }
         linkLabel(link)?.let { LinkChip(it, offline = link is LinkState.Offline) }
     }
@@ -352,38 +365,42 @@ private fun ChatTopBar(
 
 /**
  * "Running · step N" in verdigris with the spinner, then profile, model and reasoning level; no live colour unless
- * [live]. [switchable]: a drop-down arrow marks the model as the control that opens the sheet.
+ * [live]. One text, so every " · " is the same (TU1 C3). The line is always there, empty until the chat loads, so the
+ * bar does not move when it fills in (C4). [switchable]: a drop-down arrow marks the model as the control that opens
+ * the sheet.
  */
 @Composable
-private fun Subtitle(chat: ChatState, live: Boolean, switchable: Boolean) {
+private fun Subtitle(chat: ChatState, fallbackProfile: String?, live: Boolean, switchable: Boolean) {
     val effort = ReasoningLevels.current(chat.reasoningEffort)?.let { reasoningLabel(it) }
-    val details = listOfNotNull(chat.profileName, chat.model, effort).joinToString(" · ")
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (chat.running && live) {
+    val running = chat.running && live
+    val status = if (running) chat.step?.let { stringResource(R.string.chat_running_step, it) } ?: stringResource(R.string.session_running) else null
+    val line = StatusText.of(status, listOf(chat.profileName ?: fallbackProfile, chat.model, effort))
+    val liveSpan = AristotleTextStyles.liveStatusSmall.toSpanStyle().copy(color = MaterialTheme.colorScheme.tertiary)
+    val text = remember(line, liveSpan) {
+        buildAnnotatedString {
+            append(line.text)
+            if (line.leadEnd > 0) addStyle(liveSpan, 0, line.leadEnd)
+        }
+    }
+    Row(modifier = Modifier.heightIn(min = Sizes.chipIcon), verticalAlignment = Alignment.CenterVertically) {
+        if (running) {
             RunningSpinner()
-            Text(
-                text = chat.step?.let { stringResource(R.string.chat_running_step, it) } ?: stringResource(R.string.session_running),
-                style = AristotleTextStyles.liveStatusSmall,
-                color = MaterialTheme.colorScheme.tertiary,
-                maxLines = 1,
-            )
+            Spacer(Modifier.width(Spacing.s))
         }
-        if (details.isNotEmpty()) {
-            Text(
-                text = if (chat.running && live) "· $details" else details,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
         if (switchable) {
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_drop_down),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(Sizes.lineIcon),
+                modifier = Modifier.size(Sizes.chipIcon),
             )
         }
     }
@@ -443,6 +460,7 @@ private fun Transcript(
     val follow = remember { mutableStateOf(true) }
     val folds = rememberFolds()
     val lastFailed = remember(chat.items) { chat.items.lastOrNull { it is ChatItem.Tool && it.status == ToolStatus.Failed }?.key }
+    val rows = remember(chat.items) { ToolFolding.rows(chat.items) }
     val thinking = live && chat.running && chat.thinking && !chat.streaming
     val userScroll = remember(listState) { UserScrollUp(listState, follow) }
     LaunchedEffect(listState) {
@@ -468,19 +486,34 @@ private fun Transcript(
                 top = Spacing.s,
                 bottom = Spacing.l + insets.calculateBottomPadding(),
             ),
-            verticalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
-            echoItems(anchored[null].orEmpty(), echoes)
-            for (chatItem in chat.items) {
-                item(key = chatItem.key, contentType = chatItem::class) {
-                    ChatRow(chatItem, folds, lastFailed, live, attachmentsOf = { ComposerLogic.userAttachments(it, composer) }, onOpenSubagent = onOpenSubagent)
+            // Q67: each row's top gap is chosen by the row before it, so the list has no fixed spacing.
+            val rhythm = Rhythm()
+            echoItems(anchored[null].orEmpty(), echoes, rhythm)
+            for (row in rows) {
+                val gap = rhythm.next(ChatRhythm.kindOf(row))
+                val contentType: Any = if (row is TranscriptRow.Single) row.item::class else TranscriptRow.Folded::class
+                item(key = row.key, contentType = contentType) {
+                    Box(modifier = Modifier.padding(top = gap)) {
+                        TranscriptRowView(row, folds, lastFailed, live, attachmentsOf = { ComposerLogic.userAttachments(it, composer) }, onOpenSubagent = onOpenSubagent)
+                    }
                 }
-                anchored[chatItem.key]?.let { echoItems(it, echoes) }
+                val members = if (row is TranscriptRow.Folded) row.items else listOf((row as TranscriptRow.Single).item)
+                members.forEach { member -> anchored[member.key]?.let { echoItems(it, echoes, rhythm) } }
             }
-            echoItems(tail, echoes)
-            items(runs, key = { "cmd-${it.id}" }, contentType = { "command" }) { run -> CommandRunRow(run, echoes.onDismissCommand) }
-            if (thinking) item(key = "thinking") { ThinkingLine() }
-            if (waiting) item(key = "waiting") { WaitingChip(onOpenSheet) }
+            echoItems(tail, echoes, rhythm)
+            for (run in runs) {
+                val gap = rhythm.next(RowKind.User)
+                item(key = "cmd-${run.id}", contentType = "command") { Box(modifier = Modifier.padding(top = gap)) { CommandRunRow(run, echoes.onDismissCommand) } }
+            }
+            if (thinking) {
+                val gap = rhythm.next(RowKind.Work)
+                item(key = "thinking") { Box(modifier = Modifier.padding(top = gap)) { ThinkingLine() } }
+            }
+            if (waiting) {
+                val gap = rhythm.next(RowKind.Work)
+                item(key = "waiting") { Box(modifier = Modifier.padding(top = gap)) { WaitingChip(onOpenSheet) } }
+            }
         }
         if (!follow.value && listState.canScrollForward) {
             FilledTonalButton(
@@ -499,9 +532,25 @@ private fun Transcript(
     }
 }
 
-/** This phone's own messages (T13 optimistic echo); keyed apart from Hermes' rows. */
-private fun LazyListScope.echoItems(items: List<Outgoing>, echoes: EchoActions) {
-    items(items, key = { "echo-${it.id}" }, contentType = { "echo" }) { item -> EchoRow(item, echoes.onRetry, echoes.onDismiss) }
+/** This phone's own messages (T13 optimistic echo); keyed apart from Hermes' rows. They are user bubbles. */
+private fun LazyListScope.echoItems(items: List<Outgoing>, echoes: EchoActions, rhythm: Rhythm) {
+    for (outgoing in items) {
+        val gap = rhythm.next(RowKind.User)
+        item(key = "echo-${outgoing.id}", contentType = "echo") {
+            Box(modifier = Modifier.padding(top = gap)) { EchoRow(outgoing, echoes.onRetry, echoes.onDismiss) }
+        }
+    }
+}
+
+/** Walks the rows in list order and hands out each one's top gap ([ChatRhythm]). */
+internal class Rhythm {
+    private var previous: RowKind? = null
+
+    fun next(kind: RowKind): Dp {
+        val gap = ChatRhythm.gap(previous, kind)
+        previous = kind
+        return gap.size
+    }
 }
 
 /** A drag or fling towards older messages (only the user's, programmatic scrolls do not pass here). */

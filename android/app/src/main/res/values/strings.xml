@@ -584,4 +584,9 @@
     <string name="terminal_key_right">Right</string>
     <string name="terminal_key_on">on</string>
     <string name="terminal_key_off">off</string>
+    <string name="sessions_more">More actions</string>
+    <plurals name="chat_tool_group">
+        <item quantity="one">%1$d tool call · last: %2$s</item>
+        <item quantity="other">%1$d tool calls · last: %2$s</item>
+    </plurals>
 </resources>

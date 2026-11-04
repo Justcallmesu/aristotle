@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -57,6 +58,24 @@ interface ModelActions {
     fun messageShown()
 }
 
+/** Where the sheet's LazyColumn puts the current model: item 0 is the head, 1 the reasoning chips when there are any. */
+object ModelSheetRows {
+    /** [models] of one provider; [current] is the session's model when this provider is the session's, else null. */
+    data class Group(val models: List<String>, val current: String?)
+
+    /** The LazyColumn index of the current model's row (each group adds a head item), null when it is not listed. */
+    fun currentRow(hasReasoning: Boolean, groups: List<Group>): Int? {
+        var index = if (hasReasoning) 2 else 1
+        for (group in groups) {
+            index += 1
+            val at = group.current?.let { group.models.indexOf(it) } ?: -1
+            if (at >= 0) return index + at
+            index += group.models.size
+        }
+        return null
+    }
+}
+
 /** The label of a reasoning level (Hermes' value when it is not one of its known levels). */
 @Composable
 fun reasoningLabel(level: String): String = when (level) {
@@ -88,7 +107,17 @@ fun ModelSheet(sheet: ModelSheetState, chat: ChatState, actions: ModelActions) {
         val model = chat.model ?: catalog?.model
         val provider = chat.provider ?: catalog?.provider
         val choices = ReasoningLevels.choices(catalog?.capabilities(provider, model))
+        // S5: the current model's row is brought to the top once, when the catalog has arrived.
+        val listState = rememberLazyListState()
+        val currentRow = ModelSheetRows.currentRow(
+            hasReasoning = choices.isNotEmpty(),
+            groups = catalog?.groups.orEmpty().map { ModelSheetRows.Group(it.models, if (it.matches(provider)) model else null) },
+        )
+        LaunchedEffect(currentRow != null) {
+            currentRow?.let { listState.scrollToItem(it) }
+        }
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(start = Spacing.xxl, end = Spacing.xxl, bottom = Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -137,7 +166,11 @@ private fun ReasoningChoices(choices: List<String>, chat: ChatState, enabled: Bo
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.semantics { heading() },
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.selectableGroup()) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+            verticalArrangement = Arrangement.spacedBy(Spacing.s),
+            modifier = Modifier.selectableGroup(),
+        ) {
             choices.forEach { level ->
                 FilterChip(
                     selected = level == current,

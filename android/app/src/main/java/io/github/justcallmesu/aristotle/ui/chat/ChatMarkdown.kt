@@ -5,17 +5,28 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -28,27 +39,43 @@ import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import com.mikepenz.markdown.compose.components.MarkdownComponentModel
+import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownTableBasicText
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.markdownInlineContent
+import com.mikepenz.markdown.model.markdownPadding
 import com.mikepenz.markdown.model.rememberMarkdownState
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
+import io.github.justcallmesu.aristotle.ui.theme.Spacing
+import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
+import org.intellij.markdown.ast.ASTNode
+import org.intellij.markdown.ast.findChildOfType
+import org.intellij.markdown.ast.getTextInNode
+import org.intellij.markdown.flavours.gfm.GFMElementTypes
+import org.intellij.markdown.flavours.gfm.GFMTokenTypes
 
 private const val CURSOR_ID = "aristotle.cursor"
 private val CURSOR_WIDTH = 8.sp
 private val CURSOR_HEIGHT = 17.sp
+private val CODE_CORNER = 6.dp
 
 /**
  * Assistant text as Markdown (mikepenz multiplatform-markdown-renderer, Material 3), styled from the theme:
@@ -63,6 +90,10 @@ fun ChatMarkdown(text: String, streaming: Boolean, modifier: Modifier = Modifier
     val description = if (streaming) stringResource(R.string.chat_streaming) else null
     val context = LocalContext.current
     val links = remember(context) { WebLinks(context) }
+    // C7: inline code at codeInline (13 sp) on its background, thin-space padded instead of the renderer's spaces.
+    val codeSpan = AristotleTextStyles.codeInline.toSpanStyle().copy(background = MaterialTheme.colorScheme.surfaceContainerHigh)
+    val cursor = cursorText.place == CursorPlace.Inline
+    val annotator = remember(codeSpan, cursor) { chatAnnotator(codeSpan, cursor) }
     Column(modifier = modifier.fillMaxWidth().semantics { description?.let { contentDescription = it } }) {
         CompositionLocalProvider(LocalUriHandler provides links) {
             Markdown(
@@ -70,9 +101,11 @@ fun ChatMarkdown(text: String, streaming: Boolean, modifier: Modifier = Modifier
                 colors = chatMarkdownColors(),
                 typography = chatMarkdownTypography(),
                 modifier = Modifier.fillMaxWidth(),
-                dimens = markdownDimens(codeBackgroundCornerSize = 6.dp, blockQuoteThickness = 0.dp, tableCornerSize = 6.dp),
-                annotator = if (cursorText.place == CursorPlace.Inline) cursorAnnotator else plainAnnotator,
+                padding = chatMarkdownPadding(),
+                dimens = markdownDimens(codeBackgroundCornerSize = CODE_CORNER, blockQuoteThickness = 0.dp, tableCornerSize = CODE_CORNER),
+                annotator = annotator,
                 inlineContent = markdownInlineContent(cursorInline),
+                components = chatComponents,
             )
         }
         if (cursorText.place == CursorPlace.Below) StreamingCursor()
@@ -109,19 +142,104 @@ private val cursorInline: Map<String, InlineTextContent> = mapOf(
     },
 )
 
-/** Swaps the cursor marker in a text run for the inline cursor; every other node renders as usual. */
-private val cursorAnnotator = markdownAnnotator { content, child ->
-    if (child.type != MarkdownTokenTypes.TEXT) return@markdownAnnotator false
-    val run = child.getUnescapedTextInNode(content)
-    val at = run.indexOf(StreamCursor.MARK)
-    if (at < 0) return@markdownAnnotator false
-    append(run.substring(0, at))
-    appendInlineContent(CURSOR_ID, "▍")
-    append(run.substring(at + 1))
-    true
+/**
+ * Code spans as [codeSpan] without the renderer's padding spaces ([InlineCode]); with [cursor], swaps the cursor
+ * marker in a text run for the inline cursor. Every other node renders as usual.
+ */
+private fun chatAnnotator(codeSpan: SpanStyle, cursor: Boolean) = markdownAnnotator { content, child ->
+    when {
+        child.type == MarkdownElementTypes.CODE_SPAN -> {
+            withStyle(codeSpan) { append(InlineCode.padded(child.getTextInNode(content).toString())) }
+            true
+        }
+        cursor && child.type == MarkdownTokenTypes.TEXT -> {
+            val run = child.getUnescapedTextInNode(content)
+            val at = run.indexOf(StreamCursor.MARK)
+            if (at < 0) return@markdownAnnotator false
+            append(run.substring(0, at))
+            appendInlineContent(CURSOR_ID, "▍")
+            append(run.substring(at + 1))
+            true
+        }
+        else -> false
+    }
 }
 
-private val plainAnnotator = markdownAnnotator()
+/** C5: 12 dp between blocks, 4 around a list, 2 between its items, 16 indent; C9: code scrolls with a 16 dp end inset. */
+@Composable
+private fun chatMarkdownPadding() = markdownPadding(
+    block = Spacing.m,
+    list = Spacing.xs,
+    listItemTop = Spacing.xxs,
+    listItemBottom = Spacing.xxs,
+    listIndent = Spacing.l,
+    codeBlock = PaddingValues(start = Spacing.m, end = Spacing.l, top = Spacing.s, bottom = Spacing.s),
+)
+
+/** One instance for the process, like [cursorInline]. */
+private val chatComponents = markdownComponents(table = { model -> ChatTable(model) })
+
+/**
+ * C6: a table whose cells wrap ([ChatTables]: 120–240 dp columns, sideways scroll when they do not fit); more than
+ * three columns show as the table's source in a mono block, which keeps every cell readable.
+ */
+@Composable
+private fun ChatTable(model: MarkdownComponentModel) {
+    val node = model.node
+    val columns = remember(node) { node.findChildOfType(GFMElementTypes.HEADER)?.children?.count { it.type == GFMTokenTypes.CELL } ?: 0 }
+    if (columns == 0 || ChatTables.asMono(columns)) {
+        MonoBlock(model.content.substring(node.startOffset, node.endOffset).trimEnd())
+        return
+    }
+    val style = model.typography.table
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val cell = ChatTables.cellWidth(maxWidth, columns)
+        val scrolls = cell * columns > maxWidth
+        Column(
+            modifier = Modifier
+                .then(if (scrolls) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(CODE_CORNER)),
+        ) {
+            node.children.forEach { child ->
+                when (child.type) {
+                    GFMElementTypes.HEADER -> TableRow(model.content, child, cell, style.copy(fontWeight = FontWeight.W600))
+                    GFMElementTypes.ROW -> TableRow(model.content, child, cell, style)
+                    GFMTokenTypes.TABLE_SEPARATOR -> HorizontalDivider(modifier = Modifier.width(cell * columns), color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableRow(content: String, row: ASTNode, cell: Dp, style: TextStyle) {
+    Row(verticalAlignment = Alignment.Top) {
+        row.children.filter { it.type == GFMTokenTypes.CELL }.forEach { node ->
+            Box(modifier = Modifier.width(cell).padding(horizontal = Spacing.m, vertical = Spacing.s)) {
+                MarkdownTableBasicText(content = content, cell = node, style = style, maxLines = Int.MAX_VALUE, overflow = TextOverflow.Clip)
+            }
+        }
+    }
+}
+
+/** Mono source on the code background, scrolling sideways with a 16 dp end inset (C9; no fade, §7). */
+@Composable
+private fun MonoBlock(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.s)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(CODE_CORNER)),
+    ) {
+        Text(
+            text = text,
+            style = AristotleTextStyles.codeInline,
+            color = MaterialTheme.colorScheme.onSurface,
+            softWrap = false,
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = Spacing.m, end = Spacing.l, top = Spacing.s, bottom = Spacing.s),
+        )
+    }
+}
 
 @Composable
 private fun chatMarkdownColors() = markdownColor(
@@ -144,7 +262,7 @@ private fun chatMarkdownTypography() = with(MaterialTheme.typography) {
         h6 = titleSmall,
         text = text,
         code = AristotleTextStyles.codeInline,
-        inlineCode = text.copy(fontFamily = AristotleTextStyles.codeInline.fontFamily),
+        inlineCode = AristotleTextStyles.codeInline,
         quote = text.copy(fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant),
         paragraph = text,
         ordered = text,

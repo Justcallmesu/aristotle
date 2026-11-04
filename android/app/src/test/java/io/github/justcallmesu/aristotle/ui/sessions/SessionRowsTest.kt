@@ -104,4 +104,11 @@ class SessionRowsTest {
         val s = SessionSummary(sessionId = "a", startedAt = at(2026, 10, 1, 9, 0), lastActive = at(2026, 11, 3, 20, 0))
         assertEquals(RowTime.At("20:00"), sessionRow(s, now, now.toLocalDate(), Locale.ENGLISH).time)
     }
+
+    // Q70: the ⋮ menu always holds Scheduled and Settings; Terminal only while the terminal is available.
+    @Test
+    fun overflowMenuListsTerminalOnlyWhenAvailable() {
+        assertEquals(listOf(ListMenuEntry.Scheduled, ListMenuEntry.Settings), listMenuEntries(terminalAvailable = false))
+        assertEquals(listOf(ListMenuEntry.Scheduled, ListMenuEntry.Terminal, ListMenuEntry.Settings), listMenuEntries(terminalAvailable = true))
+    }
 }

@@ -108,6 +108,12 @@ object ComposerLogic {
     fun hasContent(composer: ComposerState): Boolean =
         attachmentsReady(composer) && (composer.draft.isNotBlank() || composer.attachments.isNotEmpty())
 
+    /**
+     * Q69: while busy, Queue, Steer and their hint show only once the field holds something (words, or a picked
+     * attachment, which Queue can carry); Stop is always there.
+     */
+    fun showsBusyExtras(composer: ComposerState): Boolean = composer.draft.isNotBlank() || composer.attachments.isNotEmpty()
+
     /** A refused item is in the composer: Send stays off until it is removed. */
     fun hasRefused(composer: ComposerState): Boolean = composer.attachments.any { it.status is AttachmentStatus.Refused }
 

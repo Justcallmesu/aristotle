@@ -285,7 +285,13 @@ private fun ChatRoute(container: AppContainer, chatRoutes: RouteStores, target: 
             if (request.showPrompt) chatViewModel.openSheet()
             container.openChat.compareAndSet(request, null)
         }
-        ChatScreen(chatViewModel, fallbackTitle = target.title, onBack = onBack, focusComposer = target.focusComposer)
+        ChatScreen(
+            chatViewModel,
+            fallbackTitle = target.title,
+            fallbackProfile = target.profile,
+            onBack = onBack,
+            focusComposer = target.focusComposer,
+        )
     }
 }
 

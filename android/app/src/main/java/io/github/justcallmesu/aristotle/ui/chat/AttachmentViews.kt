@@ -7,6 +7,7 @@ import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +95,17 @@ fun AttachButton(enabled: Boolean, actions: ComposerActions) {
         IconButton(onClick = { open = true }, enabled = enabled) {
             Icon(painter = painterResource(R.drawable.ic_attach_file), contentDescription = stringResource(R.string.attach_open))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            // S6: a raised surface and a hairline, so the menu does not dissolve into the transcript behind it.
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = MaterialTheme.shapes.medium,
+            border = BorderStroke(Sizes.divider, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = 3.dp,
+            shadowElevation = 6.dp,
+            offset = DpOffset(0.dp, -Spacing.s),
+        ) {
             MenuRow(R.drawable.ic_image, R.string.attach_photo) {
                 open = false
                 photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))

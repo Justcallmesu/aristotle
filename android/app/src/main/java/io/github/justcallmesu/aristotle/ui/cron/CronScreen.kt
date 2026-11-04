@@ -351,7 +351,7 @@ private fun ProblemBody(problem: String, onRetry: () -> Unit) {
 
 @Composable
 private fun EmptyBody() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.xxl, vertical = Spacing.xxxl)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.listGutter, vertical = Spacing.l)) {
         Text(stringResource(R.string.cron_empty_title), style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(Spacing.xs))
         Text(stringResource(R.string.cron_empty_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

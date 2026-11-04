@@ -28,7 +28,7 @@ fun SubPageTopBar(title: String, onBack: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back))
+            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(
             text = title,

@@ -158,7 +158,7 @@ private fun TerminalTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back))
+            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Column(modifier = Modifier.weight(1f).padding(start = Spacing.xs)) {
             Text(
@@ -181,7 +181,7 @@ private fun TerminalTopBar(
         }
         Box {
             IconButton(onClick = { menu = true }) {
-                Icon(painter = painterResource(R.drawable.ic_expand_more), contentDescription = stringResource(R.string.terminal_more))
+                Icon(painter = painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.terminal_more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.terminal_copy_screen)) }, onClick = { menu = false; onCopy() })

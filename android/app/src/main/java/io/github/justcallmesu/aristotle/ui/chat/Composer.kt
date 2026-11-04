@@ -1,5 +1,11 @@
 package io.github.justcallmesu.aristotle.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,6 +95,12 @@ interface ComposerActions {
 /** The field never grows past this many lines; then it scrolls (T13 brief). */
 private const val FIELD_MAX_LINES = 6
 
+/** Queue, Steer and the hint fade in and out over this long (Q69). */
+private const val EXTRAS_FADE_MS = 150
+
+/** The field is one compact line tall when empty; a Material button is 40 dp, so the row stays near that. */
+private val FIELD_MIN_HEIGHT = 44.dp
+
 /**
  * design.md §5 composer (mockup screen 3): `surfaceContainer`, top corners `extraLarge`. Idle: field + Send. Busy
  * ([running]): queued rows above the field, then Stop (outlined, error) left, Queue (tonal) and Steer (filled) right,
@@ -123,6 +135,7 @@ fun Composer(
             modifier = Modifier
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
                 .padding(horizontal = Spacing.m, vertical = Spacing.s),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             if (online) queued.forEachIndexed { index, row -> QueuedLine(index + 1, row, state, ready, actions) }
             if (online && query != null) SlashMenuPanel(slash, query, onPick = actions::pickCommand, onRetry = actions::retryCommands)
@@ -178,12 +191,12 @@ private fun ComposerField(state: ComposerState, enabled: Boolean, onEdit: (Strin
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = if (enabled) colors.onSurface else colors.onSurfaceVariant),
         cursorBrush = SolidColor(colors.primary),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modifier = modifier.heightIn(min = Sizes.minTouchTarget).focusRequester(focus).semantics { contentDescription = description },
+        modifier = modifier.heightIn(min = FIELD_MIN_HEIGHT).focusRequester(focus).semantics { contentDescription = description },
         decorationBox = { inner ->
             Box(
                 modifier = Modifier
                     .background(colors.surfaceContainerLowest, MaterialTheme.shapes.large)
-                    .padding(horizontal = Spacing.l, vertical = Spacing.m),
+                    .padding(horizontal = Spacing.l, vertical = Spacing.s),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 if (field.text.isEmpty()) {
@@ -211,12 +224,18 @@ private fun SendButton(enabled: Boolean, command: Boolean, onClick: () -> Unit) 
     }
 }
 
-/** Busy: Stop left (always there while the turn runs), Queue and Steer right, one line on what they do. */
+/**
+ * Busy (Q69): Stop left, always there while the turn runs. Queue and Steer on the right and the one-line hint appear
+ * only while the field holds something ([ComposerLogic.showsBusyExtras]), fading over [EXTRAS_FADE_MS].
+ */
 @Composable
 private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, hasContent: Boolean, command: Boolean, actions: ComposerActions) {
     val busy = ready && state.mode == ComposerMode.Busy
+    val extras = ComposerLogic.showsBusyExtras(state)
+    val fadeIn = fadeIn(tween(EXTRAS_FADE_MS))
+    val fadeOut = fadeOut(tween(EXTRAS_FADE_MS))
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = Spacing.s),
+        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.s),
     ) {
@@ -231,13 +250,17 @@ private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, 
             Text(stringResource(R.string.composer_stop))
         }
         Spacer(Modifier.weight(1f))
-        FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape) {
-            Text(stringResource(R.string.composer_queue))
-        }
-        // A steer carries words only: with attachments the message is queued (T16).
-        val steerable = hasText && !state.blocked && !command && state.attachments.isEmpty()
-        Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape) {
-            Text(stringResource(R.string.composer_steer))
+        AnimatedVisibility(visible = extras, enter = fadeIn, exit = fadeOut) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalButton(onClick = actions::queue, enabled = busy && hasContent && !command, shape = ButtonShape) {
+                    Text(stringResource(R.string.composer_queue))
+                }
+                // A steer carries words only: with attachments the message is queued (T16).
+                val steerable = hasText && !state.blocked && !command && state.attachments.isEmpty()
+                Button(onClick = actions::steer, enabled = busy && steerable, shape = ButtonShape) {
+                    Text(stringResource(R.string.composer_steer))
+                }
+            }
         }
     }
     val hint = when {
@@ -246,7 +269,9 @@ private fun BusyActions(state: ComposerState, ready: Boolean, hasText: Boolean, 
         state.blocked -> R.string.composer_blocked_hint
         else -> R.string.composer_steer_hint
     }
-    HintLine(stringResource(hint))
+    AnimatedVisibility(visible = extras, enter = fadeIn + expandVertically(tween(EXTRAS_FADE_MS)), exit = fadeOut + shrinkVertically(tween(EXTRAS_FADE_MS))) {
+        HintLine(stringResource(hint))
+    }
 }
 
 /** "Queued · N — text" with ✕ (Hermes' queue: the Desktop shows and cancels the same rows). */
@@ -282,7 +307,7 @@ private fun HintLine(text: String) {
         text = text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.xs, top = Spacing.s),
+        modifier = Modifier.padding(start = Spacing.xs, top = Spacing.xs),
     )
 }
 
