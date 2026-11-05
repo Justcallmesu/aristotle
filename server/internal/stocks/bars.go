@@ -30,7 +30,9 @@ const (
 	barsPace         = 1500 * time.Millisecond
 	maxBarsPerCode   = 300                  // ~250 sessions a year
 	maxBarAge        = 400 * 24 * time.Hour // a year and some, from the fetch time
-	maxBarCodes      = 400                  // universe 200 + watchlist 50 + holdings 50, with room
+	maxBarCodes      = 400                  // codes in the file, with room
+	maxBarsRunCodes  = 180                  // codes one run fetches (the 180-call budget): universe, then watchlist, then holdings
+	barsJobMinAt     = "16:15"              // the session closes at 16:00; a run earlier would miss the day's bar
 	maxBarsFileBytes = 32 << 20
 	barsFreshAfter   = 16*time.Hour + 15*time.Minute // a store fetched this long after a session's 00:00 has its bar
 )
@@ -214,30 +216,51 @@ func (s *Service) dailyBars(ctx context.Context, code string) (bars []Bar, name 
 	return ch.Bars, ch.Name, nil
 }
 
-// barCodes is the quoted set: the screener universe, the watchlist and the holdings. full is false when
-// stocks.json is unusable (then the store must not be pruned: the user's codes are unknown).
+// barCodes is the quoted set, at most maxBarsRunCodes: the screener universe (sorted), then the watchlist,
+// then the holdings. full is false when stocks.json is unusable (then the store must not be pruned: the
+// user's codes are unknown). Codes cut by the cap are logged.
 func (s *Service) barCodes() (codes []string, full bool) {
-	set := map[string]bool{}
-	for _, c := range s.uni().Members() {
-		set[c] = true
+	seen := map[string]bool{}
+	add := func(c string) {
+		if !seen[c] {
+			seen[c] = true
+			codes = append(codes, c)
+		}
+	}
+	for _, c := range s.uni().Members() { // sorted
+		add(c)
 	}
 	st, err := s.snapshot()
 	if err == nil {
 		for _, e := range st.Watchlist {
-			set[e.Code] = true
+			add(e.Code)
 		}
 		for _, h := range st.Holdings {
-			set[h.Code] = true
+			add(h.Code)
 		}
 	}
-	for c := range set {
-		codes = append(codes, c)
-	}
-	slices.Sort(codes)
-	if len(codes) > maxBarCodes {
-		codes = codes[:maxBarCodes]
+	if len(codes) > maxBarsRunCodes {
+		s.log.Warn("stocks: quoted set over the bars cap; the last codes are left out", "codes", len(codes), "cap", maxBarsRunCodes,
+			"left_out", len(codes)-maxBarsRunCodes)
+		codes = codes[:maxBarsRunCodes]
 	}
 	return codes, err == nil
+}
+
+// barsWanted decides an at-slot of bars.daily. A catch-up (late) runs only when some quoted code's bars are
+// older than the last completed session; an on-time run is skipped when a catch-up that completed today
+// already did the work.
+func (s *Service) barsWanted(_, now time.Time, late bool, prev RunInfo) bool {
+	if !late {
+		return !(prev.Late && prev.Status == JobStatusOK && sameDay(prev.At, now))
+	}
+	codes, _ := s.barCodes()
+	for _, c := range codes {
+		if sb, ok := s.bars.get(c); !ok || len(sb.bars) == 0 || !barsFresh(sb.fetchedAt, now) {
+			return true
+		}
+	}
+	return false
 }
 
 // runBarsDaily is the bars.daily job.

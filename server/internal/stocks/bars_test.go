@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -129,7 +130,7 @@ func TestBarsJobFillsStoreAndPrunes(t *testing.T) {
 	h := newBarsHarness(t, "2026-11-05T16:00:00+07:00")
 	h.svc.bars.put("ZZZZ", "gone", []Bar{dayBar("2026-11-04", 50)}, h.clock.Now()) // no longer in the set
 	h.runAt("2026-11-05T16:20:05+07:00")
-	if got := strings.Join(h.prov.takeCalls(), " "); got != "ANTM|1y BBCA|1y TLKM|1y" {
+	if got := strings.Join(h.prov.takeCalls(), " "); got != "BBCA|1y TLKM|1y ANTM|1y" {
 		t.Fatalf("calls = %s", got)
 	}
 	if h.paces != 2 {
@@ -181,14 +182,14 @@ func TestBarsJobStopsOnBlockAndResumesNextDay(t *testing.T) {
 	h.svc.bars.put("ZZZZ", "", []Bar{dayBar("2026-11-04", 50)}, h.clock.Now())
 	h.prov.blockAt = 2
 	h.runAt("2026-11-05T16:20:05+07:00")
-	if got := strings.Join(h.prov.takeCalls(), " "); got != "ANTM|1y BBCA|1y" {
+	if got := strings.Join(h.prov.takeCalls(), " "); got != "BBCA|1y TLKM|1y" {
 		t.Fatalf("calls = %s (the run must stop at the block)", got)
 	}
 	if v := h.job(); *v.LastStatus != JobStatusPartial || *v.LastError != "upstream_blocked" {
 		t.Fatalf("job = %+v", v)
 	}
-	if _, ok := h.svc.bars.get("ANTM"); !ok {
-		t.Fatal("ANTM fetched before the block was not kept")
+	if _, ok := h.svc.bars.get("BBCA"); !ok {
+		t.Fatal("BBCA fetched before the block was not kept")
 	}
 	if _, ok := h.svc.bars.get("ZZZZ"); !ok {
 		t.Fatal("a stopped run must not prune")
@@ -198,7 +199,7 @@ func TestBarsJobStopsOnBlockAndResumesNextDay(t *testing.T) {
 	}
 	// Next day: the codes the block left come first.
 	h.runAt("2026-11-06T16:20:05+07:00")
-	if got := strings.Join(h.prov.takeCalls(), " "); got != "BBCA|1y TLKM|1y ANTM|1y" {
+	if got := strings.Join(h.prov.takeCalls(), " "); got != "TLKM|1y ANTM|1y BBCA|1y" {
 		t.Fatalf("calls = %s", got)
 	}
 	if v := h.job(); *v.LastStatus != JobStatusOK {
@@ -329,5 +330,71 @@ func TestChartFreshSkipsCacheAndReportsBlock(t *testing.T) {
 	}
 	if ch, err := m.Chart(context.Background(), "BBCA", "1y"); err != nil || ch.Stale {
 		t.Fatalf("the cache still answers Chart: %+v %v", ch, err) // fresh entry from ChartFresh, within the TTL
+	}
+}
+
+func (h *barsHarness) fillStore(at string) {
+	t, err := time.Parse(time.RFC3339, at)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	for _, c := range []string{"BBCA", "TLKM", "ANTM"} {
+		h.svc.bars.put(c, c, []Bar{dayBar("2026-11-04", 4840)}, t)
+	}
+}
+
+// A catch-up runs only when the store is older than the last completed session.
+func TestBarsCatchUpSkippedWhenStoreFresh(t *testing.T) {
+	h := newBarsHarness(t, "2026-11-05T10:00:00+07:00")
+	h.fillStore("2026-11-04T16:30:00+07:00") // after Wed's close: holds every completed session
+	h.runAt("2026-11-05T10:05:00+07:00")     // boot Thu: Wed's slot is the catch-up
+	if calls := h.prov.takeCalls(); len(calls) != 0 {
+		t.Fatalf("calls = %v, want none", calls)
+	}
+	if !strings.Contains(h.logs.String(), "scheduled job not needed") {
+		t.Fatalf("logs: %s", h.logs)
+	}
+	h.runAt("2026-11-05T10:06:00+07:00") // handled: not asked again
+	h.runAt("2026-11-05T16:20:05+07:00") // Thursday's own slot still runs
+	if calls := h.prov.takeCalls(); len(calls) != 3 {
+		t.Fatalf("calls at 16:20 = %v", calls)
+	}
+}
+
+// A catch-up that completed today suppresses the 16:20 run of the same day.
+func TestBarsCatchUpSuppressesTodaysSlot(t *testing.T) {
+	h := newBarsHarness(t, "2026-11-05T10:00:00+07:00")
+	h.fillStore("2026-11-03T16:30:00+07:00") // older than Wed's close
+	h.runAt("2026-11-05T10:05:00+07:00")
+	if calls := h.prov.takeCalls(); len(calls) != 3 {
+		t.Fatalf("catch-up calls = %v", calls)
+	}
+	if v := h.job(); !v.Late || *v.LastStatus != JobStatusOK {
+		t.Fatalf("job = %+v", v)
+	}
+	h.runAt("2026-11-05T16:20:05+07:00")
+	if calls := h.prov.takeCalls(); len(calls) != 0 {
+		t.Fatalf("16:20 calls = %v, want none", calls)
+	}
+	h.runAt("2026-11-06T16:20:05+07:00")
+	if calls := h.prov.takeCalls(); len(calls) != 3 {
+		t.Fatalf("next day calls = %v", calls)
+	}
+}
+
+func TestBarsSetCappedUniverseFirst(t *testing.T) {
+	h := newBarsHarness(t, "2026-11-05T10:00:00+07:00")
+	var uni []string
+	for i := range 200 {
+		uni = append(uni, string([]byte{'A' + byte(i/26/26%26), 'A' + byte(i/26%26), 'A' + byte(i%26), 'X'}))
+	}
+	body, _ := json.Marshal(map[string]any{"lq45": []string{}, "idx80": uni, "valid_to": "2027-01-29"})
+	h.put("/v1/stocks/universe", string(body))
+	codes, full := h.svc.barCodes()
+	if !full || len(codes) != maxBarsRunCodes || codes[0] != uni[0] || codes[179] != uni[179] || slices.Contains(codes, "ANTM") {
+		t.Fatalf("codes = %d full=%v first=%s last=%s", len(codes), full, codes[0], codes[len(codes)-1])
+	}
+	if !strings.Contains(h.logs.String(), "over the bars cap") {
+		t.Fatalf("logs: %s", h.logs)
 	}
 }

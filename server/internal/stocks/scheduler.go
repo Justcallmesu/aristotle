@@ -108,7 +108,19 @@ type JobSpec struct {
 	CatchUp     CatchUp                      // at-jobs only
 	DefaultOff  bool
 	Editable    []string // subset of EditOn, EditAt, EditEveryMin
-	Run         JobFunc
+	MinAt       string   // at-jobs: the earliest time a PUT may set (default 05:00)
+	// Wanted, when set, is asked before an at-slot starts (late: a catch-up) and may say the run is not needed;
+	// the slot is then recorded handled without a run. It runs under the scheduler lock: it must be quick and
+	// must not call back into the scheduler.
+	Wanted func(slot, now time.Time, late bool, prev RunInfo) bool
+	Run    JobFunc
+}
+
+// RunInfo is the last run of a job, for JobSpec.Wanted.
+type RunInfo struct {
+	At     time.Time // when it started (zero: never ran)
+	Late   bool
+	Status string // last_status ("" while unknown)
 }
 
 // jobRecord is one job in stocks-jobs.json. Settings are stored only once the user set them, so a later
@@ -123,6 +135,7 @@ type jobRecord struct {
 	LastStatus string `json:"last_status,omitempty"`
 	LastError  string `json:"last_error,omitempty"`
 	Late       bool   `json:"late,omitempty"`
+	LastSlot   string `json:"last_slot,omitempty"` // interval jobs: the last slot run or skipped (no re-run after a restart)
 }
 
 type jobsState struct {
@@ -136,8 +149,9 @@ type job struct {
 	on       bool
 	at       clock // at-jobs
 	every    int   // interval jobs, minutes
+	minAt    int   // earliest allowed "at", minutes after midnight
 	running  bool
-	lastSlot time.Time // interval jobs: the last slot run or skipped (memory only)
+	lastSlot time.Time // interval jobs: the last slot run or skipped (also in rec.LastSlot)
 }
 
 func (j *job) interval() bool { return j.spec.EveryMin > 0 }
@@ -244,10 +258,17 @@ func (sc *scheduler) register(spec JobSpec) {
 	if spec.ID == "" || spec.Run == nil || (spec.At == "") == (spec.EveryMin <= 0) || (spec.EveryMin > 0 && spec.Windows == nil) {
 		panic("stocks: bad job spec " + spec.ID)
 	}
-	j := &job{spec: spec, on: !spec.DefaultOff, every: spec.EveryMin}
+	j := &job{spec: spec, on: !spec.DefaultOff, every: spec.EveryMin, minAt: minJobAt}
+	if spec.MinAt != "" {
+		c, ok := parseHHMM(spec.MinAt)
+		if !ok || spec.At == "" {
+			panic("stocks: bad job min time " + spec.MinAt)
+		}
+		j.minAt = c.h*60 + c.m
+	}
 	if spec.At != "" {
 		c, ok := parseHHMM(spec.At)
-		if !ok {
+		if !ok || !j.atInBounds(c) {
 			panic("stocks: bad job time " + spec.At)
 		}
 		j.at = c
@@ -264,7 +285,7 @@ func (sc *scheduler) register(spec JobSpec) {
 			j.on = *r.On
 		}
 		if r.At != "" {
-			if c, ok := parseHHMM(r.At); ok && !j.interval() && atInBounds(c) {
+			if c, ok := parseHHMM(r.At); ok && !j.interval() && j.atInBounds(c) {
 				j.at = c
 			} else {
 				sc.log.Warn("stocks: stored job time ignored", "job", spec.ID, "at", r.At)
@@ -279,6 +300,9 @@ func (sc *scheduler) register(spec JobSpec) {
 				j.rec.EveryMin = 0
 			}
 		}
+	}
+	if t, err := time.Parse(time.RFC3339, j.rec.LastSlot); err == nil && j.interval() {
+		j.lastSlot = t
 	}
 	sc.jobs[spec.ID] = j
 	sc.order = append(sc.order, spec.ID)
@@ -341,7 +365,8 @@ func (sc *scheduler) tick(now time.Time) {
 			if !ok || !slot.After(j.lastSlot) {
 				continue
 			}
-			j.lastSlot = slot
+			j.lastSlot, j.rec.LastSlot = slot, *rfc(slot)
+			dirty = true
 			if j.on && now.Sub(slot) <= onTimeGrace {
 				sc.launchLocked(j, slot, now, false)
 				dirty = true
@@ -358,6 +383,10 @@ func (sc *scheduler) tick(now time.Time) {
 			continue // a slot passed while off is never caught up when the job is turned on again
 		}
 		late := now.Sub(slot) > onTimeGrace
+		if w := j.spec.Wanted; w != nil && !w(slot, now, late, j.runInfo()) {
+			sc.log.Info("stocks: scheduled job not needed", "job", id, "due", *rfc(slot), "late", late)
+			continue
+		}
 		if late && j.spec.CatchUp == CatchUpBeforeClose && !now.Before(at(slot, clock{lateCutoffHour, 0})) {
 			j.rec.LastDue, j.rec.LastStatus, j.rec.LastError, j.rec.Late = *rfc(slot), JobStatusMissed, "", false
 			sc.log.Warn("stocks: scheduled job missed (the PC was off or asleep)", "job", id, "due", *rfc(slot))
@@ -366,8 +395,17 @@ func (sc *scheduler) tick(now time.Time) {
 		sc.launchLocked(j, slot, now, late)
 	}
 	if dirty {
+		if !sc.persist {
+			sc.log.Warn("stocks: jobs file unusable; the handled slots are kept in memory only (a restart may repeat a catch-up)")
+		}
 		sc.saveQuiet()
 	}
+}
+
+// runInfo is the last run of j; the caller holds mu.
+func (j *job) runInfo() RunInfo {
+	t, _ := time.Parse(time.RFC3339, j.rec.LastRun)
+	return RunInfo{At: t, Late: j.rec.Late, Status: j.rec.LastStatus}
 }
 
 // launchLocked starts j for slot; the caller holds mu and saves.
@@ -375,14 +413,16 @@ func (sc *scheduler) launchLocked(j *job, slot, now time.Time, late bool) {
 	j.running = true
 	j.rec.LastDue, j.rec.LastRun, j.rec.Late = *rfc(slot), *rfc(now), late
 	run := JobRun{Due: slot, Late: late}
+	// The spec is read here, under mu; the goroutine uses only these locals (a PUT never replaces the job).
+	id, fn := j.spec.ID, j.spec.Run
 	sc.wg.Go(func() {
 		began := time.Now()
-		err := sc.safeRun(j, run)
+		err := sc.safeRun(fn, run)
 		status, code := jobOutcome(err)
-		sc.log.Info("stocks: scheduled job finished", "job", j.spec.ID, "late", late, "status", status, "error", code,
+		sc.log.Info("stocks: scheduled job finished", "job", id, "late", late, "status", status, "error", code,
 			"duration_ms", time.Since(began).Milliseconds())
 		if code == "internal_error" {
-			sc.log.Error("stocks: scheduled job failed", "job", j.spec.ID, "err", err)
+			sc.log.Error("stocks: scheduled job failed", "job", id, "err", err)
 		}
 		sc.mu.Lock()
 		defer sc.mu.Unlock()
@@ -393,13 +433,13 @@ func (sc *scheduler) launchLocked(j *job, slot, now time.Time, late bool) {
 }
 
 // safeRun runs the body; a panic fails the run instead of the server.
-func (sc *scheduler) safeRun(j *job, run JobRun) (err error) {
+func (sc *scheduler) safeRun(fn JobFunc, run JobRun) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic: %v", r)
 		}
 	}()
-	return j.spec.Run(sc.ctx, run)
+	return fn(sc.ctx, run)
 }
 
 // jobOutcome maps a body's result to last_status and last_error.
@@ -499,9 +539,9 @@ func parseHHMM(s string) (clock, bool) {
 	return clock{int(s[0]-'0')*10 + int(s[1]-'0'), int(s[3]-'0')*10 + int(s[4]-'0')}, true
 }
 
-func atInBounds(c clock) bool {
+func (j *job) atInBounds(c clock) bool {
 	m := c.h*60 + c.m
-	return m >= minJobAt && m <= maxJobAt
+	return m >= j.minAt && m <= maxJobAt
 }
 
 func (c clock) String() string { return fmt.Sprintf("%02d:%02d", c.h, c.m) }
@@ -586,32 +626,45 @@ func (sc *scheduler) update(id string, p jobPatch) (JobView, error) {
 		return JobView{}, errUnknownJob
 	}
 	editable := func(f string) bool { return slices.Contains(j.spec.Editable, f) }
-	n := *j
+	// Validate everything first, then change only the editable fields in place: the job struct is never
+	// replaced, so a run in progress is not disturbed.
+	var (
+		newOn    bool
+		newAt    clock
+		newEvery int
+	)
 	if p.On != nil {
 		if !editable(EditOn) {
 			return JobView{}, errBadRequest
 		}
-		on := *p.On
-		n.on, n.rec.On = on, &on
+		newOn = *p.On
 	}
 	if p.At != nil {
 		c, ok := parseHHMM(*p.At)
-		if !editable(EditAt) || j.interval() || !ok || !atInBounds(c) {
+		if !editable(EditAt) || j.interval() || !ok || !j.atInBounds(c) {
 			return JobView{}, errBadRequest
 		}
-		n.at, n.rec.At = c, c.String()
+		newAt = c
 	}
 	if p.EveryMin != nil {
-		e := *p.EveryMin
-		if !editable(EditEveryMin) || !j.interval() || e < minJobEveryMin || e > maxJobEveryMin {
+		newEvery = *p.EveryMin
+		if !editable(EditEveryMin) || !j.interval() || newEvery < minJobEveryMin || newEvery > maxJobEveryMin {
 			return JobView{}, errBadRequest
 		}
-		n.every, n.rec.EveryMin = e, e
 	}
-	old := *j
-	*j = n
+	oldOn, oldAt, oldEvery, oldRec := j.on, j.at, j.every, [3]any{j.rec.On, j.rec.At, j.rec.EveryMin}
+	if p.On != nil {
+		j.on, j.rec.On = newOn, &newOn
+	}
+	if p.At != nil {
+		j.at, j.rec.At = newAt, newAt.String()
+	}
+	if p.EveryMin != nil {
+		j.every, j.rec.EveryMin = newEvery, newEvery
+	}
 	if err := sc.saveLocked(); err != nil {
-		*j = old
+		j.on, j.at, j.every = oldOn, oldAt, oldEvery
+		j.rec.On, j.rec.At, j.rec.EveryMin = oldRec[0].(*bool), oldRec[1].(string), oldRec[2].(int)
 		return JobView{}, err
 	}
 	return j.viewLocked(sc.now().In(WIB)), nil

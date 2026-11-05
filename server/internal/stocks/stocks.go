@@ -133,7 +133,7 @@ func New(o Options) *Service {
 	s.analyzer = newAnalyzer(s, o.Analyst, o.SweepAfter)
 	s.sched = newScheduler(s.dir, s.now, o.JobsAfter, s.log)
 	s.sched.register(JobSpec{ID: BarsJobID, At: barsJobAt, TradingDays: true, CatchUp: CatchUpAlways,
-		Editable: []string{EditOn, EditAt}, Run: s.runBarsDaily})
+		Editable: []string{EditOn, EditAt}, MinAt: barsJobMinAt, Wanted: s.barsWanted, Run: s.runBarsDaily})
 	s.mux = s.routes()
 	return s
 }

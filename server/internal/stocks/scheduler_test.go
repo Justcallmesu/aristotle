@@ -394,7 +394,12 @@ func TestSchedulerLoopReadsWallClock(t *testing.T) {
 	sc.start()
 	defer sc.close()
 	waitFor(t, func() bool { return len(r.take()) == 1 }) // yesterday's slot, caught up at boot
-	clock.Add(20*time.Minute + 10*time.Second)            // e.g. a resume from suspend
+	waitFor(t, func() bool {                              // the boot run has finished: a tick while it runs would skip the slot
+		sc.mu.Lock()
+		defer sc.mu.Unlock()
+		return !sc.jobs["bars"].running
+	})
+	clock.Add(20*time.Minute + 10*time.Second) // e.g. a resume from suspend
 	ticks <- time.Now()
 	waitFor(t, func() bool {
 		sc.mu.Lock()
@@ -415,7 +420,7 @@ func TestJobsHTTP(t *testing.T) {
 		j["next_run"] != "2026-11-05T16:20:00+07:00" || j["running"] != false || len(j["editable"].([]any)) != 2 {
 		t.Fatalf("job = %v", j)
 	}
-	for _, body := range []string{`{}`, `{"at":"04:59"}`, `{"at":"23:01"}`, `{"at":"7:00"}`, `{"every_min":10}`, `{"on":1}`, `{"x":1}`} {
+	for _, body := range []string{`{}`, `{"at":"04:59"}`, `{"at":"23:01"}`, `{"at":"16:14"}`, `{"at":"7:00"}`, `{"every_min":10}`, `{"on":1}`, `{"x":1}`} {
 		h.expect("PUT", "/v1/stocks/jobs/"+BarsJobID, body, 400, "bad_request")
 	}
 	h.expect("PUT", "/v1/stocks/jobs/nope", `{"on":true}`, 404, "unknown_job")
@@ -430,5 +435,101 @@ func TestJobsHTTP(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(h.dir, jobsFile))
 	if err != nil || !strings.Contains(string(b), `"at": "23:00"`) {
 		t.Fatalf("file = %s, %v", b, err)
+	}
+}
+
+// PUT while the job runs must not race with the run goroutine (the update changes fields in place).
+// PUTs race the run goroutines with no synchronisation between them: instant job bodies are launched by a tick
+// loop while another goroutine PUTs in a loop. Any unlocked read of job state in the goroutine is reported by -race.
+func TestSchedulerPutDuringRunIsRaceFree(t *testing.T) {
+	h := newSchedHarness(t, t.TempDir())
+	h.sc.register(JobSpec{ID: "scan", EveryMin: 1, Editable: []string{EditOn, EditEveryMin},
+		Windows: func(day time.Time) []Window {
+			d := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, WIB)
+			return []Window{{Start: d, End: d.Add(24 * time.Hour)}}
+		},
+		Run: func(context.Context, JobRun) error { return nil }})
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			on, every := i%2 == 0, 5+i%5
+			if _, err := h.sc.update("scan", jobPatch{On: &on, EveryMin: &every}); err != nil {
+				t.Errorf("update: %v", err)
+				return
+			}
+			h.sc.views()
+		}
+	}()
+	base := wibs("2026-11-05 10:00:30")
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for i := 0; time.Now().Before(deadline); i++ {
+		h.sc.tick(base.Add(time.Duration(i) * 10 * time.Minute))
+	}
+	close(stop)
+	<-done
+	h.sc.wait()
+}
+
+func TestSchedulerIntervalLastSlotPersists(t *testing.T) {
+	dir := t.TempDir()
+	reg := func(h *schedHarness, r *runLog) {
+		h.sc.register(JobSpec{ID: "scan", EveryMin: 10, TradingDays: true, Editable: []string{EditOn, EditEveryMin}, Windows: sessionWindows, Run: r.fn})
+	}
+	h := newSchedHarness(t, dir)
+	r := &runLog{}
+	reg(h, r)
+	h.tickAt("2026-11-05 10:00:30")
+	expectRuns(t, r, "2026-11-05 10:00")
+	h.sc.close()
+
+	h2 := newSchedHarness(t, dir) // restart within the grace of the same slot
+	reg(h2, r)
+	h2.tickAt("2026-11-05 10:01:00")
+	expectRuns(t, r)
+	h2.tickAt("2026-11-05 10:10:10")
+	expectRuns(t, r, "2026-11-05 10:10")
+}
+
+// An unusable jobs file: the handled slot stays in memory, so the catch-up runs once per process.
+func TestSchedulerUnusableFileCatchUpOncePerProcess(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, jobsFile), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := newSchedHarness(t, dir)
+	r := &runLog{}
+	h.sc.register(atJob("bars", "16:20", CatchUpAlways, r))
+	h.tickAt("2026-11-05 10:00:00")
+	expectRuns(t, r, "2026-11-04 16:20 late")
+	h.tickAt("2026-11-05 10:00:30")
+	h.tickAt("2026-11-05 12:00:00")
+	expectRuns(t, r)
+	if !strings.Contains(h.logs.String(), "kept in memory only") {
+		t.Fatalf("logs: %s", h.logs)
+	}
+}
+
+func TestSchedulerMinAt(t *testing.T) {
+	h := newSchedHarness(t, t.TempDir())
+	r := &runLog{}
+	spec := atJob("bars", "16:20", CatchUpAlways, r)
+	spec.MinAt = "16:15"
+	h.sc.register(spec)
+	for _, at := range []string{"16:14", "10:00", "05:00", "23:01"} {
+		if _, err := h.sc.update("bars", jobPatch{At: &at}); err != errBadRequest {
+			t.Fatalf("at %s: err = %v", at, err)
+		}
+	}
+	for _, at := range []string{"16:15", "23:00"} {
+		if _, err := h.sc.update("bars", jobPatch{At: &at}); err != nil {
+			t.Fatalf("at %s: err = %v", at, err)
+		}
 	}
 }

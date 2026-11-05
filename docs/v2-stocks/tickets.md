@@ -19,7 +19,9 @@
 | TM3a | Android minors: TS3b + TA2b android part | TS3, TA2 | android | DONE (fix round TM3a2) |
 | TSC0 | Design: screener (slice 2) + 08:30 brief/alerts (slice 3) | TA2 | docs | DONE |
 | TM3a2 | Fix round for TM3a: Back-from-news loop (MAJOR-1), time labels vanish at large text (MAJOR-2), pre-09:00 slot | TM3a | android | BUILDING |
-| TSC1 | Server: scheduler (wall-clock 30 s, catch-up Q31), bar store `stocks-bars.json` (P8), universe override, jobs API | TSC0 | server | DONE (review on commit) |
+| TSC1 | Server: scheduler (wall-clock 30 s, catch-up Q31), bar store `stocks-bars.json` (P8), universe override, jobs API | TSC0 | server | DONE (fixed in TSC1b/c) |
+| TSC1b | Fix round for TSC1: jobs PUT data race (MAJOR), persist interval slot, catch-up once, freshness rule, bars time 16:15+, 180-code cap | TSC1 | server | DONE |
+| TSC1c | TSC1b's race test passes on the old code (PM check): make it RED on d2e1255, GREEN now | TSC1b | server | DONE |
 | TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | WAITING (user Q104-Q111) |
 | TSC3 | Phone: screener section/page/settings | TSC2 | android | WAITING |
 | TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | WAITING |
@@ -51,3 +53,6 @@
 - 2026-11-05 Minors wave: pm-gate-tm3 GREEN both sides (550 Go); mutations: CASH word rule -> TestNameFallbackKeepsWordCodeRule fails; chart hold -> ChartHoldAndDetailRulesTest fails (first attempt matched no class, redone). Committed; batch review on the commits in parallel with TSC1. TSC0 design done; Q104-Q111 open for the user; P8 JSON bar store.
 - 2026-11-05 review-TM3: TM3s PASS; TM3a FAIL (2 MAJOR, on the pushed commit 8fff8da) -> TM3a2 dispatched. TSC1 built (577 Go); PM gate + mutation next, then review.
 - 2026-11-05 TSC1: pm-gate-tsc1 GREEN (577 Go); mutation catch-up cutoff ignored -> TestSchedulerSuspendJumpCatchesUpLatestSlotOnce fails. Committed; deep review on the commit.
+- 2026-11-05 TSC1 review CHANGES-REQUIRED (MAJOR data race on jobs PUT during a run, on pushed d2e1255) -> TSC1b with the cheap minors.
+- 2026-11-05 TSC1b built (584 Go, -race clean). PM red-check: its new race test PASSES on d2e1255 (guards nothing) -> TSC1c. TSC1b held uncommitted until TSC1c.
+- 2026-11-05 TSC1c: PM red-check confirmed (d2e1255 -> WARNING: DATA RACE + FAIL; tree -race GREEN), pm-gate-tsc1c GREEN 584. TSC1b+TSC1c committed (fix round; TSC2's review re-checks the diff).

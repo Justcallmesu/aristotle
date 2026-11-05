@@ -1323,23 +1323,27 @@ Code: `server/internal/stocks/{scheduler,bars,universe_override}.go`. Same auth,
   every `every_min` minutes inside its windows of a trading day. `last_due` = the slot the last run (or miss) was for; `last_run` = when that
   run started; `late` = it was a catch-up; `next_run` = the next slot after now, `null` while `on` is false. `last_error` is a short code
   (`upstream_blocked`, `codes_failed`, `interrupted`, `state_error`, `internal_error`, …), `null` after `ok` or `missed`.
-- **Jobs now.** `bars.daily` (default `16:20`, on, editable `on` and `at`). Later tickets register theirs (`scan`, `eod_screen`, `brief`,
+- **Jobs now.** `bars.daily` (default `16:20`, on, editable `on` and `at`; its `at` is 16:15-23:00, the session closes at 16:00). Later tickets register theirs (`scan`, `eod_screen`, `brief`,
   `alerts`, `news`; Q20: on/off for each, time for `brief`/`bars.daily`, interval for `scan`).
 - **PUT errors.** `404 unknown_job`; `400 bad_request`: empty body or unknown field, a field not in the job's `editable`, `at` not `HH:MM`
-  or outside 05:00-23:00, `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
+  or outside 05:00-23:00 (`bars.daily`: 16:15-23:00), `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
 - **Scheduler.** One loop reads the wall clock every 30 s (a Go timer stops while a laptop sleeps; the tick notices the jump within 30 s);
   holidays from the bundled IDX calendar. A job never overlaps itself; slots it is still busy for are skipped. **Catch-up (Q31)**, at boot and
-  after a sleep: only an "at" job's latest slot counts. Run within 2 min of the slot = on time; later = `late`: `bars.daily` always runs
-  late (the store must not stay behind); other "at" jobs run late until 16:00 WIB of the slot's day, else the slot is recorded `missed`
+  after a sleep: only an "at" job's latest slot counts. Run within 2 min of the slot = on time; later = `late`: `bars.daily` runs late
+  only when some quoted code's bars are older than the last completed session (the store must not stay behind), and its on-time run is
+  skipped when a catch-up that completed `ok` the same day already ran (a skipped slot is recorded handled and logged); other "at" jobs run late until 16:00 WIB of the slot's day, else the slot is recorded `missed`
   (logged; not retried). Interval slots run only within 2 min of their time (no burst after a sleep; the job resumes at the next slot).
   A slot that passes while a job is off is never caught up. `stocks-jobs.json` (0600, atomic): `{"version":1,"jobs":{"<id>":{"on","at",
-  "every_min" (only once set by PUT), "handled":"YYYY-MM-DD" (last at-slot run or missed: no repeat after a restart), "last_due",
+  "every_min" (only once set by PUT), "handled":"YYYY-MM-DD" (last at-slot run or missed: no repeat after a restart),
+  "last_slot" (interval jobs: the last slot run or skipped, RFC 3339: no re-run of a slot after a restart), "last_due",
   "last_run","last_status","last_error","late"}}}`; records of unknown ids are kept. A file that is not valid version 1 is left untouched:
-  jobs run on their defaults and PUT answers `500 state_error`. Stored values out of bounds fall back to the default (logged).
+  jobs run on their defaults and PUT answers `500 state_error`; the handled slots then live in memory only (logged), so a catch-up runs at most
+  once per process. Stored values out of bounds fall back to the default (logged).
 - **Bar store (P8).** `stocks-bars.json` (0600, atomic, compact): `{"version":1,"codes":{"BBCA":{"name","fetched_at","bars":[[t,o,h,l,c,v],…]}}}`,
   completed daily sessions only (dated before the session date at the fetch; a run during a session drops today's partial bar), ≤ 300 bars
   and ≤ 400 days per code, ≤ 400 codes, ≤ 32 MiB. Read once at start; a file that cannot be used is logged and the store starts empty (it
-  is a cache). `bars.daily` takes the quoted set = universe ∪ watchlist ∪ holdings (≤ 300), never-fetched codes first, then the oldest;
+  is a cache). `bars.daily` takes the quoted set = universe ∪ watchlist ∪ holdings, capped at 180 codes (universe first, then watchlist, then holdings; codes cut are logged),
+  never-fetched codes first, then the oldest;
   per code one Yahoo `1y` daily chart, always from the source (not the 15-min cache), 1.5 s apart, through the shared backoff. A block (429,
   5xx or backoff in force) stops the run: what was fetched is kept, `last_error:"upstream_blocked"` (`partial` when some codes were fetched,
   else `failed`); the next day's run starts with the codes left over. A code Yahoo does not answer counts in `codes_failed` (the run goes on).
