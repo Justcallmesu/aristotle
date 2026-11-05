@@ -1004,4 +1004,46 @@
         <item quantity="other">%d stocks</item>
     </plurals>
     <string name="stocks_lots_avg">%1$s lots · avg %2$s</string>
+    <!-- TS3: stock detail page and chart. -->
+    <string name="stocks_more_for">More for %1$s</string>
+    <string name="stocks_open">Open</string>
+    <string name="stocks_prev_close">Prev close</string>
+    <string name="stocks_high">High</string>
+    <string name="stocks_low">Low</string>
+    <string name="stocks_volume">Volume</string>
+    <string name="stocks_lots_value">%1$s lots</string>
+    <string name="stocks_week52">52-week range</string>
+    <string name="stocks_span_value">%1$s – %2$s</string>
+    <string name="stocks_tick">Tick</string>
+    <string name="stocks_ara_arb">ARA / ARB</string>
+    <string name="stocks_pair_value">%1$s / %2$s</string>
+    <string name="stocks_not_available">n/a</string>
+    <string name="stocks_your_holding">Your holding</string>
+    <string name="stocks_edit">Edit</string>
+    <string name="stocks_not_held">You don\u2019t hold %1$s</string>
+    <string name="stocks_news_about">News about %1$s</string>
+    <string name="stocks_all">All</string>
+    <string name="stocks_open_in_broker">Open in %1$s</string>
+    <string name="stocks_chart_range">Range</string>
+    <string name="stocks_chart_type">Chart type</string>
+    <string name="stocks_chart_candles">Candles</string>
+    <string name="stocks_chart_line">Line</string>
+    <string name="stocks_span_today">Today, %1$s–%2$s</string>
+    <string name="stocks_span_day">%1$s, %2$s–%3$s</string>
+    <string name="stocks_span_range">%1$s · %2$s – %3$s</string>
+    <string name="stocks_readout_high_low">High %1$s · Low %2$s · %3$s</string>
+    <string name="stocks_readout_hint_minutes">hold the chart for one %1$d-minute bar</string>
+    <string name="stocks_readout_hint_hour">hold the chart for one hour</string>
+    <string name="stocks_readout_hint_day">hold the chart for one day</string>
+    <string name="stocks_readout_close">%1$s · C %2$s</string>
+    <string name="stocks_readout_ohlv">O %1$s · H %2$s · L %3$s · Vol %4$s lots</string>
+    <string name="stocks_readout_volume">Vol %1$s lots</string>
+    <string name="stocks_chart_description">%1$s, %2$s %3$s chart, %4$s to %5$s. Last %6$s rupiah, %7$s. High %8$s, low %9$s.</string>
+    <string name="stocks_chart_kind_candles">candlestick</string>
+    <string name="stocks_chart_kind_line">line</string>
+    <string name="stocks_chart_empty">No trades in this range yet.</string>
+    <string name="stocks_chart_empty_today">No trades yet today.</string>
+    <string name="stocks_chart_stale">Older bars from your PC\u2019s cache: Yahoo isn\u2019t answering right now.</string>
+    <string name="stocks_chart_failed">The chart couldn\u2019t be read. %1$s</string>
+    <string name="stocks_chart_prev_close">Prev close %1$s</string>
 </resources>

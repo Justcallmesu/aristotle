@@ -52,5 +52,13 @@ object StockChanges {
     /** Today's move in rupiah: "+Rp 90.000". */
     fun today(today: Long?): ChangeDisplay = today?.let { ChangeDisplay(Direction.of(it), StockFormat.signedRupiah(it)) } ?: unknown()
 
+    /** A price move with its percent (the chart readout's bar): "+25 · +0,25 %"; the direction from the amount. */
+    fun move(change: Long, pct: Double?): ChangeDisplay =
+        ChangeDisplay(Direction.of(change), StockFormat.signedNumber(change) + pct?.let { " · " + StockFormat.percent(it) }.orEmpty())
+
+    /** Only the percent of a move (the readout's range line): "+1,28 %"; without one, the price change. */
+    fun movePercent(change: Long, pct: Double?): ChangeDisplay =
+        ChangeDisplay(Direction.of(change), pct?.let(StockFormat::percent) ?: StockFormat.signedNumber(change))
+
     private fun unknown() = ChangeDisplay(Direction.Unknown, StockFormat.missing)
 }

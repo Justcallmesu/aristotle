@@ -8,7 +8,11 @@
 | TS1b | Server minors from review: news Close() marks closed (no poller restart after shutdown); backoff on Yahoo 5xx; name-fallback bypass of the word-code rule (CASH); image_url http(s) only; chart cache eviction; zero-cost guard | TS1 | server | TODO |
 | TS2 | Phone: Home switch (title words), Stocks home, watchlist, holdings, news, Settings › Stocks, stock palette | TD4, TS1 | android | DONE |
 | TS2b | TS2 fix round: stocks independent of Hermes (MAJOR-1), connection notice on Stocks, reload on reconnect, preview contrast, switch height | TS2 | android | DONE |
-| TS3 | Phone: stock detail + chart (Canvas candles/volume/line, ranges, crosshair), Open in Ajaib | TS2 | android | TODO |
+| TS3 | Phone: stock detail + chart (Canvas candles/volume/line, ranges, crosshair), Open in Ajaib | TS2 | android | DONE |
+| TA0 | Research: running a stock analysis in Hermes from the server (methods, no-tools mode, profile setup, prompt + JSON verdict, contract, indicators) | - | docs | DONE |
+| TA1 | Server: indicators + analysis job (`/v1/stocks/analyze`), verdict validation, kept last result | TA0 | server | BUILDING |
+| TA2 | Phone: Analyze button + verdict card on the stock page | TA1, TS3 | android | TODO |
+| TS3b | TS3 minors: stale long-range bars need Retry/refetch; 60 s refresh must not cut a crosshair hold; exclude chart from system back-gesture edge; 1.3x font overflow (device check); 1D slot for bars at 12:00/11:30/pre-09:00; Back from All news -> stock; single-bar line; Add holding before load; Ajaib uninstall feedback | TS3 | android | TODO |
 
 ## Log
 - 2026-11-05 v2 grill: Q84-Q90 (all A). Yahoo + RSS re-probed 200. TS0 + TD4 dispatched in parallel.
@@ -20,3 +24,7 @@
 - 2026-11-05 TS2 built; pm-gate-ts2 GREEN (1162). Mutation 'poll while market closed': first attempt broke compile (not counted), redo compiled -> 2 fail. Installed on the phone. Deep review running. Open: tick-check hint on holdings avg (asked user); stocks gated on the Hermes link (reviewer sizing).
 - 2026-11-05 TS2 review CHANGES-REQUIRED (MAJOR-1: stocks gated on the Hermes link). TS2b dispatched with m1-m4. Off-tick average stays allowed (§20).
 - 2026-11-05 TS2b re-review: only finding was the PM's own in-flight mutation (LinkState.kt:57, restored; reviewer started too early) -> void; all else closed, chat/relay unchanged. pm-gate-ts2b GREEN (1169) after the last edit; mutation HermesDown->null 4 fail. Installed. TS2+TS2b committed.
+- 2026-11-05 User asks for an emiten analyzer -> Q96-Q100 (all A: day trade, PC-computed numbers + news, Buy/Wait/Avoid & Add/Hold/Sell, Analyze button with kept result, build next). Profile aristotle-stocks does not exist (user creates it). TA0 research dispatched in parallel with TS3.
+- 2026-11-05 TA0 done. Q101 phone language; Q102 PM created profile aristotle-stocks (no tools; smoke 'OK/none'); Q103 Opus. P5-P7 recorded. TA1 dispatched (server) in parallel with TS3 (android).
+- 2026-11-05 TS3 built; pm-gate-ts3 GREEN (1204); mutation price-axis inverted -> 2 fail. Phone not connected (install pending). D50 RepairTest flake 4th time. Deep review dispatched after the mutation finished.
+- 2026-11-05 TS3 review PASS-WITH-FINDINGS (no BLOCKER/MAJOR). Committed (android + docs); its CHANGELOG line rides with TA1's commit (shared file). Minors -> TS3b.

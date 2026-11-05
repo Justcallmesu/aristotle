@@ -981,4 +981,46 @@
         <item quantity="other">%d saham</item>
     </plurals>
     <string name="stocks_lots_avg">%1$s lot · rata-rata %2$s</string>
+    <!-- TS3: halaman detail saham dan grafik. -->
+    <string name="stocks_more_for">Lainnya untuk %1$s</string>
+    <string name="stocks_open">Pembukaan</string>
+    <string name="stocks_prev_close">Penutupan kemarin</string>
+    <string name="stocks_high">Tertinggi</string>
+    <string name="stocks_low">Terendah</string>
+    <string name="stocks_volume">Volume</string>
+    <string name="stocks_lots_value">%1$s lot</string>
+    <string name="stocks_week52">Rentang 52 minggu</string>
+    <string name="stocks_span_value">%1$s – %2$s</string>
+    <string name="stocks_tick">Fraksi</string>
+    <string name="stocks_ara_arb">ARA / ARB</string>
+    <string name="stocks_pair_value">%1$s / %2$s</string>
+    <string name="stocks_not_available">t/a</string>
+    <string name="stocks_your_holding">Kepemilikan Anda</string>
+    <string name="stocks_edit">Ubah</string>
+    <string name="stocks_not_held">Anda tidak memegang %1$s</string>
+    <string name="stocks_news_about">Berita tentang %1$s</string>
+    <string name="stocks_all">Semua</string>
+    <string name="stocks_open_in_broker">Buka di %1$s</string>
+    <string name="stocks_chart_range">Rentang</string>
+    <string name="stocks_chart_type">Jenis grafik</string>
+    <string name="stocks_chart_candles">Lilin</string>
+    <string name="stocks_chart_line">Garis</string>
+    <string name="stocks_span_today">Hari ini, %1$s–%2$s</string>
+    <string name="stocks_span_day">%1$s, %2$s–%3$s</string>
+    <string name="stocks_span_range">%1$s · %2$s – %3$s</string>
+    <string name="stocks_readout_high_low">Tertinggi %1$s · Terendah %2$s · %3$s</string>
+    <string name="stocks_readout_hint_minutes">tahan grafik untuk satu batang %1$d menit</string>
+    <string name="stocks_readout_hint_hour">tahan grafik untuk satu jam</string>
+    <string name="stocks_readout_hint_day">tahan grafik untuk satu hari</string>
+    <string name="stocks_readout_close">%1$s · C %2$s</string>
+    <string name="stocks_readout_ohlv">O %1$s · H %2$s · L %3$s · Vol %4$s lot</string>
+    <string name="stocks_readout_volume">Vol %1$s lot</string>
+    <string name="stocks_chart_description">%1$s, grafik %3$s %2$s, %4$s sampai %5$s. Terakhir %6$s rupiah, %7$s. Tertinggi %8$s, terendah %9$s.</string>
+    <string name="stocks_chart_kind_candles">lilin</string>
+    <string name="stocks_chart_kind_line">garis</string>
+    <string name="stocks_chart_empty">Belum ada transaksi di rentang ini.</string>
+    <string name="stocks_chart_empty_today">Belum ada transaksi hari ini.</string>
+    <string name="stocks_chart_stale">Batang lama dari cache PC Anda: Yahoo sedang tidak menjawab.</string>
+    <string name="stocks_chart_failed">Grafik tidak dapat dibaca. %1$s</string>
+    <string name="stocks_chart_prev_close">Tutup kemarin %1$s</string>
 </resources>

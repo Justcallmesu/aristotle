@@ -171,6 +171,22 @@ class StocksViewModelTest {
     }
 
     @Test
+    fun aStocksPageLoadsTheListsItsHoldingBlockAndMenuNeed() {
+        fun count(path: String) = sent.count { it.path == path && it.method == "GET" }
+        vm.detailVisible(true)
+        assertTrue("not before the server answers", sent.isEmpty())
+        link.value = LinkState.Online(lan, 1)
+        assertEquals(1, count("watchlist"))
+        assertEquals(1, count("holdings"))
+        assertEquals(1, count("settings"))
+        assertEquals(0, count("quotes"))
+        vm.detailVisible(false)
+        vm.detailVisible(true)
+        assertEquals("holdings on every show", 2, count("holdings"))
+        assertEquals("the watchlist only until known", 1, count("watchlist"))
+    }
+
+    @Test
     fun pickingAStockForAHoldingOpensTheForm() {
         shown()
         vm.addHolding()

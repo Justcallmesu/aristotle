@@ -150,5 +150,25 @@ data class SearchResult(val code: String, val name: String = "", @SerialName("in
 @Serializable
 internal data class SearchBody(val results: List<SearchResult> = emptyList())
 
+/** One OHLCV bar of a chart; [t] in unix seconds. Volume is in shares (a lot is 100). */
+@Serializable
+data class ChartBar(val t: Long, val o: Long, val h: Long, val l: Long, val c: Long, val v: Long = 0)
+
+/**
+ * `GET /v1/stocks/chart/{code}`: bars of one range, oldest first, with no price-less bars (the server drops the lunch
+ * break). [prevClose] is the close before today (null when the source gave none); [stale] marks cached bars served
+ * while the source refuses.
+ */
+@Serializable
+data class ChartBody(
+    val code: String = "",
+    val range: String = "",
+    val interval: String = "",
+    val tz: String = "",
+    @SerialName("prev_close") val prevClose: Long? = null,
+    val stale: Boolean = false,
+    val bars: List<ChartBar> = emptyList(),
+)
+
 @Serializable
 internal data class ErrorBody(val error: String? = null, @SerialName("retry_after_s") val retryAfterSeconds: Int? = null)

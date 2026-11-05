@@ -103,6 +103,14 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
     suspend fun news(limit: Int = NEWS_LIMIT): StocksResult<NewsBody> =
         call(StocksRequest(GET, "news", mapOf("limit" to limit.toString())), NewsBody.serializer()) { it }
 
+    /** The newest [limit] items that mention [code] (the server matches them against it, §20). */
+    suspend fun newsAbout(code: String, limit: Int): StocksResult<NewsBody> =
+        call(StocksRequest(GET, "news", mapOf("code" to code, "limit" to limit.toString())), NewsBody.serializer()) { it }
+
+    /** Bars of one [range] (`?range=1d|5d|1mo|6mo|1y`). */
+    suspend fun chart(code: String, range: ChartRange): StocksResult<ChartBody> =
+        call(StocksRequest(GET, "chart/$code", mapOf("range" to range.query)), ChartBody.serializer()) { it }
+
     suspend fun search(query: String): StocksResult<List<SearchResult>> =
         call(StocksRequest(GET, "search", mapOf("q" to query)), SearchBody.serializer()) { it.results }
 
@@ -137,6 +145,7 @@ object StocksParser {
     fun fees(text: String): StockFees? = decode(text, StockFees.serializer())
     fun news(text: String): NewsBody? = decode(text, NewsBody.serializer())
     fun search(text: String): List<SearchResult>? = decode(text, SearchBody.serializer())?.results
+    fun chart(text: String): ChartBody? = decode(text, ChartBody.serializer())
 
     /** An error answer: the body's `error` and `retry_after_s`, the `Retry-After` header when the body has none. */
     fun error(reply: StocksReply.Http): StocksError.Server {

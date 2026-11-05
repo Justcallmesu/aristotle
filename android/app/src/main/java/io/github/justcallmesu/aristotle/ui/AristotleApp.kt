@@ -43,6 +43,7 @@ import io.github.justcallmesu.aristotle.ui.sessions.ScheduledRequest
 import io.github.justcallmesu.aristotle.ui.stocks.HoldingsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.NewsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.StockDetailScreen
+import io.github.justcallmesu.aristotle.ui.stocks.StockDetailViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.StocksHomeBody
 import io.github.justcallmesu.aristotle.ui.stocks.StocksNav
 import io.github.justcallmesu.aristotle.ui.stocks.StocksSettingsSection
@@ -239,6 +240,7 @@ private fun PairedPages(
     val terminalRoutes = viewModel(key = TERMINAL_ROUTES) { RouteStores() }
     val runningRoutes = viewModel(key = RUNNING_ROUTES) { RouteStores() }
     val stocksRoutes = viewModel(key = STOCKS_ROUTES) { RouteStores() }
+    val stockRoutes = viewModel(key = STOCK_ROUTES) { RouteStores() }
     val terminalTarget by container.terminalAccess.target.collectAsStateWithLifecycle()
     val settings = container.settings
     val showTerminal by settings.showTerminal.collectAsStateWithLifecycle()
@@ -375,7 +377,15 @@ private fun PairedPages(
             PairedPage.StockDetail -> {
                 val code = stockCode
                 if (code != null) {
-                    StockDetailScreen(code, stocksViewModel(container, stocksRoutes, pc), onBack = { page = stockFrom })
+                    StockRoute(
+                        container,
+                        stockRoutes,
+                        pc,
+                        code,
+                        stocks = stocksViewModel(container, stocksRoutes, pc),
+                        onBack = { page = stockFrom },
+                        onOpenNews = { page = PairedPage.StocksNews },
+                    )
                 } else {
                     LaunchedEffect(Unit) { page = PairedPage.Sessions }
                 }
@@ -548,6 +558,30 @@ private fun RunningRoute(container: AppContainer, runningRoutes: RouteStores, on
     }
 }
 
+/**
+ * A stock's page (TS3): its chart, quote and news live in a ViewModel of their own per code, so each range's bars stay
+ * cached while the page lives; leaving the page clears it, which ends its 60 s refresh.
+ */
+@Composable
+private fun StockRoute(
+    container: AppContainer,
+    stockRoutes: RouteStores,
+    pc: PcCredentials,
+    code: String,
+    stocks: StocksViewModel,
+    onBack: () -> Unit,
+    onOpenNews: () -> Unit,
+) {
+    val activity = LocalActivity.current
+    DisposableEffect(Unit) {
+        onDispose { if (activity?.isChangingConfigurations != true && !container.appLock.locked.value) stockRoutes.clear() }
+    }
+    RouteScope(stockRoutes, "stock-${pc.pcId}-$code") {
+        val detail = viewModel { StockDetailViewModel(code, pc, container.link.state, container.stocksTransport) }
+        StockDetailScreen(code, stocks, detail, onBack, onOpenNews)
+    }
+}
+
 /** The "Scheduled" page of [profile]; leaving it clears its ViewModel, which ends its listing and polling. */
 @Composable
 private fun CronRoute(container: AppContainer, cronRoutes: RouteStores, profile: String?, label: String?, onBack: () -> Unit) {
@@ -634,5 +668,6 @@ private const val CRON_ROUTES = "cron-routes"
 private const val TERMINAL_ROUTES = "terminal-routes"
 private const val RUNNING_ROUTES = "running-routes"
 private const val STOCKS_ROUTES = "stocks-routes"
+private const val STOCK_ROUTES = "stock-routes"
 private const val SETTINGS_VIEW_MODEL = "settings"
 private const val UNLOCKED_CONTENT = "unlocked"

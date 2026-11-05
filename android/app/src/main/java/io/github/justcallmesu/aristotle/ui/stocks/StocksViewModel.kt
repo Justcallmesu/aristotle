@@ -127,6 +127,7 @@ class StocksViewModel(
     private val homeVisible = MutableStateFlow(false)
     private val holdingsVisible = MutableStateFlow(false)
     private val newsVisible = MutableStateFlow(false)
+    private val detailVisible = MutableStateFlow(false)
     private val active: StateFlow<Boolean> = shownAndReachable(homeVisible).stateIn(work, SharingStarted.Eagerly, false)
     private val refresher = QuoteRefresher(work, active, market = { state.value.quotes?.market }, read = ::readPrices, clock = clock, pause = pause)
     private var searchJob: Job? = null
@@ -136,6 +137,7 @@ class StocksViewModel(
         work.launch { active.collect { on -> if (on) loadLists() } }
         work.launch { shownAndReachable(holdingsVisible).collect { on -> if (on) loadHoldingsPage() } }
         work.launch { shownAndReachable(newsVisible).collect { on -> if (on) loadNews() } }
+        work.launch { shownAndReachable(detailVisible).collect { on -> if (on) loadDetailLists() } }
         refresher.start()
     }
 
@@ -178,13 +180,12 @@ class StocksViewModel(
 
     fun setNewsFilter(filter: NewsFilter) = state.update { it.copy(newsFilter = filter) }
 
-    /** A stock's page: its quote is read unless a list already has it. */
-    fun showStock(code: String) {
-        if (state.value.quoteOf(code) != null) return
-        work.launch {
-            val body = api()?.quotes(listOf(code))?.let { (it as? StocksResult.Ok)?.value } ?: return@launch
-            body.quoteOf(code)?.let { q -> state.update { it.copy(extraQuotes = it.extraQuotes + (code to q)) } }
-        }
+    /**
+     * A stock's page is on screen and resumed (or not). Its chart, quote and news are its own ([StockDetailViewModel]);
+     * this side supplies the watchlist (add / remove), the holding and the fees its P/L needs, read on every show.
+     */
+    fun detailVisible(visible: Boolean) {
+        detailVisible.value = visible
     }
 
     fun showFees() {
@@ -367,6 +368,18 @@ class StocksViewModel(
             is StocksResult.Failed -> state.update { it.copy(problem = result.error) }
         }
         if (state.value.news == null) loadNews()
+        if (state.value.fees == null) loadFees()
+    }
+
+    /** A stock's page: the watchlist when not known yet, the holdings, and the fees when not known yet. */
+    private suspend fun loadDetailLists() {
+        if (state.value.watchlist == null) {
+            when (val result = api()?.watchlist() ?: return) {
+                is StocksResult.Ok -> state.update { it.copy(watchlist = result.value) }
+                is StocksResult.Failed -> state.update { it.copy(problem = result.error) }
+            }
+        }
+        readHoldings()
         if (state.value.fees == null) loadFees()
     }
 

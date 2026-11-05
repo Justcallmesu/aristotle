@@ -165,6 +165,15 @@ class AristotleStyles internal constructor(scale: Float) {
     /** The holdings page's value and the detail page's price: 600 24 / 32, tabular. */
     val stockValueLarge: TextStyle = style(AtkinsonFamily, 24f, 32f, FontWeight.W600).scaled(scale).copy(fontFeatureSettings = "tnum")
 
+    /** The detail page's code in its top bar: Mono 600 18 / 24 (TS3). */
+    val stockCodeTitle: TextStyle = style(AtkinsonMonoFamily, 18f, 24f, FontWeight.W600, 0.2f).scaled(scale)
+
+    /** The detail page's last price: 600 32 / 40, tabular (TS3). */
+    val stockPriceDetail: TextStyle = style(AtkinsonFamily, 32f, 40f, FontWeight.W600).scaled(scale).copy(fontFeatureSettings = "tnum")
+
+    /** Chart axis labels and price tags: 11 / 14, tabular (the smallest size the app draws). */
+    val chartAxis: TextStyle = style(AtkinsonFamily, 11f, 14f, FontWeight.W400).scaled(scale).copy(fontFeatureSettings = "tnum")
+
     /** A news card headline: Literata 500 16 / 22 (a reading text, as the feed wrote it). */
     val newsHeadline: TextStyle = style(LiterataFamily, 16f, 22f, FontWeight.W500).scaled(scale)
 
@@ -173,6 +182,7 @@ class AristotleStyles internal constructor(scale: Float) {
             wordmark, wordmarkSmall, codeInline, details, fingerprint, pairingCode, fingerprintShort, liveStatus,
             liveStatusSmall, chatTitle, chatText, toolName, toolSummary, toolOutput, quote, quoteGreek, quoteCitation,
             stockCode, stockCodeSmall, stockPrice, stockChange, stockValue, stockValueLarge, newsHeadline,
+            stockCodeTitle, stockPriceDetail, chartAxis,
         )
 
     /** Times and durations use tabular figures. */
