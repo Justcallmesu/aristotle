@@ -300,6 +300,9 @@ func (s *Service) runBarsDaily(ctx context.Context, _ JobRun) error {
 		pruned = s.bars.prune(keep)
 	}
 	saveErr := s.bars.save()
+	if ctx.Err() == nil {
+		s.screen.screenEOD(s.now(), true) // the just-completed session, from the store (no Yahoo call)
+	}
 	s.log.Info("stocks: bars run", "codes", len(codes), "fetched", fetched, "failed", failed, "pruned", pruned,
 		"left", len(codes)-fetched-failed, "stored", s.bars.count())
 	switch {

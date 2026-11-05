@@ -36,7 +36,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, e *apiError) {
 	body := errorBody{Error: e.code}
-	if e.code == "upstream_blocked" {
+	if e.code == "upstream_blocked" || e.code == "too_soon" {
 		secs := max(int(math.Ceil(e.retryAfter.Seconds())), 1)
 		body.RetryAfterS = &secs
 		w.Header().Set("Retry-After", strconv.Itoa(secs))

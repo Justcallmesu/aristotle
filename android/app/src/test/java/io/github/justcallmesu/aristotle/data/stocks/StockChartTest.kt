@@ -465,12 +465,26 @@ class ChartHoldAndDetailRulesTest {
         assertTrue(ChartCache.due(ChartRange.Year, null, 0L))
     }
 
-    /** The chart opts out of the back gesture on its own box only (a guard on the source: it is a Compose modifier). */
+    /** The back-gesture strips: the chart's left and right edges only, from the top, never taller than the system keeps. */
+    @Test
+    fun theGestureStripsAreTheChartEdgesWithinTheSystemLimit() {
+        // A 360 x 270 px box, 48 px strips, a 200 px per-edge limit.
+        assertEquals(BoxRect(0f, 0f, 48f, 200f), ChartFit.gestureStrip(atLeft = true, 360f, 270f, 48f, 200f))
+        assertEquals(BoxRect(312f, 0f, 360f, 200f), ChartFit.gestureStrip(atLeft = false, 360f, 270f, 48f, 200f))
+        // A short box: the strip ends at the box's bottom; a box narrower than a strip is covered whole.
+        assertEquals(BoxRect(0f, 0f, 48f, 150f), ChartFit.gestureStrip(atLeft = true, 360f, 150f, 48f, 200f))
+        assertEquals(BoxRect(0f, 0f, 30f, 150f), ChartFit.gestureStrip(atLeft = false, 30f, 150f, 48f, 200f))
+        assertEquals(BoxRect(0f, 0f, 0f, 0f), ChartFit.gestureStrip(atLeft = true, 0f, 0f, 48f, 200f))
+    }
+
+    /** The chart opts out of the back gesture on its own edge strips only (a guard on the source: it is a Compose modifier). */
     @Test
     fun theChartExcludesItselfFromTheSystemGesture() {
         val path = "src/main/java/io/github/justcallmesu/aristotle/ui/stocks/PriceChart.kt"
         val text = listOf(File(path), File("app/$path")).first { it.exists() }.readText()
-        assertEquals(1, Regex("\\.systemGestureExclusion\\(\\)").findAll(text).count())
+        assertEquals("no whole-box exclusion", 0, Regex("\\.systemGestureExclusion\\(\\)").findAll(text).count())
+        assertEquals(1, Regex("\\.systemGestureExclusion \\{ edge\\([^)]*atLeft = true").findAll(text).count())
+        assertEquals(1, Regex("\\.systemGestureExclusion \\{ edge\\([^)]*atLeft = false").findAll(text).count())
         val screen = listOf(File(path.replace("PriceChart", "StockDetailScreen")), File("app/" + path.replace("PriceChart", "StockDetailScreen"))).first { it.exists() }.readText()
         assertFalse("not on the whole page", screen.contains("systemGestureExclusion"))
     }

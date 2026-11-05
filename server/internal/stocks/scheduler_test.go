@@ -412,8 +412,13 @@ func TestJobsHTTP(t *testing.T) {
 	h := newHarness(t)
 	got := h.expect("GET", "/v1/stocks/jobs", "", 200, "")
 	jobs := got["jobs"].([]any)
-	if len(jobs) != 1 {
+	if len(jobs) != 2 {
 		t.Fatalf("jobs = %v", jobs)
+	}
+	// The screener scan (TSC2): every 10 min in the delay-shifted windows; Thu 10:00 → the 10:05 slot (09:15 + 5×10).
+	if s := jobs[1].(map[string]any); s["id"] != ScanJobID || s["every_min"] != 10.0 || s["at"] != nil ||
+		s["next_run"] != "2026-11-05T10:05:00+07:00" || len(s["editable"].([]any)) != 2 || s["editable"].([]any)[1] != EditEveryMin {
+		t.Fatalf("scan job = %v", s)
 	}
 	j := jobs[0].(map[string]any)
 	if j["id"] != BarsJobID || j["on"] != true || j["at"] != "16:20" || j["every_min"] != nil || j["last_run"] != nil ||

@@ -295,12 +295,24 @@ func (ind *Indicators) volume(done []Bar, q *Quote, today []Bar, now time.Time, 
 
 func (ind *Indicators) todayVolume(avg int64, q *Quote, today []Bar, now time.Time) {
 	var vol int64
+	// The volume is paced by its own data time, not the wall clock: Yahoo is ~10 min behind, so at 09:40 the
+	// volume covers 30 minutes, not 40 (TS4 §0). The quote's market time when it is today's, else the end of
+	// the last 5-minute bar; the wall clock only when neither is known.
+	paceAt := now
 	switch {
 	case q != nil && q.Volume != nil:
 		vol = *q.Volume
+		if q.MarketTime != nil {
+			if tm, err := time.Parse(time.RFC3339, *q.MarketTime); err == nil && sameDay(tm, now) && !tm.After(now) {
+				paceAt = tm
+			}
+		}
 	case len(today) > 0:
 		for _, b := range today {
 			vol += b.V
+		}
+		if end := time.Unix(today[len(today)-1].T, 0).Add(5 * time.Minute); end.Before(now) {
+			paceAt = end
 		}
 	default:
 		return
@@ -310,7 +322,7 @@ func (ind *Indicators) todayVolume(avg int64, q *Quote, today []Bar, now time.Ti
 		return
 	}
 	ind.VolRatio = round2(float64(vol) / float64(avg))
-	elapsed, total := tradingMinutes(now)
+	elapsed, total := tradingMinutes(paceAt)
 	if elapsed > 0 {
 		ind.VolRatioPaced = round2(float64(vol) / (float64(avg) * elapsed / total))
 	}

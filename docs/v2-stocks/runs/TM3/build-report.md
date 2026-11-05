@@ -1,0 +1,7 @@
+# TM3 build report (server minors, TS1b + TA2b server)
+Already in HEAD from TM3s (f6e507f, review-TM3.md PASS) and re-checked green on this tree: news `Close()` keeps the poller stopped, Yahoo 5xx backoff, CASH name rule, image_url http(s) only, chart cache LRU (cap 200), zero-cost guard, honest create log, sweep-delete timeout skipped. Tests in `tm3s_test.go` (8). I did not rewrite them.
+New in this round: the news_only rule (verdict.go `capNewsOnly`). A buy_today/add is flagged and its high confidence drops to med when its reasons cite at least one `news:*` id and no `ind:*`/`lvl:*` id. `hold:*` facts no longer lift the cap; before, one `hold:*` citation dodged it. A reason whose sources are all news counts as news-backed. One `ind`/`lvl` citation still lifts the cap: it is a backstop, and the prompt's untrusted-data rule is the real guard (doc comment).
+Reading I chose: a buy/add that cites only `hold:*` facts and no news is not flagged, because no untrusted text was cited.
+Tests: `TestNewsOnlyBuyIsFlaggedAndCapped` has 4 new cases (news+hold reason, mixed news/hold source, a level lifts the cap, holding-only is not flagged). They failed before the fix, 2 of them for the expected reason, and pass after it.
+Protocol §20 `news_only` text reworded (protocol.md:1249-1252); clients see the flag on more answers.
+Gate: `GATE_ONLY=server bash docs/v1-tickets/gates.sh docs/v2-stocks/runs/TM3` exit 0 (584 Go tests). `go test -race ./internal/stocks/... ./internal/hermes/...` ok. No commits.

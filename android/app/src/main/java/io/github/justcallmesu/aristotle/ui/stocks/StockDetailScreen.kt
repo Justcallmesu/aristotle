@@ -64,6 +64,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -361,7 +365,7 @@ private fun ProblemLine(text: String?, retry: Boolean, onRetry: () -> Unit) {
 private fun Readout(model: ChartModel?, crosshair: IntState, candles: Boolean, muted: Boolean, today: LocalDate, locale: Locale) {
     val small = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall)
     val strong = AristotleTextStyles.tabular(MaterialTheme.typography.labelMedium)
-    val height = ChartFit.readoutHeightDp(READOUT_HEIGHT.value, LocalDensity.current.fontScale).dp
+    val height = readoutHeight(strong, small)
     Column(modifier = Modifier.fillMaxWidth().height(height).padding(start = Spacing.l, end = Spacing.l, top = Spacing.xs)) {
         model ?: return@Column
         val bars = model.bars
@@ -402,6 +406,29 @@ private fun Readout(model: ChartModel?, crosshair: IntState, candles: Boolean, m
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+/**
+ * The readout's height (TM4, 1.3x): its two lines measured with their real styles at the real density (so the app's text
+ * size and the phone's non-linear font scale are in it): line 1 is the close or span ([strong]) next to the change
+ * (stockChange and its arrow), line 2 is [small].
+ */
+@Composable
+private fun readoutHeight(strong: TextStyle, small: TextStyle): Dp {
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val change = AristotleTextStyles.stockChange
+    return remember(measurer, strong, small, change, density) {
+        fun line(style: TextStyle) = measurer.measure(READOUT_PROBE, style, density = density).size.height
+        val first = maxOf(line(strong), line(change), with(density) { ARROW.roundToPx() })
+        readoutHeightFor(density, first.toFloat(), line(small).toFloat())
+    }
+}
+
+/** [readoutHeight] for lines [firstPx] and [secondPx] tall as measured: both end inside the box once it is rounded to px. */
+internal fun readoutHeightFor(density: Density, firstPx: Float, secondPx: Float): Dp = with(density) {
+    val floor = ChartFit.readoutHeightDp(READOUT_HEIGHT.value, fontScale).dp.toPx()
+    ChartFit.readoutHeightPx(Spacing.xs.toPx(), firstPx, secondPx, floor).toDp()
 }
 
 /** "Today, 09:00–10:40" / "Wed 4 Nov, 09:00–16:00" / "1M · 6 Oct – 5 Nov". */
@@ -599,6 +626,8 @@ private fun RelatedNews(code: String, news: List<NewsItem>?, problem: StocksErro
 
 private val HEADER_ARROW = 22.dp
 private val READOUT_HEIGHT = 44.dp
+/** One readout line to measure by: digits, letters and the en dash (every readout line is one line). */
+private const val READOUT_PROBE = "Wed 4 Nov, 09:00–16:00"
 private val TOGGLE_WIDTH = 44.dp
 private val TOGGLE_HEIGHT = 32.dp
 private val TOGGLE_ICON = 20.dp

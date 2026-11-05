@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aristotle — Screener board (TD5, slice 2)</title>
+<!-- Self-contained: fonts and icons are embedded by build.py (same subsets as stocks.html). No network. -->
+<style>
+/*@BASECSS@*/
+/* ===== TD5 additions ===== */
+body{--chip-h:24px}
+/* setup labels (not buttons): extraSmall 4 dp so they never read as the 12 dp FilterChips */
+.lab{display:inline-flex;align-items:center;gap:2px;height:24px;padding:0 8px;border-radius:var(--r-xs);flex:none;white-space:nowrap;
+  font:600 12px/16px var(--f-ui);font-variant-numeric:tabular-nums;background:var(--surface-high);color:var(--on-surface)}
+.lab .ms{width:16px;height:16px;margin:0 -2px}
+.lab.tonal.bear{background:var(--loss-c);color:var(--on-loss-c)}
+.lab.outline{background:transparent;box-shadow:inset 0 0 0 1px var(--outline)}
+.lab.outline.bear{color:var(--loss);box-shadow:inset 0 0 0 1px var(--loss)}
+.more{flex:none;font:600 12px/16px var(--f-ui);color:var(--on-surface-variant);padding:0 2px;font-variant-numeric:tabular-nums}
+.stale .lab{background:var(--surface-high)!important;color:var(--on-surface-variant)!important;box-shadow:none!important}
+.stale .lab.outline{background:transparent!important;box-shadow:inset 0 0 0 1px var(--outline-variant)!important}
+/* candidate rows */
+.crow.gi{display:block;min-height:64px;padding:7px 16px}
+.crow .c1{display:flex;align-items:center;gap:8px;height:22px}
+.crow .code{width:46px;flex:none}
+.crow .nm{flex:1;min-width:0;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.crow .px{flex:none;min-width:48px;text-align:right;font:600 16px/22px var(--f-ui);font-variant-numeric:tabular-nums}
+.crow .c2{display:flex;align-items:center;gap:6px;height:24px;margin-top:4px}
+.crow .rt{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.crow .rt .ms{width:16px;height:16px}
+.crow.one.gi{min-height:52px;padding:6px 16px}
+.crow.one .c1{height:40px;gap:6px}
+.crow.one .sp{flex:1;min-width:0}
+.crow.one .chg{flex:none}
+.wrow .cl{display:flex;align-items:center;gap:6px;margin-top:4px}
+.wrow.gi{min-height:64px}
+.modeseg.wide{display:flex;margin:8px 16px 4px}
+.modeseg.wide button{flex:1}
+.chips{overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips .fchip{flex:none}
+.empty.big{padding:28px 16px 8px}
+.empty.big p{max-width:40ch}
+.foot{padding:14px 16px 20px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.foot .btn.text{height:32px;padding:0;margin-top:2px;font-size:14px}
+.notice .btn.text{height:36px;padding:0 8px;flex:none}
+.notice>.ms{flex:none;color:var(--on-surface-variant)}
+.notice span.tx{flex:1;min-width:0}
+.menu .mi[aria-disabled="true"]{opacity:.38}
+.menu .mi .hint{margin-left:auto;font:400 12px/16px var(--f-ui);font-variant-numeric:tabular-nums}
+/* filter chips (same as stocks.html) */
+.chips{display:flex;gap:8px;padding:4px 16px 4px;flex:none}
+.fchip{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--outline-variant);font:600 14px/20px var(--f-ui)}
+.fchip .ms{width:18px;height:18px;margin-left:-4px}
+.fchip[aria-checked="true"]{background:var(--secondary-container);color:var(--on-secondary-container);border-color:transparent}
+/* holdings card (context on the home phone, as in stocks.html) */
+.card{margin:0 16px;padding:14px 16px;border-radius:var(--r-lg);background:var(--surface-low)}
+.hsum .r1{display:flex;align-items:center;justify-content:space-between;color:var(--on-surface-variant)}
+.hsval{font:600 20px/28px var(--f-ui);font-variant-numeric:tabular-nums;margin-top:2px}
+.cols{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-top:10px}
+.cols .label-m{display:block;color:var(--on-surface-variant);margin-bottom:2px}
+/* snippets (home section in each state) */
+.snip{width:393px;border-radius:20px;background:var(--surface);color:var(--on-surface);padding:4px 0 12px;font:400 14px/20px var(--f-ui)}
+.snip .why{padding:4px 16px 4px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.sec .act.dis{color:var(--on-surface-variant)}
+/* settings */
+.swt{width:52px;height:32px;flex:none;border-radius:16px;border:2px solid var(--outline);background:var(--surface-highest);position:relative}
+.swt i{position:absolute;left:6px;top:6px;width:16px;height:16px;border-radius:50%;background:var(--outline)}
+.swt[aria-checked="true"]{background:var(--primary);border-color:var(--primary)}
+.swt[aria-checked="true"] i{left:22px;top:2px;width:24px;height:24px;background:var(--on-primary)}
+.swt[aria-disabled="true"],.dim{opacity:.38;pointer-events:none}
+.gi.sg{display:block;min-height:0;padding:12px 16px 14px}
+.sg .sh{display:flex;align-items:center;gap:12px}
+.sg .sh .tx{flex:1;min-width:0}
+.sg .fields{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:12px}
+.sg .fields .wide{grid-column:1/-1}
+.sg .note{margin-top:8px}
+.sf .lbl{font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant);margin-bottom:4px}
+.step{display:flex;align-items:center;height:48px;border:1px solid var(--outline);border-radius:var(--r-sm);font:600 16px/24px var(--f-ui);font-variant-numeric:tabular-nums}
+.step .sb{width:44px;height:46px;display:grid;place-items:center;color:var(--on-surface-variant);flex:none}
+.step .sb:hover{background:var(--state)}
+.step .sb[aria-disabled="true"]{opacity:.38;pointer-events:none}
+.step .sv{flex:1;text-align:center;white-space:nowrap}
+.step .sv .u{font-weight:400;font-size:13px;color:var(--on-surface-variant)}
+.step.bad{border:2px solid var(--error)}
+.step.bad .sb{height:44px}
+.sf .sup{display:flex;gap:4px;padding:4px 2px 0;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.sf.bad .sup{color:var(--error)}
+.sf .sup .ms{width:16px;height:16px;flex:none}
+.urow .t1{font:600 16px/24px var(--f-ui);font-variant-numeric:tabular-nums}
+.urow .btn{height:40px}
+.banner{margin:4px 16px 8px;padding:10px 12px;border-radius:var(--r-md);background:var(--error-container);color:var(--on-error-container);display:flex;gap:12px;align-items:flex-start;font:400 14px/20px var(--f-ui)}
+.banner .ms{flex:none;margin-top:0}
+.codes{min-height:132px;padding:12px 16px;border:2px solid var(--primary);border-radius:var(--r-sm);font:400 14px/22px var(--f-mono);color:var(--on-surface);overflow:hidden;position:relative}
+.codes .fade{position:absolute;left:0;right:0;bottom:0;height:40px;background:linear-gradient(transparent,var(--surface-low))}
+.spec .pal{border-radius:20px;background:var(--surface);color:var(--on-surface);padding:4px 0 16px;width:393px}
+.spec .lbl2{padding:12px 16px 8px;font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant)}
+.seg.scn{display:none}
+body[data-view="proto"] .seg.scn{display:inline-flex}
+#proto .side p{margin:0 0 8px}
+</style>
+</head>
+<body data-theme="both" data-view="board" data-pl="gr" data-dens="two" data-chip="tonal" data-pos="under" data-uni="edit" data-scn="live">
+
+<div class="tweaks" role="toolbar" aria-label="Tweaks">
+  <b>Tweaks</b>
+  <div class="seg"><span>View</span><div class="opts" data-tweak="view">
+    <button data-v="board">Board</button><button data-v="proto">Clickable path</button></div></div>
+  <div class="seg"><span>Theme</span><div class="opts" data-tweak="theme">
+    <button data-v="both">Light + dark</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
+  <div class="seg"><span>Candidate rows</span><div class="opts" data-tweak="dens">
+    <button data-v="two">Two-line 64 (rec.)</button><button data-v="one">One-line 52</button></div></div>
+  <div class="seg"><span>Setup labels</span><div class="opts" data-tweak="chip">
+    <button data-v="tonal">Tonal fill (rec.)</button><button data-v="outline">Outline</button></div></div>
+  <div class="seg"><span>Home section</span><div class="opts" data-tweak="pos">
+    <button data-v="under">Under watchlist (rec.)</button><button data-v="top">First</button></div></div>
+  <div class="seg"><span>Universe</span><div class="opts" data-tweak="uni">
+    <button data-v="edit">Edit list button (rec.)</button><button data-v="ro">Read-only, PC edits</button></div></div>
+  <div class="seg scn"><span>Scenario</span><div class="opts" data-tweak="scn">
+    <button data-v="live">Open</button><button data-v="closed">Closed</button><button data-v="nobars">Before first scan</button><button data-v="stale">Yahoo blocked</button><button data-v="empty">No candidates</button><button data-v="offline">PC offline</button></div></div>
+</div>
+
+<section class="intro">
+  <h1>Aristotle — Screener board (TD5, slice 2)</h1>
+  <p>The screener scans ~80 liquid IDX stocks for five built-in setups (Q85, Q86) and lists the candidates. Same v2 stocks language as
+  <code>stocks.html</code>: palette A, Soft corners, grouped rows, Literata titles, Atkinson Hyperlegible Next / Mono, green / red text for change
+  (the TD4 recommendation), M3 Compose parts only. 393 × 873 dp, light and dark. Notes and the Compose mapping: <code>docs/design/v2/screener-notes.md</code>.</p>
+  <p><b>Surfaces.</b> Stocks home section, Screener page and every state are <b>Monitor</b> (read a list, decide what to open); Settings is <b>Configure</b>.
+  Tapping a row opens the stock page already drawn in <code>stocks.html</code>; there is no Analyze on a row (TA2: a stray tap must not start an Opus run).</p>
+  <p><b>Samples, not quotes.</b> Codes are real IDX tickers, but prices, volumes, scores, times and which stock fires which setup are made up for the board. They
+  follow the real rules: ticks 1 / 2 / 5 / 10 / 25, ARA 25 % in the 200–5.000 band, Yahoo's 10 min delay, setup formulas and score weights from TS4 §3, the
+  <code>GET /v1/stocks/screener</code> fields. Samples are dated Thu 5 Nov 2026. Bearish chips appear only on watchlist / holding rows (Q106).</p>
+  <p><b>Picks for the user</b> (recommended one first, all are Tweaks): <b>1</b> candidate rows two-line 64 dp · one-line 52 dp · <b>2</b> setup labels tonal fill ·
+  outline · <b>3</b> home section under the watchlist · first · <b>4</b> universe: Edit list button · read-only (TS4's reading; the brief asks for the button).</p>
+</section>
+
+<main id="board"></main>
+<div id="proto"><div id="protoPhone"></div><aside class="side">
+  <h2>Clickable path</h2>
+  <ol>
+    <li>Stocks home: pick a <b>Scenario</b> in Tweaks, scroll to Screener, tap <b>See all</b>.</li>
+    <li>Screener page: Today / Last close, filter chips, ⋮ (Scan now, cooling down), gear.</li>
+    <li>Settings: switches and − / + steppers work, Save enables on a change, Defaults resets. <b>Edit list</b> opens the sheet.</li>
+    <li>A candidate row opens the stock page in <code>stocks.html</code> (new tab).</li>
+  </ol>
+  <p class="muted" style="opacity:.7">All Tweaks apply here. Theme "Light + dark" shows light.</p>
+</aside></div>
+
+<script>
+const ICONS = /*@ICONS@*/{};
+const I=(n,c="")=>`<svg class="ms ${c}" viewBox="0 -960 960 960" aria-hidden="true"><path d="${ICONS[n]||""}"/></svg>`;
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const NF=new Intl.NumberFormat("id-ID");
+const n0=v=>NF.format(Math.round(v));
+const f1=v=>v.toLocaleString("id-ID",{minimumFractionDigits:1,maximumFractionDigits:1});
+const sgn=v=>v>0?"+":v<0?"−":"";
+const pctS=v=>sgn(+v.toFixed(2))+Math.abs(v).toLocaleString("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2})+" %";
+const rp=v=>"Rp "+n0(v);
+const rpS=v=>sgn(Math.round(v))+"Rp "+n0(Math.abs(v));
+const dir=v=>v>0?"up":v<0?"down":"flat";
+const chg=(v,text,cls="")=>`<span class="chg ${dir(v)} ${cls}">${I(v>0?"arrow_drop_up":v<0?"arrow_drop_down":"remove")}<span>${text}</span></span>`;
+const tick=p=>p<200?1:p<500?2:p<2000?5:p<5000?10:25;
+const snap=p=>{const t=tick(p);return Math.max(t,Math.round(p/t)*t)};
+const B=()=>document.body.dataset;
+
+/* ======================= sample data (labelled samples, Thu 5 Nov 2026) ======================= */
+const NAME={ADRO:"Alamtri Resources Indonesia Tbk",ANTM:"Aneka Tambang Tbk",PGAS:"Perusahaan Gas Negara Tbk",MDKA:"Merdeka Copper Gold Tbk",
+  INDF:"Indofood Sukses Makmur Tbk",ESSA:"Surya Esa Perkasa Tbk",BBCA:"Bank Central Asia Tbk",BBRI:"Bank Rakyat Indonesia (Persero) Tbk",
+  TLKM:"Telkom Indonesia (Persero) Tbk",GOTO:"GoTo Gojek Tokopedia Tbk"};
+/* watchlist / holdings sample = TD4's (same prices) */
+const STK={BBCA:{last:9875,prev:9750,seed:3},BBRI:{last:4230,prev:4290,seed:7},TLKM:{last:3150,prev:3150,seed:13},ADRO:{last:2480,prev:2410,seed:19},GOTO:{last:68,prev:70,seed:23}};
+const WATCH=["BBCA","BBRI","TLKM","ADRO","GOTO"];
+const HOLD=[{c:"BBCA",lots:20,avg:9150},{c:"BBRI",lots:50,avg:4480},{c:"TLKM",lots:30,avg:2960},{c:"GOTO",lots:400,avg:74}];
+const FEES={buy:.0015,sell:.0025};
+function rng(seed){let a=seed*2654435761>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(r){return Math.sqrt(-2*Math.log(r()+1e-9))*Math.cos(2*Math.PI*r())}
+function series(code){const s=STK[code],r=rng(s.seed),t=tick(s.last),sig=Math.max(t*.7,s.last*.0016),n=21,w=[0];
+  for(let i=1;i<n;i++)w.push(w[i-1]+gauss(r)*sig);
+  const open=s.prev+(code==="BBCA"?1:code==="GOTO"?-1:0)*t;
+  return w.map((x,i)=>snap(open+(s.last-open)*i/(n-1)+x-w[n-1]*i/(n-1)))}
+function spark(code,w=64,h=28){const s=STK[code],c=series(code),n=c.length;
+  const lo=Math.min(s.prev,...c),hi=Math.max(s.prev,...c),span=hi-lo||1;
+  const X=i=>2+(w-4)*i/(n-1),Y=v=>2+(h-4)*(1-(v-lo)/span);
+  const pts=c.map((v,i)=>[X(i),Y(v)].map(q=>q.toFixed(1)).join(",")).join(" ");
+  return `<svg class="spark ${dir(s.last-s.prev)}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><line class="base" x1="2" x2="${w-2}" y1="${Y(s.prev).toFixed(1)}" y2="${Y(s.prev).toFixed(1)}"/><polyline class="pl" points="${pts}"/></svg>`}
+function position(h){const s=STK[h.c],sh=h.lots*100,cost=h.avg*sh*(1+FEES.buy),net=s.last*sh*(1-FEES.sell);return{value:s.last*sh,cost,pl:net-cost,today:(s.last-s.prev)*sh}}
+function totals(){const ps=HOLD.map(position),cost=ps.reduce((a,p)=>a+p.cost,0),pl=ps.reduce((a,p)=>a+p.pl,0);
+  return{value:ps.reduce((a,p)=>a+p.value,0),pl,plPct:pl/cost*100,today:ps.reduce((a,p)=>a+p.today,0)}}
+
+/* candidates: the §20.3 fields the rows need. val = val20 in Rp bn/day (sort tiebreak). Score = Σ bullish weights + 0.1 × min(vr, 5) (TS4 §3). */
+const W={breakout:3,vol:2,ma:2,rsi:2,gap:1};
+const mk=(c,px,pv,val,vr,S,o={})=>({c,px,pv,val,vr,S,ara:!!o.ara,watch:!!o.watch,held:!!o.held});
+const score=c=>Math.round((c.S.reduce((a,s)=>a+(s.dir==="down"?0:W[s.id]),0)+.1*Math.min(c.vr,5))*10)/10;
+const rank=l=>l.slice().sort((a,b)=>(a.ara-b.ara)||(score(b)-score(a))||(b.val-a.val)||a.c.localeCompare(b.c));
+const LIVE=rank([
+  mk("ADRO",2480,2410,210,2.3,[{id:"breakout",n:20},{id:"vol",vr:2.3}],{watch:1}),
+  mk("ANTM",3390,3270,340,2.6,[{id:"vol",vr:2.6},{id:"gap",dir:"up",g:2.4}]),
+  mk("PGAS",1645,1620,95,2.0,[{id:"vol",vr:2.0}]),
+  mk("MDKA",2070,2040,180,1.4,[{id:"rsi",rsi:31}]),
+  mk("INDF",7350,7300,120,1.1,[{id:"ma",dir:"up",day:"Wed"}]),
+  mk("ESSA",875,700,12,6.1,[{id:"breakout",n:20},{id:"vol",vr:6.1},{id:"gap",dir:"up",g:4.3}],{ara:1})]);
+const EOD=rank([
+  mk("ADRO",2480,2410,210,2.2,[{id:"breakout",n:20},{id:"vol",vr:2.2}],{watch:1}),
+  mk("ANTM",3390,3270,340,2.4,[{id:"vol",vr:2.4}]),
+  mk("PGAS",1645,1620,95,2.1,[{id:"vol",vr:2.1}]),
+  mk("MDKA",2070,2040,180,1.3,[{id:"rsi",rsi:32}]),
+  mk("INDF",7350,7300,120,1.1,[{id:"ma",dir:"up",day:"Thu"}])]);
+const FLAGS=[mk("BBRI",4230,4290,0,0,[{id:"ma",dir:"down",day:"Tue"}],{watch:1,held:1}),
+  mk("GOTO",68,70,0,0,[{id:"gap",dir:"down",g:-2.9}],{watch:1,held:1})];
+const FLAGS_EOD=[FLAGS[0]];
+const SCN={ /* per scenario: status-bar time, scan facts */
+  live:{t:"10:52",scan:"10:45",next:"11:00",asof:"10:35"},
+  closed:{t:"19:05"},nobars:{t:"14:20"},
+  stale:{t:"10:58",scan:"10:30",next:"11:00",asof:"10:20",bad:"10:45"},
+  empty:{t:"10:52",scan:"10:45",next:"11:00",asof:"10:35"},
+  offline:{t:"11:03",scan:"10:45",asof:"10:35",since:"10:52"}};
+const PAGEKEY={live:"page-today",closed:"page-closed",nobars:"page-nobars",stale:"page-stale",empty:"page-empty",offline:"page-offline"};
+
+/* ======================= labels, rows ======================= */
+function labOf(s){
+  if(s.id==="breakout")return{t:`Breakout ${s.n}d`};
+  if(s.id==="vol")return{t:`Vol ×${f1(s.vr)}`};
+  if(s.id==="rsi")return{t:`RSI ${s.rsi}`};
+  if(s.id==="gap")return{t:`Gap ${sgn(s.g)}${f1(Math.abs(s.g))} %`,down:s.g<0};
+  return{t:`MA20${I(s.dir==="up"?"arrow_drop_up":"arrow_drop_down","s16")}50 · ${s.day}`,down:s.dir==="down"};
+}
+const spoken=s=>s.id==="breakout"?`breakout ${s.n} days`:s.id==="vol"?`volume ${f1(s.vr)} times`:s.id==="rsi"?`RSI ${s.rsi}`:s.id==="gap"?`gap ${s.g>0?"up":"down"} ${f1(Math.abs(s.g))} percent`:`MA20 crossed ${s.dir==="up"?"above":"below"} MA50 on ${s.day}`;
+function labs(c,style,max){
+  const L=[];if(c.ara)L.push({t:"ARA"});
+  c.S.slice().sort((a,b)=>W[b.id]-W[a.id]).forEach(s=>L.push(labOf(s)));
+  const shown=L.slice(0,max),rest=L.length-shown.length;
+  return shown.map(l=>`<span class="lab ${style}${l.down?" bear":""}">${l.t}</span>`).join("")+(rest?`<span class="more">+${rest}</span>`:"");
+}
+function say(c,withScore){const d=c.px-c.pv,w=d>0?"up":d<0?"down":"unchanged";
+  return `${c.c}, ${NAME[c.c]}, ${n0(c.px)} rupiah, ${w}${d?" "+n0(Math.abs(d))+", "+pctS(d/c.pv*100).replace(/^[+−]/,""):""}. ${c.S.map(spoken).join(", ")}${c.ara?", at ARA":""}${withScore?`. Score ${f1(score(c))}`:""}.`}
+function crow(c,{dens=B().dens,chip=B().chip,flag=false}={}){
+  const d=c.px-c.pv,p=d/c.pv*100,one=dens==="one",aria=esc(say(c,!flag));
+  const price=`<span class="px pxd ${dir(d)}">${n0(c.px)}</span>`;
+  if(one)return `<div class="gi crow one tap" role="button" data-go="stock" aria-label="${aria}"><div class="c1"><span class="code">${c.c}</span>${labs(c,chip,1)}<span class="sp"></span>${price}${chg(d,pctS(p))}</div></div>`;
+  const mark=`${c.watch?I("bookmark_added")+`<span class="sr" hidden>On watchlist</span>`:""}${c.held?I("account_balance_wallet"):""}`;
+  return `<div class="gi crow tap" role="button" data-go="stock" aria-label="${aria}"><div class="c1"><span class="code">${c.c}</span><span class="nm ell">${esc(NAME[c.c])}</span>${price}${chg(d,pctS(p))}</div>
+    <div class="c2">${labs(c,chip,3)}<span class="rt">${mark}${flag?"":`score ${f1(score(c))}`}</span></div></div>`;
+}
+
+/* ======================= shell ======================= */
+const statusbar=t=>`<div class="statusbar"><span>${t}</span><span class="si">${I("signal_cellular_alt","s16")}${I("wifi","s16")}${I("battery_5_bar","s16")}</span></div>`;
+const shell=(inner,scn)=>`<div class="screen">${statusbar(SCN[scn].t)}<div class="app">${inner}</div><div class="navbar"><i></i></div></div>`;
+const avatarBtn=(off=false)=>`<button class="avbtn" ${off?'aria-disabled="true"':""} aria-label="Hermes profile: pm. Change profile"><span class="avatar" aria-hidden="true">P</span><span class="pl" aria-hidden="true">pm</span></button>`;
+const topbar=(title,sub,go,right)=>`<header class="topbar"><button class="icbtn on" data-go="${go}" aria-label="Back">${I("arrow_back")}</button>
+  <div class="tt"><div class="ttl">${title}</div><div class="subline">${sub}</div></div>${right||""}</header>`;
+
+/* ======================= STOCKS HOME ======================= */
+const MK={live:["Session 1 · closes 12:00","Prices 10 min delayed · as of 10:42"],
+  closed:["Market closed · opens Fri 09:00","Closing prices · Thu 5 Nov, 16:15"],
+  nobars:["Session 2 · closes 15:49","Prices 10 min delayed · as of 14:10"],
+  stale:["Session 1 · closes 12:00","Prices 10 min delayed · as of 10:48"],
+  empty:["Session 1 · closes 12:00","Prices 10 min delayed · as of 10:42"]};
+function marketLine(scn){
+  if(scn==="offline")return `<div class="mkt" role="status"><div class="l1">${I("cloud_off")}<span>Offline since ${SCN.offline.since}</span><button class="retry">Retry now</button></div>
+    <div class="l2">Prices as of 10:42. little-boy stopped answering.</div></div>`;
+  const[a,b]=MK[scn];return `<div class="mkt" role="status"><div class="l1">${a}</div><div class="l2">${b}</div></div>`}
+const lookup=scn=>{const m={};((scn==="closed"?EOD:LIVE).concat(scn==="closed"?FLAGS_EOD:FLAGS)).forEach(c=>{m[c.c]=c});return m};
+function watchRow(code,scn){
+  const s=STK[code],d=s.last-s.prev,p=d/s.prev*100,hit=["nobars","empty"].includes(scn)?null:lookup(scn)[code];
+  const sy=`${code}, ${NAME[code]}, ${n0(s.last)} rupiah${hit?". "+hit.S.map(spoken).join(", "):""}`;
+  return `<div class="gi wrow tap" role="button" data-go="stock" aria-label="${esc(sy)}"><div class="tx"><div class="code">${code}</div><div class="nm ell">${esc(NAME[code])}</div>
+    ${hit?`<div class="cl">${labs(hit,B().chip,1)}</div>`:""}</div>${spark(code)}
+    <div class="pxcol"><div class="px pxd ${dir(d)}">${n0(s.last)}</div>${chg(d,`${sgn(d)}${n0(Math.abs(d))} · ${pctS(p)}`)}</div></div>`;
+}
+/* the Screener section: header + top 3, or the one-line state */
+function screenerSection(scn,{chip,dens}={}){
+  const o={chip:chip||B().chip,dens:dens||B().dens};
+  const hdr=(n,sub,all)=>`<div class="sec">Screener <span class="n">· ${sub}</span>${all?`<button class="act" data-go="page" aria-label="See all ${all} candidates">See all (${all})${I("chevron_right")}</button>`:`<button class="act dis" data-go="page" aria-label="Open the screener">Open${I("chevron_right")}</button>`}</div>`;
+  const rows=l=>`<div class="glist">${l.slice(0,3).map(c=>crow(c,o)).join("")}</div>`;
+  if(scn==="closed")return hdr(0,"last close Thu 5 Nov",EOD.length)+rows(EOD);
+  if(scn==="nobars")return hdr(0,"no list yet")+`<div class="empty"><div class="title-m">Building price history</div><p class="body-m muted">First list after 16:20, when the daily prices of 80 stocks are in.</p></div>`;
+  if(scn==="empty")return hdr(0,`scanned ${SCN.empty.scan}`)+`<div class="empty"><div class="title-m">No setups fired</div><p class="body-m muted">80 stocks scanned at ${SCN.empty.scan}. Open the screener to see why or loosen a setup.</p></div>`;
+  if(scn==="stale")return `<div class="stale">${hdr(0,`scanned ${SCN.stale.scan}`,LIVE.length)}<div class="why">Yahoo refused the ${SCN.stale.bad} scan. Showing the ${SCN.stale.scan} list.</div>${rows(LIVE)}</div>`;
+  if(scn==="offline")return `<div class="stale">${hdr(0,`scanned ${SCN.offline.scan}`,LIVE.length)}<div class="why">List saved on this phone.</div>${rows(LIVE)}</div>`;
+  return hdr(0,`scanned ${SCN.live.scan}`,LIVE.length)+rows(LIVE);
+}
+function holdSummary(){const T=totals();
+  return `<div class="sec">Holdings</div><div class="card hsum tap" role="button" aria-label="Holdings, ${HOLD.length} stocks, value ${rp(T.value)}">
+    <div class="r1"><span class="label-m">${HOLD.length} stocks · value</span>${I("chevron_right","s20")}</div><div class="hsval">${rp(T.value)}</div>
+    <div class="cols"><div><span class="label-m">P/L after fees</span>${chg(T.pl,`${rpS(T.pl)} · ${pctS(T.plPct)}`)}</div>
+    <div><span class="label-m">Today</span>${chg(T.today,rpS(T.today))}</div></div></div>`}
+function homeScreen(scn){
+  const off=scn==="offline",wl=`<div class="sec">Watchlist <span class="n">· ${WATCH.length}</span></div><div class="glist">${WATCH.map(c=>watchRow(c,scn)).join("")}</div>`;
+  const sc=screenerSection(scn),body=B().pos==="top"?sc+wl:wl+sc;
+  return shell(`<header class="bighead"><div class="tt"><div class="wordmark">Aristotle</div><div class="modeseg" role="radiogroup" aria-label="Home">
+    <button role="radio" aria-checked="false">Chats</button><button role="radio" aria-checked="true">${I("check")}Stocks</button></div></div>${avatarBtn(off)}</header>
+    ${marketLine(scn)}<div class="scroll${off?" stale":""}">${body}${holdSummary()}<div style="height:12px"></div></div>
+    <nav class="bab" aria-label="Stocks actions"><button class="icbtn" aria-label="News">${I("newspaper")}</button><button class="icbtn" aria-label="Holdings">${I("account_balance_wallet")}</button>
+    <button class="icbtn" aria-label="More actions">${I("more_vert")}</button><button class="fab" aria-label="Add to watchlist">${I("add")}</button></nav>`,scn);
+}
+
+/* ======================= SCREENER PAGE ======================= */
+const FILTERS=[["all","All"],["breakout","Breakout"],["vol","Volume"],["ma","MA"],["rsi","RSI"],["gap","Gap"]];
+function pageScreen(scn,o={}){
+  const seg=o.seg||(scn==="closed"?"close":"today"),filter=o.filter||"all",off=scn==="offline",S=SCN[scn];
+  const eod=seg==="close";
+  const sub=eod?(scn==="closed"?"Last close · Thu 5 Nov · next scan Fri 09:15":"Last close · Thu 5 Nov · 80 stocks")
+    :scn==="nobars"?"Building price history":scn==="offline"?`80 stocks · scanned ${S.scan} · PC offline`
+    :scn==="stale"?`80 stocks · scanned ${S.scan} · next try ${S.next}`:`80 stocks · scanned ${S.scan} · next ${S.next}`;
+  const cool=scn==="live"||scn==="empty";
+  const menu=`<div class="menu down${o.menu?" open":""}" role="menu"><div class="mi" role="menuitem" ${cool?'aria-disabled="true"':""}>${I("refresh")}Scan now${cool?`<span class="hint">in 1:20</span>`:""}</div></div>`;
+  const right=`<button class="icbtn" data-go="settings" aria-label="Screener settings">${I("settings")}</button><button class="icbtn" data-menu aria-label="More actions">${I("more_vert")}</button>`;
+  const head=topbar("Screener",sub,"home",right);
+  const settingsBtn=`<button class="btn tonal" data-go="settings">Screener settings</button>`;
+  if(scn==="nobars")return shell(head+`<div class="empty big"><div class="title-m">Building price history</div>
+    <p class="body-m muted">little-boy is loading the daily prices of 80 stocks. The first list appears after 16:20. Nothing to do on your side.</p>${settingsBtn}</div>${menu}`,scn);
+  const notice=scn==="stale"?`<div class="notice" role="status">${I("info")}<span class="tx">Yahoo refused the ${S.bad} scan. Showing the ${S.scan} list.</span><button class="btn text">Scan now</button></div>`
+    :off?`<div class="mkt" role="status"><div class="l1">${I("cloud_off")}<span>Offline since ${S.since}</span><button class="retry">Retry now</button></div><div class="l2">List from the ${S.scan} scan, saved on this phone.</div></div>`:"";
+  const segc=`<div class="modeseg wide" role="radiogroup" aria-label="List">
+    <button role="radio" aria-checked="${!eod}" data-seg="today">${!eod?I("check"):""}Today</button><button role="radio" aria-checked="${eod}" data-seg="close">${eod?I("check"):""}Last close</button></div>`;
+  const chips=`<div class="chips" role="radiogroup" aria-label="Setup">${FILTERS.map(([k,l])=>`<button class="fchip" role="radio" aria-checked="${k===filter}" data-filter="${k}">${k===filter?I("check"):""}${l}</button>`).join("")}</div>`;
+  const has=(c,k)=>k==="all"||c.S.some(s=>s.id===k);
+  let list=eod?EOD:(scn==="empty"?[]:LIVE),flags=eod?FLAGS_EOD:(scn==="empty"?[]:FLAGS);
+  list=list.filter(c=>has(c,filter));flags=flags.filter(c=>has(c,filter));
+  const opt={dens:B().dens,chip:B().chip};
+  let body="";
+  if(!list.length&&scn==="empty"&&!eod)body=`<div class="empty big"><div class="title-m">No setups fired</div><p class="body-m muted">80 stocks scanned at ${S.scan}. Breakout, volume spike, MA cross, RSI rebound and gap are on, and stocks under Rp 5 bn a day are skipped. A looser threshold finds more.</p>${settingsBtn}</div>`;
+  else if(!list.length&&!flags.length)body=`<div class="empty big"><div class="title-m">Nothing for this filter</div><p class="body-m muted">Pick All to see the other candidates.</p></div>`;
+  else{
+    body=(list.length?`<div class="sec">Candidates <span class="n">· ${list.length}</span></div><div class="glist">${list.map(c=>crow(c,opt)).join("")}</div>`:"")
+     +(flags.length?`<div class="sec">Your stocks · bearish <span class="n">· ${flags.length}</span></div><div class="glist">${flags.map(c=>crow(c,{...opt,flag:true})).join("")}</div>
+       <div class="why" style="padding:8px 16px 0;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)">Shown for watchlist and holding stocks only. A flag is not advice to sell.</div>`:"");
+    body+=`<div class="foot">${eod?"Closing prices, 20-session volume average.":`Prices as of ${S.asof}, 10 min delayed.`} 9 stocks under Rp 5 bn a day and 2 without price history were skipped.<br><button class="btn text" data-go="settings">Change in settings</button></div>`;
+  }
+  return shell(head+notice+segc+chips+`<div class="scroll${(scn==="stale"||off)?" stale":""}" style="margin-top:4px">${body}</div>${menu}`,scn);
+}
+
+/* ======================= SETTINGS ======================= */
+const DEF={breakout:{on:1,lookback:20,vol:1.5},vol:{on:1,mult:2},ma:{on:1},rsi:{on:1,level:30},gap:{on:1,min:2,up:1,down:1},minval:5,every:15};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const RNG={"breakout.lookback":{min:10,max:60,step:1,u:" days",lbl:"Lookback",fmt:n0},"breakout.vol":{min:1,max:5,step:.5,pre:"×",lbl:"Volume at least",fmt:f1},
+  "vol.mult":{min:1.5,max:10,step:.5,pre:"×",lbl:"Volume at least",fmt:f1},"rsi.level":{min:15,max:45,step:1,lbl:"Rebound above",fmt:n0},
+  "gap.min":{min:.5,max:10,step:.5,u:" %",lbl:"Minimum gap",fmt:f1},"minval":{min:0,max:100,step:1,u:" bn",pre:"Rp ",lbl:"Min value traded",fmt:n0},
+  "every":{min:5,max:60,step:5,u:" min",lbl:"Scan every",fmt:n0}};
+const getp=(o,p)=>p.split(".").reduce((a,k)=>a[k],o);
+const setp=(o,p,v)=>{const k=p.split(".");const last=k.pop();k.reduce((a,x)=>a[x],o)[last]=v};
+function stepper(cfg,p,{typed,wide,help}={}){
+  const r=RNG[p],v=typed!=null?typed:getp(cfg,p),bad=typed!=null&&(typed<r.min||typed>r.max);
+  const txt=`${r.pre||""}${r.fmt(v)}${r.u?`<span class="u">${r.u}</span>`:""}`;
+  const range=`${r.fmt(r.min)}–${r.fmt(r.max)}${r.u||""}`;
+  return `<div class="sf${bad?" bad":""}${wide?" wide":""}"><div class="lbl">${r.lbl}</div><div class="step${bad?" bad":""}">
+    <button class="sb" data-step="${p}" data-d="-1" aria-label="Decrease ${r.lbl.toLowerCase()}" ${v<=r.min?'aria-disabled="true"':""}>${I("remove")}</button>
+    <span class="sv" aria-live="polite">${txt}</span>
+    <button class="sb" data-step="${p}" data-d="1" aria-label="Increase ${r.lbl.toLowerCase()}" ${v>=r.max?'aria-disabled="true"':""}>${I("add")}</button></div>
+    <div class="sup">${bad?I("info")+`<span>${r.fmt(r.min)} to ${r.fmt(r.max)}${r.u||""}</span>`:`<span>${help||range}</span>`}</div></div>`;
+}
+const setupCard=(id,title,desc,on,fields,ro)=>`<div class="gi sg"><div class="sh"><div class="tx"><div class="title-s">${title}</div><div class="body-s muted">${desc}</div></div>
+  <button class="swt" role="switch" aria-checked="${!!on}" aria-label="${title}" data-sw="${id}" ${ro?'aria-disabled="true"':""}><i></i></button></div>${on&&fields?`<div class="fields">${fields}</div>`:""}</div>`;
+function gapChips(cfg){const c=(k,l)=>`<button class="fchip" role="checkbox" aria-checked="${!!cfg.gap[k]}" data-gapdir="${k}">${cfg.gap[k]?I("check"):""}${l}</button>`;
+  return `<div class="wide" style="display:flex;gap:8px">${c("up","Gap up")}${c("down","Gap down")}</div>`}
+function settingsScreen(scn,o={}){
+  const cfg=o.cfg||clone(DEF),off=scn==="offline"||o.offline,typed=o.typed||{},bad=Object.keys(typed).some(k=>{const r=RNG[k];return typed[k]<r.min||typed[k]>r.max});
+  const dirty=JSON.stringify(cfg)!==JSON.stringify(DEF),canSave=dirty&&!bad&&!off;
+  const ro=off,st=p=>stepper(cfg,p,{typed:typed[p]});
+  const setups=`<div class="sec">Setups</div><div class="glist${ro?" dim":""}">
+    ${setupCard("breakout","Breakout","Price clears its recent high on heavy volume.",cfg.breakout.on,st("breakout.lookback")+st("breakout.vol"),ro)}
+    ${setupCard("vol","Volume spike","Today's volume far above its 20-day average.",cfg.vol.on,st("vol.mult"),ro)}
+    ${setupCard("ma","MA cross","The 20-day average crosses the 50-day, end of day.",cfg.ma.on,`<div class="body-s muted wide">Fixed at 20 and 50 days. The row shows the day of the cross.</div>`,ro)}
+    ${setupCard("rsi","RSI rebound","RSI (14) climbs back above the level.",cfg.rsi.on,st("rsi.level"),ro)}
+    ${setupCard("gap","Gap","Opens away from the previous close.",cfg.gap.on,st("gap.min")+gapChips(cfg),ro)}</div>`;
+  const more=`<div class="sec">Liquidity</div><div class="glist${ro?" dim":""}"><div class="gi sg"><div class="fields">${st("minval").replace('class="sf','class="sf wide')}</div>
+      <div class="body-s muted note">Average of price × volume over 20 sessions. 0 turns the filter off. 9 stocks are under it today.</div></div></div>
+    <div class="sec">Scan</div><div class="glist${ro?" dim":""}"><div class="gi sg"><div class="fields">${st("every").replace('class="sf','class="sf wide')}</div>
+      <div class="body-s muted note">Only while the market is open. Saved as the screener.scan job.</div></div></div>
+    <div class="sec">Universe</div><div class="glist"><div class="gi sg urow"><div class="sh"><div class="tx"><div class="t1">80 stocks</div>
+      <div class="body-s muted">LQ45 + IDX80 · valid to 29 Jan 2027. Watchlist stocks outside the list are added.</div></div>
+      ${B().uni==="edit"?`<button class="btn tonal ${off?"dim":""}" data-go="universe">Edit list</button>`:""}</div>
+      ${B().uni==="edit"?"":`<div class="body-s muted note">Edit the list on the PC.</div>`}</div></div>`;
+  const notice=off?`<div class="notice" role="status">${I("cloud_off")}<span class="tx">little-boy is offline. Settings live on the PC, so they cannot be changed now.</span><button class="btn text">Retry now</button></div>`:"";
+  const save=`<div class="bottomzone"><button class="btn outlined ${off?"dim":""}" data-reset>Defaults</button><button class="btn filled grow${canSave?"":" off"}" data-save aria-disabled="${!canSave}">Save</button></div>`;
+  const inner=topbar("Screener settings","Saved on the PC · re-ranks the list at once","page")+notice+`<div class="scroll">${setups}${more}<div style="height:16px"></div></div>${save}`;
+  return shell(inner+(o.sheet?universeSheet():""),scn);
+}
+function universeSheet(){
+  const codes="ACES ADRO AKRA AMMN AMRT ANTM ARTO ASII BBCA BBNI BBRI BBTN BMRI BRIS BRPT BUKA CPIN ESSA EXCL GOTO HRUM ICBP INCO INDF INKP INTP ISAT ITMG JPFA KLBF MAPI MBMA MDKA MEDC MIKA MTEL PGAS PGEO PTBA SIDO SMGR SRTG TBIG TINS TLKM TOWR UNTR UNVR";
+  return `<div class="scrim" data-go="settings"></div><div class="sheet" style="top:120px" role="dialog" aria-label="Screener list"><div class="handle"></div>
+    <div class="pad"><h2 class="headline-s">Screener list</h2></div>
+    <div style="padding:12px 24px 0"><div class="body-m muted">Valid 2 Nov 2026 to 29 Jan 2027 · <b style="color:var(--on-surface);font-weight:600">80 codes</b> · replaced as a whole on Save</div></div>
+    <div style="padding:16px 24px 0"><div class="tf focus" style="margin-top:8px"><div class="codes">${codes}<span class="caret" style="display:inline-block;width:2px;height:18px;background:var(--primary);vertical-align:-3px;margin-left:2px"></span><div class="fade"></div></div><span class="lbl" style="background:var(--surface-low);color:var(--primary)">Codes, LQ45 + IDX80</span></div>
+      <div class="body-s muted" style="padding:6px 16px 0">Separate with spaces or lines. The first 48 are shown on this sample; the list holds 80.</div></div>
+    <div class="sheetbtns" style="padding:20px 24px 24px"><button class="btn text danger" style="padding:0">Use bundled list</button><span class="sp"></span><button class="btn text">Cancel</button><button class="btn filled">Save</button></div></div>`;
+}
+
+/* ======================= board ======================= */
+const SCREENS={
+  "home-top":{f:()=>homeScreen("live"),scn:"live",cap:"Stocks home · top",note:"Watchlist rows grow a label line when a setup fired today: the best label, then \"+1\". BBRI and GOTO carry the bearish flag in loss colours with the sign or arrow in the text. Use the Home section Tweak to put Screener first."},
+  "home-scrolled":{f:()=>homeScreen("live"),scn:"live",scroll:"end",cap:"Stocks home · scrolled to Screener",note:"Header: \"Screener · scanned 10:45\", See all (6), the top 3 by score. Rows are the same component as the page. No Analyze here (TA2)."},
+  "page-today":{f:()=>pageScreen("live"),scn:"live",cap:"Screener · Today",note:"Subline: universe size, last scan, next scan. Today | Last close, filter chips, candidates by score, then \"Your stocks · bearish\" (watchlist and holdings only, Q106). Footer counts what was skipped."},
+  "page-menu":{f:()=>pageScreen("live",{menu:true}),scn:"live",cap:"Screener · ⋮ Scan now cooling down",note:"POST /scan answers 429 too_soon with retry_after_s under 2 min after the last scan; the item is disabled and says when. Pull-to-refresh only re-reads the server's list."},
+  "page-closed":{f:()=>pageScreen("closed"),scn:"closed",cap:"Screener · market closed",note:"Last close is selected by itself. Closing prices, EOD setups only (no gap), MA cross shows its date. The subline names the next scan."},
+  "set-top":{f:()=>{const c=clone(DEF);c.rsi.on=0;return settingsScreen("live",{cfg:c})},scn:"live",cap:"Settings · setups (RSI off, one change)",note:"Each setup: switch, one line of what it finds, number fields with − / + and the allowed range under them. An off setup folds its fields. Save lights up on a change."},
+  "set-bottom":{f:()=>settingsScreen("live"),scn:"live",scroll:"end",cap:"Settings · liquidity, scan, universe",note:"Min value traded in Rp bn (0 = off), scan interval (writes the job), and the universe: count, source, period, Edit list. No formula editor (Q86)."},
+  "set-invalid":{f:()=>settingsScreen("live",{cfg:Object.assign(clone(DEF),{breakout:{on:1,lookback:20,vol:1.5}}),typed:{"breakout.lookback":75}}),scn:"live",cap:"Settings · invalid value",note:"75 days is outside 10–60: red outline, the range in words, Save disabled. The server would answer 400 bad_request, so the phone never sends it."},
+  "set-sheet":{f:()=>settingsScreen("live",{sheet:true}),scn:"live",scroll:"end",cap:"Edit list sheet",note:"GET/PUT/DELETE /v1/stocks/universe replaces the whole list. Optional on the phone: TS4 shows the list read-only, so a Tweak can drop the button for \"edit on the PC\"."},
+  "page-nobars":{f:()=>pageScreen("nobars"),scn:"nobars",cap:"State · before the first scan",note:"scan.error \"no_bars\": the cause, the time the list arrives, and that nothing is needed from you. Settings stay reachable."},
+  "page-stale":{f:()=>pageScreen("stale"),scn:"stale",cap:"State · Yahoo blocked, list is stale",note:"The last good list stays, all direction colour drops to onSurfaceVariant (arrows and signs stay), a notice names the refused scan and the list shown."},
+  "page-empty":{f:()=>pageScreen("empty"),scn:"empty",cap:"State · no candidates",note:"Scan worked, nothing fired. Says how many stocks, which setups are on and the floor in use, and offers the one action: settings. Last close still has a list."},
+  "page-offline":{f:()=>pageScreen("offline"),scn:"offline",cap:"State · PC offline",note:"Same offline line as Stocks home. The list is the copy saved on the phone, muted, \"scanned 10:45\" kept."},
+  "set-offline":{f:()=>settingsScreen("offline",{offline:true}),scn:"offline",cap:"State · settings while the PC is offline",note:"Settings are read and written on the PC: values dim, Save and Edit list are off, and the notice says why."},
+};
+function snipPanels(){
+  const items=[["closed","Market closed","Last close list with its date."],["nobars","Before the first scan","One line, no See all."],["stale","Yahoo blocked","Last good list, muted, the refused time."],["empty","No candidates","Names the count scanned."],["offline","PC offline","Saved list, muted."]];
+  const panel=m=>`<figure class="shot" data-mode="${m}" style="width:auto"><div class="row" style="gap:16px">${items.map(([k,t,w])=>`<div class="pal snip" data-mode="${m}" data-pl="gr" data-scn="${k}">
+    <div class="label-m muted" style="padding:12px 16px 0">${t.toUpperCase()}</div>${screenerSection(k)}</div>`).join("")}</div>
+    <figcaption><b>Screener section in each state · ${m}</b>${m==="light"?"Section only, as it sits under the watchlist. Each state is one header plus a list or one line; the see-all button disappears when there is no list.":""}</figcaption></figure>`;
+  return panel("light")+`<div style="height:24px"></div>`+panel("dark");
+}
+function variantPanels(){
+  const rows=[LIVE[0],LIVE[5],FLAGS[0]],combos=[["two","tonal","Two-line 64 · tonal fill (rec.)"],["two","outline","Two-line 64 · outline"],["one","tonal","One-line 52 · tonal fill"],["one","outline","One-line 52 · outline"]];
+  const panel=m=>`<figure class="shot spec" data-mode="${m}" style="width:auto"><div class="row" style="gap:16px">${combos.map(([d,c,t])=>`<div class="pal" data-mode="${m}" data-pl="gr">
+    <div class="lbl2">${t.toUpperCase()}</div><div class="glist">${rows.map(r=>crow(r,{dens:d,chip:c,flag:r===FLAGS[0]})).join("")}</div></div>`).join("")}</div>
+    <figcaption><b>Row density × label style · ${m}</b>${m==="light"?"ADRO (two setups, on the watchlist), ESSA (ARA, four setups: three labels and +1) and BBRI (bearish flag). One-line keeps only the best label and \"+N\", drops the name and the score, so it never truncates at 393 dp (measured), but a second setup is one tap away.":""}</figcaption></figure>`;
+  return panel("light")+`<div style="height:24px"></div>`+panel("dark");
+}
+const GROUPS=[
+  {h:"1 · Stocks home — a Screener section",p:"<b>Monitor.</b> Under the watchlist and above Holdings (PM value; Tweak \"Home section\" moves it first). Header with the scan time and See all (N), then the top 3. The watchlist rows now also show a setup label when one fired today (Q106: bearish ones in loss colours).",ids:["home-top","home-scrolled"]},
+  {h:"2 · Screener page",p:"<b>Monitor.</b> Candidates as two-line rows: code, name, last, change; below, the setup labels and the score. Labels are not buttons (extraSmall 4 dp, filled), so a tap on the row always means \"open the stock\". Bearish flags for your own stocks sit in their own list.",ids:["page-today","page-menu","page-closed"]},
+  {h:"3 · Screener settings",p:"<b>Configure.</b> One card per setup with a switch and its thresholds, the liquidity floor, the scan interval and the universe. Values follow TS4 §3 defaults and ranges. The interval is written to the scan job, everything else to <code>PUT /v1/stocks/screener/settings</code>.",ids:["set-top","set-bottom","set-invalid","set-sheet"]},
+  {h:"4 · States",p:"Each names its cause and the next action. Closed is in section 2. Directions keep arrows and signs when colour is muted. Not drawn but specified in the notes: session break, partial scan (\"3 stocks could not be read\"), expired list banner.",ids:["page-nobars","page-stale","page-empty","page-offline","set-offline"],extra:snipPanels},
+  {h:"5 · Variants side by side",p:"Row density and label style are the two choices that depend on taste; the Tweaks bar applies them to every phone above. Recommended: <b>two-line 64 dp with tonal labels</b> — the name stays, the label row scans as a separate line, and tonal fill keeps the bearish red readable without a border on every row.",ids:[],extra:variantPanels},
+];
+const phone=(id,mode)=>{const s=SCREENS[id];return `<div class="phone" data-mode="${mode}" data-screen="${id}" data-scn="${s.scn}" ${s.scroll?`data-scroll="${s.scroll}"`:""}>${s.f()}</div>`};
+function renderBoard(){
+  document.getElementById("board").innerHTML=GROUPS.map(g=>`<section class="group"><h2>${g.h}</h2><p>${g.p}</p>
+    ${g.ids.length?`<div class="row" style="margin-bottom:28px">${g.ids.flatMap(id=>["light","dark"].map(m=>`<figure class="shot" id="${id}-${m}" data-mode="${m}">${phone(id,m)}<figcaption><b>${SCREENS[id].cap} · ${m}</b>${m==="light"?SCREENS[id].note:""}</figcaption></figure>`)).join("")}</div>`:""}
+    ${g.extra?g.extra():""}</section>`).join("");
+}
+
+/* ---- clickable path ---- */
+const P={screen:"home",cfg:clone(DEF),seg:null,filter:"all",menu:false};
+function renderProto(){
+  const mode=B().theme==="dark"?"dark":"light",scn=B().scn,el=document.getElementById("protoPhone");
+  const keep=el.querySelector(".scroll")?.scrollTop||0;
+  const html={home:()=>homeScreen(scn),page:()=>pageScreen(scn,{seg:P.seg,filter:P.filter,menu:P.menu}),
+    settings:()=>settingsScreen(scn,{cfg:P.cfg}),universe:()=>settingsScreen(scn,{cfg:P.cfg,sheet:true})}[P.screen]();
+  el.innerHTML=`<div class="phone" data-mode="${mode}" data-scn="${scn}">${html}</div>`;
+  const s=el.querySelector(".scroll");if(s)s.scrollTop=keep;
+}
+function render(){renderBoard();renderProto();fixScroll()}
+function fixScroll(){document.querySelectorAll(".phone[data-scroll=end]").forEach(p=>{const s=p.querySelector(".scroll");if(s)s.scrollTop=1e5})}
+function go(target,from){
+  if(target==="stock"){window.open("stocks.html#detail-"+(B().theme==="dark"?"dark":"light"),"_blank","noopener");return}
+  if(B().view==="proto"){P.screen=target==="home"?"home":target==="page"?"page":target==="universe"?"universe":"settings";
+    if(target==="page"){P.seg=null;P.filter="all";P.menu=false}renderProto();return}
+  const ph=from.closest(".phone,.snip"),scn=ph?.dataset.scn||"live",mode=from.closest(".shot")?.dataset.mode||"light";
+  const key=target==="home"?"home-top":target==="page"?PAGEKEY[scn]:target==="universe"?"set-sheet":(scn==="offline"?"set-offline":"set-top");
+  const shot=document.getElementById(`${key}-${B().theme==="both"?mode:B().theme}`);if(!shot)return;
+  shot.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"});
+  shot.classList.add("flash");setTimeout(()=>shot.classList.remove("flash"),1400);
+}
+document.addEventListener("click",e=>{
+  const t=e.target,menuBtn=t.closest("[data-menu]");
+  document.querySelectorAll(".menu.open").forEach(m=>{if(!menuBtn||m.parentElement!==menuBtn.closest(".app"))m.classList.remove("open")});
+  if(menuBtn){menuBtn.closest(".app").querySelector(".menu").classList.toggle("open");return}
+  const inProto=t.closest("#protoPhone");
+  if(inProto){
+    const sg=t.closest("[data-seg]"),f=t.closest("[data-filter]"),st=t.closest("[data-step]"),sw=t.closest("[data-sw]"),gd=t.closest("[data-gapdir]");
+    if(sg){P.seg=sg.dataset.seg;renderProto();return}
+    if(f){P.filter=f.dataset.filter;renderProto();return}
+    if(st&&st.getAttribute("aria-disabled")!=="true"){const r=RNG[st.dataset.step],v=getp(P.cfg,st.dataset.step);
+      setp(P.cfg,st.dataset.step,Math.round(Math.min(r.max,Math.max(r.min,v+r.step*(+st.dataset.d)))*100)/100);renderProto();return}
+    if(sw){const k=getp(P.cfg,sw.dataset.sw);k.on=k.on?0:1;renderProto();return}
+    if(gd){P.cfg.gap[gd.dataset.gapdir]=P.cfg.gap[gd.dataset.gapdir]?0:1;renderProto();return}
+    if(t.closest("[data-reset]")){P.cfg=clone(DEF);renderProto();return}
+    if(t.closest("[data-save]")&&t.closest("[data-save]").getAttribute("aria-disabled")!=="true"){DEF_SAVED();return}
+  }
+  const g=t.closest("[data-go]");if(g)go(g.dataset.go,g);
+});
+function DEF_SAVED(){/* the board does not persist: Save acts as a no-op that returns to the page */P.screen="page";renderProto()}
+
+/* ======================= tweaks ======================= */
+const saved=JSON.parse(localStorage.getItem("aristotle-td5")||"{}");
+Object.entries(saved).forEach(([k,v])=>{B()[k]=v});
+function syncTweaks(){document.querySelectorAll("[data-tweak]").forEach(g=>g.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",B()[g.dataset.tweak]===b.dataset.v)))}
+document.querySelectorAll("[data-tweak]").forEach(g=>g.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  B()[g.dataset.tweak]=b.dataset.v;saved[g.dataset.tweak]=b.dataset.v;localStorage.setItem("aristotle-td5",JSON.stringify(saved));syncTweaks();
+  if(g.dataset.tweak==="view"&&b.dataset.v==="proto"){P.screen="home"}
+  render()}));
+syncTweaks();
+render();
+document.fonts?.ready.then(render);
+</script>
+<style id="fonts">/*@FONTS@*/</style>
+</body>
+</html>

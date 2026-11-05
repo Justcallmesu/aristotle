@@ -6,6 +6,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.justcallmesu.aristotle.data.stocks.ChartFit
 import io.github.justcallmesu.aristotle.ui.theme.AristotleStyles
+import io.github.justcallmesu.aristotle.ui.theme.Spacing
+import io.github.justcallmesu.aristotle.ui.theme.aristotleTypography
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -66,6 +68,37 @@ class ChartHeightTest {
             val now = with(density) { chartHeightFor(density, line).roundToPx() }
             assertTrue("new box, app $appScale × font $fontScale", ChartFit.fitsBelow(labelTopPx(density), line, now.toFloat()))
         }
+    }
+
+    /** TM4: the readout's two lines (close/span + change and arrow; then O/H/L or high/low) end inside its fixed box. */
+    @Test
+    fun theReadoutsTwoLinesEndInsideItsBoxAtEveryTextSize() {
+        for (appScale in listOf(1f, 1.15f)) {
+            val type = aristotleTypography(appScale)
+            val change = AristotleStyles(appScale).stockChange
+            for (fontScale in listOf(1f, 1.3f, 2f)) {
+                for (d in listOf(1f, 2f, 2.625f, 2.75f, 3f, 3.5f)) {
+                    val density = Density(d, fontScale)
+                    val arrow = with(density) { ARROW.roundToPx().toFloat() }
+                    val first = maxOf(measuredLinePx(type.labelMedium, density), measuredLinePx(change, density), arrow)
+                    val second = measuredLinePx(type.bodySmall, density)
+                    val box = with(density) { readoutHeightFor(density, first, second).roundToPx() }
+                    val top = with(density) { Spacing.xs.toPx() }
+                    val what = "app $appScale × font $fontScale at ${d}x: lines $first + $second px, box $box px"
+                    assertTrue(what, top + first + second <= box)
+                    if (appScale == 1f && fontScale == 1f) assertEquals(what, with(density) { 44.dp.roundToPx() }, box)
+                }
+            }
+        }
+    }
+
+    /** A measured readout taller than the floor gets the measured height plus the slack; a short one keeps the floor. */
+    @Test
+    fun theReadoutGrowsPastItsFloorOnlyWhenItsLinesNeedIt() {
+        val density = Density(1f, 1f)
+        assertEquals(44f, readoutHeightFor(density, 18f, 16f).value, 1e-4f)
+        assertEquals(4f + 30f + 20f + ChartFit.SLACK_PX, readoutHeightFor(density, 30f, 20f).value, 1e-4f)
+        assertEquals(44f * 1.3f, readoutHeightFor(Density(1f, 1.3f), 18f, 16f).value, 1e-3f)
     }
 
     private companion object {

@@ -112,12 +112,17 @@ internal fun PriceChart(
     val haptics = LocalHapticFeedback.current
     val axisStyle = AristotleTextStyles.chartAxis
     val tagStyle = axisStyle.copy(fontWeight = FontWeight.W600)
+    val density = LocalDensity.current
+    val stripPx = with(density) { GESTURE_STRIP.toPx() }
+    val stripMaxPx = with(density) { ChartFit.GESTURE_EDGE_MAX_DP.dp.toPx() }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(chartHeight())
-            // The chart's left bars sit near the screen edge: a horizontal drag there must not be the back gesture.
-            .systemGestureExclusion()
+            // The chart's first and last bars sit near the screen edges: a drag there must move the crosshair, not go back.
+            // Only an edge strip of the chart, no taller than the system's per-edge limit, so the system keeps all of it.
+            .systemGestureExclusion { edge(it.size.width, it.size.height, atLeft = true, stripPx, stripMaxPx) }
+            .systemGestureExclusion { edge(it.size.width, it.size.height, atLeft = false, stripPx, stripMaxPx) }
             .semantics { contentDescription = description }
             .pointerInput(model) {
                 val axisWidth = AXIS_WIDTH.toPx()
@@ -402,7 +407,13 @@ private class BaseLayer(
     }
 }
 
+/** [ChartFit.gestureStrip] as a Compose [Rect] in the chart box's own coordinates. */
+private fun edge(width: Int, height: Int, atLeft: Boolean, stripPx: Float, maxHeightPx: Float): Rect =
+    ChartFit.gestureStrip(atLeft, width.toFloat(), height.toFloat(), stripPx, maxHeightPx).let { Rect(it.left, it.top, it.right, it.bottom) }
+
 internal const val NONE = -1
+/** Wider than the system back-gesture zone at its largest sensitivity, measured from the chart's own edge. */
+private val GESTURE_STRIP = 48.dp
 private val PRICE_HEIGHT = 180.dp
 private val VOLUME_GAP = 10.dp
 private val VOLUME_HEIGHT = 40.dp

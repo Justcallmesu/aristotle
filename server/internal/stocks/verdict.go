@@ -544,18 +544,25 @@ func verdictFlags(v Verdict, ind Indicators) []string {
 	return flags
 }
 
-// capNewsOnly flags a buy_today/add whose reasons cite nothing but headlines and caps its confidence at
-// med: news text is untrusted (a crafted title must not yield a high-confidence buy; TA1 review MINOR-1).
+// capNewsOnly flags a buy_today/add that cites headlines but no indicator or level, and caps its confidence
+// at med: news text is untrusted (a crafted title must not yield a high-confidence buy; TA1 review MINOR-1).
+// A hold:* fact is not technical backing, so citing one does not lift the cap (TA2b). One ind:*/lvl:*
+// citation anywhere still does: this is a backstop, the prompt's untrusted-data rule is the real guard.
 func capNewsOnly(v Verdict, flags []string) (Verdict, []string) {
-	if (v.Verdict != "buy_today" && v.Verdict != "add") || len(v.Reasons) == 0 {
+	if v.Verdict != "buy_today" && v.Verdict != "add" {
 		return v, flags
 	}
+	citesNews := false
 	for _, r := range v.Reasons {
 		for _, src := range r.Sources {
-			if !strings.HasPrefix(src, "news:") {
+			if strings.HasPrefix(src, "ind:") || strings.HasPrefix(src, "lvl:") {
 				return v, flags
 			}
+			citesNews = citesNews || strings.HasPrefix(src, "news:")
 		}
+	}
+	if !citesNews {
+		return v, flags
 	}
 	if v.Confidence == "high" {
 		v.Confidence = "med"

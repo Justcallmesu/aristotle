@@ -237,13 +237,27 @@ func idrPtr(v *float64) *int64 {
 	return &n
 }
 
+// openRange is an internal chart range (never served by GET /v1/stocks/chart): Yahoo range 5d at a daily
+// interval. Its last bar's open is the IDX open of the day (the pre-opening auction price), which the 5-minute
+// series and spark do not carry (TS4 §0).
+const openRange = "5d:1d"
+
+// chartParams maps a range to Yahoo's range and interval.
+func chartParams(rng string) (yRange, interval string, ok bool) {
+	if rng == openRange {
+		return "5d", "1d", true
+	}
+	interval, ok = ChartRanges[rng]
+	return rng, interval, ok
+}
+
 // Chart calls v8/finance/chart for one range.
 func (y *Yahoo) Chart(ctx context.Context, code, rng string) (Chart, error) {
-	interval, ok := ChartRanges[rng]
+	yr, interval, ok := chartParams(rng)
 	if !ok {
 		return Chart{}, &UpstreamError{Reason: "bad range"}
 	}
-	body, err := y.get(ctx, "/v8/finance/chart/"+url.PathEscape(symbol(code)), url.Values{"interval": {interval}, "range": {rng}})
+	body, err := y.get(ctx, "/v8/finance/chart/"+url.PathEscape(symbol(code)), url.Values{"interval": {interval}, "range": {yr}})
 	if err != nil {
 		return Chart{}, err
 	}
@@ -259,7 +273,7 @@ func parseChart(body []byte, code, rng string) (Chart, error) {
 		return Chart{}, ErrUnknownSymbol
 	}
 	r := doc.Chart.Result[0]
-	interval := ChartRanges[rng]
+	_, interval, _ := chartParams(rng)
 	ch := Chart{Code: code, Range: rng, Interval: interval, TZ: "Asia/Jakarta", PrevClose: prevClose(r.Meta, rng),
 		Bars: bars(r, interval == "1d"), Name: metaName(r.Meta)}
 	return ch, nil

@@ -182,6 +182,11 @@ func TestNewsOnlyBuyIsFlaggedAndCapped(t *testing.T) {
 		{"add on news only", "add", "low", news, "low", true},
 		{"buy with a number", "buy_today", "high", mixed, "high", false},
 		{"avoid on news only", "avoid", "high", news, "high", false},
+		// TA2b: a holding fact is not technical backing, so citing it no longer dodges the cap.
+		{"add on news plus a holding fact", "add", "high", append(slices.Clone(news[:2]), Reason{Text: "c", Sources: []string{"hold:pl_pct"}}), "med", true},
+		{"buy on news mixed with a holding fact", "buy_today", "high", []Reason{{Text: "a", Sources: []string{"news:1", "hold:lots"}}}, "med", true},
+		{"buy with a level", "buy_today", "high", append(slices.Clone(news[:2]), Reason{Text: "c", Sources: []string{"lvl:s1"}}), "high", false},
+		{"add on holding facts only", "add", "high", []Reason{{Text: "a", Sources: []string{"hold:avg_price"}}}, "high", false},
 	}
 	for _, c := range cases {
 		v, flags := capNewsOnly(Verdict{Verdict: c.verdict, Confidence: c.conf, Reasons: c.reasons}, []string{FlagMarketClosed})

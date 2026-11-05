@@ -1246,13 +1246,17 @@ shape as above. New routes: no `ProtocolVersion` bump.
   answer came from the repair turn. `flags` ⊆ `low_reward_risk` ((target − entry_high)/(entry_low − stop) < 1.5), `wide_stop` (stop more
   than 2×ATR14 below entry_low), `entry_far` (zone more than 3 % from the price), `target_above_r1` (more than 1 tick above `lvl:r1`),
   `market_closed` (the verdict is for the next session), `limits_unknown` (no ARB/ARA rule for the session date; the range check is skipped),
-  `news_only` (a `buy_today`/`add` whose reasons cite only `news:*` ids; its `confidence` is capped at `med` by the server, because
-  headline text is untrusted). The phone shows `summary` and `reasons[].text` as plain text (no links, no markdown).
+  `news_only` (a `buy_today`/`add` whose reasons cite `news:*` ids but no `ind:*` or `lvl:*` id; `hold:*` facts do not count as
+  backing; its `confidence` is capped at `med` by the server, because headline text is untrusted; one `ind:*`/`lvl:*` citation lifts it,
+  so it is a backstop behind the prompt's untrusted-data rule). The phone shows `summary` and `reasons[].text` as plain text (no links,
+  no markdown).
 - **Indicators** (pure, over **completed** sessions = daily bars dated before `session_date`; `session_date` = today on a trading day
   before 16:00, else the next trading day). Daily bars `1y`; MA20/MA50 (SMA of closes); trend `up` (last close > MA20 > MA50 and MA20 above
   its value 5 bars earlier), `down` (mirror), `side`, `unknown` (< 50 bars); RSI14 and ATR14 Wilder (seeded with the simple mean of the
   first 14, then `(avg×13 + x)/14`; RSI 100 when the average loss is 0, 50 when the price never moved); volume vs the 20-session average,
-  raw and paced by elapsed trading minutes (330 Mon-Thu, 270 Fri), only while the session date trades, plus the last session's ratio;
+  raw and paced by the trading minutes elapsed (330 Mon-Thu, 270 Fri) at the **data's** time, not the wall clock (TSC2: Yahoo is ~10 min
+  behind; the quote's `market_time` when it is today's, else the end of the last 5-minute bar, else now), only while the session date
+  trades, plus the last session's ratio;
   swing highs/lows of the last 60 sessions (above/below the 2 bars on each side), merged within 1.5 %, 2 nearest below (`lvl:s1/s2`) and
   above (`lvl:r1/r2`) the price; 20-day high/low; floor pivot of the last session; 52-week position from the quote's range, else the bars;
   intraday (≥ 3 five-minute bars of today) open/high/low, VWAP = Σ(((H+L+C)/3)×V)/ΣV, gap vs base. **Limit base** = the last completed
@@ -1323,8 +1327,9 @@ Code: `server/internal/stocks/{scheduler,bars,universe_override}.go`. Same auth,
   every `every_min` minutes inside its windows of a trading day. `last_due` = the slot the last run (or miss) was for; `last_run` = when that
   run started; `late` = it was a catch-up; `next_run` = the next slot after now, `null` while `on` is false. `last_error` is a short code
   (`upstream_blocked`, `codes_failed`, `interrupted`, `state_error`, `internal_error`, …), `null` after `ok` or `missed`.
-- **Jobs now.** `bars.daily` (default `16:20`, on, editable `on` and `at`; its `at` is 16:15-23:00, the session closes at 16:00). Later tickets register theirs (`scan`, `eod_screen`, `brief`,
-  `alerts`, `news`; Q20: on/off for each, time for `brief`/`bars.daily`, interval for `scan`).
+- **Jobs now.** `bars.daily` (default `16:20`, on, editable `on` and `at`; its `at` is 16:15-23:00, the session closes at 16:00) and `screener.scan`
+  (TSC2, §20.3: 10-min slots in the delay-shifted session windows; the end-of-day screen runs at the end of `bars.daily`). Later tickets register
+  theirs (`brief`, `alerts`, `news`; Q20: on/off for each, time for `brief`/`bars.daily`, interval for `scan`).
 - **PUT errors.** `404 unknown_job`; `400 bad_request`: empty body or unknown field, a field not in the job's `editable`, `at` not `HH:MM`
   or outside 05:00-23:00 (`bars.daily`: 16:15-23:00), `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
 - **Scheduler.** One loop reads the wall clock every 30 s (a Go timer stops while a laptop sleeps; the tick notices the jump within 30 s);
@@ -1359,3 +1364,81 @@ Code: `server/internal/stocks/{scheduler,bars,universe_override}.go`. Same auth,
   over both lists, `valid_to` not `YYYY-MM-DD`, `valid_from` not a date or after `valid_to`, an unknown field or a body over 16 KiB;
   `500 state_error` when the file cannot be written. Names, aliases and search stay from the bundled list (a code it lacks still counts as a
   member, unnamed); `in_universe` in search follows the list in use.
+
+### 20.3 Screener (`/v1/stocks/screener`, TSC2; design `docs/v2-stocks/runs/TS4/report.md` §1-§4 correcting TSC0 §1, spec Q85, Q86, Q106, Q111, P8)
+
+Code: `server/internal/stocks/{screener,screener_setups,screener_settings}.go`. Same auth, headers and error shape as §20. New routes: no
+`ProtocolVersion` bump. The screener never calls Hermes.
+
+| Method, path | Body / query | Answer |
+|---|---|---|
+| `GET /v1/stocks/screener` | `?mode=intraday\|eod` (default: `intraday` when a scan ran on today's trading day, else `eod`) | `200` screener object |
+| `GET /v1/stocks/screener/settings` | — | `200` settings |
+| `PUT /v1/stocks/screener/settings` | the whole settings object | `200` settings |
+| `POST /v1/stocks/screener/scan` | — | `202 {"mode":"intraday\|eod","scan":{…}}` |
+
+- **Screener object.** `{"at","mode","session_date","data_as_of","stale","market":{…§20},"universe":{"count","source","valid_to","expired"},
+  "scan":{"running","last_run","next_run","status":"ok|partial|failed"|null,"error","codes_ok","codes_failed","codes_stale"},
+  "skipped":{"illiquid","no_bars"},"candidates":[candidate…],"flags":[flag…]}`. `session_date`: intraday = the day scanned, eod = the completed
+  session screened; `data_as_of`: intraday = the newest quote `market_time` of the scan (~10 min behind), eod = that session's 16:00 close.
+  `stale`: the last run of this mode did not replace the result shown (Yahoo blocked, every quote failed, no bars): it is older.
+  `scan` describes the last run of this mode; `next_run` = the `screener.scan` slot (intraday) or `bars.daily` (eod). No result yet:
+  `session_date`/`data_as_of` null, `candidates:[]`, and in eod mode `scan.error:"no_bars"` (before the first `bars.daily`). `400 bad_request`
+  for another `mode`.
+- **Candidate.** `{"code","name","in_watchlist","held","price","change_pct","val20","score","at_ara","setups":[setup…]}`, ≥ 1 bullish
+  setup and liquid. `price`/`change_pct`: intraday the quote vs the last stored close; eod that session's close vs the one before. `val20` =
+  mean daily value traded (C × V) of the last 20 completed sessions, Rp **billion**, 2 decimals. `score` = Σ weights of the bullish setups
+  (`breakout` 3, `volume_spike` 2, `ma_cross` up 2, `rsi_rebound` 2, `gap` up 1) + 0.1 × min(vol_ratio, 5), 1 decimal. Order: score desc,
+  `val20` desc, code; `at_ara` (price ≥ the ARA limit, nothing to buy) last; at most 50. **Flag** (Q106: bearish signals are never candidates)
+  `{"code","name","in_watchlist","held","price","change_pct","setups"}` = `gap` down or `ma_cross` down on a watchlist/holding code, no
+  liquidity filter, code order. `in_watchlist`/`held`/`name` follow the lists at the time of the GET; flags of codes no longer watched or held are left out.
+- **Setup.** `{"id":"breakout|volume_spike|ma_cross|rsi_rebound|gap","dir":"up|down","date","first_at","values":{…}}`. `date` = the session
+  the signal is about (an intraday `ma_cross` shows the last completed session's cross with its date); `first_at` = the data time of the
+  first result it appeared in that day (from the hits log). `values` (only those used): `high` + `lookback` (breakout), `vol_ratio`, `rsi`,
+  `gap_pct` + `open` + `filled` (gap: the price is back through the last close), `ma20` + `ma50`.
+- **Rules** (pure, over the bar store's completed daily bars D, last = D[n], B = D[n].C the limit base; intraday also the spark quote: P,
+  `previousClose`, day volume Vt, market time Tm, and O = the day's open). avg20V = mean V of D[n-19..n]; paced vol_ratio = Vt ÷ (avg20V × f),
+  f = trading minutes elapsed **at Tm** ÷ 330 (Fri 270). Comparisons use unrounded values.
+
+| id | intraday (each scan) | eod (on D[n]) | settings (default, range) |
+|---|---|---|---|
+| `breakout` | P > max H of the last `lookback` bars and vol_ratio ≥ `vol_mult`; ≥ 15 data-minutes | C(n) > max H of the `lookback` bars before and V(n) ≥ `vol_mult` × avg V of D[n-20..n-1] | `lookback` 20 (10-60, integer), `vol_mult` 1.5 (1-5) |
+| `volume_spike` | vol_ratio ≥ `mult`; ≥ 30 data-minutes | V(n) ≥ `mult` × avg V of D[n-20..n-1] | `mult` 2.0 (1.5-10) |
+| `ma_cross` | the cross found on D[n] (eod rule), with its date | MA20(n) > MA50(n) and MA20(n-1) ≤ MA50(n-1) → up; mirror → down | — |
+| `rsi_rebound` | RSI14(D closes + P) ≥ `level` and RSI14(D) < `level` | RSI14(n-1) < `level` ≤ RSI14(n) | `level` 30 (15-45) |
+| `gap` | g = (O − B)/B × 100: up g ≥ `min_pct` (when `up`), down g ≤ −`min_pct` (when `down`) | — | `min_pct` 2.0 (0.5-10), `up`/`down` true |
+
+  Each setup has `on`. **Liquidity**: `min_value_bn` (default 5, 0-100, 0 = off): a screened code with `val20` below it is `skipped.illiquid`.
+  **No signal**: fewer than 51 completed bars or none fresh (bars must cover the session before the day: fetched ≥ 16:15 of it) →
+  `skipped.no_bars`. Intraday, a quote that is stale, has no `market_time`, a `market_time` not on the day or older than now − 25 min fires
+  nothing intraday (only the stored `ma_cross`) and counts in `codes_stale`; `|previousClose − B|` > 1 tick (split or data mismatch) → the
+  code is left out (`codes_stale`). eod: a code whose last stored bar is not that session's is `no_bars`. Screened codes = LQ45 ∪ IDX80 (§20.2)
+  ∪ watchlist; holdings are evaluated for flags; the quoted set is capped at 180 codes like `bars.daily`.
+- **Scan job `screener.scan`** (§20.2 job: interval, `every_min` 10, editable `on` and `every_min` 5-30 via `PUT /v1/stocks/jobs/screener.scan`;
+  the interval is not a screener setting). Windows (wall clock, trading days) = the sessions shifted by Yahoo's 10-min delay: Mon-Thu
+  [09:15,12:15) and [13:40,16:15) = 34 slots, Fri [09:15,11:45) and [14:10,16:15) = 28. Per scan: the codes with usable bars only (none →
+  no Yahoo call, `failed`/`no_bars`), quotes from spark in batches of 20 through the 60 s quote cache (it warms the phone's), 1.5 s apart; the
+  first scan whose data time is ≥ 09:00 fetches, once per code per day (in memory: a restart fetches again), a `5d` daily chart for each liquid
+  screened or watched/held code: the day's bar's **open** is O (the 5-minute series and spark do not carry the IDX open). Gap off → no chart call.
+  A block (429, 5xx or the shared backoff) during the quotes stops the scan, keeps the last result (`stale:true`), `failed`/`upstream_blocked`;
+  during the opens it keeps what was read and installs the result, `partial`/`upstream_blocked`; codes without a quote → `partial`/`codes_failed`.
+  No retry: the next slot runs as usual. Each scan logs its budget (codes, spark and chart calls, duration). A slot that comes while a manual
+  scan runs is skipped (`ok`).
+- **EOD screen**: at the end of every `bars.daily` run (not when it was interrupted), from the store (0 Yahoo calls), for the last completed
+  session; also on a `GET` when that session has no result yet and the store covers it. The last 5 sessions are kept.
+- **Settings.** `{"min_value_bn":5,"setups":{"breakout":{"on":true,"lookback":20,"vol_mult":1.5},"volume_spike":{"on":true,"mult":2.0},
+  "ma_cross":{"on":true},"rsi_rebound":{"on":true,"level":30},"gap":{"on":true,"min_pct":2.0,"up":true,"down":true}}}` (defaults, Q111). PUT
+  replaces the whole object: one object ≤ 4 KiB, every field present, no unknown field, ranges as above → else `400 bad_request`;
+  `500 state_error` when `stocks-screener.json` is unusable or cannot be saved (nothing changes). A PUT re-ranks at once, without a Yahoo
+  call: the kept intraday result from its stored quotes and the latest eod result from the store.
+- **POST scan.** Inside a scan window: an intraday scan as above; otherwise (break, closed) the eod screen of the last completed session from the
+  store. `202` at once, the scan runs after the answer (poll `GET`: `scan.running`). `409 scan_running` while any scan runs; `429 too_soon` +
+  `retry_after_s` and `Retry-After` less than 2 min after the last scan started (scheduled or manual).
+- **Hits log (slice 3 hook).** The first time a (`date`, code, setup id, dir) appears in any result (scan, eod screen or re-rank) it is appended
+  `{"seq","date","code","setup","dir","mode","at","data_as_of","watch","held","score"}` (`seq` monotonic, persisted; ring of 500; `score` 0 for
+  flags). Slice 3's alerts read `seq > cursor` for watch/held codes; there is no alert or AI run here.
+- **Storage.** `stocks-screener.json` in the state dir (0600, atomic, compact): `{"version":1,"settings" (only once a PUT set it),
+  "last_intraday":{result + "inputs":{"CODE":{"p","pc","v","tm","o","ok"}}},"eod":[≤ 5 results],"runs":{"intraday","eod"},"hits":[…],"seq"}`,
+  ≤ 4 MiB, rewritten after each scan. Not `stocks.json` (it accepts version 1 only). A file that is not valid version 1 is left untouched and
+  logged: defaults are used, results live in memory only and the settings PUT answers `500 state_error`. Stored settings out of range →
+  defaults (logged). Logs carry counts and codes only, never holdings values.

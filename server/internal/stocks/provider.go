@@ -175,7 +175,14 @@ type QuoteResult struct {
 
 // Quotes answers each code from a fresh cache entry, else from the source, else from a stale entry.
 func (m *Market) Quotes(ctx context.Context, codes []string) QuoteResult {
-	res := QuoteResult{Quotes: map[string]Quote{}, Errors: map[string]error{}}
+	res, _, _ := m.quotesReport(ctx, codes)
+	return res
+}
+
+// quotesReport is Quotes that also says whether the source was asked and what it (or the backoff) answered:
+// the screener stops a scan on a *BlockedError and logs its call budget.
+func (m *Market) quotesReport(ctx context.Context, codes []string) (res QuoteResult, asked bool, srcErr error) {
+	res = QuoteResult{Quotes: map[string]Quote{}, Errors: map[string]error{}}
 	var missing []string
 	m.mu.Lock()
 	if m.quotes == nil {
@@ -190,13 +197,15 @@ func (m *Market) Quotes(ctx context.Context, codes []string) QuoteResult {
 	}
 	m.mu.Unlock()
 	if len(missing) == 0 {
-		return res
+		return res, false, nil
 	}
 	got, err := map[string]Quote(nil), m.blockedErr()
 	if err == nil {
+		asked = true
 		got, err = m.Src.Quotes(ctx, missing)
 		err = m.note(err)
 	}
+	srcErr = err
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, c := range missing {
@@ -215,7 +224,7 @@ func (m *Market) Quotes(ctx context.Context, codes []string) QuoteResult {
 			res.Errors[c] = err
 		}
 	}
-	return res
+	return res, asked, srcErr
 }
 
 func chartTTL(rng string) time.Duration {

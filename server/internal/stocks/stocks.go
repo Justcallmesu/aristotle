@@ -83,6 +83,7 @@ type Service struct {
 	analyzer *analyzer
 	sched    *scheduler
 	bars     *barStore
+	screen   *screener
 	barsPace func(ctx context.Context) error
 	mux      *http.ServeMux
 
@@ -134,6 +135,9 @@ func New(o Options) *Service {
 	s.sched = newScheduler(s.dir, s.now, o.JobsAfter, s.log)
 	s.sched.register(JobSpec{ID: BarsJobID, At: barsJobAt, TradingDays: true, CatchUp: CatchUpAlways,
 		Editable: []string{EditOn, EditAt}, MinAt: barsJobMinAt, Wanted: s.barsWanted, Run: s.runBarsDaily})
+	s.screen = newScreener(s)
+	s.sched.register(JobSpec{ID: ScanJobID, EveryMin: scanEveryMin, Windows: screenerWindows, TradingDays: true,
+		Editable: []string{EditOn, EditEveryMin}, Run: s.runScanJob})
 	s.mux = s.routes()
 	return s
 }
@@ -148,6 +152,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.Serv
 // Close stops the scheduler, the news poller and the analysis jobs (running jobs and turns are interrupted).
 func (s *Service) Close() {
 	s.sched.close()
+	s.screen.close()
 	s.news.Close()
 	s.analyzer.close()
 }
@@ -184,6 +189,10 @@ func (s *Service) routes() *http.ServeMux {
 	handle("GET /v1/stocks/universe", s.getUniverse)
 	handle("PUT /v1/stocks/universe", s.putUniverse)
 	handle("DELETE /v1/stocks/universe", s.deleteUniverse)
+	handle("GET /v1/stocks/screener", s.getScreener)
+	handle("GET /v1/stocks/screener/settings", s.getScreenerSettings)
+	handle("PUT /v1/stocks/screener/settings", s.putScreenerSettings)
+	handle("POST /v1/stocks/screener/scan", s.postScreenerScan)
 	handle("/v1/stocks/", func(*http.Request) (int, any, error) { return 0, nil, errNotFound })
 	return mux
 }

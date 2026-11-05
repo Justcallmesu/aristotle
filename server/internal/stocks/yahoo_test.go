@@ -155,3 +155,20 @@ func TestYahooSearchKeepsIDXOnly(t *testing.T) {
 		t.Fatalf("query = %v", q)
 	}
 }
+
+func TestYahooOpenRangeAsksDailyFiveDays(t *testing.T) {
+	// The screener's open (TS4 §0): range 5d at interval 1d; the last daily bar's O is the IDX open.
+	body := `{"chart":{"result":[{"meta":{"symbol":"BBCA.JK","regularMarketPrice":4980},"timestamp":[1762221600,1762308000],` +
+		`"indicators":{"quote":[{"open":[4900,5050],"high":[4950,5075],"low":[4890,4950],"close":[4930,null],"volume":[1,2]}]}}]}}`
+	y, ft := yahooWith(200, fixed([]byte(body)))
+	ch, err := y.Chart(context.Background(), "BBCA", openRange)
+	if err != nil || ch.Interval != "1d" || len(ch.Bars) != 2 || ch.Bars[1].O != 5050 || ch.Bars[1].C != 4980 {
+		t.Fatalf("chart = %+v, %v", ch, err)
+	}
+	if q := ft.reqs[0].URL.Query(); q.Get("range") != "5d" || q.Get("interval") != "1d" {
+		t.Fatalf("request = %s", ft.reqs[0].URL)
+	}
+	if _, ok := ChartRanges[openRange]; ok {
+		t.Fatal("the open range must not be a public chart range")
+	}
+}

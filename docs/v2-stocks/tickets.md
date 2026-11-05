@@ -22,12 +22,16 @@
 | TSC1 | Server: scheduler (wall-clock 30 s, catch-up Q31), bar store `stocks-bars.json` (P8), universe override, jobs API | TSC0 | server | DONE (fixed in TSC1b/c) |
 | TSC1b | Fix round for TSC1: jobs PUT data race (MAJOR), persist interval slot, catch-up once, freshness rule, bars time 16:15+, 180-code cap | TSC1 | server | DONE |
 | TSC1c | TSC1b's race test passes on the old code (PM check): make it RED on d2e1255, GREEN now | TSC1b | server | DONE |
-| TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | WAITING (user Q104-Q111) |
+| TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | REVIEW |
 | TSC3 | Phone: screener section/page/settings (+ TM3a2 review MINOR-A: source check that chartHeight uses the Canvas style/density; MINOR-B: any deep link into a stock page goes through show(...)) | TSC2 | android | WAITING |
-| TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | WAITING |
+| TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | TODO (decided; after TSC2 commit) |
 | TBA2 | Server: 08:30 brief | TBA1, Q105/Q108/Q110 | server | WAITING |
 | TBA3a | Phone: alert watcher + notifications | TBA1 | android | WAITING |
 | TBA3b | Phone: brief page + jobs/alerts settings | TBA2 | android | WAITING |
+| TM3 | Run B delta: news_only counts ind/lvl citations only (hold:* no longer lifts the cap) | TM3s | server | REVIEW |
+| TM4 | Run B delta: back-gesture exclusion = 48 dp edge strips (was whole chart); readout height measured from styles | TM3a2 | android | REVIEW |
+| TS4 | Screener research refining TSC0 (live Yahoo probe: daily-bar open for gaps, no gap prefilter, pace volume by market time, spark summary only, separate stocks-screener.json, Rp 5 bn liquidity floor) | TSC0 | docs | DONE |
+| TD5 | Design board: screener section, page, candidate row, settings, states | TS4 | design | DONE (Q112 PM reading) |
 
 ## Log
 - 2026-11-05 v2 grill: Q84-Q90 (all A). Yahoo + RSS re-probed 200. TS0 + TD4 dispatched in parallel.
@@ -58,3 +62,7 @@
 - 2026-11-05 TSC1c: PM red-check confirmed (d2e1255 -> WARNING: DATA RACE + FAIL; tree -race GREEN), pm-gate-tsc1c GREEN 584. TSC1b+TSC1c committed (fix round; TSC2's review re-checks the diff).
 - 2026-11-05 TM3a2 built; pm-gate-tm3a2 GREEN; mutation back() never pops -> 3 PairedPageTest failures. Deep re-review dispatched.
 - 2026-11-05 TM3a2 re-review PASS. Committed. Minors A/B folded into TSC3. Next: flake triage D50/D53 (android tests) while the user is away.
+- 2026-11-05 11:35 User away, 'do all' (decisions.md). TM3 (server), TM4 (android), TS4 (screener research) dispatched in parallel.
+- 2026-11-05 13:50 Overlap found (decisions.md). TM3/TM4 deltas to gate+review; TSC2 (server) and TD5 (board) dispatched; TBA1 stays WAITING on Q104, Q107-Q110.
+- 2026-11-05 TM4 delta: pm-gate-tm4 GREEN (android). Mutation (gesture strip height cap removed): first filtered run matched no class (StockChartTest.kt holds several classes) -> not counted; redo on ChartHoldAndDetailRulesTest -> theGestureStripsAreTheChartEdgesWithinTheSystemLimit fails. TM3 delta checked after TSC2 (same package); one review for both deltas.
+- 2026-11-05 TSC2 built (637 Go, -race clean); TD5 board done. PM: §20.2 jobs line; mutations liquidity floor (2 fail), news_only hold:* (1 fail; first try NOT APPLIED, sed delimiter). One deep review for TSC2+TM3+TM4 deltas; TSC3 dispatched on Q112 PM reading.

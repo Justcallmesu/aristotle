@@ -120,7 +120,8 @@ fun TickerChip(code: String, quote: StockQuote?, muted: Boolean, onOpen: (String
 /** A price, or the em dash without one. */
 fun priceText(price: Long?): String = StockFormat.orDash(price, StockFormat::number)
 
-private val ARROW = 18.dp
+/** The change arrow's size; the readout measures its first line against it. */
+internal val ARROW = 18.dp
 private val CHIP_ARROW = 16.dp
 private const val FLAT_SCALE = 0.75f
 private val SPARK_WIDTH = 64.dp

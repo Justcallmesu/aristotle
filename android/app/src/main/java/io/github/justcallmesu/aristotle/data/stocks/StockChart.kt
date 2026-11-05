@@ -230,6 +230,13 @@ object ChartFit {
     /** The readout's height in dp: [baseDp] for two lines at 1x, growing with the font scale (never below [baseDp]). */
     fun readoutHeightDp(baseDp: Float, fontScale: Float): Float = baseDp * max(fontScale, 1f)
 
+    /**
+     * The readout's height in px (TM4): its [top] padding plus its two lines as the screen MEASURED them ([first],
+     * [second]; the phone's non-linear font scale and the app's text size are in them) plus [SLACK_PX]; never under
+     * [minimum] (the [readoutHeightDp] floor), so touching the chart never moves it at any text size.
+     */
+    fun readoutHeightPx(top: Float, first: Float, second: Float, minimum: Float): Float = max(minimum, top + first + second + SLACK_PX)
+
     /** Rounding room under the time labels: the box's height is rounded to whole pixels, possibly down by half a pixel. */
     const val SLACK_PX = 1f
 
@@ -245,7 +252,24 @@ object ChartFit {
 
     /** Line mode with a single bar has no segment to stroke: it draws a dot. */
     fun lineIsDot(barCount: Int): Boolean = barCount == 1
+
+    /** Android honours at most this much back-gesture exclusion per screen edge (dp, API 29+); more is cut by the system. */
+    const val GESTURE_EDGE_MAX_DP = 200f
+
+    /**
+     * One back-gesture exclusion strip of a [width] x [height] chart box (TS3b): [stripPx] wide at its left ([atLeft]) or
+     * right edge, from the top down to [maxHeightPx] at most so the whole strip stays inside the system's per-edge limit.
+     * Clamped to the box; an empty box gives an empty strip.
+     */
+    fun gestureStrip(atLeft: Boolean, width: Float, height: Float, stripPx: Float, maxHeightPx: Float): BoxRect {
+        val w = min(stripPx, width).coerceAtLeast(0f)
+        val bottom = min(height, maxHeightPx).coerceAtLeast(0f)
+        return if (atLeft) BoxRect(0f, 0f, w, bottom) else BoxRect(width - w, 0f, width.coerceAtLeast(0f), bottom)
+    }
 }
+
+/** A rectangle in px inside the chart box. */
+data class BoxRect(val left: Float, val top: Float, val right: Float, val bottom: Float)
 
 /** A time label under the chart, centred on [slot]. */
 data class AxisLabel(val slot: Int, val text: String)
