@@ -26,6 +26,9 @@ class PcStatusPollerTest {
     private val reads = CopyOnWriteArrayList<ServerEndpoint>()
     private val pauses = CopyOnWriteArrayList<Long>()
     private val ticks = Channel<Unit>(Channel.UNLIMITED)
+
+    /** One signal per pause the poller enters: a pause starts only after the read and the view update of its round. */
+    private val paused = Channel<Unit>(Channel.UNLIMITED)
     private var answer: () -> PcStatus? = { PcStatus(cpuPercent = reads.size.toDouble()) }
 
     private val poller = PcStatusPoller(
@@ -33,7 +36,7 @@ class PcStatusPollerTest {
         read = { endpoint -> reads += endpoint; answer() },
         intervalMillis = 10_000,
         clock = { now.get() },
-        pause = { pauses += it; ticks.receive() },
+        pause = { pauses += it; paused.trySend(Unit); ticks.receive() },
     )
 
     @After
@@ -47,6 +50,15 @@ class PcStatusPollerTest {
         }
     }
 
+    /** Waits for the poller's next pause: the round's read is done and [PcStatusPoller.view] holds its result. */
+    private fun awaitPause(what: String) = runBlocking {
+        try {
+            withTimeout(5_000) { paused.receive() }
+        } catch (e: Exception) {
+            throw AssertionError(what, e)
+        }
+    }
+
     private fun settle() = runBlocking { delay(100) }
 
     @Test
@@ -54,11 +66,11 @@ class PcStatusPollerTest {
         poller.start()
         link.value = LinkState.Online(lan, 1)
         visible.value = true
-        waitFor("first read") { reads.size == 1 }
+        awaitPause("first round")
         assertEquals(listOf(10_000L), pauses.toList())
         now.set(11_000)
         ticks.trySend(Unit)
-        waitFor("second read") { reads.size == 2 }
+        awaitPause("second round")
         assertEquals(11_000L, poller.view.value.fetchedAtMillis)
         assertEquals(2.0, poller.view.value.status!!.cpuPercent!!, 0.0)
     }
@@ -81,7 +93,7 @@ class PcStatusPollerTest {
         poller.start()
         link.value = LinkState.Online(lan, 1)
         visible.value = true
-        waitFor("read") { reads.size == 1 }
+        awaitPause("first round")
         visible.value = false
         settle()
         ticks.trySend(Unit)
@@ -98,7 +110,7 @@ class PcStatusPollerTest {
         poller.start()
         link.value = LinkState.Online(lan, 1)
         visible.value = true
-        waitFor("read") { reads.size == 1 }
+        awaitPause("first round")
         link.value = LinkState.Connecting
         settle()
         ticks.trySend(Unit)
@@ -112,7 +124,7 @@ class PcStatusPollerTest {
         poller.start()
         link.value = LinkState.Online(lan, 1)
         visible.value = true
-        waitFor("read") { reads.size == 1 }
+        awaitPause("first round")
         answer = { null }
         ticks.trySend(Unit)
         waitFor("failed read") { reads.size == 2 }
@@ -130,7 +142,7 @@ class PcStatusPollerTest {
         poller.start()
         link.value = LinkState.Online(lan, 1)
         visible.value = true
-        waitFor("read") { reads.size == 1 }
+        awaitPause("first round")
         val tailscale = ServerEndpoint("100.74.61.96", 8760, Network.Tailscale)
         link.value = LinkState.Online(tailscale, 2)
         waitFor("read on the new address") { reads.size == 2 }
@@ -142,7 +154,7 @@ class PcStatusPollerTest {
         poller.start()
         link.value = LinkState.Online(lan, 1)
         visible.value = true
-        waitFor("read") { reads.size == 1 }
+        awaitPause("first round")
         answer = { PcStatus(cpuPercent = null, hermesRunning = true) }
         ticks.trySend(Unit)
         waitFor("second read") { reads.size == 2 }

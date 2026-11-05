@@ -178,9 +178,9 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D47 | mDNS responder: interface deleted+recreated with same name/addrs keeps the stale ifindex and goes deaf until a change (fails closed) (TL1b review n2). | TL1b review | TODO |
 | D48 | ServerVersions (TV1b) is process-global and not cleared on unpair/re-pair: About/compat banner can show the previous PC until the next /v1/me. Clear it in PcRecords unpair/repair. | TV1b report | DONE (TV2 + TM1) |
 | D49 | mDNS instance name has no conflict handling: two PCs with the same short hostname share "Aristotle on <host>", so the phone may only see the other one and never find yours. Add the 8-hex fp hint to the instance and target names. | User Q 2026-11-04 | DONE (TL1d) |
-| D50 | RepairTest flaky: a pins assertion failed once in the TR7 gate and once in the TY7 gate, passed on re-run. Prove the cause (flaky-test-triage) before release. | TR7, TY7 gates | TODO (T22) |
+| D50 | RepairTest flaky: a pins assertion failed once in the TR7 gate and once in the TY7 gate, passed on re-run. Prove the cause (flaky-test-triage) before release. | TR7, TY7 gates | DONE (TF2) |
 | D51 | Home Claude limits row stays absent for up to 5 min after a cold Hermes cache (first model.options read empty). Add one silent retry after ~3 s. | TY7 report | TODO |
-| D53 | PcStatusPollerTest.readsEveryTenSecondsWhileVisibleAndOnline flaky under load: asserts the wait before it is guaranteed to start (TA2 builder). Fix with D50 via flaky-test-triage. | TA2 gate | TODO (T22) |
+| D53 | PcStatusPollerTest.readsEveryTenSecondsWhileVisibleAndOnline flaky under load: asserts the wait before it is guaranteed to start (TA2 builder). Fix with D50 via flaky-test-triage. | TA2 gate | DONE (TF2) |
 | D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 
@@ -455,3 +455,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-05 TY7: pm-gate-62 GREEN (1103); mutation (Home limits every 10 s) fails 6. Committed (minor round folded; diff reviewed in T22). D50 RepairTest flake, D51 cold-cache retry recorded.
 - 2026-11-05 Real install (Q95): `pair` refused from a normal PC terminal (seen_by=unreadable_peer). Root cause PrivateTmp in a user unit -> user namespace -> /proc/<pid>/environ EACCES (PM probe). Drop-in PrivateTmp=no applied as workaround; TF1 dispatched.
 - 2026-11-05 D50 RepairTest flake seen a 3rd time (TS2b first gate run); passed on rerun. Still TODO before release.
+- 2026-11-05 TF2: D50 cause = PcRecords default Dispatchers.IO in the test (67/300 red -> 0/300); D53 cause = assert before the poller's pause (3/300 -> 0/300), both under 8x CPU load; test-only fixes; gate GREEN. Committed.

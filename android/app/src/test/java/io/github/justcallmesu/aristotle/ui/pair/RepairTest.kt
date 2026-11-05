@@ -54,7 +54,8 @@ class RepairTest {
     private val selection = ProfileSelection(settingsStore)
     private val pins = SessionPins(pinsStore)
     private val drafts = ChatDrafts(draftsStore)
-    private val records = PcRecords(credentials, selection, pins, drafts)
+    // io = Unconfined: PcRecords.replace hops to Dispatchers.IO to forget the old PC's settings; the default would finish them after the asserts.
+    private val records = PcRecords(credentials, selection, pins, drafts, io = Dispatchers.Unconfined)
 
     private var answer: PairResult = PairResult.Paired("dev_new000000000", DeviceToken("new-token"), listOf(lan))
 
