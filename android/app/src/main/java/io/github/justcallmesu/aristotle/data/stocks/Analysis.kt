@@ -259,7 +259,7 @@ enum class AnalysisPhase {
 
 /**
  * What the Analyze section shows. [result] is the kept verdict (also under a failure); [staleFrom] is set when that
- * verdict is for an earlier session than the current one ("From Wed 4 Nov — analyze again"): the WIB day it was made.
+ * verdict is for an earlier session than the current one ("From Wed 4 Nov — analyze again"): the session day it was for (the WIB day it was made when that is unreadable).
  */
 data class AnalysisView(
     val phase: AnalysisPhase,
@@ -280,7 +280,7 @@ object AnalysisStates {
      */
     fun view(status: AnalysisStatus?, starting: Boolean, refused: AnalysisProblem?, session: LocalDate): AnalysisView {
         val result = status?.result
-        val staleFrom = result?.takeIf { isStale(it, session) }?.let { StockTimes.date(it.analyzedAt) ?: sessionDateOf(it) }
+        val staleFrom = result?.takeIf { isStale(it, session) }?.let { sessionDateOf(it) ?: StockTimes.date(it.analyzedAt) }
         return when {
             starting -> AnalysisView(AnalysisPhase.Starting, result, staleFrom = staleFrom)
             refused != null -> AnalysisView(AnalysisPhase.Failed, result, problem = refused, staleFrom = staleFrom)

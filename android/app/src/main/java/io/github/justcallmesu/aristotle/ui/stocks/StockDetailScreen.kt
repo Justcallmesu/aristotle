@@ -41,6 +41,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.IntState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,7 +69,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.stocks.AnalysisLang
+import io.github.justcallmesu.aristotle.data.stocks.ChartFit
+import io.github.justcallmesu.aristotle.data.stocks.ChartHold
 import io.github.justcallmesu.aristotle.data.stocks.ChartLabels
+import io.github.justcallmesu.aristotle.data.stocks.DetailRules
 import io.github.justcallmesu.aristotle.data.stocks.ChartModel
 import io.github.justcallmesu.aristotle.data.stocks.ChartRange
 import io.github.justcallmesu.aristotle.data.stocks.ChartReadout
@@ -117,6 +125,8 @@ fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDet
         onPauseOrDispose { }
     }
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val brokerGone = stringResource(R.string.stocks_broker_missing, BrokerApp.NAME)
     StocksMessages(state.message, snackbar, viewModel::messageShown)
     val locale = currentLocale()
     val quote = page.quote ?: state.quoteOf(code)
@@ -127,6 +137,7 @@ fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDet
         held = held != null,
         watched = state.watchlist?.let { list -> list.any { it.code == code } },
         enabled = page.reachable,
+        holdingEnabled = DetailRules.holdingEnabled(page.reachable, state.holdings != null),
         onHolding = { if (held != null) viewModel.editHolding(code) else viewModel.pickForHolding(SearchResult(code, name)) },
         onWatch = { add -> if (add) viewModel.addToWatchlist(code) else viewModel.removeFromWatchlist(code) },
     )
@@ -162,7 +173,12 @@ fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDet
                 }
                 if (brokerInstalled) {
                     FilledTonalButton(
-                        onClick = { BrokerApp.open(context) },
+                        onClick = {
+                            DetailRules.brokerTap(open = { BrokerApp.open(context) }, notInstalled = {
+                                brokerInstalled = false
+                                scope.launch { snackbar.showSnackbar(brokerGone) }
+                            })
+                        },
                         shape = ButtonShape,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s),
                     ) {
@@ -183,6 +199,8 @@ private class DetailActions(
     val held: Boolean,
     val watched: Boolean?,
     val enabled: Boolean,
+    /** Add / Edit holding: only once the holdings are read. */
+    val holdingEnabled: Boolean,
     val onHolding: () -> Unit,
     val onWatch: (add: Boolean) -> Unit,
 )
@@ -213,6 +231,7 @@ private fun DetailTopBar(code: String, name: String, onBack: () -> Unit, actions
                 border = BorderStroke(Sizes.divider, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 DropdownMenuItem(
+                    enabled = actions.holdingEnabled,
                     text = { Text(stringResource(if (actions.held) R.string.stocks_edit_holding else R.string.stocks_add_holding)) },
                     leadingIcon = { Icon(painter = painterResource(R.drawable.ic_account_balance_wallet), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = {
@@ -266,8 +285,14 @@ private fun ChartSection(page: StockDetailState, code: String, quote: StockQuote
     val body = slot.body
     val range = page.range
     val prevClose = body?.prevClose ?: quote?.prevClose
-    val model = remember(range, body, prevClose) { body?.let { ChartModel.of(range, it, prevClose) } }
-    val crosshair = remember(model) { mutableIntStateOf(NONE) }
+    val fresh = remember(range, body, prevClose) { body?.let { ChartModel.of(range, it, prevClose) } }
+    // A new range starts without a crosshair.
+    val crosshair = remember(range) { mutableIntStateOf(NONE) }
+    // A finger holding the crosshair keeps its model: the 60 s refresh's new bars show once it lets go.
+    val holding by remember(crosshair) { derivedStateOf { crosshair.intValue != NONE } }
+    var shown by remember { mutableStateOf<ChartModel?>(null) }
+    val model = ChartHold.pick(shown, fresh, holding, sameSeries = shown?.range == range)
+    SideEffect { shown = model }
     val today = StockTimes.today(System.currentTimeMillis())
     Readout(model, crosshair, page.type == ChartType.Candles, muted, today, locale)
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.l)) {
@@ -287,7 +312,7 @@ private fun ChartSection(page: StockDetailState, code: String, quote: StockQuote
                 page.reachable -> stringResource(R.string.stocks_loading)
                 else -> stringResource(R.string.stocks_not_loaded)
             }
-            Box(modifier = Modifier.fillMaxWidth().height(CHART_HEIGHT)) {
+            Box(modifier = Modifier.fillMaxWidth().height(chartHeight())) {
                 Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.l))
             }
         }
@@ -314,7 +339,7 @@ private fun ChartSection(page: StockDetailState, code: String, quote: StockQuote
     val problem = slot.problem
     when {
         problem != null -> ProblemLine(if (body != null) stringResource(R.string.stocks_chart_failed, stocksErrorText(problem)) else null, page.reachable, detail::retry)
-        body?.stale == true -> ProblemLine(stringResource(R.string.stocks_chart_stale), retry = false, onRetry = {})
+        body?.stale == true -> ProblemLine(stringResource(R.string.stocks_chart_stale), page.reachable, detail::retry)
     }
 }
 
@@ -328,7 +353,7 @@ private fun ProblemLine(text: String?, retry: Boolean, onRetry: () -> Unit) {
 }
 
 /**
- * Two lines, fixed 44 dp so touching the chart never moves it: the range (span, change in %, high / low and how to get
+ * Two lines, 44 dp (more at a large font scale) so touching the chart never moves it: the range (span, change in %, high / low and how to get
  * one bar), or the touched bar (time, close, change from the bar before; O / H / L and volume in lots, or only the
  * volume in line mode). Reads [crosshair] here, so only this recomposes as the finger moves from bar to bar.
  */
@@ -336,7 +361,8 @@ private fun ProblemLine(text: String?, retry: Boolean, onRetry: () -> Unit) {
 private fun Readout(model: ChartModel?, crosshair: IntState, candles: Boolean, muted: Boolean, today: LocalDate, locale: Locale) {
     val small = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall)
     val strong = AristotleTextStyles.tabular(MaterialTheme.typography.labelMedium)
-    Column(modifier = Modifier.fillMaxWidth().height(READOUT_HEIGHT).padding(start = Spacing.l, end = Spacing.l, top = Spacing.xs)) {
+    val height = ChartFit.readoutHeightDp(READOUT_HEIGHT.value, LocalDensity.current.fontScale).dp
+    Column(modifier = Modifier.fillMaxWidth().height(height).padding(start = Spacing.l, end = Spacing.l, top = Spacing.xs)) {
         model ?: return@Column
         val bars = model.bars
         val reading = ChartReadout.bar(model.range, bars, crosshair.intValue, model.prevClose)

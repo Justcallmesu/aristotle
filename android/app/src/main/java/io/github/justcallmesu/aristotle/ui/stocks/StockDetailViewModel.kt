@@ -57,7 +57,7 @@ data class StockDetailState(
     val analysisReadProblem: StocksError? = null,
     /** A `POST /analyze` is on its way. */
     val analyzing: Boolean = false,
-    /** Why the last start was refused; cleared by the next start or a job seen running. */
+    /** Why the last start was refused; cleared by the next start or a job seen running or done. */
     val analyzeProblem: AnalysisProblem? = null,
 ) {
     val reachable: Boolean get() = link.serverEndpoint != null
@@ -173,7 +173,7 @@ class StockDetailViewModel(
         when (val result = api()?.analysis(code) ?: return) {
             is StocksResult.Ok -> state.update {
                 val body = result.value
-                it.copy(analysis = body, analysisReadProblem = null, analyzeProblem = if (body.running) null else it.analyzeProblem)
+                it.copy(analysis = body, analysisReadProblem = null, analyzeProblem = if (body.running || body.state == AnalysisStatus.DONE) null else it.analyzeProblem)
             }
             is StocksResult.Failed -> state.update { it.copy(analysisReadProblem = result.error) }
         }
@@ -202,7 +202,7 @@ class StockDetailViewModel(
         }
     }
 
-    private fun due(range: ChartRange): Boolean = ChartCache.due(range, state.value.charts[range]?.fetchedAt, clock())
+    private fun due(range: ChartRange): Boolean = state.value.charts[range].let { ChartCache.due(range, it?.fetchedAt, clock(), stale = it?.body?.stale == true) }
 
     /** One refresher tick: the quote and today's bars. */
     private suspend fun refresh() {

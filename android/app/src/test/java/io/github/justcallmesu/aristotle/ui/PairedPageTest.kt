@@ -32,6 +32,14 @@ class PairedPageTest {
     }
 
     @Test
+    fun `All news opened on a stock goes back to that stock, otherwise to Home`() {
+        assertEquals(PairedPage.StockDetail, PairedPage.StocksNews.backFrom(PairedPage.Sessions, PairedPage.StockDetail))
+        assertEquals(PairedPage.Sessions, PairedPage.StocksNews.backFrom(PairedPage.Sessions, PairedPage.Sessions))
+        assertEquals(PairedPage.Sessions, PairedPage.StocksNews.backFrom(PairedPage.Sessions))
+        assertEquals(PairedPage.Sessions, PairedPage.StocksHoldings.backFrom(PairedPage.Sessions, PairedPage.StockDetail)) // only News
+    }
+
+    @Test
     fun `Running opened from a chat goes back to that chat, otherwise to Home`() {
         assertEquals(PairedPage.Chat, PairedPage.Running.backFrom(PairedPage.Chat))
         assertEquals(PairedPage.Sessions, PairedPage.Running.backFrom(PairedPage.Sessions))

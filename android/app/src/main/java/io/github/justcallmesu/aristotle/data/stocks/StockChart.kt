@@ -159,7 +159,10 @@ class BarAxis private constructor(val slots: Int, private val positions: IntArra
             val positions = IntArray(bars.size)
             var previous = -1
             bars.forEachIndexed { i, bar ->
-                val slot = max(sessions.slotOf(timeOf(bar), step), previous + 1)
+                val time = timeOf(bar)
+                // A bar stamped at the session end, in the break or before the open takes the nearest session slot
+                // (shared with the bar there, if any) instead of pushing every later bar one slot on.
+                val slot = if (sessions.isOffSchedule(time)) max(sessions.slotOf(time, step), previous) else max(sessions.slotOf(time, step), previous + 1)
                 positions[i] = slot
                 previous = slot
             }
@@ -184,10 +187,13 @@ data class IdxSessions(val firstStart: LocalTime, val firstEnd: LocalTime, val s
 
     /** The slot of a bar at [time]: session 1 from 0, session 2 right after it; before the break ends counts as session 1. */
     fun slotOf(time: LocalTime, step: Int): Int = if (time < secondStart) {
-        max(minutes(firstStart, time), 0) / step
+        (max(minutes(firstStart, time), 0) / step).coerceAtMost(max(firstSlots(step) - 1, 0))
     } else {
         firstSlots(step) + minutes(secondStart, time) / step
     }
+
+    /** Before the open, or from the end of session 1 up to the start of session 2: no slot of its own (clamped by [slotOf]). */
+    fun isOffSchedule(time: LocalTime): Boolean = time < firstStart || (time >= firstEnd && time < secondStart)
 
     companion object {
         private val MON_THU = IdxSessions(LocalTime.of(9, 0), LocalTime.of(12, 0), LocalTime.of(13, 30), LocalTime.of(16, 0))
@@ -197,6 +203,38 @@ data class IdxSessions(val firstStart: LocalTime, val firstEnd: LocalTime, val s
 
         private fun minutes(from: LocalTime, to: LocalTime): Int = (to.toSecondOfDay() - from.toSecondOfDay()) / 60
     }
+}
+
+/**
+ * What fits in the chart at a large font (TM3a), pure: text is measured by the drawer and passed in pixels, so the
+ * rules are tested without a canvas.
+ */
+object ChartFit {
+    /** Smallest share a label's font may shrink to before it is dropped. */
+    const val MIN_SHRINK = 0.7f
+
+    /** The font factor that makes a label [width] fit [room]: 1 when it fits, else room / width; null (drop it) below [MIN_SHRINK]. */
+    fun shrink(width: Float, room: Float): Float? = when {
+        width <= room -> 1f
+        room <= 0f || width <= 0f -> null
+        room / width >= MIN_SHRINK -> room / width
+        else -> null
+    }
+
+    /** The readout's height in dp: [baseDp] for two lines at 1x, growing with the font scale (never below [baseDp]). */
+    fun readoutHeightDp(baseDp: Float, fontScale: Float): Float = baseDp * max(fontScale, 1f)
+
+    /**
+     * The chart's height in dp: the panels down to the labels ([labelTopDp]) plus one line of [labelLineDp] text grown
+     * by the font scale, so the time labels end inside the box.
+     */
+    fun chartHeightDp(labelTopDp: Float, labelLineDp: Float, fontScale: Float): Float = labelTopDp + labelLineDp * max(fontScale, 1f)
+
+    /** A label [height] tall drawn at [top] ends inside a chart [total] tall. */
+    fun fitsBelow(top: Float, height: Float, total: Float): Boolean = top + height <= total
+
+    /** Line mode with a single bar has no segment to stroke: it draws a dot. */
+    fun lineIsDot(barCount: Int): Boolean = barCount == 1
 }
 
 /** A time label under the chart, centred on [slot]. */

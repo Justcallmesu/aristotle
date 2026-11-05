@@ -1,6 +1,7 @@
 package io.github.justcallmesu.aristotle.ui.stocks
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -33,7 +35,9 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.justcallmesu.aristotle.data.stocks.ChartFit
 import io.github.justcallmesu.aristotle.data.stocks.ChartLabels
 import io.github.justcallmesu.aristotle.data.stocks.ChartModel
 import io.github.justcallmesu.aristotle.data.stocks.ChartRange
@@ -110,7 +114,9 @@ internal fun PriceChart(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(CHART_HEIGHT)
+            .height(chartHeight())
+            // The chart's left bars sit near the screen edge: a horizontal drag there must not be the back gesture.
+            .systemGestureExclusion()
             .semantics { contentDescription = description }
             .pointerInput(model) {
                 val axisWidth = AXIS_WIDTH.toPx()
@@ -155,7 +161,7 @@ internal fun PriceChart(
                     drawLine(ink.axis, Offset(x, 0f), Offset(x, frame.volumeBottom), stroke, pathEffect = dash)
                     drawLine(ink.axis, Offset(0f, y), Offset(frame.plotWidth, y), stroke, pathEffect = dash)
                     drawCircle(ink.ink, dot, Offset(x, y))
-                    val tag = tags[i] ?: measurer.measure(StockFormat.number(bar.c), tagStyle).also { tags[i] = it }
+                    val tag = tags[i] ?: fitTag(measurer, StockFormat.number(bar.c), tagStyle, frame.axisWidth - tagPad - 1f).also { tags[i] = it }
                     drawRoundRect(ink.ink, Offset(frame.plotWidth + 1f, y - tagHeight / 2), Size(frame.axisWidth - 1f, tagHeight), tagRadius)
                     drawText(tag, ink.paper, Offset(frame.plotWidth + tagPad, y - tag.size.height / 2f))
                 }
@@ -165,6 +171,7 @@ internal fun PriceChart(
 
 /** The panels in pixels: price on top, volume under it, time labels at the bottom; the price axis on the right. */
 private class ChartFrame(density: Density, size: Size) {
+    val height: Float = size.height
     val axisWidth: Float = with(density) { AXIS_WIDTH.toPx() }
     val plotWidth: Float = max(size.width - axisWidth, 1f)
     val priceHeight: Float = with(density) { PRICE_HEIGHT.toPx() }
@@ -174,18 +181,40 @@ private class ChartFrame(density: Density, size: Size) {
     val labelTop: Float = volumeBottom + with(density) { LABEL_GAP.toPx() }
 }
 
+/** A price label measured to fit [room] px: shrunk, or null when it would have to be too small to read. */
+private fun fitLabel(measurer: TextMeasurer, text: String, style: TextStyle, room: Float): TextLayoutResult? {
+    val first = measurer.measure(text, style)
+    val factor = ChartFit.shrink(first.size.width.toFloat(), room) ?: return null
+    return if (factor == 1f) first else measurer.measure(text, style.copy(fontSize = style.fontSize * factor))
+}
+
+/** A price tag (on a filled box): shrunk to fit [room] but never dropped; below the smallest share it is cut at the box. */
+private fun fitTag(measurer: TextMeasurer, text: String, style: TextStyle, room: Float): TextLayoutResult {
+    val first = measurer.measure(text, style)
+    val factor = ChartFit.shrink(first.size.width.toFloat(), room) ?: ChartFit.MIN_SHRINK
+    return if (factor == 1f) first else measurer.measure(text, style.copy(fontSize = style.fontSize * factor))
+}
+
+/** The chart's height: [CHART_HEIGHT], more when the font scale makes the time labels taller (they end inside the box). */
+@Composable
+internal fun chartHeight(): Dp {
+    val fontScale = LocalDensity.current.fontScale
+    return max(CHART_HEIGHT.value, ChartFit.chartHeightDp(LABEL_TOP_DP, AXIS_LINE_DP, fontScale)).dp
+}
+
 /** Everything that does not move with the finger, built once. */
 private class BaseLayer(
     private val ink: ChartInk,
     private val frame: ChartFrame,
     private val gridYs: FloatArray,
-    private val gridLabels: List<TextLayoutResult>,
+    private val gridLabels: List<TextLayoutResult?>,
     private val volumeUp: Path,
     private val volumeDown: Path,
     private val wicks: Path,
     private val upBodies: Path,
     private val downBodies: Path,
     private val line: Path?,
+    private val dot: Path?,
     private val breaks: FloatArray,
     private val timeLabels: List<Pair<Float, TextLayoutResult>>,
     private val lastY: Float,
@@ -204,7 +233,7 @@ private class BaseLayer(
     fun draw(scope: DrawScope) = with(scope) {
         gridYs.forEachIndexed { i, y ->
             drawLine(ink.grid, Offset(0f, y), Offset(frame.plotWidth, y), stroke)
-            val label = gridLabels[i]
+            val label = gridLabels[i] ?: return@forEachIndexed
             drawText(label, ink.axis, Offset(frame.plotWidth + tagPad, y - label.size.height / 2f))
         }
         drawLine(ink.grid, Offset(0f, frame.volumeBottom), Offset(frame.plotWidth, frame.volumeBottom), stroke)
@@ -215,6 +244,7 @@ private class BaseLayer(
         drawPath(volumeDown, ink.volumeDown, style = Fill)
         if (line != null) {
             drawPath(line, ink.line, style = Stroke(width = lineStroke, join = StrokeJoin.Round))
+            if (dot != null) drawPath(dot, ink.line, style = Fill)
         } else {
             drawPath(wicks, ink.ink, style = Stroke(width = stroke))
             drawPath(upBodies, ink.paper, style = Fill)
@@ -250,7 +280,9 @@ private class BaseLayer(
             val half = bodyWidth / 2
 
             val gridYs = FloatArray(scale.ticks.size) { scale.y(scale.ticks[it], 0f, ph) }
-            val gridLabels = scale.ticks.map { measurer.measure(StockFormat.number(it), axisStyle) }
+            // A price wider than the axis (6 digits at a large font) shrinks, or is dropped when it would be too small.
+            val room = frame.axisWidth - TAG_PAD.toPx() - 1f
+            val gridLabels = scale.ticks.map { fitLabel(measurer, StockFormat.number(it), axisStyle, room) }
 
             val volumeUp = Path()
             val volumeDown = Path()
@@ -267,6 +299,7 @@ private class BaseLayer(
             val upBodies = Path()
             val downBodies = Path()
             var line: Path? = null
+            var dot: Path? = null
             if (candles) {
                 val stroke = 1.dp.toPx()
                 bars.forEachIndexed { i, b ->
@@ -289,14 +322,20 @@ private class BaseLayer(
                         if (i == 0) moveTo(x, y) else lineTo(x, y)
                     }
                 }
+                if (ChartFit.lineIsDot(bars.size)) {
+                    // One bar: a stroke of one point draws nothing, so a dot.
+                    val r = LINE_STROKE.toPx() * 1.5f
+                    dot = Path().apply { addOval(Rect(axis.x(0, 0f, w) - r, scale.y(bars[0].c, 0f, ph) - r, axis.x(0, 0f, w) + r, scale.y(bars[0].c, 0f, ph) + r)) }
+                }
             }
 
             val breaks = FloatArray(axis.breaks.size) { axis.slotX(axis.breaks[it], 0f, w) }
 
             val minGap = ceil(LABEL_MIN_GAP.toPx() / slotWidth).toInt().coerceAtLeast(1)
             val labels = ChartLabels.axis(model.range, bars, axis, model.body.interval, minGap, locale)
-            val timeLabels = labels.map { l ->
+            val timeLabels = labels.mapNotNull { l ->
                 val text = measurer.measure(l.text, axisStyle)
+                if (!ChartFit.fitsBelow(frame.labelTop, text.size.height.toFloat(), frame.height)) return@mapNotNull null
                 val x = (axis.slotCentre(l.slot, 0f, w) - text.size.width / 2f).coerceIn(0f, max(w - text.size.width, 0f))
                 x to text
             }
@@ -327,10 +366,11 @@ private class BaseLayer(
                 upBodies = upBodies,
                 downBodies = downBodies,
                 line = line,
+                dot = dot,
                 breaks = breaks,
                 timeLabels = timeLabels,
                 lastY = scale.y(last, 0f, ph),
-                lastTag = measurer.measure(StockFormat.number(last), tagStyle),
+                lastTag = fitTag(measurer, StockFormat.number(last), tagStyle, room),
                 prevY = prevY,
                 prevLabel = prevLabel,
                 prevLabelAt = prevLabelAt,
@@ -352,6 +392,8 @@ private val VOLUME_GAP = 10.dp
 private val VOLUME_HEIGHT = 40.dp
 private val LABEL_GAP = 4.dp
 internal val CHART_HEIGHT = 250.dp
+private const val LABEL_TOP_DP = 234f // price 180 + gap 10 + volume 40 + gap 4
+private const val AXIS_LINE_DP = 14f // the axis text's line height (sp, so it grows with the font scale)
 private val AXIS_WIDTH = 46.dp
 private val MAX_BODY = 9.dp
 private val LINE_STROKE = 1.75.dp

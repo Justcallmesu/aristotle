@@ -22,10 +22,29 @@ object HoldingBlock {
 object ChartCache {
     /**
      * Read [range] when nothing is cached for it; 1D also once its copy is a minute old (it changes while the market is
-     * open; the 60 s refresh keeps it current while it is shown). Other ranges stay cached while the page lives.
+     * open; the 60 s refresh keeps it current while it is shown). Other ranges stay cached while the page lives, unless
+     * the copy is [stale] (the server's cache while Yahoo was not answering): that is read again on each show / pick.
      */
-    fun due(range: ChartRange, fetchedAt: Long?, now: Long): Boolean =
-        fetchedAt == null || (range == ChartRange.Day && now - fetchedAt >= QuoteRefresh.INTERVAL_MILLIS)
+    fun due(range: ChartRange, fetchedAt: Long?, now: Long, stale: Boolean = false): Boolean =
+        fetchedAt == null || stale || (range == ChartRange.Day && now - fetchedAt >= QuoteRefresh.INTERVAL_MILLIS)
+}
+
+/** Which model the chart draws while a finger holds the crosshair (TM3a): the 60 s refresh waits for the release. */
+object ChartHold {
+    /** The model to draw: [shown] (what is on screen) while [holding] a bar of the same series, else [fresh]. */
+    fun <T : Any> pick(shown: T?, fresh: T?, holding: Boolean, sameSeries: Boolean): T? =
+        if (holding && sameSeries && shown != null) shown else fresh
+}
+
+/** The ⋮ menu's and the broker button's small rules on the detail page (TM3a). Pure. */
+object DetailRules {
+    /** "Add / Edit holding" waits for the holdings answer: the PUT replaces, so an unread holding could be overwritten. */
+    fun holdingEnabled(reachable: Boolean, holdingsLoaded: Boolean): Boolean = reachable && holdingsLoaded
+
+    /** A broker tap: [open] it; when that fails (uninstalled meanwhile) say so and hide the button. */
+    fun brokerTap(open: () -> Boolean, notInstalled: () -> Unit) {
+        if (!open()) notInstalled()
+    }
 }
 
 /** The day's opening price: the first 1D bar's open, when the 1D bars are of the quote's day (or there is no quote time). */

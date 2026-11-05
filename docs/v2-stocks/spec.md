@@ -35,6 +35,7 @@ Each slice is usable on its own and gets its own ticket set after the previous o
 | P5 | Analyzer runs on a socket ticket scoped to the `aristotle-stocks` profile only (TA0); sessions `{source:"tool", hidden:true, toolsets:["no_mcp"], ignore_rules:true, reasoning:"low", max_turns:3, run_budget:90}`; never `unattended:true`; abort if `info.tool_count != 0`; 120 s timeout + `session.interrupt`. | PM technical (TA0 §1-§6). |
 | P6 | Verdict checks: off-tick or out-of-ARA/ARB prices and wrong order (Buy: stop < entry ≤ target) are rejected, with ONE repair turn naming the errors; still bad -> job fails. No silent snapping. | PM technical: a snapped number is a number the AI did not say. |
 | P7 | Session cleanup: delete the Hermes session after a saved verdict; failed ones are kept 7 days (debugging) then deleted by the server. One job per code, max 2 at once. | PM technical. |
+| P8 | Slice 2 bar history = one JSON file `stocks-bars.json` in the state dir (1-2 MB, rewritten once a day), not SQLite: no new dependency and no query needs SQL (TSC0 §1). Universe gets an optional `stocks-universe.json` override (makes Q85 "editable" true). | PM technical. SQLite would need user approval (new module). |
 | P1 | Slice 1 storage = the server's existing `statefile` JSON (watchlist, holdings, fee settings); prices and news cached in memory with short TTLs. No SQLite until slice 2 needs bar history. | PM technical: no new dependency for a few KB of state (YAGNI). |
 | P2 | Phone <-> server for stocks = REST `/v1/stocks/*` with the device token, following `GET /v1/pc-status` (`internal/pcstatus`, protocol §16). | PM technical: reuse the proven path. |
 | P3 | Charts drawn with Compose Canvas (candles + volume + line), no chart library. | PM technical: one more dependency vs ~300 lines of testable scaling code; revisit if gestures get complex. |
@@ -63,3 +64,15 @@ Each slice is usable on its own and gets its own ticket set after the previous o
 ## Known risks
 - Yahoo ToS forbids automated collection; may block or change (Q16 accepted). Provider interface + backoff.
 - PC off = no data (Q31). The server has not yet run as a systemd service on this laptop (v1 T22 owed).
+
+## Open for the user (TSC0 design §4, asked 2026-11-05 while the user was away)
+| Id | Question | PM recommendation |
+|---|---|---|
+| Q104 | Holdings without a kept verdict get no price alerts: add a hand-set stop/target per holding? | Yes, optional fields on the holding |
+| Q105 | Language of the 08:30 brief (no tap to read it from) | The app language last sent by the phone, else Indonesian |
+| Q106 | Bearish signals (gap down, death cross): chips on watchlist/holding rows only, or also an "avoid" list? | Chips only |
+| Q107 | Auto AI run (≤ 5/day, Q87): any bullish setup or only strong ones; watchlist only or holdings too? | Score ≥ 2 setups, watchlist + holdings |
+| Q108 | News outside 08:00-16:30: wait for the brief or push? Brief on non-trading days? | Wait for the brief; no brief on non-trading days |
+| Q109 | With "keep connected" off, alerts only arrive while the app is open: acceptable? | Yes (say so in Settings) |
+| Q110 | Model for the brief and the auto runs | Sonnet for auto runs, Opus for the brief |
+| Q111 | Default setup thresholds (TSC0 §1) as a start | Yes, tunable in the settings sheet |

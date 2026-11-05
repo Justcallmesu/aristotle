@@ -1,7 +1,9 @@
 package io.github.justcallmesu.aristotle.data.stocks
 
 import io.github.justcallmesu.aristotle.data.ConnectionProblem
+import java.io.File
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.util.Locale
 import kotlinx.coroutines.runBlocking
@@ -344,5 +346,117 @@ class StockDetailRulesTest {
         assertNull("yesterday's bars are not today's open", TodayOpen.of(day, StockQuote("BBCA", price = 4_910, marketTime = "2026-11-06T09:10:00+07:00")))
         assertEquals(4_850L, TodayOpen.of(day, null))
         assertNull(TodayOpen.of(null, null))
+    }
+}
+
+/** TM3a: 1D slots for bars at the session edges, and the small pure rules the detail page uses. */
+class DayEdgeSlotsTest {
+    @Test
+    fun aBarAtTheEndOfSessionOneTakesItsLastSlotAndLaterBarsDoNotShift() {
+        // Mon–Thu: 11:55 (slot 35), 12:00 (the end of session 1: clamped to 35, shared), then 13:30 stays at slot 36.
+        val bars = listOf(bar("2026-11-05T11:55", 1), bar("2026-11-05T12:00", 2), bar("2026-11-05T13:30", 3), bar("2026-11-05T13:35", 4))
+        val axis = BarAxis.day(bars, 5)
+        assertEquals(listOf(35, 35, 36, 37), (0 until axis.size).map(axis::slotOf))
+        assertEquals(67, axis.slots)
+    }
+
+    @Test
+    fun fridayAtElevenThirtyAndBarsBeforeTheOpenAreClampedIntoASessionSlot() {
+        val friday = BarAxis.day(listOf(bar("2026-11-06T08:55", 1), bar("2026-11-06T09:00", 2), bar("2026-11-06T11:30", 3), bar("2026-11-06T14:00", 4)), 5)
+        // Session 1 is 30 slots (0..29): 08:55 -> 0, 11:30 -> 29; 14:00 opens session 2 at slot 30.
+        assertEquals(listOf(0, 1, 29, 30), (0 until friday.size).map(friday::slotOf))
+        assertEquals(55, friday.slots)
+        val alone = BarAxis.day(listOf(bar("2026-11-06T11:30", 3)), 5)
+        assertEquals(29, alone.slotOf(0))
+    }
+
+    @Test
+    fun theSessionEdgeRule() {
+        val thu = IdxSessions.of(LocalDate.of(2026, 11, 5))
+        assertTrue(thu.isOffSchedule(LocalTime.of(8, 59)))
+        assertTrue(thu.isOffSchedule(LocalTime.of(12, 0)))
+        assertTrue(thu.isOffSchedule(LocalTime.of(13, 0)))
+        assertFalse(thu.isOffSchedule(LocalTime.of(11, 55)))
+        assertFalse(thu.isOffSchedule(LocalTime.of(13, 30)))
+        assertEquals(35, thu.slotOf(LocalTime.of(12, 0), 5))
+    }
+}
+
+class ChartFitTest {
+    @Test
+    fun aWidePriceLabelShrinksOrIsDropped() {
+        assertEquals(1f, ChartFit.shrink(30f, 40f)!!, 0f)
+        assertEquals(40f / 50f, ChartFit.shrink(50f, 40f)!!, 1e-6f)
+        assertNull("too wide to read when shrunk below 70%", ChartFit.shrink(80f, 40f))
+        assertNull(ChartFit.shrink(10f, 0f))
+    }
+
+    @Test
+    fun atFontScale1p3TheReadoutAndTheLabelsStayInsideTheChart() {
+        val scale = 1.3f
+        // Two lines (12 + 14 sp-ish, ~46 dp at 1.3x) plus 4 dp fit; at 1x it is the old 44 dp.
+        assertEquals(44f, ChartFit.readoutHeightDp(44f, 1f), 0f)
+        assertEquals(44f, ChartFit.readoutHeightDp(44f, 0.85f), 0f)
+        assertTrue(ChartFit.readoutHeightDp(44f, scale) >= 46f + 4f)
+        // 14 sp labels at 1.3x are 18.2 dp tall, from the labels' top at 234 dp.
+        val height = ChartFit.chartHeightDp(234f, 14f, scale)
+        assertTrue(ChartFit.fitsBelow(234f, 14f * scale, height))
+        assertFalse("the old fixed 250 dp cut them", ChartFit.fitsBelow(234f, 14f * scale + 4f, 250f))
+        // A 6-digit price at 1.3x (11 sp, ~7.2 dp a digit = 43 + 6 dp) against the axis' room (46 − 5 − 1 = 40 dp).
+        val width = 6 * 7.2f * 11f / 11f
+        val factor = ChartFit.shrink(width, 40f)
+        assertNotNull(factor)
+        assertTrue(width * factor!! <= 40f + 1e-3f)
+    }
+
+    @Test
+    fun oneBarInLineModeIsADot() {
+        assertTrue(ChartFit.lineIsDot(1))
+        assertFalse(ChartFit.lineIsDot(0))
+        assertFalse(ChartFit.lineIsDot(2))
+    }
+}
+
+class ChartHoldAndDetailRulesTest {
+    @Test
+    fun aRefreshWaitsForTheReleaseOfAHold() {
+        assertEquals("old", ChartHold.pick("old", "new", holding = true, sameSeries = true))
+        assertEquals("new", ChartHold.pick("old", "new", holding = false, sameSeries = true))
+        assertEquals("another range wins at once", "new", ChartHold.pick("old", "new", holding = true, sameSeries = false))
+        assertEquals("new", ChartHold.pick(null, "new", holding = true, sameSeries = true))
+        assertNull(ChartHold.pick("old", null, holding = false, sameSeries = true))
+    }
+
+    @Test
+    fun addHoldingWaitsForTheHoldings() {
+        assertFalse(DetailRules.holdingEnabled(reachable = true, holdingsLoaded = false))
+        assertTrue(DetailRules.holdingEnabled(reachable = true, holdingsLoaded = true))
+        assertFalse(DetailRules.holdingEnabled(reachable = false, holdingsLoaded = true))
+    }
+
+    @Test
+    fun aBrokerTapWithTheAppGoneSaysSo() {
+        var said = 0
+        DetailRules.brokerTap(open = { true }, notInstalled = { said++ })
+        assertEquals(0, said)
+        DetailRules.brokerTap(open = { false }, notInstalled = { said++ })
+        assertEquals(1, said)
+    }
+
+    @Test
+    fun aStaleLongRangeIsDueAgainAFreshOneIsKept() {
+        assertFalse(ChartCache.due(ChartRange.SixMonths, 1_000L, 9_000_000L))
+        assertTrue(ChartCache.due(ChartRange.SixMonths, 1_000L, 9_000_000L, stale = true))
+        assertTrue(ChartCache.due(ChartRange.Year, null, 0L))
+    }
+
+    /** The chart opts out of the back gesture on its own box only (a guard on the source: it is a Compose modifier). */
+    @Test
+    fun theChartExcludesItselfFromTheSystemGesture() {
+        val path = "src/main/java/io/github/justcallmesu/aristotle/ui/stocks/PriceChart.kt"
+        val text = listOf(File(path), File("app/$path")).first { it.exists() }.readText()
+        assertEquals(1, Regex("\\.systemGestureExclusion\\(\\)").findAll(text).count())
+        val screen = listOf(File(path.replace("PriceChart", "StockDetailScreen")), File("app/" + path.replace("PriceChart", "StockDetailScreen"))).first { it.exists() }.readText()
+        assertFalse("not on the whole page", screen.contains("systemGestureExclusion"))
     }
 }

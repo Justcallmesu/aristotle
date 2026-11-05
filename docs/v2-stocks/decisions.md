@@ -1,0 +1,1 @@
+- 2026-11-05 User: "do all i need to go". PM reading: build every queued v2 item without user input — minors (TS1b, TS3b, TA2b), flake triage D50/D53, then slice 2 (screener) and slice 3 (08:30 brief + alerts) on decisions Q85-Q87/Q18/Q21; T22 and all device checks wait for the user. Q101 stays as PM reading (app language).

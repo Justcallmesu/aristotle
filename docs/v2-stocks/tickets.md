@@ -15,6 +15,16 @@
 | TA2 | Phone: Analyze button + verdict card on the stock page | TA1, TS3 | android | DONE |
 | TS3b | TS3 minors: stale long-range bars need Retry/refetch; 60 s refresh must not cut a crosshair hold; exclude chart from system back-gesture edge; 1.3x font overflow (device check); 1D slot for bars at 12:00/11:30/pre-09:00; Back from All news -> stock; single-bar line; Add holding before load; Ajaib uninstall feedback | TS3 | android | TODO |
 | TA2b | Analyzer minors: news_only cap dodged by one indicator citation (backstop only); misleading create log; sweep timeout stops the pass; 'From <day>' should name the session; stale start error after a later done read | TA2 | server+android | TODO |
+| TM3s | Server minors: TS1b + TA2b server part | TS1, TA2 | server | DONE (review on commit) |
+| TM3a | Android minors: TS3b + TA2b android part | TS3, TA2 | android | DONE (review on commit) |
+| TSC0 | Design: screener (slice 2) + 08:30 brief/alerts (slice 3) | TA2 | docs | DONE |
+| TSC1 | Server: scheduler (wall-clock 30 s, catch-up Q31), bar store `stocks-bars.json` (P8), universe override, jobs API | TSC0 | server | BUILDING |
+| TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | WAITING (user Q104-Q111) |
+| TSC3 | Phone: screener section/page/settings | TSC2 | android | WAITING |
+| TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | WAITING |
+| TBA2 | Server: 08:30 brief | TBA1, Q105/Q108/Q110 | server | WAITING |
+| TBA3a | Phone: alert watcher + notifications | TBA1 | android | WAITING |
+| TBA3b | Phone: brief page + jobs/alerts settings | TBA2 | android | WAITING |
 
 ## Log
 - 2026-11-05 v2 grill: Q84-Q90 (all A). Yahoo + RSS re-probed 200. TS0 + TD4 dispatched in parallel.
@@ -36,3 +46,5 @@
 - 2026-11-05 TA1b: pm-gate-ta1b GREEN (542 Go); mutation news-only cap removed -> 1 fail. Committed c1f8904 without its own review; TA2's review re-checks `git show c1f8904`. TA2 steered with the new codes + news_only flag.
 - 2026-11-05 TA2 built (1228). PM: protocol §20.1 poll 2 s -> 3 s (code is right), CHANGELOG Phone line applied from the report. Gate + mutation (VerdictCard link guard removed) running; review waits for the mutation. D53 flake recorded.
 - 2026-11-05 TA2 + TA1b review PASS-WITH-FINDINGS. CHANGELOG line moved to the top (newest first). Q101 marked PM reading (app language). Committed.
+- 2026-11-05 User away ("do all"). Wave: TM3s (server minors), TM3a (android minors), TSC0 (design slices 2-3) in parallel.
+- 2026-11-05 Minors wave: pm-gate-tm3 GREEN both sides (550 Go); mutations: CASH word rule -> TestNameFallbackKeepsWordCodeRule fails; chart hold -> ChartHoldAndDetailRulesTest fails (first attempt matched no class, redone). Committed; batch review on the commits in parallel with TSC1. TSC0 design done; Q104-Q111 open for the user; P8 JSON bar store.

@@ -216,7 +216,11 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
         }
 
     /** [back], except Running opened from a chat's "See all" ([runningFrom] = [Chat]) returns to that chat (TY7). */
-    fun backFrom(runningFrom: PairedPage): PairedPage = if (this == Running && runningFrom == Chat) Chat else back
+    fun backFrom(runningFrom: PairedPage, newsFrom: PairedPage = Sessions): PairedPage = when {
+        this == Running && runningFrom == Chat -> Chat
+        this == StocksNews && newsFrom == StockDetail -> StockDetail // "All news" opened on a stock goes back to that stock
+        else -> back
+    }
 
     companion object {
         fun of(settingsPage: SettingsPage): PairedPage = entries.first { it.settingsPage == settingsPage }
@@ -261,9 +265,13 @@ private fun PairedPages(
     // TS2: the stock a stock's page shows, and the page it was opened from (Home, Holdings or News), where back goes.
     var stockCode by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var stockFrom by rememberSaveable(pc.pcId) { mutableStateOf(PairedPage.Sessions) }
+    // Where the News page was opened from: Home, or a stock's page ("All news"), where its back goes.
+    var newsFrom by rememberSaveable(pc.pcId) { mutableStateOf(PairedPage.Sessions) }
     val homeMode by settings.homeMode.collectAsStateWithLifecycle()
     val openStock: (String) -> Unit = { code ->
         stockFrom = if (page == PairedPage.StockDetail) stockFrom else page
+        // A stock opened from the news list: that list's back no longer loops to a page it came from.
+        if (page == PairedPage.StocksNews) newsFrom = PairedPage.Sessions
         stockCode = code
         page = PairedPage.StockDetail
     }
@@ -282,7 +290,7 @@ private fun PairedPages(
     }
     // "Show Terminal on this phone" off (Q62): the terminal page is never shown, whatever was restored.
     LaunchedEffect(page, showTerminal) { if (page == PairedPage.Terminal && !showTerminal) page = PairedPage.Sessions }
-    BackHandler(enabled = page != PairedPage.Sessions) { page = if (page == PairedPage.StockDetail) stockFrom else page.backFrom(runningFrom) }
+    BackHandler(enabled = page != PairedPage.Sessions) { page = if (page == PairedPage.StockDetail) stockFrom else page.backFrom(runningFrom, newsFrom) }
     // TY1: Home's ⋮ menu and a chat's status stack open the Running page.
     ProvideRunningNav(container.link, onOpen = {
         runningFrom = if (page == PairedPage.Chat) PairedPage.Chat else PairedPage.Sessions
@@ -330,7 +338,10 @@ private fun PairedPages(
                         val nav = StocksNav(
                             openStock = openStock,
                             openHoldings = { page = PairedPage.StocksHoldings },
-                            openNews = { page = PairedPage.StocksNews },
+                            openNews = {
+                                newsFrom = PairedPage.Sessions
+                                page = PairedPage.StocksNews
+                            },
                             openFees = { page = PairedPage.SettingsStocks },
                             openSettings = { page = PairedPage.Settings },
                         )
@@ -373,7 +384,7 @@ private fun PairedPages(
             PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
             PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
             PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.back })
-            PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.back }, onOpenStock = openStock)
+            PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.backFrom(runningFrom, newsFrom) }, onOpenStock = openStock)
             PairedPage.StockDetail -> {
                 val code = stockCode
                 if (code != null) {
@@ -384,7 +395,10 @@ private fun PairedPages(
                         code,
                         stocks = stocksViewModel(container, stocksRoutes, pc),
                         onBack = { page = stockFrom },
-                        onOpenNews = { page = PairedPage.StocksNews },
+                        onOpenNews = {
+                            newsFrom = PairedPage.StockDetail
+                            page = PairedPage.StocksNews
+                        },
                     )
                 } else {
                     LaunchedEffect(Unit) { page = PairedPage.Sessions }

@@ -113,6 +113,9 @@ class AnalysisTest {
         val stale = AnalysisStates.view(done, false, null, friday)
         assertEquals(AnalysisPhase.Done, stale.phase)
         assertEquals("the day it was made", thursday, stale.staleFrom)
+        // "From <day>" names the session the verdict was for, not the day it was made (Wed evening, for Thursday).
+        val forThursday = done.copy(result = done.result!!.copy(analyzedAt = "2026-11-04T19:30:00+07:00"))
+        assertEquals(thursday, AnalysisStates.view(forThursday, false, null, friday).staleFrom)
         // Which session is current: open / break = today; closed = the next open's day; unknown = today.
         val open = MarketStatus(MarketStatus.OPEN, 1, "2026-11-05T12:00:00+07:00")
         assertEquals(thursday, AnalysisStates.currentSession(open, thursday))

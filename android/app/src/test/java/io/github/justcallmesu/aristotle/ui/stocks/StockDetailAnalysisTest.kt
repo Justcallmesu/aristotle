@@ -174,6 +174,20 @@ class StockDetailAnalysisTest {
     }
 
     @Test
+    fun aRefusedStartsErrorClearsWhenALaterReadShowsTheJobDone() {
+        post = StocksReply.Http(503, """{"error":"analyzer_not_set_up"}""")
+        show()
+        waitFor("idle") { view().phase == AnalysisPhase.Idle }
+        vm.analyze("en")
+        waitFor("refused") { view().problem == AnalysisProblem.NotSetUp }
+        analysis = fixture("analysis_done.json")
+        vm.retryAnalysisRead()
+        waitFor("done, the old refusal gone") { view().phase == AnalysisPhase.Done }
+        assertNull(view().problem)
+        assertNull(vm.uiState.value.analyzeProblem)
+    }
+
+    @Test
     fun alreadyRunningShowsThatJob() {
         post = StocksReply.Http(409, """{"error":"analysis_running"}""")
         show()

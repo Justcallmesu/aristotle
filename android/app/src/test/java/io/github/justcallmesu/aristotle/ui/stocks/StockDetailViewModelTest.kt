@@ -50,6 +50,9 @@ class StockDetailViewModelTest {
     @Volatile
     private var blockSixMonths = false
 
+    @Volatile
+    private var staleSixMonths = false
+
     private fun fixture(name: String): String = javaClass.classLoader!!.getResource("stocks/$name")!!.readText()
 
     private val transport = StocksTransport { _, _, request ->
@@ -58,6 +61,8 @@ class StockDetailViewModelTest {
             request.path == "quotes" -> StocksReply.Http(200, """{"at":"2026-11-05T10:00:00+07:00","market":$market,"quotes":[{"code":"BBCA","price":4930,"prev_close":4840,"change":90}],"errors":[]}""")
             request.path == "chart/BBCA" && request.query["range"] == "6mo" && blockSixMonths ->
                 StocksReply.Http(503, fixture("error_upstream_blocked.json"), retryAfterSeconds = 60)
+            request.path == "chart/BBCA" && request.query["range"] == "6mo" && staleSixMonths ->
+                StocksReply.Http(200, fixture("chart_5d.json").replace("\"stale\":false", "\"stale\":true"))
             request.path == "chart/BBCA" -> StocksReply.Http(200, fixture("chart_5d.json"))
             request.path == "news" -> StocksReply.Http(200, fixture("news_antm.json"))
             else -> StocksReply.Http(404, """{"error":"not_found"}""")
@@ -129,6 +134,28 @@ class StockDetailViewModelTest {
         assertEquals(1, charts("1mo"))
         vm.selectType(ChartType.Line)
         assertEquals(ChartType.Line, vm.uiState.value.type)
+    }
+
+    @Test
+    fun aStaleRangeIsReadAgainOnPickAndRetryAndThenKept() {
+        staleSixMonths = true
+        show()
+        vm.selectRange(ChartRange.SixMonths)
+        waitFor("6M read stale") { vm.uiState.value.chart.body?.stale == true }
+        assertEquals(1, charts("6mo"))
+        // Not cached for the page's life: picking it again reads it again.
+        vm.selectRange(ChartRange.Month)
+        vm.selectRange(ChartRange.SixMonths)
+        waitFor("a second 6M read") { charts("6mo") == 2 }
+        // Retry (the stale line's button) reads again and the fresh answer replaces it.
+        staleSixMonths = false
+        vm.retry()
+        waitFor("fresh 6M") { vm.uiState.value.chart.body?.stale == false }
+        assertEquals(3, charts("6mo"))
+        vm.selectRange(ChartRange.Month)
+        vm.selectRange(ChartRange.SixMonths)
+        settle()
+        assertEquals("fresh bars are cached again", 3, charts("6mo"))
     }
 
     @Test
