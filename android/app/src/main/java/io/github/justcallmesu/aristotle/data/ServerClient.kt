@@ -1,5 +1,9 @@
 package io.github.justcallmesu.aristotle.data
 
+import io.github.justcallmesu.aristotle.data.stocks.StocksApi
+import io.github.justcallmesu.aristotle.data.stocks.StocksReply
+import io.github.justcallmesu.aristotle.data.stocks.StocksRequest
+import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
 import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
 import io.github.justcallmesu.aristotle.data.terminal.TerminalChannel
 import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
@@ -81,7 +85,7 @@ class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
 }
 
 /** The link's calls over HTTPS with the PC's pin; one client per pin and address kind ([HttpClients]). */
-class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth, PcStatusSource {
+class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth, PcStatusSource, StocksTransport {
     private val clients = ConcurrentHashMap<Pair<String, Network>, OkHttpClient>()
 
     override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
@@ -115,6 +119,9 @@ class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, Termina
 
     override suspend fun pcStatus(pc: PcCredentials, endpoint: ServerEndpoint): PcStatus? =
         ServerClient(clientFor(pc, endpoint), endpoint.baseUrl).pcStatus(pc.token)
+
+    override suspend fun send(pc: PcCredentials, endpoint: ServerEndpoint, request: StocksRequest): StocksReply =
+        clientFor(pc, endpoint).sendStocks(endpoint.baseUrl, pc.token, request)
 
     private fun clientFor(pc: PcCredentials, endpoint: ServerEndpoint): OkHttpClient =
         clients.getOrPut(pc.fingerprint to endpoint.network) { httpClients.pinnedTo(pc.pin, endpoint.network) }
@@ -184,32 +191,53 @@ class ServerClient(private val client: OkHttpClient, baseUrl: String) {
     private fun <T> decode(response: Response, serializer: kotlinx.serialization.KSerializer<T>): T? =
         runCatching { HermesJson.decodeFromString(serializer, response.body.string()) }.getOrNull()
 
-    /**
-     * Runs the call on OkHttp's threads. Cancelling the caller cancels the call at once (T09 review 2): a
-     * blocking `execute()` would hold the caller for up to the connect and read timeouts.
-     */
     private suspend fun <T> execute(request: Request, onFailure: (ConnectionProblem) -> T, handle: (Response) -> T): T =
-        suspendCancellableCoroutine { continuation ->
-            val call = client.newCall(request)
-            continuation.invokeOnCancellation { call.cancel() }
-            call.enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    continuation.resume(onFailure(connectionProblemOf(e)))
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    try {
-                        continuation.resume(response.use(handle))
-                    } catch (e: IOException) {
-                        continuation.resume(onFailure(connectionProblemOf(e)))
-                    } catch (e: RuntimeException) {
-                        continuation.resumeWithException(e)
-                    }
-                }
-            })
-        }
+        client.await(request, onFailure, handle)
 
     private companion object {
         val JSON = "application/json".toMediaType()
     }
 }
+
+/**
+ * Runs the call on OkHttp's threads. Cancelling the caller cancels the call at once (T09 review 2): a
+ * blocking `execute()` would hold the caller for up to the connect and read timeouts.
+ */
+internal suspend fun <T> OkHttpClient.await(request: Request, onFailure: (ConnectionProblem) -> T, handle: (Response) -> T): T =
+    suspendCancellableCoroutine { continuation ->
+        val call = newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                continuation.resume(onFailure(connectionProblemOf(e)))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                try {
+                    continuation.resume(response.use(handle))
+                } catch (e: IOException) {
+                    continuation.resume(onFailure(connectionProblemOf(e)))
+                } catch (e: RuntimeException) {
+                    continuation.resumeWithException(e)
+                }
+            }
+        })
+    }
+
+/**
+ * `/v1/stocks/…` (protocol §20) with the device token: any status comes back with its body; only a failure below HTTP
+ * is [StocksReply.Failed]. Nothing here logs: holdings are the user's own numbers.
+ */
+internal suspend fun OkHttpClient.sendStocks(baseUrl: String, token: DeviceToken, request: StocksRequest): StocksReply {
+    val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v1/stocks").addPathSegments(request.path).apply {
+        request.query.forEach { (key, value) -> addQueryParameter(key, value) }
+    }.build()
+    val body = request.body?.toRequestBody(STOCKS_JSON) ?: if (request.method == StocksApi.PUT) EMPTY_BODY.toRequestBody(STOCKS_JSON) else null
+    val built = Request.Builder().url(url).header("Authorization", "Bearer ${token.value}").method(request.method, body).build()
+    return await(built, StocksReply::Failed) { response ->
+        StocksReply.Http(response.code, response.body.string(), response.header("Retry-After")?.trim()?.toIntOrNull())
+    }
+}
+
+private val STOCKS_JSON = "application/json".toMediaType()
+private const val EMPTY_BODY = ""

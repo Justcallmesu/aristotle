@@ -36,12 +36,28 @@ sealed interface LinkState {
     /** The device token was refused (`4401`, HTTP 401): the pairing is wiped, no retry. */
     data object Revoked : LinkState
 
-    /** `4503`: aristotle-server answered, Hermes is not running. Retried quietly every 10 s. */
-    data class HermesDown(val details: String) : LinkState
+    /**
+     * `4503`: aristotle-server answered on [address], Hermes is not running. Retried quietly every 10 s. The server
+     * itself still serves what needs no Hermes there (stocks, protocol §20).
+     */
+    data class HermesDown(val details: String, val address: ServerEndpoint) : LinkState
 
-    /** `4505`: Hermes speaks a protocol this server does not know. No retry until the user checks again. */
-    data class HermesUpdated(val details: String) : LinkState
+    /** `4505`: Hermes speaks a protocol this server (on [address]) does not know. No retry until the user checks again. */
+    data class HermesUpdated(val details: String, val address: ServerEndpoint) : LinkState
 }
+
+/**
+ * Where aristotle-server answered last, for calls that need only the server and the device token, not Hermes (stocks,
+ * protocol §20): the relay's address while online, and the address that closed with `4503` / `4505` while Hermes is
+ * down or updated. Null in every other state (nothing answered, a changed certificate, no pairing).
+ */
+val LinkState.serverEndpoint: ServerEndpoint?
+    get() = when (this) {
+        is LinkState.Online -> endpoint
+        is LinkState.HermesDown -> address
+        is LinkState.HermesUpdated -> address
+        else -> null
+    }
 
 enum class OfflineCause {
     /** No address answered. */
@@ -70,8 +86,8 @@ enum class OfflineCause {
 /** How one round over a PC's addresses ended. */
 sealed interface RoundEnd {
     data object Revoked : RoundEnd
-    data class HermesDown(val details: String) : RoundEnd
-    data class HermesUpdated(val details: String) : RoundEnd
+    data class HermesDown(val details: String, val address: ServerEndpoint) : RoundEnd
+    data class HermesUpdated(val details: String, val address: ServerEndpoint) : RoundEnd
 
     /** The phone's network changed while online: connect again at once, best address first. */
     data object Switch : RoundEnd
@@ -99,12 +115,12 @@ object LinkEnds {
      * reconnected by itself (D36), every other code (`1000`, `1001`, `1011`, `1013`, `4502`, …) is a lost connection
      * retried with backoff.
      */
-    fun ofClose(code: Int, reason: String, address: ServerEndpoint?): RoundEnd {
+    fun ofClose(code: Int, reason: String, address: ServerEndpoint): RoundEnd {
         val details = closeDetails(code, reason)
         return when (code) {
             CLOSE_REVOKED -> RoundEnd.Revoked
-            CLOSE_HERMES_NOT_RUNNING -> RoundEnd.HermesDown(details)
-            CLOSE_HERMES_PROTOCOL_UNSUPPORTED -> RoundEnd.HermesUpdated(details)
+            CLOSE_HERMES_NOT_RUNNING -> RoundEnd.HermesDown(details, address)
+            CLOSE_HERMES_PROTOCOL_UNSUPPORTED -> RoundEnd.HermesUpdated(details, address)
             CLOSE_SUPERSEDED -> RoundEnd.Superseded(details, address)
             else -> RoundEnd.Lost(OfflineCause.ConnectionLost, details, address)
         }

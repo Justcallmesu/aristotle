@@ -5,11 +5,13 @@ import org.junit.Test
 
 class SettingsBlocksTest {
     @Test
-    fun threeBlocksAsInTheDesignNotes() {
+    fun theDesignNotesBlocksPlusStocks() {
+        // design-notes §5.4's three blocks; TS2 adds Stocks as its own block before security + about.
         assertEquals(
             listOf(
                 listOf(SettingsPage.Connection, SettingsPage.Notifications),
                 listOf(SettingsPage.Appearance, SettingsPage.Language),
+                listOf(SettingsPage.Stocks),
                 listOf(SettingsPage.Security, SettingsPage.About),
             ),
             settingsBlocks,

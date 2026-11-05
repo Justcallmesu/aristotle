@@ -55,6 +55,7 @@ import io.github.justcallmesu.aristotle.data.SessionPins
 import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
+import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
 import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
 import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -154,6 +155,9 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
     /** T19b: whether the Terminal entry shows (`/v1/me` on every connect), and where a terminal opens. */
     /** `GET /v1/pc-status` over the pinned client (Q78); the Home card's poller reads through it. */
     val pcStatus: PcStatusSource = dialer
+
+    /** `/v1/stocks/…` over the same pinned client (TS2, protocol §20). */
+    val stocksTransport: StocksTransport = dialer
 
     val terminalAccess = TerminalAccess(linkScope, link.state, credentials.state, dialer)
 

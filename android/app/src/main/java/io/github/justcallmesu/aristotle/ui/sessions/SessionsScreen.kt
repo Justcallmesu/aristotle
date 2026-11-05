@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -82,6 +83,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.HistoryGrouping
+import io.github.justcallmesu.aristotle.data.HomeMode
 import io.github.justcallmesu.aristotle.data.HistorySort
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.Network
@@ -108,11 +110,13 @@ fun SessionsScreen(
     onTerminal: () -> Unit = {},
     whatsNew: (@Composable () -> Unit)? = null,
     pcId: String,
+    stocks: HomeStocks? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // The PC status is read only while Home is on screen and resumed (Q78); leaving the screen ends it too.
-    LifecycleResumeEffect(viewModel) {
-        viewModel.homeVisible(true)
+    // The PC status is read only while Home's Chats view is on screen and resumed (Q78); leaving the screen ends it too.
+    val chatsShown = stocks?.mode != HomeMode.Stocks
+    LifecycleResumeEffect(viewModel, chatsShown) {
+        viewModel.homeVisible(chatsShown)
         onPauseOrDispose { viewModel.homeVisible(false) }
     }
     LaunchedEffect(state.open) {
@@ -132,9 +136,20 @@ fun SessionsScreen(
         onTerminal = onTerminal,
         whatsNew = whatsNew,
         pcId = pcId,
+        stocks = stocks,
     )
     SessionSheets(state, remember(viewModel) { ViewModelSheetActions(viewModel) })
 }
+
+/**
+ * Home's two views (Q89, Q92): [mode] picks Chats or Stocks with the title words in the head, [onMode] remembers the
+ * choice; in Stocks mode [body] fills everything under the head (market line, lists, its own bottom bar).
+ */
+class HomeStocks(
+    val mode: HomeMode,
+    val onMode: (HomeMode) -> Unit,
+    val body: @Composable ColumnScope.() -> Unit,
+)
 
 /** What the list screen can ask of its ViewModel. */
 interface ListActions {
@@ -211,6 +226,7 @@ fun SessionsContentView(
     onTerminal: () -> Unit = {},
     whatsNew: (@Composable () -> Unit)? = null,
     pcId: String,
+    stocks: HomeStocks? = null,
 ) {
     val address = state.address?.hostForUrl.orEmpty()
     val snackbar = remember { SnackbarHostState() }
@@ -230,51 +246,63 @@ fun SessionsContentView(
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
             val pcStatus = state.pcStatus.shown
             val online = state.link is LinkState.Online
-            if (state.searching) SearchHead(state.query, actions) else HomeHead(state, address, timeText, onRetry, actions, showPcLine = !(online && pcStatus != null))
-            if (!state.searching && page == null && pcStatus != null) {
-                var pcExpanded by rememberSaveable { mutableStateOf(false) }
-                PcStatusCard(
-                    status = pcStatus,
-                    address = if (online) pcLineText(state.link, address) else "",
-                    network = (state.link as? LinkState.Online)?.endpoint?.network,
-                    expanded = pcExpanded,
-                    onToggle = { pcExpanded = !pcExpanded },
-                    asOf = if (online) null else state.pcStatus.fetchedAtMillis?.let(timeText),
-                    modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
-                )
+            val stocksShown = stocks != null && stocks.mode == HomeMode.Stocks && !state.searching
+            if (state.searching) {
+                SearchHead(state.query, actions)
+            } else {
+                HomeHead(state, address, timeText, onRetry, actions, showPcLine = !stocksShown && !(online && pcStatus != null), switch = stocks)
             }
-            // Q83: the Claude limits, only with data (no loading text); the clock is read again whenever the reading changes.
-            val limits = state.limits
-            if (!state.searching && page == null && limits.shown(System.currentTimeMillis())) {
-                var limitsExpanded by rememberSaveable { mutableStateOf(false) }
-                PlanLimitsRow(
-                    plan = limits.usage,
-                    expanded = limitsExpanded,
-                    onToggle = { limitsExpanded = !limitsExpanded },
-                    modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
-                )
-            }
-            if (page == null) {
-                val offline = state.link as? LinkState.Offline
-                val compatibility = compatibilityText(pcId)
-                offline?.let { OfflineNotice(it, address, state.listedAt) }
-                compatibility?.let { CompatibilityNotice(it) }
-                if (showWhatsNewNotice(offline = offline != null, incompatible = compatibility != null)) whatsNew?.invoke()
-            }
-            Box(modifier = Modifier.weight(1f).fillMaxWidth().then(if (showBar) Modifier else Modifier.windowInsetsPadding(bottom))) {
-                if (page != null) ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) else ListBody(state, address, actions)
-                SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
-            }
-            if (showBar) {
-                HomeBottomBar(
-                    state = state,
-                    newChat = state.link is LinkState.Online && page == null,
-                    onScheduled = onScheduled,
-                    onSettings = onSettings,
-                    actions = actions,
-                    terminalAvailable = terminalAvailable,
-                    onTerminal = onTerminal,
-                )
+            if (stocksShown) {
+                // A link that waits for the user keeps its notice and action in Stocks mode too (a saved mode never
+                // hides it); the stocks under it still load whenever the server answers.
+                noticeFor(state.link)?.let { ConnectionNotice(it, onRetry, onPairAgain) }
+                stocks.body(this)
+            } else {
+                if (!state.searching && page == null && pcStatus != null) {
+                    var pcExpanded by rememberSaveable { mutableStateOf(false) }
+                    PcStatusCard(
+                        status = pcStatus,
+                        address = if (online) pcLineText(state.link, address) else "",
+                        network = (state.link as? LinkState.Online)?.endpoint?.network,
+                        expanded = pcExpanded,
+                        onToggle = { pcExpanded = !pcExpanded },
+                        asOf = if (online) null else state.pcStatus.fetchedAtMillis?.let(timeText),
+                        modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
+                    )
+                }
+                // Q83: the Claude limits, only with data (no loading text); the clock is read again whenever the reading changes.
+                val limits = state.limits
+                if (!state.searching && page == null && limits.shown(System.currentTimeMillis())) {
+                    var limitsExpanded by rememberSaveable { mutableStateOf(false) }
+                    PlanLimitsRow(
+                        plan = limits.usage,
+                        expanded = limitsExpanded,
+                        onToggle = { limitsExpanded = !limitsExpanded },
+                        modifier = Modifier.padding(start = Spacing.l, end = Spacing.l, bottom = Spacing.s),
+                    )
+                }
+                if (page == null) {
+                    val offline = state.link as? LinkState.Offline
+                    val compatibility = compatibilityText(pcId)
+                    offline?.let { OfflineNotice(it, address, state.listedAt) }
+                    compatibility?.let { CompatibilityNotice(it) }
+                    if (showWhatsNewNotice(offline = offline != null, incompatible = compatibility != null)) whatsNew?.invoke()
+                }
+                Box(modifier = Modifier.weight(1f).fillMaxWidth().then(if (showBar) Modifier else Modifier.windowInsetsPadding(bottom))) {
+                    if (page != null) ConnectionPage(page.kind, page.details, address, onRetry, onPairAgain) else ListBody(state, address, actions)
+                    SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
+                }
+                if (showBar) {
+                    HomeBottomBar(
+                        state = state,
+                        newChat = state.link is LinkState.Online && page == null,
+                        onScheduled = onScheduled,
+                        onSettings = onSettings,
+                        actions = actions,
+                        terminalAvailable = terminalAvailable,
+                        onTerminal = onTerminal,
+                    )
+                }
             }
         }
     }
@@ -304,7 +332,7 @@ private fun ListBody(state: SessionsUiState, address: String, actions: ListActio
     }
 }
 
-/** Home C head (§5.1): not a TopAppBar; wordmark + PC line, the profile avatar at the end, top-aligned. */
+/** Home C head (§5.1): not a TopAppBar; wordmark (or the Chats / Stocks title words) + PC line, the profile avatar at the end, top-aligned. */
 @Composable
 private fun HomeHead(
     state: SessionsUiState,
@@ -313,13 +341,16 @@ private fun HomeHead(
     onRetry: () -> Unit,
     actions: ListActions,
     showPcLine: Boolean = true,
+    switch: HomeStocks? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.s, top = Spacing.m, bottom = Spacing.xs),
         verticalAlignment = Alignment.Top,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = stringResource(R.string.app_name), style = homeWordmark(), maxLines = 1)
+            // Q92: with Stocks, the title words "Chats  Stocks" take the wordmark's place (the same 36 dp line).
+            if (switch != null) HomeModeSwitch(switch.mode, switch.onMode, selectedStyle = homeWordmark())
+            else Text(text = stringResource(R.string.app_name), style = homeWordmark(), maxLines = 1)
             if (showPcLine) PcLine(state.link, address, timeText, onRetry)
         }
         state.profileName?.let {

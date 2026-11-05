@@ -6,7 +6,8 @@
 | TD4 | Design board: Home Chats\|Stocks switch, watchlist, stock detail + chart, holdings, news | - | design | DONE |
 | TS1 | Server: stocks module (statefile watchlist/holdings/fees, Yahoo provider, RSS news, `/v1/stocks/*`) | TS0 | server | DONE |
 | TS1b | Server minors from review: news Close() marks closed (no poller restart after shutdown); backoff on Yahoo 5xx; name-fallback bypass of the word-code rule (CASH); image_url http(s) only; chart cache eviction; zero-cost guard | TS1 | server | TODO |
-| TS2 | Phone: Home switch (title words), Stocks home, watchlist, holdings, news, Settings › Stocks, stock palette | TD4, TS1 | android | BUILDING |
+| TS2 | Phone: Home switch (title words), Stocks home, watchlist, holdings, news, Settings › Stocks, stock palette | TD4, TS1 | android | DONE |
+| TS2b | TS2 fix round: stocks independent of Hermes (MAJOR-1), connection notice on Stocks, reload on reconnect, preview contrast, switch height | TS2 | android | DONE |
 | TS3 | Phone: stock detail + chart (Canvas candles/volume/line, ranges, crosshair), Open in Ajaib | TS2 | android | TODO |
 
 ## Log
@@ -16,3 +17,6 @@
 - 2026-11-05 TS1 built; pm-gate-ts1 GREEN (480 Go); mutations sell-fee sign 7 fail, Friday S1 end 3 fail. Deep review dispatched.
 - 2026-11-05 TS1 review PASS-WITH-FINDINGS (no BLOCKER/MAJOR; -race clean). Committed. Minors -> TS1b (folded into the next server touch).
 - 2026-11-05 User picks Q91 A, Q92 title words, Q93 A, Q94 Ajaib, Q95 yes. Real server installed as a user service (0.0.0-dev+6bf72c4; listens 192.168.1.61, 100.74.61.96, fd7a::…:8760). TS2 dispatched.
+- 2026-11-05 TS2 built; pm-gate-ts2 GREEN (1162). Mutation 'poll while market closed': first attempt broke compile (not counted), redo compiled -> 2 fail. Installed on the phone. Deep review running. Open: tick-check hint on holdings avg (asked user); stocks gated on the Hermes link (reviewer sizing).
+- 2026-11-05 TS2 review CHANGES-REQUIRED (MAJOR-1: stocks gated on the Hermes link). TS2b dispatched with m1-m4. Off-tick average stays allowed (§20).
+- 2026-11-05 TS2b re-review: only finding was the PM's own in-flight mutation (LinkState.kt:57, restored; reviewer started too early) -> void; all else closed, chat/relay unchanged. pm-gate-ts2b GREEN (1169) after the last edit; mutation HermesDown->null 4 fail. Installed. TS2+TS2b committed.

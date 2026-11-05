@@ -14,13 +14,18 @@ enum class SettingsPage(@StringRes val title: Int, @DrawableRes val icon: Int) {
     Appearance(R.string.settings_section_appearance, R.drawable.ic_palette),
     Language(R.string.settings_section_language, R.drawable.ic_language),
     Security(R.string.settings_section_security, R.drawable.ic_verified_user),
+    Stocks(R.string.settings_section_stocks, R.drawable.ic_show_chart),
     About(R.string.settings_section_about, R.drawable.ic_info),
 }
 
-/** The Settings list's three grouped blocks (design-notes §5.4): connection + notifications, look + language, security + about. */
+/**
+ * The Settings list's grouped blocks (design-notes §5.4): connection + notifications, look + language, stocks (TS2:
+ * broker fees and broker app), security + about.
+ */
 val settingsBlocks: List<List<SettingsPage>> = listOf(
     listOf(SettingsPage.Connection, SettingsPage.Notifications),
     listOf(SettingsPage.Appearance, SettingsPage.Language),
+    listOf(SettingsPage.Stocks),
     listOf(SettingsPage.Security, SettingsPage.About),
 )
 

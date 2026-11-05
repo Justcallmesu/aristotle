@@ -95,6 +95,8 @@ fun SettingsScreen(
     actions: SettingsActions,
     page: SettingsPage? = null,
     onOpen: (SettingsPage) -> Unit = {},
+    /** Settings › Stocks (TS2): its own ViewModel lives with the stocks pages, so the route supplies the section. */
+    stocksSection: @Composable () -> Unit = {},
 ) {
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -147,6 +149,7 @@ fun SettingsScreen(
                     SettingsPage.Language -> LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
                     SettingsPage.Security -> SecuritySection(viewModel, actions.screenLockSet)
                     SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew, actions.onSendDebugLog)
+                    SettingsPage.Stocks -> stocksSection()
                 }
                 Spacer(Modifier.height(Spacing.xxl))
             }
@@ -253,6 +256,7 @@ private fun SettingsList(
                 if (appLock) stringResource(R.string.settings_summary_lock_on, lockTimeoutLabel(lockTimeout))
                 else stringResource(R.string.settings_summary_lock_off)
             SettingsPage.About -> stringResource(R.string.settings_summary_about, BuildConfig.VERSION_NAME)
+            SettingsPage.Stocks -> stringResource(R.string.settings_summary_stocks)
         }
         CategoryRow(page, summary) { onOpen(page) }
         }

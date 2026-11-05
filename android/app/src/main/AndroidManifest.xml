@@ -15,6 +15,11 @@
     <!-- T10 battery guide step 1: Android's one-tap "don't optimise" dialog (sideloaded, spec Q11). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- TS2 (Q94): see whether the broker app Ajaib is installed, to offer "Open" only then (package visibility, API 30+). -->
+    <queries>
+        <package android:name="ajaib.co.id" />
+    </queries>
+
     <application
         android:name=".AristotleApplication"
         android:allowBackup="false"

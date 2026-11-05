@@ -133,7 +133,7 @@ class DiscoveryRuleTest {
         assertTrue(DiscoveryRule.shouldDiscover(LinkState.Online(tailnet, 1), wifi))
         assertTrue(DiscoveryRule.shouldDiscover(offline(trying = false), wifi))
         assertTrue(DiscoveryRule.shouldDiscover(LinkState.Connecting, wifi))
-        assertTrue(DiscoveryRule.shouldDiscover(LinkState.HermesDown(""), wifi))
+        assertTrue(DiscoveryRule.shouldDiscover(LinkState.HermesDown("", here), wifi))
         assertFalse(DiscoveryRule.shouldDiscover(LinkState.Idle, wifi))
         assertFalse(DiscoveryRule.shouldDiscover(LinkState.Stopped, wifi))
         assertFalse(DiscoveryRule.shouldDiscover(LinkState.Revoked, wifi))

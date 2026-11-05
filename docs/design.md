@@ -243,3 +243,5 @@ App lock screen (TS2) is the second exception to the no-centred-stack rule: icon
 
 
 Q67 exception (v2, TR3): the "N steps" line (36 dp) and opened step rows (44 dp) keep their visual heights; their 48 dp touch area comes from Compose's automatic minimum-touch-target expansion, not layout height, so the 4/12 dp chat rhythm holds.
+
+Q91 exception (v2, TS2): stock values only (price change, P/L, sparklines) use the separate stock palette `StockColors` (gain / loss / flat, stocks-notes §2 contrast table, ≥ 5.4:1 both themes), never M3 slots; every change also shows an arrow and a +/− sign, and red still means error everywhere else.

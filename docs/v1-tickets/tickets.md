@@ -453,3 +453,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 Review-TY PASS-WITH-FINDINGS (all RPC names/fields match Hermes; sort rules copied faithfully). Committed TY1+TY3+TY6. Minors folded into TY7.
 - 2026-11-05 TY7: pm-gate-62 GREEN (1103); mutation (Home limits every 10 s) fails 6. Committed (minor round folded; diff reviewed in T22). D50 RepairTest flake, D51 cold-cache retry recorded.
 - 2026-11-05 Real install (Q95): `pair` refused from a normal PC terminal (seen_by=unreadable_peer). Root cause PrivateTmp in a user unit -> user namespace -> /proc/<pid>/environ EACCES (PM probe). Drop-in PrivateTmp=no applied as workaround; TF1 dispatched.
+- 2026-11-05 D50 RepairTest flake seen a 3rd time (TS2b first gate run); passed on rerun. Still TODO before release.

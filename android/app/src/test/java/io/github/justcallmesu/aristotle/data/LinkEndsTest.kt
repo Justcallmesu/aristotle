@@ -12,9 +12,9 @@ class LinkEndsTest {
     @Test
     fun closeCodesWithTheirOwnState() {
         assertEquals(RoundEnd.Revoked, LinkEnds.ofClose(4401, "revoked", lan))
-        assertEquals(RoundEnd.HermesDown("close 4503 hermes_not_running"), LinkEnds.ofClose(4503, "hermes_not_running", lan))
+        assertEquals(RoundEnd.HermesDown("close 4503 hermes_not_running", lan), LinkEnds.ofClose(4503, "hermes_not_running", lan))
         assertEquals(
-            RoundEnd.HermesUpdated("close 4505 hermes_protocol_unsupported (unsupported hermes runtime protocol: 2)"),
+            RoundEnd.HermesUpdated("close 4505 hermes_protocol_unsupported (unsupported hermes runtime protocol: 2)", lan),
             LinkEnds.ofClose(4505, "hermes_protocol_unsupported (unsupported hermes runtime protocol: 2)", lan),
         )
         // D36: a newer socket of this device replaced this one; not a loss to retry (protocol §12).
@@ -22,6 +22,17 @@ class LinkEndsTest {
             RoundEnd.Superseded("close 4409 superseded by a newer connection", lan),
             LinkEnds.ofClose(4409, "superseded by a newer connection", lan),
         )
+    }
+
+    @Test
+    fun theServerEndpointIsKnownWheneverAristotleServerAnswered() {
+        assertEquals(lan, LinkState.Online(lan, 3).serverEndpoint)
+        assertEquals(tailnet, LinkState.HermesDown("close 4503", tailnet).serverEndpoint)
+        assertEquals(lan, LinkState.HermesUpdated("close 4505", lan).serverEndpoint)
+        val certificate = LinkState.Offline(1_000, OfflineCause.CertificateChanged, LinkEnds.CERT_DETAILS, lan, 1, null)
+        for (state in listOf(certificate, LinkState.Idle, LinkState.Connecting, LinkState.Stopped, LinkState.Revoked)) {
+            assertNull("$state", state.serverEndpoint)
+        }
     }
 
     @Test

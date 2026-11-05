@@ -29,7 +29,7 @@ class BackgroundRulesTest {
 
     @Test
     fun runsWhilePairedAndTheLinkCanStillRetry() {
-        for (link in listOf(LinkState.Idle, LinkState.Connecting, online, offline, LinkState.HermesDown("close 4503"))) {
+        for (link in listOf(LinkState.Idle, LinkState.Connecting, online, offline, LinkState.HermesDown("close 4503", lan))) {
             assertTrue("$link", keep(link = link))
         }
     }
@@ -39,7 +39,7 @@ class BackgroundRulesTest {
         assertFalse(keep(keepConnected = false))
         assertFalse(keep(stopped = true))
         assertFalse(keep(link = LinkState.Revoked))
-        assertFalse(keep(link = LinkState.HermesUpdated("close 4505")))
+        assertFalse(keep(link = LinkState.HermesUpdated("close 4505", lan)))
         assertFalse(keep(link = LinkState.Stopped))
         assertFalse(keep(credentials = CredentialState.Unpaired))
         assertFalse(keep(credentials = CredentialState.Unavailable))
@@ -59,10 +59,10 @@ class BackgroundRulesTest {
         assertEquals(ConnectionNotice.Reconnecting("pc"), ConnectionNotice.of(LinkState.Idle, "pc"))
         assertEquals(ConnectionNotice.OfflineSince(1_000), ConnectionNotice.of(offline, "pc"))
         assertEquals(ConnectionNotice.OfflineSince(1_000), ConnectionNotice.of(offline.copy(nextAttemptAtMillis = 9_000, attempt = 3), "pc"))
-        assertEquals(ConnectionNotice.HermesDown("pc"), ConnectionNotice.of(LinkState.HermesDown("x"), "pc"))
+        assertEquals(ConnectionNotice.HermesDown("pc"), ConnectionNotice.of(LinkState.HermesDown("x", lan), "pc"))
         assertNull(ConnectionNotice.of(LinkState.Revoked, "pc"))
         assertNull(ConnectionNotice.of(LinkState.Stopped, "pc"))
-        assertNull(ConnectionNotice.of(LinkState.HermesUpdated("x"), "pc"))
+        assertNull(ConnectionNotice.of(LinkState.HermesUpdated("x", lan), "pc"))
     }
 
     @Test

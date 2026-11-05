@@ -227,12 +227,12 @@ class LinkManager(
                     }
                     is RoundEnd.HermesUpdated -> {
                         reached()
-                        current.value = LinkState.HermesUpdated(end.details)
+                        current.value = LinkState.HermesUpdated(end.details, end.address)
                         awaitUser()
                     }
                     is RoundEnd.HermesDown -> {
                         reached()
-                        current.value = LinkState.HermesDown(end.details)
+                        current.value = LinkState.HermesDown(end.details, end.address)
                         sleep(timings.hermesDownRetryMillis)
                     }
                     RoundEnd.Switch -> current.value = LinkState.Connecting

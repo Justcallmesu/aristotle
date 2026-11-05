@@ -45,6 +45,7 @@ fun AristotleTheme(
     val provided = mutableListOf<ProvidedValue<*>>(
         LocalDarkTheme provides darkTheme,
         LocalAristotleStyles provides styles,
+        LocalStockColors provides if (darkTheme) StockColorsDark else StockColorsLight,
         LocalMinimumInteractiveComponentSize provides Sizes.minTouchTarget,
     )
     if (BuildConfig.DEBUG) provided += LocalFontFamilyResolver provides loggingFontResolver()

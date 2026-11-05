@@ -40,6 +40,9 @@ enum class AppLanguage(val key: String, val tag: String?) {
     }
 }
 
+/** Home's two views (Q89, Q92): the chats, or the stocks. Remembered across starts. */
+enum class HomeMode(val key: String) { Chats("chats"), Stocks("stocks") }
+
 /** The app's own settings (T10). Small and read at start; writes go through [store] (applied in the background). */
 class AppSettings(private val store: KeyValueStore) {
     private val keep = MutableStateFlow(flag(KEEP_CONNECTED) ?: true)
@@ -71,6 +74,11 @@ class AppSettings(private val store: KeyValueStore) {
 
     /** "Show Terminal on this phone" (Q62): off hides the entry whatever the PC allows; on shows it when the PC does. */
     val showTerminal: StateFlow<Boolean> = terminalShown.asStateFlow()
+
+    private val home = MutableStateFlow(choice(HOME_MODE, HomeMode.entries, HomeMode::key) ?: HomeMode.Chats)
+
+    /** Which view Home shows (Q92 title words "Chats  Stocks"); Chats until the user picks Stocks. */
+    val homeMode: StateFlow<HomeMode> = home.asStateFlow()
 
     val batteryGuideShown: Boolean get() = flag(GUIDE_SHOWN) == true
     val notificationsAsked: Boolean get() = flag(NOTIFICATIONS_ASKED) == true
@@ -115,6 +123,11 @@ class AppSettings(private val store: KeyValueStore) {
         terminalShown.value = on
     }
 
+    fun setHomeMode(mode: HomeMode) {
+        store.put(HOME_MODE, mode.key)
+        home.value = mode
+    }
+
     fun markGuide(step: GuideStep, done: Boolean) {
         store.put(step.key, done.toString())
         marks.value = if (done) marks.value + step else marks.value - step
@@ -146,6 +159,7 @@ class AppSettings(private val store: KeyValueStore) {
         const val LOCK_TIMEOUT = "lock_timeout"
         const val SHOW_TERMINAL = "show_terminal"
         const val LAST_SEEN_VERSION = "last_seen_version_code"
+        const val HOME_MODE = "home_mode"
     }
 }
 

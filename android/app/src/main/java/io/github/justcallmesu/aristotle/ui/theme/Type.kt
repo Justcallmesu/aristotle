@@ -146,10 +146,33 @@ class AristotleStyles internal constructor(scale: Float) {
     val quoteGreek: TextStyle = style(LiterataFamily, 13f, 20f, FontWeight.W400).scaled(scale)
     val quoteCitation: TextStyle = style(AtkinsonFamily, 12f, 16f, FontWeight.W500, 0.3f).scaled(scale)
 
+    // Stocks (stocks-notes §3, TS2). Numbers are tabular so columns of prices line up.
+    /** A stock code: Mono 600 16 / 22. */
+    val stockCode: TextStyle = style(AtkinsonMonoFamily, 16f, 22f, FontWeight.W600, 0.2f).scaled(scale)
+
+    /** A code in a ticker chip or a search row: Mono 600 13 / 18. */
+    val stockCodeSmall: TextStyle = style(AtkinsonMonoFamily, 13f, 18f, FontWeight.W600).scaled(scale)
+
+    /** A last price in a row: 600 16 / 22, tabular. */
+    val stockPrice: TextStyle = style(AtkinsonFamily, 16f, 22f, FontWeight.W600).scaled(scale).copy(fontFeatureSettings = "tnum")
+
+    /** A change beside its arrow: 600 12 / 18, tabular. */
+    val stockChange: TextStyle = style(AtkinsonFamily, 12f, 18f, FontWeight.W600).scaled(scale).copy(fontFeatureSettings = "tnum")
+
+    /** The holdings value on Home: 600 20 / 28, tabular. */
+    val stockValue: TextStyle = style(AtkinsonFamily, 20f, 28f, FontWeight.W600).scaled(scale).copy(fontFeatureSettings = "tnum")
+
+    /** The holdings page's value and the detail page's price: 600 24 / 32, tabular. */
+    val stockValueLarge: TextStyle = style(AtkinsonFamily, 24f, 32f, FontWeight.W600).scaled(scale).copy(fontFeatureSettings = "tnum")
+
+    /** A news card headline: Literata 500 16 / 22 (a reading text, as the feed wrote it). */
+    val newsHeadline: TextStyle = style(LiterataFamily, 16f, 22f, FontWeight.W500).scaled(scale)
+
     internal val all: List<TextStyle>
         get() = listOf(
             wordmark, wordmarkSmall, codeInline, details, fingerprint, pairingCode, fingerprintShort, liveStatus,
             liveStatusSmall, chatTitle, chatText, toolName, toolSummary, toolOutput, quote, quoteGreek, quoteCitation,
+            stockCode, stockCodeSmall, stockPrice, stockChange, stockValue, stockValueLarge, newsHeadline,
         )
 
     /** Times and durations use tabular figures. */

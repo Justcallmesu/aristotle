@@ -38,7 +38,15 @@ import io.github.justcallmesu.aristotle.ui.running.RunningScreen
 import io.github.justcallmesu.aristotle.ui.running.RunningViewModel
 import io.github.justcallmesu.aristotle.ui.pair.PairScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairViewModel
+import io.github.justcallmesu.aristotle.ui.sessions.HomeStocks
 import io.github.justcallmesu.aristotle.ui.sessions.ScheduledRequest
+import io.github.justcallmesu.aristotle.ui.stocks.HoldingsScreen
+import io.github.justcallmesu.aristotle.ui.stocks.NewsScreen
+import io.github.justcallmesu.aristotle.ui.stocks.StockDetailScreen
+import io.github.justcallmesu.aristotle.ui.stocks.StocksHomeBody
+import io.github.justcallmesu.aristotle.ui.stocks.StocksNav
+import io.github.justcallmesu.aristotle.ui.stocks.StocksSettingsSection
+import io.github.justcallmesu.aristotle.ui.stocks.StocksViewModel
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsScreen
 import io.github.justcallmesu.aristotle.ui.sessions.SessionsViewModel
 import io.github.justcallmesu.aristotle.ui.settings.BatteryGuideScreen
@@ -186,17 +194,20 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
 internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew,
     SettingsHistory, Running,
+    /** TS2: Holdings, News and a stock's page (route `stock/{code}`, the code kept beside the page). */
+    StocksHoldings, StocksNews, StockDetail,
     SettingsConnection(SettingsPage.Connection),
     SettingsNotifications(SettingsPage.Notifications),
     SettingsAppearance(SettingsPage.Appearance),
     SettingsLanguage(SettingsPage.Language),
     SettingsSecurity(SettingsPage.Security),
+    SettingsStocks(SettingsPage.Stocks),
     SettingsAbout(SettingsPage.About);
 
     /** The category page that opens this one (battery guide, \"Pair again\", What's new, connection history), or the list. */
     val back: PairedPage
         get() = when (this) {
-            SettingsConnection, SettingsNotifications, SettingsAppearance, SettingsLanguage, SettingsSecurity, SettingsAbout -> Settings
+            SettingsConnection, SettingsNotifications, SettingsAppearance, SettingsLanguage, SettingsSecurity, SettingsStocks, SettingsAbout -> Settings
             SettingsGuide -> SettingsNotifications
             Repair, SettingsHistory -> SettingsConnection
             SettingsWhatsNew -> SettingsAbout
@@ -227,6 +238,7 @@ private fun PairedPages(
 ) {
     val terminalRoutes = viewModel(key = TERMINAL_ROUTES) { RouteStores() }
     val runningRoutes = viewModel(key = RUNNING_ROUTES) { RouteStores() }
+    val stocksRoutes = viewModel(key = STOCKS_ROUTES) { RouteStores() }
     val terminalTarget by container.terminalAccess.target.collectAsStateWithLifecycle()
     val settings = container.settings
     val showTerminal by settings.showTerminal.collectAsStateWithLifecycle()
@@ -244,6 +256,15 @@ private fun PairedPages(
     // The "Scheduled" page's profile (null = launch) and its name, taken from the list when it was opened (T18).
     var cronProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var cronLabel by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
+    // TS2: the stock a stock's page shows, and the page it was opened from (Home, Holdings or News), where back goes.
+    var stockCode by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
+    var stockFrom by rememberSaveable(pc.pcId) { mutableStateOf(PairedPage.Sessions) }
+    val homeMode by settings.homeMode.collectAsStateWithLifecycle()
+    val openStock: (String) -> Unit = { code ->
+        stockFrom = if (page == PairedPage.StockDetail) stockFrom else page
+        stockCode = code
+        page = PairedPage.StockDetail
+    }
     // Each "Pair again" starts from an empty form.
     var repairCount by rememberSaveable(pc.pcId) { mutableIntStateOf(0) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
@@ -259,7 +280,7 @@ private fun PairedPages(
     }
     // "Show Terminal on this phone" off (Q62): the terminal page is never shown, whatever was restored.
     LaunchedEffect(page, showTerminal) { if (page == PairedPage.Terminal && !showTerminal) page = PairedPage.Sessions }
-    BackHandler(enabled = page != PairedPage.Sessions) { page = page.backFrom(runningFrom) }
+    BackHandler(enabled = page != PairedPage.Sessions) { page = if (page == PairedPage.StockDetail) stockFrom else page.backFrom(runningFrom) }
     // TY1: Home's ⋮ menu and a chat's status stack open the Running page.
     ProvideRunningNav(container.link, onOpen = {
         runningFrom = if (page == PairedPage.Chat) PairedPage.Chat else PairedPage.Sessions
@@ -301,6 +322,18 @@ private fun PairedPages(
                         }
                     },
                     terminalAvailable = TerminalEntry.shown(serverAllows = terminalTarget != null, showOnPhone = showTerminal),
+                    // Q89 / Q92: the Chats | Stocks title words; the Stocks view keeps its ViewModel with the stocks pages.
+                    stocks = run {
+                        val stocksViewModel = stocksViewModel(container, stocksRoutes, pc)
+                        val nav = StocksNav(
+                            openStock = openStock,
+                            openHoldings = { page = PairedPage.StocksHoldings },
+                            openNews = { page = PairedPage.StocksNews },
+                            openFees = { page = PairedPage.SettingsStocks },
+                            openSettings = { page = PairedPage.Settings },
+                        )
+                        HomeStocks(homeMode, settings::setHomeMode) { StocksHomeBody(stocksViewModel, nav, sessionsViewModel::timeText) }
+                    },
                     // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
                     onTerminal = {
                         scope.launch {
@@ -313,7 +346,7 @@ private fun PairedPages(
                 NotificationPermissionPrompt(settings, container.notifier::canPost)
             }
             PairedPage.Settings, PairedPage.SettingsConnection, PairedPage.SettingsNotifications, PairedPage.SettingsAppearance,
-            PairedPage.SettingsLanguage, PairedPage.SettingsSecurity, PairedPage.SettingsAbout -> SettingsRoute(
+            PairedPage.SettingsLanguage, PairedPage.SettingsSecurity, PairedPage.SettingsStocks, PairedPage.SettingsAbout -> SettingsRoute(
                 container,
                 pc,
                 page = page.settingsPage,
@@ -329,6 +362,7 @@ private fun PairedPages(
                     page = PairedPage.Repair
                 },
                 onHistory = { page = PairedPage.SettingsHistory },
+                stocksSection = { StocksSettingsSection(stocksViewModel(container, stocksRoutes, pc)) },
             )
             PairedPage.SettingsHistory -> ConnectionHistoryScreen(settingsViewModel(container), onBack = { page = page.back })
             PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
@@ -336,6 +370,16 @@ private fun PairedPages(
                 BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
             PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
             PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
+            PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.back })
+            PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.back }, onOpenStock = openStock)
+            PairedPage.StockDetail -> {
+                val code = stockCode
+                if (code != null) {
+                    StockDetailScreen(code, stocksViewModel(container, stocksRoutes, pc), onBack = { page = stockFrom })
+                } else {
+                    LaunchedEffect(Unit) { page = PairedPage.Sessions }
+                }
+            }
             PairedPage.Terminal -> TerminalRoute(
                 container,
                 terminalRoutes,
@@ -380,6 +424,7 @@ private fun SettingsRoute(
     onWhatsNew: () -> Unit,
     onRepair: () -> Unit,
     onHistory: () -> Unit,
+    stocksSection: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val settingsViewModel = settingsViewModel(container)
@@ -413,7 +458,20 @@ private fun SettingsRoute(
             screenLockSet = { isScreenLockSet(context) },
         )
     }
-    SettingsScreen(settingsViewModel, pc, actions, page, onOpen)
+    SettingsScreen(settingsViewModel, pc, actions, page, onOpen, stocksSection)
+}
+
+/**
+ * The stocks pages' one ViewModel (TS2): Home's Stocks view, Holdings, News, a stock's page and Settings › Stocks share
+ * it, in a store of its own per PC, so going between them keeps the lists; its price reads run only while the Stocks
+ * view is on screen.
+ */
+@Composable
+private fun stocksViewModel(container: AppContainer, stocksRoutes: RouteStores, pc: PcCredentials): StocksViewModel {
+    val owner = remember(pc.pcId) { stocksRoutes.ownerFor("stocks-${pc.pcId}") }
+    return viewModel(viewModelStoreOwner = owner) {
+        StocksViewModel(pc, container.link.state, container.stocksTransport, retryLink = container.link::retryNow)
+    }
 }
 
 /** The one Settings ViewModel, in the activity's store, shared by the Settings pages and the connection history (Q73). */
@@ -575,5 +633,6 @@ private const val CHAT_ROUTES = "chat-routes"
 private const val CRON_ROUTES = "cron-routes"
 private const val TERMINAL_ROUTES = "terminal-routes"
 private const val RUNNING_ROUTES = "running-routes"
+private const val STOCKS_ROUTES = "stocks-routes"
 private const val SETTINGS_VIEW_MODEL = "settings"
 private const val UNLOCKED_CONTENT = "unlocked"

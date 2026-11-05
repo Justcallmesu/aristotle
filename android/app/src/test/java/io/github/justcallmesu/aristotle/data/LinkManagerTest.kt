@@ -262,6 +262,7 @@ class LinkManagerTest {
         val manager = link(dialer, network)
         val updated = manager.await("updated") { it is LinkState.HermesUpdated } as LinkState.HermesUpdated
         assertEquals("close 4505 hermes_protocol_unsupported", updated.details)
+        assertEquals("the server answered here (stocks still use it)", lan, updated.serverEndpoint)
         network.change(preferLan = true)
         manager.onForeground()
         runBlocking { delay(300) }
@@ -884,7 +885,7 @@ class LinkManagerTest {
     @Test
     fun eachRoundEndHasItsHistoryReason() {
         assertEquals(OfflineReason.Revoked, LinkHistory.reasonOf(RoundEnd.Revoked))
-        assertEquals(OfflineReason.HermesNotRunning, LinkHistory.reasonOf(RoundEnd.HermesDown("close 4503 hermes_not_running")))
+        assertEquals(OfflineReason.HermesNotRunning, LinkHistory.reasonOf(RoundEnd.HermesDown("close 4503 hermes_not_running", lan)))
         assertEquals(OfflineReason.Superseded, LinkHistory.reasonOf(RoundEnd.Superseded("close 4409", lan)))
         assertEquals(OfflineReason.TailscaleMayBeOff, LinkHistory.reasonOf(RoundEnd.Lost(OfflineCause.TailscaleMayBeOff, "x", null)))
         assertNull("a switch is not offline", LinkHistory.reasonOf(RoundEnd.Switch))
