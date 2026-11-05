@@ -363,11 +363,26 @@ class DayEdgeSlotsTest {
     @Test
     fun fridayAtElevenThirtyAndBarsBeforeTheOpenAreClampedIntoASessionSlot() {
         val friday = BarAxis.day(listOf(bar("2026-11-06T08:55", 1), bar("2026-11-06T09:00", 2), bar("2026-11-06T11:30", 3), bar("2026-11-06T14:00", 4)), 5)
-        // Session 1 is 30 slots (0..29): 08:55 -> 0, 11:30 -> 29; 14:00 opens session 2 at slot 30.
-        assertEquals(listOf(0, 1, 29, 30), (0 until friday.size).map(friday::slotOf))
+        // Session 1 is 30 slots (0..29): 08:55 shares slot 0 with 09:00, 11:30 -> 29; 14:00 opens session 2 at slot 30.
+        assertEquals(listOf(0, 0, 29, 30), (0 until friday.size).map(friday::slotOf))
         assertEquals(55, friday.slots)
         val alone = BarAxis.day(listOf(bar("2026-11-06T11:30", 3)), 5)
         assertEquals(29, alone.slotOf(0))
+    }
+
+    @Test
+    fun aBarBeforeTheOpenDoesNotShiftTheBarsAfterIt() {
+        // TM3a2: 08:50 and 08:55 clamp into slot 0 beside 09:00; 09:05 stays at 1, 13:30 at 36 (Mon–Thu, 5 min).
+        val early = listOf(bar("2026-11-05T08:50", 1), bar("2026-11-05T08:55", 2), bar("2026-11-05T09:00", 3), bar("2026-11-05T09:05", 4), bar("2026-11-05T13:30", 5))
+        val axis = BarAxis.day(early, 5)
+        assertEquals(listOf(0, 0, 0, 1, 36), (0 until axis.size).map(axis::slotOf))
+        assertEquals(67, axis.slots)
+        // Without the early bars the same bars sit on the same slots.
+        val onTime = BarAxis.day(early.drop(2), 5)
+        assertEquals(listOf(0, 1, 36), (0 until onTime.size).map(onTime::slotOf))
+        // Two bars stamped at the same on-schedule time still get a slot each.
+        val twice = BarAxis.day(listOf(bar("2026-11-05T09:00", 1), bar("2026-11-05T09:00", 2)), 5)
+        assertEquals(listOf(0, 1), (0 until twice.size).map(twice::slotOf))
     }
 
     @Test
@@ -398,10 +413,10 @@ class ChartFitTest {
         assertEquals(44f, ChartFit.readoutHeightDp(44f, 1f), 0f)
         assertEquals(44f, ChartFit.readoutHeightDp(44f, 0.85f), 0f)
         assertTrue(ChartFit.readoutHeightDp(44f, scale) >= 46f + 4f)
-        // 14 sp labels at 1.3x are 18.2 dp tall, from the labels' top at 234 dp.
-        val height = ChartFit.chartHeightDp(234f, 14f, scale)
-        assertTrue(ChartFit.fitsBelow(234f, 14f * scale, height))
-        assertFalse("the old fixed 250 dp cut them", ChartFit.fitsBelow(234f, 14f * scale + 4f, 250f))
+        // The box grows by the MEASURED label line plus 1 px; never under the minimum (TM3a2, ChartHeightTest for scales).
+        assertEquals(234f + 18.8f + ChartFit.SLACK_PX, ChartFit.chartHeightPx(234f, 18.8f, 250f), 1e-4f)
+        assertEquals(250f, ChartFit.chartHeightPx(234f, 14f, 250f), 0f)
+        assertTrue(ChartFit.fitsBelow(234f, 18.8f, ChartFit.chartHeightPx(234f, 18.8f, 250f) - 0.5f))
         // A 6-digit price at 1.3x (11 sp, ~7.2 dp a digit = 43 + 6 dp) against the axis' room (46 − 5 − 1 = 40 dp).
         val width = 6 * 7.2f * 11f / 11f
         val factor = ChartFit.shrink(width, 40f)

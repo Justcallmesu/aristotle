@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
@@ -178,8 +179,11 @@ private class ChartFrame(density: Density, size: Size) {
     val volumeTop: Float = priceHeight + with(density) { VOLUME_GAP.toPx() }
     val volumeHeight: Float = with(density) { VOLUME_HEIGHT.toPx() }
     val volumeBottom: Float = volumeTop + volumeHeight
-    val labelTop: Float = volumeBottom + with(density) { LABEL_GAP.toPx() }
+    val labelTop: Float = labelTopPx(density)
 }
+
+/** Where the time labels start, in px: price, gap, volume, gap (the same sum [ChartFrame] and [chartHeightFor] use). */
+internal fun labelTopPx(density: Density): Float = with(density) { PRICE_HEIGHT.toPx() + VOLUME_GAP.toPx() + VOLUME_HEIGHT.toPx() + LABEL_GAP.toPx() }
 
 /** A price label measured to fit [room] px: shrunk, or null when it would have to be too small to read. */
 private fun fitLabel(measurer: TextMeasurer, text: String, style: TextStyle, room: Float): TextLayoutResult? {
@@ -195,11 +199,23 @@ private fun fitTag(measurer: TextMeasurer, text: String, style: TextStyle, room:
     return if (factor == 1f) first else measurer.measure(text, style.copy(fontSize = style.fontSize * factor))
 }
 
-/** The chart's height: [CHART_HEIGHT], more when the font scale makes the time labels taller (they end inside the box). */
+/**
+ * The chart's height: [CHART_HEIGHT], more when the time labels are taller than the room under the volume. The label
+ * line is measured with the axis style the drawer uses, so it carries the app's text size and the phone's font scale
+ * as Compose applies it (non-linear from 1.03x: at 1.3x a 14 sp line is 18.8 dp, not 18.2), never a guess.
+ */
 @Composable
 internal fun chartHeight(): Dp {
-    val fontScale = LocalDensity.current.fontScale
-    return max(CHART_HEIGHT.value, ChartFit.chartHeightDp(LABEL_TOP_DP, AXIS_LINE_DP, fontScale)).dp
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val style = AristotleTextStyles.chartAxis
+    val line = remember(measurer, style, density) { measurer.measure(AXIS_PROBE, style, density = density).size.height }
+    return chartHeightFor(density, line.toFloat())
+}
+
+/** [chartHeight] for a time label [labelHeightPx] tall as measured: it ends inside the box once the box is rounded to px. */
+internal fun chartHeightFor(density: Density, labelHeightPx: Float): Dp = with(density) {
+    ChartFit.chartHeightPx(labelTopPx(density), labelHeightPx, CHART_HEIGHT.toPx()).toDp()
 }
 
 /** Everything that does not move with the finger, built once. */
@@ -392,8 +408,8 @@ private val VOLUME_GAP = 10.dp
 private val VOLUME_HEIGHT = 40.dp
 private val LABEL_GAP = 4.dp
 internal val CHART_HEIGHT = 250.dp
-private const val LABEL_TOP_DP = 234f // price 180 + gap 10 + volume 40 + gap 4
-private const val AXIS_LINE_DP = 14f // the axis text's line height (sp, so it grows with the font scale)
+/** A time label to measure the axis line by: digits and letters, one line (every label is one line of the same style). */
+private const val AXIS_PROBE = "09:00 Nov"
 private val AXIS_WIDTH = 46.dp
 private val MAX_BODY = 9.dp
 private val LINE_STROKE = 1.75.dp

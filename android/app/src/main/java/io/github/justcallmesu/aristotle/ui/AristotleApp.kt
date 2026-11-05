@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
@@ -215,10 +216,12 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
             else -> Sessions
         }
 
-    /** [back], except Running opened from a chat's "See all" ([runningFrom] = [Chat]) returns to that chat (TY7). */
-    fun backFrom(runningFrom: PairedPage, newsFrom: PairedPage = Sessions): PairedPage = when {
+    /**
+     * [back], except Running opened from a chat's "See all" ([runningFrom] = [Chat]) returns to that chat (TY7). The
+     * stocks pages go back by their own stack ([StocksBackStack]).
+     */
+    fun backFrom(runningFrom: PairedPage): PairedPage = when {
         this == Running && runningFrom == Chat -> Chat
-        this == StocksNews && newsFrom == StockDetail -> StockDetail // "All news" opened on a stock goes back to that stock
         else -> back
     }
 
@@ -226,6 +229,12 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
         fun of(settingsPage: SettingsPage): PairedPage = entries.first { it.settingsPage == settingsPage }
     }
 }
+
+/** The stocks back stack ([StocksBackStack.below]) in the saved state, one string a page. */
+private val StockStackSaver = listSaver<List<StockPlace>, String>(
+    save = { stack -> stack.map(StockPlace::encode) },
+    restore = { saved -> saved.mapNotNull(StockPlace::decode) },
+)
 
 /**
  * Session list, a session's chat, settings and the battery guide; the guide opens once on its own after pairing
@@ -262,19 +271,18 @@ private fun PairedPages(
     // The "Scheduled" page's profile (null = launch) and its name, taken from the list when it was opened (T18).
     var cronProfile by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
     var cronLabel by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
-    // TS2: the stock a stock's page shows, and the page it was opened from (Home, Holdings or News), where back goes.
+    // TS2: the stock a stock's page shows. TM3a2: the stocks pages under the shown one (Holdings, News, stocks), a real
+    // back stack, so Back unwinds each once and ends on Home ([StocksBackStack]).
     var stockCode by rememberSaveable(pc.pcId) { mutableStateOf<String?>(null) }
-    var stockFrom by rememberSaveable(pc.pcId) { mutableStateOf(PairedPage.Sessions) }
-    // Where the News page was opened from: Home, or a stock's page ("All news"), where its back goes.
-    var newsFrom by rememberSaveable(pc.pcId) { mutableStateOf(PairedPage.Sessions) }
+    var stockStack by rememberSaveable(pc.pcId, stateSaver = StockStackSaver) { mutableStateOf(emptyList<StockPlace>()) }
     val homeMode by settings.homeMode.collectAsStateWithLifecycle()
-    val openStock: (String) -> Unit = { code ->
-        stockFrom = if (page == PairedPage.StockDetail) stockFrom else page
-        // A stock opened from the news list: that list's back no longer loops to a page it came from.
-        if (page == PairedPage.StocksNews) newsFrom = PairedPage.Sessions
-        stockCode = code
-        page = PairedPage.StockDetail
+    fun stocksStack() = StocksBackStack(page, stockCode.takeIf { page == PairedPage.StockDetail }, stockStack)
+    fun show(nav: StocksBackStack) {
+        if (nav.code != null) stockCode = nav.code
+        stockStack = nav.below
+        page = nav.page
     }
+    val openStock: (String) -> Unit = { code -> show(stocksStack().openStock(code)) }
     // Each "Pair again" starts from an empty form.
     var repairCount by rememberSaveable(pc.pcId) { mutableIntStateOf(0) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
@@ -290,7 +298,9 @@ private fun PairedPages(
     }
     // "Show Terminal on this phone" off (Q62): the terminal page is never shown, whatever was restored.
     LaunchedEffect(page, showTerminal) { if (page == PairedPage.Terminal && !showTerminal) page = PairedPage.Sessions }
-    BackHandler(enabled = page != PairedPage.Sessions) { page = if (page == PairedPage.StockDetail) stockFrom else page.backFrom(runningFrom, newsFrom) }
+    // System back and every top-bar arrow that has a page of its own to return to share this one step.
+    val goBack: () -> Unit = { if (page in StocksBackStack.PAGES) show(stocksStack().back()) else page = page.backFrom(runningFrom) }
+    BackHandler(enabled = page != PairedPage.Sessions) { goBack() }
     // TY1: Home's ⋮ menu and a chat's status stack open the Running page.
     ProvideRunningNav(container.link, onOpen = {
         runningFrom = if (page == PairedPage.Chat) PairedPage.Chat else PairedPage.Sessions
@@ -337,11 +347,8 @@ private fun PairedPages(
                         val stocksViewModel = stocksViewModel(container, stocksRoutes, pc)
                         val nav = StocksNav(
                             openStock = openStock,
-                            openHoldings = { page = PairedPage.StocksHoldings },
-                            openNews = {
-                                newsFrom = PairedPage.Sessions
-                                page = PairedPage.StocksNews
-                            },
+                            openHoldings = { show(stocksStack().openHoldings()) },
+                            openNews = { show(stocksStack().openNews()) },
                             openFees = { page = PairedPage.SettingsStocks },
                             openSettings = { page = PairedPage.Settings },
                         )
@@ -383,8 +390,8 @@ private fun PairedPages(
                 BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
             PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
             PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
-            PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.back })
-            PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = { page = page.backFrom(runningFrom, newsFrom) }, onOpenStock = openStock)
+            PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack)
+            PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack, onOpenStock = openStock)
             PairedPage.StockDetail -> {
                 val code = stockCode
                 if (code != null) {
@@ -394,11 +401,8 @@ private fun PairedPages(
                         pc,
                         code,
                         stocks = stocksViewModel(container, stocksRoutes, pc),
-                        onBack = { page = stockFrom },
-                        onOpenNews = {
-                            newsFrom = PairedPage.StockDetail
-                            page = PairedPage.StocksNews
-                        },
+                        onBack = goBack,
+                        onOpenNews = { show(stocksStack().openNews()) },
                     )
                 } else {
                     LaunchedEffect(Unit) { page = PairedPage.Sessions }
@@ -414,7 +418,7 @@ private fun PairedPages(
             PairedPage.Running -> RunningRoute(
                 container,
                 runningRoutes,
-                onBack = { page = page.backFrom(runningFrom) },
+                onBack = goBack,
                 // A row opens its chat as a Home row does (T14: the chat keeps the row's profile).
                 onOpen = { open ->
                     chatId = open.sessionId

@@ -149,7 +149,8 @@ class BarAxis private constructor(val slots: Int, private val positions: IntArra
         /**
          * 1D: the whole trading day of the bars' date at [intervalMinutes] (session 1, then session 2 with its closing
          * bar), the break between them collapsed and marked; bars so far fill the left part. A bar off the schedule
-         * still gets its own slot (always after the bar before it).
+         * (before the open, at the session-1 end, in the break) shares the nearest session slot; an on-schedule bar
+         * always takes a slot after the on-schedule bar before it.
          */
         fun day(bars: List<ChartBar>, intervalMinutes: Int): BarAxis {
             if (bars.isEmpty()) return byIndex(0)
@@ -158,11 +159,16 @@ class BarAxis private constructor(val slots: Int, private val positions: IntArra
             val s1 = sessions.firstSlots(step)
             val positions = IntArray(bars.size)
             var previous = -1
+            // The last slot an on-schedule bar took: only those push the next bar one slot on.
+            var lastOnSchedule = -1
             bars.forEachIndexed { i, bar ->
                 val time = timeOf(bar)
                 // A bar stamped at the session end, in the break or before the open takes the nearest session slot
-                // (shared with the bar there, if any) instead of pushing every later bar one slot on.
-                val slot = if (sessions.isOffSchedule(time)) max(sessions.slotOf(time, step), previous) else max(sessions.slotOf(time, step), previous + 1)
+                // (shared with the bar there, if any) instead of pushing every later bar one slot on: a 08:55 bar
+                // shares slot 0 with the 09:00 bar, a 12:00 bar shares the 11:55 slot.
+                val off = sessions.isOffSchedule(time)
+                val slot = max(sessions.slotOf(time, step), if (off) previous else max(lastOnSchedule + 1, previous))
+                if (!off) lastOnSchedule = slot
                 positions[i] = slot
                 previous = slot
             }
@@ -224,11 +230,15 @@ object ChartFit {
     /** The readout's height in dp: [baseDp] for two lines at 1x, growing with the font scale (never below [baseDp]). */
     fun readoutHeightDp(baseDp: Float, fontScale: Float): Float = baseDp * max(fontScale, 1f)
 
+    /** Rounding room under the time labels: the box's height is rounded to whole pixels, possibly down by half a pixel. */
+    const val SLACK_PX = 1f
+
     /**
-     * The chart's height in dp: the panels down to the labels ([labelTopDp]) plus one line of [labelLineDp] text grown
-     * by the font scale, so the time labels end inside the box.
+     * The chart's height in px (TM3a2): the panels down to the labels ([labelTop]) plus the time label's line as the
+     * drawer MEASURED it ([labelHeight], so the phone's non-linear font scale and the app's text size are in it) plus
+     * [SLACK_PX]; never under [minimum]. A label [labelHeight] tall then always [fitsBelow] the rounded box.
      */
-    fun chartHeightDp(labelTopDp: Float, labelLineDp: Float, fontScale: Float): Float = labelTopDp + labelLineDp * max(fontScale, 1f)
+    fun chartHeightPx(labelTop: Float, labelHeight: Float, minimum: Float): Float = max(minimum, labelTop + labelHeight + SLACK_PX)
 
     /** A label [height] tall drawn at [top] ends inside a chart [total] tall. */
     fun fitsBelow(top: Float, height: Float, total: Float): Boolean = top + height <= total
