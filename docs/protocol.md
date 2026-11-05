@@ -1212,3 +1212,81 @@ goes out; cached data is served with `stale:true`. Yahoo is called only when a p
 device asked in the last 30 min (the first ask after a quiet spell fetches at once); ring of 300 by publish time, deduplicated by link.
 Search lists the bundled universe first (LQ45 + IDX80 of the current index period, `in_universe:true`, plus a few search-only
 names), then Yahoo's IDX hits; an exact bundled code skips Yahoo. Logs carry no holdings values.
+
+### 20.1 Analyzer (`/v1/stocks/analyze`, `/v1/stocks/analysis`, TA1; design `docs/v2-stocks/runs/TA0/report.md`, spec Q96-Q103, P5-P7)
+
+Code: `server/internal/stocks/{indicators,verdict,analyzer}.go`, `server/internal/hermes/analysis.go`. Same auth, headers and error
+shape as above. New routes: no `ProtocolVersion` bump.
+
+| Method, path | Body | Answer |
+|---|---|---|
+| `POST /v1/stocks/analyze/{code}` | `{"lang":"id"\|"en"}` (required; the phone's language, Q101) | `202 {"job_id":"an_<12 hex>","state":"running","started_at"}` |
+| `GET /v1/stocks/analysis/{code}` | — | `200 {"code","state":"idle\|running\|done\|failed","job_id","started_at","finished_at","error","result"}` |
+
+- **State.** `state`, `job_id`, `started_at`, `finished_at`, `error` describe the latest job for the code since the server started (all
+  `null` and `state:"idle"` when there was none; jobs do not survive a restart). `result` is the **kept** last good verdict (Q99), shown
+  whatever the job state; a failed job never replaces it. The phone polls `GET` (every 2 s) while `state` is `running`.
+- **Errors (POST).** `400 bad_code`; `400 bad_request` (body missing, unknown field, `lang` not `id`/`en`); `409 analysis_running` (a job
+  for this code runs); `429 busy` (2 jobs run); `503 hermes_unavailable` (control socket missing/refused, not ready, unsupported runtime);
+  `503 analyzer_not_set_up` (Hermes does not serve profile `aristotle-stocks`, or the server has no analyzer); `422 unknown_symbol`;
+  `422 no_data` (no completed daily bar); `502 upstream_error` / `503 upstream_blocked` from Yahoo as above; `500 state_error`
+  (`stocks.json` unusable: held or not decides the verdict set). These are checked before `202`; nothing is created in Hermes then.
+- **Job `error` codes.** `timeout` (120 s per turn, then `session.interrupt`), `model_error` (turn status `error`), `invalid_verdict`
+  (schema failed after the repair turn), `verdict_rejected` (checks failed after the repair turn), `tools_present`, `unexpected_prompt`,
+  `interrupted` (turn interrupted, or the server stopped), `hermes_lost` (socket or dial failed), `data_unavailable`, `analyzer_not_set_up`.
+- **Result.** `{"code","name","held","lang","analyzed_at","data_as_of","session_date","market_state","model","duration_ms","verdict",
+  "confidence":"low|med|high","entry_low","entry_high","target","stop","summary","reasons":[{"text","sources":["ind:rsi14","news:2",…]}],
+  "flags":[…],"repaired","price","ara","arb","indicators":{"ind:*":…},"levels":{"lvl:*":…},"news":[{"id":"news:N","source","title","link",
+  "published_at"}]}`. `verdict` ∈ `buy_today|wait|avoid` (not held) or `add|hold|sell` (held, Q98). Prices are integer IDR or `null`
+  (buy/add: all four set; hold: stop set, entry null; sell/avoid: all null; wait: entry zone or null). `reasons[].sources` are ids from
+  `indicators`, `levels`, `news` or `hold:lots|avg_price|pl_pct` (the holding itself is not stored in the result). `repaired` = the
+  answer came from the repair turn. `flags` ⊆ `low_reward_risk` ((target − entry_high)/(entry_low − stop) < 1.5), `wide_stop` (stop more
+  than 2×ATR14 below entry_low), `entry_far` (zone more than 3 % from the price), `target_above_r1` (more than 1 tick above `lvl:r1`),
+  `market_closed` (the verdict is for the next session), `limits_unknown` (no ARB/ARA rule for the session date; the range check is skipped).
+- **Indicators** (pure, over **completed** sessions = daily bars dated before `session_date`; `session_date` = today on a trading day
+  before 16:00, else the next trading day). Daily bars `1y`; MA20/MA50 (SMA of closes); trend `up` (last close > MA20 > MA50 and MA20 above
+  its value 5 bars earlier), `down` (mirror), `side`, `unknown` (< 50 bars); RSI14 and ATR14 Wilder (seeded with the simple mean of the
+  first 14, then `(avg×13 + x)/14`; RSI 100 when the average loss is 0, 50 when the price never moved); volume vs the 20-session average,
+  raw and paced by elapsed trading minutes (330 Mon-Thu, 270 Fri), only while the session date trades, plus the last session's ratio;
+  swing highs/lows of the last 60 sessions (above/below the 2 bars on each side), merged within 1.5 %, 2 nearest below (`lvl:s1/s2`) and
+  above (`lvl:r1/r2`) the price; 20-day high/low; floor pivot of the last session; 52-week position from the quote's range, else the bars;
+  intraday (≥ 3 five-minute bars of today) open/high/low, VWAP = Σ(((H+L+C)/3)×V)/ΣV, gap vs base. **Limit base** = the last completed
+  session's close from the server's own bars (not Yahoo's `previousClose`, which is unreliable after the close); ARA/ARB = the dated table
+  for `session_date`. Levels are snapped to the nearest tick. Up to 8 headlines matching the code (strong first) with source and time.
+- **Model contract.** One `prompt.submit` per turn: a `SYSTEM:` block (judge only DATA, no tools, never invent figures), the task (code,
+  session date, market state, held, allowed verdicts), the rules (integer IDR in [ARB, ARA], tick bands, price order per verdict), the
+  language of `summary`/`reasons`, the JSON shape and `DATA: {as_of, code, name, session_date, market_state, quote, limits, indicators,
+  levels, holding|null, news}`. The reply (one surrounding code fence stripped) must be exactly one object with exactly the keys `schema`
+  (`stock_verdict/1`), `code`, `data_as_of` (echoes), `verdict`, `confidence`, `entry`, `target`, `stop`, `summary` (≤ 280), `reasons`
+  (3-5, text ≤ 200, ≥ 1 source each, every source in DATA). Then the checks (P6): off-tick, outside [ARB, ARA], wrong order, a verdict outside
+  the held set, non-null prices on sell/avoid are **rejected, never snapped**. Any failure → ONE repair turn in the same session:
+  `Your reply failed validation: <≤ 5 errors>. Reply again with ONLY the corrected JSON object.`
+- **Storage.** `stocks-analyses.json` in the state dir (0600, atomic replace): `{"version":1,"analyses":{"<CODE>":<result>},
+  "failed_sessions":[{"session_id","failed_at"}]}`, at most 50 codes (the oldest `analyzed_at` dropped). A file that is not valid version 1
+  is left untouched; results are then kept in memory only (logged).
+- **Limits and logs.** One job per code, at most 2 at once. Logs carry the job id, code, state, error code and duration only: never the
+  prompt, the holding or the verdict text.
+
+**Hermes frames used** (from source, Hermes v0.22.5 @717447e, checked against TA0's citations; not exercised against the real gateway):
+1. `identify`; `served_profiles` must list `…/profiles/aristotle-stocks` (preflight: else `analyzer_not_set_up`).
+2. `session-ticket {profile_id:<aristotle-stocks home>, instance_id, purpose:"interactive", scope:"profile"}` → `/api/ws` upgrade and
+   `client.capabilities` as §1. The socket is bound to that profile only (§3): it cannot reach the user's chats.
+3. `session.create {request_id, source:"tool", hidden:true, toolsets:["no_mcp"], ignore_rules:true, reasoning:"low", max_turns:3,
+   run_budget:90}` (no `title`, no `model`: the profile's default, Q103) → snapshot `{session_id, revision, execution_generation,
+   info:{tool_count, model}}` (`tui_gateway/contracts/canonical_sessions.py:21-55`, `gateway/session_controls.py:480-532`). `tool_count`
+   missing or ≠ 0 → `session.mutate delete` at once, job `tools_present`, nothing submitted (`gateway/session_local_inventory.py:200-202`).
+4. `prompt.submit {session_id, text, submission_id, finite:true}`; never `unattended` (`gateway/session_finite.py:46-68`). The answer's
+   `admission_id` and `execution_generation` are kept.
+5. Events: `message.complete` whose envelope (or payload) `admission_id` is ours ends the turn: `status` `complete` → `payload.text`;
+   `interrupted` (or `outcome:"cancelled"`) → `interrupted`; `error` → `model_error` (`tui_gateway/contracts/events.py:281-305`).
+   `session.info` / `session.updated` update `revision` and `execution_generation`. `approval.request`, `clarify.request` or any `srq-`
+   request → no answer ever (§6), `session.interrupt`, job `unexpected_prompt`. `gateway.ping` every 15 s while waiting.
+6. Fallback when events may be lost (`session.replay_gap`, and once before declaring a timeout): `prompt.receipt {session_id,
+   admission_id, include_result:true}` → `{status:"terminal", outcome:"completed"|"interrupted"|"failed", result:{final_response}}`
+   (`gateway/session_controls.py:858-869`, `gateway/session_results.py:54-69`).
+7. Timeout/abort: `session.interrupt {session_id, execution_generation}`; `stale_generation` is retried once at `error.data.execution_generation`.
+8. Cleanup (P7): after the result is stored, `session.mutate {session_id, request_id, expected_revision, operation:"delete", payload:{}}`;
+   `session_busy` retried 6 × 0.5 s, `revision_conflict` retried at `error.data.revision` (`gateway/session_mutations.py:39-70`,
+   `hermes_state_mutations.py:40`). A failed job (or a failed delete) keeps the hidden session and records its id; the server deletes
+   records older than 7 days at start and daily, on a fresh profile-scoped socket with `expected_revision:0` then the conflict's revision;
+   `not_found` counts as deleted. ASSUMED: deleting a cold session from a new socket succeeds (history-claim path, not exercised).

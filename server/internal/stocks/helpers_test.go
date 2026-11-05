@@ -46,6 +46,7 @@ type fakeProvider struct {
 	mu          sync.Mutex
 	quotes      map[string]Quote
 	charts      map[string]Chart
+	rangeCharts map[string]Chart // "CODE|range", checked before charts
 	search      []SearchResult
 	err         error
 	quoteCalls  int
@@ -88,7 +89,10 @@ func (f *fakeProvider) Chart(_ context.Context, code, rng string) (Chart, error)
 	if f.err != nil {
 		return Chart{}, f.err
 	}
-	ch, ok := f.charts[code]
+	ch, ok := f.rangeCharts[code+"|"+rng]
+	if !ok {
+		ch, ok = f.charts[code]
+	}
 	if !ok {
 		return Chart{}, ErrUnknownSymbol
 	}
@@ -154,12 +158,13 @@ func fixtureFetch(t *testing.T, failing string, count *int, mu *sync.Mutex) func
 }
 
 type harness struct {
-	t     *testing.T
-	svc   *Service
-	prov  *fakeProvider
-	clock *fakeClock
-	dir   string
-	logs  *bytes.Buffer
+	t       *testing.T
+	svc     *Service
+	prov    *fakeProvider
+	clock   *fakeClock
+	dir     string
+	logs    *bytes.Buffer
+	analyst Analyst // nil: analyzer off
 }
 
 // newHarness builds a Service on a temp state dir at Thu 2026-11-05 10:00 WIB (session 1).
@@ -179,7 +184,8 @@ func (h *harness) start() {
 				}
 				return a
 			}})),
-		NewsAfter: func(time.Duration) <-chan time.Time { return nil }})
+		NewsAfter: func(time.Duration) <-chan time.Time { return nil }, Analyst: h.analyst,
+		SweepAfter: func(time.Duration) <-chan time.Time { return nil }})
 	h.t.Cleanup(h.svc.Close)
 }
 

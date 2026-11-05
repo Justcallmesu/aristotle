@@ -4,6 +4,7 @@ package hermestest
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,7 +57,31 @@ type Fake struct {
 	CloseAfterAck websocket.StatusCode // close right after the ack (an established Conn)
 	NoAck         bool
 	ReadLimit     int64 // /api/ws read limit; 0 = the library default (32 KiB). Real Hermes allows 384 MiB.
+	// Profiles are extra served profile names (homes <Home>/profiles/<name>) beside the root and "pm".
+	Profiles []string
+	// Script, when set, runs the /api/ws socket after the capabilities ack instead of echoing frames.
+	Script func(p *Peer)
 }
+
+// Peer is the fake's side of one /api/ws socket, for Script.
+type Peer struct {
+	ws  *websocket.Conn
+	ctx context.Context
+}
+
+// Read returns the next client frame.
+func (p *Peer) Read() ([]byte, error) {
+	_, data, err := p.ws.Read(p.ctx)
+	return data, err
+}
+
+// Write sends one frame to the client.
+func (p *Peer) Write(frame string) error {
+	return p.ws.Write(p.ctx, websocket.MessageText, []byte(frame))
+}
+
+// Drop ends the socket without a close frame (Hermes vanished).
+func (p *Peer) Drop() { _ = p.ws.CloseNow() }
 
 // MintRequest is one ticket the fake minted.
 type MintRequest struct{ Purpose, Scope, ProfileID string }
@@ -155,12 +180,26 @@ func (f *Fake) identityLocked() map[string]any {
 	return map[string]any{
 		"runtime_protocol": f.runtime, "state": "ready", "instance_id": f.instanceID,
 		"api_origin": f.srv.URL, "hermes_home": f.Home,
-		"capabilities": []string{"session-authority-v1"},
-		"served_profiles": []map[string]string{
-			{"profile_id": f.Home, "home": f.Home},
-			{"profile_id": f.Home + "/profiles/pm", "home": f.Home + "/profiles/pm"},
-		},
+		"capabilities":    []string{"session-authority-v1"},
+		"served_profiles": f.servedLocked(),
 	}
+}
+
+func (f *Fake) servedLocked() []map[string]string {
+	out := []map[string]string{{"profile_id": f.Home, "home": f.Home}}
+	for _, name := range append([]string{"pm"}, f.Profiles...) {
+		out = append(out, map[string]string{"profile_id": f.Home + "/profiles/" + name, "home": f.Home + "/profiles/" + name})
+	}
+	return out
+}
+
+func (f *Fake) servesLocked(profileID string) bool {
+	for _, p := range f.servedLocked() {
+		if p["profile_id"] == profileID {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *Fake) replyTicketLocked(conn net.Conn, id int, params map[string]interface{}) {
@@ -179,7 +218,7 @@ func (f *Fake) replyTicketLocked(conn net.Conn, id int, params map[string]interf
 	switch {
 	case params["instance_id"] != f.instanceID:
 		deny("stale runtime instance")
-	case (profileID != f.Home && profileID != f.Home+"/profiles/pm") || (purpose != "interactive" && purpose != "native-http") || (scope == "host" && purpose != "interactive"):
+	case !f.servesLocked(profileID) || (purpose != "interactive" && purpose != "native-http") || (scope == "host" && purpose != "interactive"):
 		deny("bootstrap binding rejected")
 	default:
 		ticket := fmt.Sprintf("tkt-%d-%d", f.generation, len(f.Minted)+1)
@@ -232,7 +271,7 @@ func (f *Fake) handleWS(w http.ResponseWriter, r *http.Request) {
 	defer ws.CloseNow()
 	ctx := r.Context()
 	f.Mu.Lock()
-	preAck, closeCode, noAck, closeAfterAck, readLimit := f.PreAck, f.CloseCode, f.NoAck, f.CloseAfterAck, f.ReadLimit
+	preAck, closeCode, noAck, closeAfterAck, readLimit, script := f.PreAck, f.CloseCode, f.NoAck, f.CloseAfterAck, f.ReadLimit, f.Script
 	f.Mu.Unlock()
 	if readLimit != 0 {
 		ws.SetReadLimit(readLimit)
@@ -270,6 +309,10 @@ func (f *Fake) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		if first && closeAfterAck != 0 {
 			_ = ws.Close(closeAfterAck, "test close")
+			return
+		}
+		if first && script != nil {
+			script(&Peer{ws: ws, ctx: ctx})
 			return
 		}
 	}

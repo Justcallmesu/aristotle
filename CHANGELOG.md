@@ -10,7 +10,9 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- Phone: A stock's page: price chart in candles or line for 1 day to 1 year with volume (touch and hold to read any bar), today's numbers, your holding with profit and loss after fees, news about the stock, add or remove it from the watchlist, and "Open in Ajaib".
 - Phone: Stocks on Home: tap "Stocks" in the title to see your IDX watchlist with today's moves, your holdings with profit and loss after broker fees, and market news; add, reorder and remove stocks, edit holdings, and set the broker fees in Settings › Stocks.
+- Server: Stock analyzer for the phone (`/v1/stocks/analyze`, `/v1/stocks/analysis`): computes trend, moving averages, RSI, volume, support and resistance and today's limits on your PC, then asks Hermes (profile `aristotle-stocks`, no tools) for a checked buy / wait / avoid or add / hold / sell verdict with entry, target, stop and cited reasons; the last result per stock is kept.
 - Server: Stocks for the phone (`/v1/stocks/*`): your IDX watchlist, holdings with profit and loss after broker fees, delayed prices and charts from Yahoo, and market news from CNBC Indonesia, Kontan and IDX Channel tagged with your stocks.
 - Phone: Find your PC again by itself when you join a Wi-Fi where its address has changed; only your paired PC, checked by its certificate, is accepted.
 - Phone: "Find PC on this Wi-Fi" in Settings › Connection looks for your PC on the Wi-Fi you are on when it was not found by itself.

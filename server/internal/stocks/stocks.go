@@ -59,6 +59,10 @@ type Options struct {
 	Now       func() time.Time
 	Log       *slog.Logger
 	NewsAfter func(time.Duration) <-chan time.Time // tests: drive the news poll timer
+	// Analyst runs analyses in Hermes; nil leaves the analyzer off (POST answers 503 analyzer_not_set_up).
+	Analyst Analyst
+	// SweepAfter drives the daily sweep of failed analysis sessions (tests); nil: time.After.
+	SweepAfter func(time.Duration) <-chan time.Time
 }
 
 // Service owns the stocks state and serves /v1/stocks/*.
@@ -69,6 +73,7 @@ type Service struct {
 	market   *Market
 	news     *News
 	universe *Universe
+	analyzer *analyzer
 	mux      *http.ServeMux
 
 	mu       sync.Mutex // guards st; held across a save so writes stay ordered
@@ -108,6 +113,7 @@ func New(o Options) *Service {
 	if s.universe.Expired(s.now()) {
 		s.log.Warn("stocks: bundled LQ45/IDX80 list is past its period; edit universe.json", "valid_to", s.universe.ValidTo)
 	}
+	s.analyzer = newAnalyzer(s, o.Analyst, o.SweepAfter)
 	s.mux = s.routes()
 	return s
 }
@@ -115,8 +121,11 @@ func New(o Options) *Service {
 // ServeHTTP serves /v1/stocks/*; the caller has checked the device token.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
-// Close stops the news poller.
-func (s *Service) Close() { s.news.Close() }
+// Close stops the news poller and the analysis jobs (running turns are interrupted).
+func (s *Service) Close() {
+	s.news.Close()
+	s.analyzer.close()
+}
 
 func (s *Service) routes() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -143,6 +152,8 @@ func (s *Service) routes() *http.ServeMux {
 	handle("GET /v1/stocks/chart/{code}", s.getChart)
 	handle("GET /v1/stocks/news", s.getNews)
 	handle("GET /v1/stocks/search", s.getSearch)
+	handle("POST /v1/stocks/analyze/{code}", s.postAnalyze)
+	handle("GET /v1/stocks/analysis/{code}", s.getAnalysis)
 	handle("/v1/stocks/", func(*http.Request) (int, any, error) { return 0, nil, errNotFound })
 	return mux
 }

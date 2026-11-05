@@ -10,8 +10,9 @@
 | TS2b | TS2 fix round: stocks independent of Hermes (MAJOR-1), connection notice on Stocks, reload on reconnect, preview contrast, switch height | TS2 | android | DONE |
 | TS3 | Phone: stock detail + chart (Canvas candles/volume/line, ranges, crosshair), Open in Ajaib | TS2 | android | DONE |
 | TA0 | Research: running a stock analysis in Hermes from the server (methods, no-tools mode, profile setup, prompt + JSON verdict, contract, indicators) | - | docs | DONE |
-| TA1 | Server: indicators + analysis job (`/v1/stocks/analyze`), verdict validation, kept last result | TA0 | server | BUILDING |
-| TA2 | Phone: Analyze button + verdict card on the stock page | TA1, TS3 | android | TODO |
+| TA1 | Server: indicators + analysis job (`/v1/stocks/analyze`), verdict validation, kept last result | TA0 | server | DONE |
+| TA1b | Analyzer hardening (TA1 review): untrusted-data instruction + flag news-only reasons (MINOR-1); record session id before any post-create failure (MINOR-2); sweep continues past errors + first-real-run check of cross-socket delete (MINOR-3); nits (refusal codes, hold target check, shutdown race, failed_at parse, title caps, duplicate keys) | TA1 | server | BUILDING |
+| TA2 | Phone: Analyze button + verdict card on the stock page | TA1, TS3 | android | BUILDING |
 | TS3b | TS3 minors: stale long-range bars need Retry/refetch; 60 s refresh must not cut a crosshair hold; exclude chart from system back-gesture edge; 1.3x font overflow (device check); 1D slot for bars at 12:00/11:30/pre-09:00; Back from All news -> stock; single-bar line; Add holding before load; Ajaib uninstall feedback | TS3 | android | TODO |
 
 ## Log
@@ -28,3 +29,6 @@
 - 2026-11-05 TA0 done. Q101 phone language; Q102 PM created profile aristotle-stocks (no tools; smoke 'OK/none'); Q103 Opus. P5-P7 recorded. TA1 dispatched (server) in parallel with TS3 (android).
 - 2026-11-05 TS3 built; pm-gate-ts3 GREEN (1204); mutation price-axis inverted -> 2 fail. Phone not connected (install pending). D50 RepairTest flake 4th time. Deep review dispatched after the mutation finished.
 - 2026-11-05 TS3 review PASS-WITH-FINDINGS (no BLOCKER/MAJOR). Committed (android + docs); its CHANGELOG line rides with TA1's commit (shared file). Minors -> TS3b.
+- 2026-11-05 TA1 built; pm-gate-ta1 GREEN (527 Go, -race clean per builder); mutations tool_count guard 1 fail, Buy order 1 fail. Deep review dispatched.
+- 2026-11-05 TA2 dispatched against TA1's uncommitted contract (read-only) while TA1 is reviewed; steer if the review changes the contract.
+- 2026-11-05 TA1 review PASS-WITH-FINDINGS (8 security checks hold). Committed with TS3's CHANGELOG line. MINOR-1 (prompt injection) fixed now as TA1b (advice quality = core promise); TA2 steered: summary/reasons plain text only.

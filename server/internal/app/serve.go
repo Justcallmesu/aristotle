@@ -114,7 +114,7 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		grants: grants, terms: terminal.New(terminal.Options{Grants: grants, Devices: store, Log: log,
 			KeepEnv: cfg.Terminal.KeepEnv, DelegatedUnit: delegatedUnit()})}
 	s.pcstatus = &pcstatus.Collector{Log: log, Hermes: hermesRunning(connector), Tailscale: s.tailscaleUp}
-	s.stocks = stocks.New(stocks.Options{StateDir: stateDir, Log: log})
+	s.stocks = stocks.New(stocks.Options{StateDir: stateDir, Log: log, Analyst: stocks.HermesAnalyst(connector)})
 	s.listen = &listen.Manager{
 		Port: cfg.Port, Policy: listenPolicy(cfg),
 		TLS: cert.ServerConfig(), Handler: s.remoteHandler, Scan: scan, Log: log,

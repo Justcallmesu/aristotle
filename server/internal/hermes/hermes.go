@@ -51,6 +51,7 @@ const (
 	purposeInteractive  = "interactive"
 	purposeNativeHTTP   = "native-http"
 	scopeHost           = "host"
+	scopeProfile        = "profile"
 	requiredAuthority   = "session-authority-v1"
 	wsPath              = "/api/ws"
 	maxFrameBytes       = 64 << 20

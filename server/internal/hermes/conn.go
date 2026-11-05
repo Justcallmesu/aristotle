@@ -30,15 +30,26 @@ type Conn struct {
 // Origin header, sends client.capabilities and waits for its ack. Frames Hermes sent before the
 // ack are returned by the first Reads, so the relay still sees gateway.ready.
 func (c *Connector) Dial(ctx context.Context) (*Conn, error) {
+	return c.dial(ctx, Identity.launchProfileID, scopeHost)
+}
+
+// DialProfile is Dial on a socket bound to one served profile (scope "profile", docs/protocol.md §3):
+// calls naming another profile are refused profile_mismatch, so the socket cannot reach other chats.
+// ErrUnknownProfile when Hermes does not serve the profile.
+func (c *Connector) DialProfile(ctx context.Context, profile string) (*Conn, error) {
+	return c.dial(ctx, func(id Identity) (string, error) { return id.resolveProfile(profile) }, scopeProfile)
+}
+
+func (c *Connector) dial(ctx context.Context, pick func(Identity) (string, error), scope string) (*Conn, error) {
 	id, err := c.Identify(ctx)
 	if err != nil {
 		return nil, err
 	}
-	profileID, err := id.launchProfileID()
+	profileID, err := pick(id)
 	if err != nil {
 		return nil, err
 	}
-	ticket, err := c.mintTicket(ctx, id, profileID, purposeInteractive, scopeHost)
+	ticket, err := c.mintTicket(ctx, id, profileID, purposeInteractive, scope)
 	if err != nil {
 		return nil, err
 	}
