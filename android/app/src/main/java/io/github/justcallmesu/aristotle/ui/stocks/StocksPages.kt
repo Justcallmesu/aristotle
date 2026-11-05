@@ -54,6 +54,7 @@ import io.github.justcallmesu.aristotle.data.stocks.HoldingsBody
 import io.github.justcallmesu.aristotle.data.stocks.NewsFilter
 import io.github.justcallmesu.aristotle.data.stocks.NewsItem
 import io.github.justcallmesu.aristotle.data.stocks.NewsLists
+import io.github.justcallmesu.aristotle.data.stocks.SetupLabel
 import io.github.justcallmesu.aristotle.data.stocks.StockChanges
 import io.github.justcallmesu.aristotle.data.stocks.StockFees
 import io.github.justcallmesu.aristotle.data.stocks.StockFormat
@@ -66,9 +67,15 @@ import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import java.util.Locale
 
-/** A stocks page's top bar: back, a Literata title and a muted subline (board `.topbar`). */
+/** A stocks page's top bar: back, a Literata title and a muted subline (board `.topbar`); [actions] at the end (TSC3). */
 @Composable
-internal fun StocksTopBar(title: String, subline: String?, onBack: () -> Unit, titleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge) {
+internal fun StocksTopBar(
+    title: String,
+    subline: String?,
+    onBack: () -> Unit,
+    titleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+) {
     Row(modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.topBarHeight).padding(horizontal = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.nav_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -79,6 +86,7 @@ internal fun StocksTopBar(title: String, subline: String?, onBack: () -> Unit, t
                 Text(it, style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        actions()
     }
 }
 
@@ -88,13 +96,18 @@ internal fun StocksTopBar(title: String, subline: String?, onBack: () -> Unit, t
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HoldingsScreen(viewModel: StocksViewModel, onBack: () -> Unit) {
+fun HoldingsScreen(viewModel: StocksViewModel, onBack: () -> Unit, screener: ScreenerViewModel? = null) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // Loads on every show and again when the server comes back while shown (not only once).
-    LifecycleResumeEffect(viewModel) {
+    LifecycleResumeEffect(viewModel, screener) {
         viewModel.holdingsVisible(true)
-        onPauseOrDispose { viewModel.holdingsVisible(false) }
+        screener?.holdingsVisible(true)
+        onPauseOrDispose {
+            viewModel.holdingsVisible(false)
+            screener?.holdingsVisible(false)
+        }
     }
+    val screen = screener?.uiState?.collectAsStateWithLifecycle()?.value
     val snackbar = remember { SnackbarHostState() }
     StocksMessages(state.message, snackbar, viewModel::messageShown)
     val holdings = state.holdings
@@ -122,7 +135,7 @@ fun HoldingsScreen(viewModel: StocksViewModel, onBack: () -> Unit) {
                                 item(key = "rows") {
                                     val rows = holdings.byValue
                                     GroupedRows(rows.size, modifier = Modifier.padding(horizontal = Spacing.listGutter)) { index ->
-                                        HoldingRowView(rows[index], muted, onOpen = viewModel::editHolding)
+                                        HoldingRowView(rows[index], muted, screen?.labelsFor(rows[index].code).orEmpty(), muted || screen?.labelsMuted == true, locale, onOpen = viewModel::editHolding)
                                     }
                                 }
                             }
@@ -172,12 +185,14 @@ private fun HoldingsSummary(holdings: HoldingsBody, fees: StockFees?, offline: B
     }
 }
 
+/** A holding row; TSC3: a setup label line when one fired on it (Q106: bearish flags in loss colours). */
 @Composable
-private fun HoldingRowView(row: HoldingRow, offline: Boolean, onOpen: (String) -> Unit) {
+private fun HoldingRowView(row: HoldingRow, offline: Boolean, labels: List<SetupLabel>, labelsMuted: Boolean, locale: Locale, onOpen: (String) -> Unit) {
     val muted = offline || row.stale
     val change = StockChanges.profit(row.pl, row.plPct)
     val value = StockFormat.orDash(row.value, StockFormat::rupiah)
-    val description = stringResource(R.string.stocks_holding_description, row.code, StockFormat.number(row.lots), value, changeWords(change))
+    val spoken = if (labels.isEmpty()) "" else ". " + labelsSpoken(labels, locale)
+    val description = stringResource(R.string.stocks_holding_description, row.code, StockFormat.number(row.lots), value, changeWords(change)) + spoken
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -194,6 +209,7 @@ private fun HoldingRowView(row: HoldingRow, offline: Boolean, onOpen: (String) -
                 style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (labels.isNotEmpty()) LabelLine(labels, max = 1, muted = labelsMuted, locale = locale, modifier = Modifier.padding(top = Spacing.xs))
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(value, style = AristotleTextStyles.stockPrice, color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)

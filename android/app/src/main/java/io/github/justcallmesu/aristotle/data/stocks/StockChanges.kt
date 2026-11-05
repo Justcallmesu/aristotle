@@ -37,8 +37,11 @@ object StockChanges {
     }
 
     /** Only the percent of a quote's day change ("+1,86 %"), for chips. */
-    fun quotePercent(quote: StockQuote?): ChangeDisplay {
-        val pct = quote?.changePct ?: return unknown()
+    fun quotePercent(quote: StockQuote?): ChangeDisplay = percent(quote?.changePct)
+
+    /** A change in percent only ("+1,01 %"), e.g. a screener row's `change_pct`; without one, unknown. */
+    fun percent(pct: Double?): ChangeDisplay {
+        pct ?: return unknown()
         return ChangeDisplay(Direction.of(pct), StockFormat.percent(pct))
     }
 

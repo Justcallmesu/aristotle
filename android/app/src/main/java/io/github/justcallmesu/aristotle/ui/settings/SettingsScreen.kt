@@ -256,7 +256,7 @@ private fun SettingsList(
                 if (appLock) stringResource(R.string.settings_summary_lock_on, lockTimeoutLabel(lockTimeout))
                 else stringResource(R.string.settings_summary_lock_off)
             SettingsPage.About -> stringResource(R.string.settings_summary_about, BuildConfig.VERSION_NAME)
-            SettingsPage.Stocks -> stringResource(R.string.settings_summary_stocks)
+            SettingsPage.Stocks -> stringResource(R.string.settings_summary_stocks_screener)
         }
         CategoryRow(page, summary) { onOpen(page) }
         }

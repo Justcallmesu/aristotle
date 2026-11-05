@@ -43,6 +43,9 @@ import io.github.justcallmesu.aristotle.ui.sessions.HomeStocks
 import io.github.justcallmesu.aristotle.ui.sessions.ScheduledRequest
 import io.github.justcallmesu.aristotle.ui.stocks.HoldingsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.NewsScreen
+import io.github.justcallmesu.aristotle.ui.stocks.ScreenerScreen
+import io.github.justcallmesu.aristotle.ui.stocks.ScreenerSettingsScreen
+import io.github.justcallmesu.aristotle.ui.stocks.ScreenerViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.StockDetailScreen
 import io.github.justcallmesu.aristotle.ui.stocks.StockDetailViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.StocksHomeBody
@@ -198,6 +201,8 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     SettingsHistory, Running,
     /** TS2: Holdings, News and a stock's page (route `stock/{code}`, the code kept beside the page). */
     StocksHoldings, StocksNews, StockDetail,
+    /** TSC3: the Screener page and Settings › Stocks › Screener (both on the stocks back stack). */
+    StocksScreener, StocksScreenerSettings,
     SettingsConnection(SettingsPage.Connection),
     SettingsNotifications(SettingsPage.Notifications),
     SettingsAppearance(SettingsPage.Appearance),
@@ -345,14 +350,16 @@ private fun PairedPages(
                     // Q89 / Q92: the Chats | Stocks title words; the Stocks view keeps its ViewModel with the stocks pages.
                     stocks = run {
                         val stocksViewModel = stocksViewModel(container, stocksRoutes, pc)
+                        val screenerViewModel = screenerViewModel(container, stocksRoutes, pc)
                         val nav = StocksNav(
                             openStock = openStock,
                             openHoldings = { show(stocksStack().openHoldings()) },
                             openNews = { show(stocksStack().openNews()) },
                             openFees = { page = PairedPage.SettingsStocks },
                             openSettings = { page = PairedPage.Settings },
+                            openScreener = { show(stocksStack().openScreener()) },
                         )
-                        HomeStocks(homeMode, settings::setHomeMode) { StocksHomeBody(stocksViewModel, nav, sessionsViewModel::timeText) }
+                        HomeStocks(homeMode, settings::setHomeMode) { StocksHomeBody(stocksViewModel, nav, sessionsViewModel::timeText, screenerViewModel) }
                     },
                     // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
                     onTerminal = {
@@ -382,7 +389,9 @@ private fun PairedPages(
                     page = PairedPage.Repair
                 },
                 onHistory = { page = PairedPage.SettingsHistory },
-                stocksSection = { StocksSettingsSection(stocksViewModel(container, stocksRoutes, pc)) },
+                stocksSection = {
+                    StocksSettingsSection(stocksViewModel(container, stocksRoutes, pc), onOpenScreener = { show(stocksStack().openScreenerSettings()) })
+                },
             )
             PairedPage.SettingsHistory -> ConnectionHistoryScreen(settingsViewModel(container), onBack = { page = page.back })
             PairedPage.Repair -> RepairRoute(container, routes, pc, "repair-${pc.pcId}-$repairCount", defaultDeviceName, onCancel = { page = page.back })
@@ -390,7 +399,15 @@ private fun PairedPages(
                 BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
             PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
             PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
-            PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack)
+            PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack, screener = screenerViewModel(container, stocksRoutes, pc))
+            // TSC3: a candidate opens its stock through [openStock] (show(...)), never a plain page change (MINOR-B).
+            PairedPage.StocksScreener -> ScreenerScreen(
+                screenerViewModel(container, stocksRoutes, pc),
+                onBack = goBack,
+                onOpenStock = openStock,
+                onOpenSettings = { show(stocksStack().openScreenerSettings()) },
+            )
+            PairedPage.StocksScreenerSettings -> ScreenerSettingsScreen(screenerViewModel(container, stocksRoutes, pc), onBack = goBack)
             PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack, onOpenStock = openStock)
             PairedPage.StockDetail -> {
                 val code = stockCode
@@ -499,6 +516,15 @@ private fun stocksViewModel(container: AppContainer, stocksRoutes: RouteStores, 
     val owner = remember(pc.pcId) { stocksRoutes.ownerFor("stocks-${pc.pcId}") }
     return viewModel(viewModelStoreOwner = owner) {
         StocksViewModel(pc, container.link.state, container.stocksTransport, retryLink = container.link::retryNow)
+    }
+}
+
+/** The screener's ViewModel (TSC3), beside the stocks one in the stocks pages' store: Home's section, the page and its settings share it. */
+@Composable
+private fun screenerViewModel(container: AppContainer, stocksRoutes: RouteStores, pc: PcCredentials): ScreenerViewModel {
+    val owner = remember(pc.pcId) { stocksRoutes.ownerFor("stocks-${pc.pcId}") }
+    return viewModel(viewModelStoreOwner = owner) {
+        ScreenerViewModel(pc, container.link.state, container.stocksTransport, retryLink = container.link::retryNow)
     }
 }
 

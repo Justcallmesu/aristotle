@@ -24,7 +24,8 @@
 | TSC1c | TSC1b's race test passes on the old code (PM check): make it RED on d2e1255, GREEN now | TSC1b | server | DONE |
 | TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | REVIEW |
 | TSC3 | Phone: screener section/page/settings (+ TM3a2 review MINOR-A: source check that chartHeight uses the Canvas style/density; MINOR-B: any deep link into a stock page goes through show(...)) | TSC2 | android | WAITING |
-| TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | TODO (decided; after TSC2 commit) |
+| TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | BUILDING (+ TSC2 review minors 1-5) |
+| TSC3b | TSC3 fix round: bearish flags hidden on own rows (MAJOR-1, Q106) + refresh after 16:00, cooldown, mode switch, error follow | TSC3 | android | DONE |
 | TBA2 | Server: 08:30 brief | TBA1, Q105/Q108/Q110 | server | WAITING |
 | TBA3a | Phone: alert watcher + notifications | TBA1 | android | WAITING |
 | TBA3b | Phone: brief page + jobs/alerts settings | TBA2 | android | WAITING |
@@ -66,3 +67,8 @@
 - 2026-11-05 13:50 Overlap found (decisions.md). TM3/TM4 deltas to gate+review; TSC2 (server) and TD5 (board) dispatched; TBA1 stays WAITING on Q104, Q107-Q110.
 - 2026-11-05 TM4 delta: pm-gate-tm4 GREEN (android). Mutation (gesture strip height cap removed): first filtered run matched no class (StockChartTest.kt holds several classes) -> not counted; redo on ChartHoldAndDetailRulesTest -> theGestureStripsAreTheChartEdgesWithinTheSystemLimit fails. TM3 delta checked after TSC2 (same package); one review for both deltas.
 - 2026-11-05 TSC2 built (637 Go, -race clean); TD5 board done. PM: §20.2 jobs line; mutations liquidity floor (2 fail), news_only hold:* (1 fail; first try NOT APPLIED, sed delimiter). One deep review for TSC2+TM3+TM4 deltas; TSC3 dispatched on Q112 PM reading.
+- 2026-11-05 TSC2 review PASS-WITH-FINDINGS (stress -race clean). Committed 8fdba61 with TM3+TM4 deltas. TSC2 minors 1-5 folded into TBA1 (two change what alerts see). TBA1 dispatched; TSC3 PM gate + mutation running, review after.
+- 2026-11-05 TSC3: pm-gate-tsc3 GREEN (1299); mutation polls outside scan windows -> ScreenerRefreshTest 1/9 fails (XML checked). Deep review dispatched.
+- 2026-11-05 TSC3 review CHANGES-REQUIRED (MAJOR-1: bearish flag hidden when a code is both candidate and flagged; breaks Q106). TSC3b dispatched with MINOR 1-5; TSC3 held uncommitted until TSC3b passes.
+- 2026-11-05 TSC3b built (1304, 7 tests RED first). pm-gate-tsc3b GREEN; mutation bearish-last -> ScreenerLogicTest 1/8 fails (XML). Re-review of TSC3+TSC3b dispatched.
+- 2026-11-05 TSC3b re-review APPROVED. TSC3+TSC3b committed (android). CHANGELOG Phone line rides with TBA1's commit (shared file, TBA1 editing it). MINOR-6 (TalkBack re-reads the cooldown every second) -> TBA2 brief.

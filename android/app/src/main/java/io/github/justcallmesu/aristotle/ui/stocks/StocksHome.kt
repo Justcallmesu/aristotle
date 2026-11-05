@@ -78,6 +78,7 @@ import io.github.justcallmesu.aristotle.data.stocks.MarketLine
 import io.github.justcallmesu.aristotle.data.stocks.MarketStatus
 import io.github.justcallmesu.aristotle.data.stocks.NewsItem
 import io.github.justcallmesu.aristotle.data.stocks.QuotesBody
+import io.github.justcallmesu.aristotle.data.stocks.SetupLabel
 import io.github.justcallmesu.aristotle.data.stocks.StockChanges
 import io.github.justcallmesu.aristotle.data.stocks.StockFormat
 import io.github.justcallmesu.aristotle.data.stocks.StockTimes
@@ -92,33 +93,40 @@ import io.github.justcallmesu.aristotle.ui.theme.Sizes
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 import java.util.Locale
 
-/** Where the Stocks view sends the user: a stock's page, Holdings, News, Settings › Stocks, Settings. */
+/** Where the Stocks view sends the user: a stock's page, Holdings, News, Settings › Stocks, Settings, the Screener. */
 class StocksNav(
     val openStock: (String) -> Unit,
     val openHoldings: () -> Unit,
     val openNews: () -> Unit,
     val openFees: () -> Unit,
     val openSettings: () -> Unit,
+    val openScreener: () -> Unit = {},
 )
 
 /**
  * Home's Stocks view under the head (stocks-notes §3, board "Home · Stocks"): the market line, the watchlist, the
- * holdings card and the news strip, then the bottom bar (News, Holdings, ⋮, + adds to the watchlist). Prices are read
- * while this is on screen and resumed ([StocksViewModel.homeVisible]).
+ * Screener section (TSC3, under the watchlist), the holdings card and the news strip, then the bottom bar (News,
+ * Holdings, ⋮, + adds to the watchlist). Prices and the screener are read while this is on screen and resumed
+ * ([StocksViewModel.homeVisible], [ScreenerViewModel.homeVisible]).
  */
 @Composable
-fun ColumnScope.StocksHomeBody(viewModel: StocksViewModel, nav: StocksNav, timeText: (Long) -> String) {
+fun ColumnScope.StocksHomeBody(viewModel: StocksViewModel, nav: StocksNav, timeText: (Long) -> String, screener: ScreenerViewModel? = null) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LifecycleResumeEffect(viewModel) {
+    LifecycleResumeEffect(viewModel, screener) {
         viewModel.homeVisible(true)
-        onPauseOrDispose { viewModel.homeVisible(false) }
+        screener?.homeVisible(true)
+        onPauseOrDispose {
+            viewModel.homeVisible(false)
+            screener?.homeVisible(false)
+        }
     }
+    val screen = screener?.uiState?.collectAsStateWithLifecycle()?.value
     val snackbar = remember { SnackbarHostState() }
     StocksMessages(state.message, snackbar, viewModel::messageShown)
     val locale = currentLocale()
     MarketStatusLine(state.link, state.quotes, state.problem, timeText, viewModel::retry, locale)
     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-        StocksHomeList(state, viewModel, nav, locale)
+        StocksHomeList(state, screen, viewModel, nav, locale)
         SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
     StocksBottomBar(online = state.reachable, nav = nav, onAdd = viewModel::openWatchSearch)
@@ -127,7 +135,7 @@ fun ColumnScope.StocksHomeBody(viewModel: StocksViewModel, nav: StocksNav, timeT
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StocksHomeList(state: StocksUiState, viewModel: StocksViewModel, nav: StocksNav, locale: Locale) {
+private fun StocksHomeList(state: StocksUiState, screen: ScreenerUiState?, viewModel: StocksViewModel, nav: StocksNav, locale: Locale) {
     val muted = !state.reachable
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.l)) {
@@ -141,9 +149,12 @@ private fun StocksHomeList(state: StocksUiState, viewModel: StocksViewModel, nav
                     watch.isEmpty() -> EmptyWatchlist(enabled = state.reachable, onAdd = viewModel::openWatchSearch)
                     else -> GroupedRows(watch.size, modifier = Modifier.padding(horizontal = Spacing.listGutter)) { index ->
                         val entry = watch[index]
-                        WatchRow(entry, state.quotes, muted, onOpen = nav.openStock, onActions = viewModel::openWatchActions)
+                        WatchRow(entry, state.quotes, muted, screen?.labelsFor(entry.code).orEmpty(), muted || screen?.labelsMuted == true, locale, onOpen = nav.openStock, onActions = viewModel::openWatchActions)
                     }
                 }
+            }
+            if (screen != null) {
+                item(key = "screener") { ScreenerHomeSection(screen.homeState, locale, onOpenPage = nav.openScreener, onOpenStock = nav.openStock) }
             }
             item(key = "hold-header") { SectionHeader(stringResource(R.string.stocks_holdings)) }
             item(key = "hold") {
@@ -211,17 +222,22 @@ private fun marketText(market: MarketStatus?, today: java.time.LocalDate, locale
 private fun asOfText(quotes: QuotesBody, today: java.time.LocalDate, locale: Locale): String =
     StockTimes.dayClock(quotes.asOf, today, locale) ?: StockFormat.missing
 
-/** Two-line watchlist row (Q93, 64 dp): code + name, sparkline, last price + change. Tap opens; long press moves or removes. */
+/**
+ * Two-line watchlist row (Q93, 64 dp): code + name, sparkline, last price + change. Tap opens; long press moves or removes.
+ * TSC3: when a setup fired on it, a label line under the name (the best label and "+N"; Q106 bearish in loss colours), and
+ * the row grows past 64 dp.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun WatchRow(entry: WatchEntry, quotes: QuotesBody?, offline: Boolean, onOpen: (String) -> Unit, onActions: (String) -> Unit) {
+private fun WatchRow(entry: WatchEntry, quotes: QuotesBody?, offline: Boolean, labels: List<SetupLabel>, labelsMuted: Boolean, locale: Locale, onOpen: (String) -> Unit, onActions: (String) -> Unit) {
     val quote = quotes?.quoteOf(entry.code)
     val muted = offline || quote?.stale == true
     val change = quote?.let(StockChanges::quote) ?: StockChanges.quotePercent(null)
     val actionsLabel = stringResource(R.string.stocks_watch_actions)
     val name = entry.name.ifEmpty { quote?.name.orEmpty() }
     // Plain digits for speech: a grouped "9.875" is read as a decimal by an English voice.
-    val description = stringResource(R.string.stocks_row_description, entry.code, name, quote?.price?.toString() ?: StockFormat.missing, changeWords(change))
+    val spoken = if (labels.isEmpty()) "" else ". " + labelsSpoken(labels, locale)
+    val description = stringResource(R.string.stocks_row_description, entry.code, name, quote?.price?.toString() ?: StockFormat.missing, changeWords(change)) + spoken
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,6 +254,7 @@ private fun WatchRow(entry: WatchEntry, quotes: QuotesBody?, offline: Boolean, o
         Column(modifier = Modifier.weight(1f)) {
             Text(text = entry.code, style = AristotleTextStyles.stockCode, maxLines = 1)
             Text(text = name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (labels.isNotEmpty()) LabelLine(labels, max = 1, muted = labelsMuted, locale = locale, modifier = Modifier.padding(top = Spacing.xs))
         }
         quote?.let { Sparkline(it.spark, it.prevClose, change.direction, muted) }
         Column(modifier = Modifier.width(PRICE_COLUMN), horizontalAlignment = Alignment.End) {

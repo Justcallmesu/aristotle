@@ -111,8 +111,56 @@ class PairedPageTest {
             val line = text.lines().single { it.contains("-> $screen") }
             assertTrue(line, line.contains("onBack = goBack"))
         }
-        assertEquals("StockRoute and Running use it too", 4, Regex("onBack = goBack\\b").findAll(text).count())
+        assertEquals("StockRoute, Running and the two Screener pages use it too", 6, Regex("onBack = goBack\\b").findAll(text).count())
         assertFalse("no remembered origins left to loop", text.contains("stockFrom") || text.contains("newsFrom"))
+    }
+
+    /** TSC3: Home → Screener → a candidate → Back is the Screener, then Home; the gear's settings go back to the page. */
+    @Test
+    fun `the Screener, its settings and a candidate unwind one each`() {
+        val screener = StocksBackStack(PairedPage.Sessions).openScreener()
+        assertEquals(StocksBackStack(PairedPage.StocksScreener), screener)
+        val stock = screener.openStock("BBCA")
+        assertEquals(StocksBackStack(PairedPage.StockDetail, "BBCA", listOf(StockPlace(PairedPage.StocksScreener))), stock)
+        assertEquals(screener, stock.back())
+        val settings = screener.openScreenerSettings()
+        assertEquals(StocksBackStack(PairedPage.StocksScreenerSettings, below = listOf(StockPlace(PairedPage.StocksScreener))), settings)
+        assertEquals(screener, settings.back())
+        assertEquals(PairedPage.Sessions, screener.back().page)
+    }
+
+    /** TSC3: Settings › Stocks › Screener goes back to Settings › Stocks, whatever stale stack was kept. */
+    @Test
+    fun `screener settings opened from Settings › Stocks go back there`() {
+        val stale = listOf(StockPlace(PairedPage.StocksNews), StockPlace(PairedPage.StockDetail, "X"))
+        val settings = StocksBackStack(PairedPage.SettingsStocks, below = stale).openScreenerSettings()
+        assertEquals(StocksBackStack(PairedPage.StocksScreenerSettings, below = listOf(StockPlace(PairedPage.SettingsStocks))), settings)
+        val back = settings.back()
+        assertEquals(StocksBackStack(PairedPage.SettingsStocks), back)
+        // Settings › Stocks keeps its own back (the Settings list), it is not a stocks page.
+        assertFalse(PairedPage.SettingsStocks in StocksBackStack.PAGES)
+        assertEquals(PairedPage.Settings, PairedPage.SettingsStocks.back)
+        // The root survives the saved state; another settings page does not.
+        assertEquals(StockPlace(PairedPage.SettingsStocks), StockPlace.decode(StockPlace(PairedPage.SettingsStocks).encode()))
+        assertNull(StockPlace.decode("SettingsAbout"))
+    }
+
+    /**
+     * TM3a2 review MINOR-B: every way onto a stock's page goes through `show(... openStock(code))`; a plain
+     * `page = PairedPage.StockDetail` would keep a stale back stack. A guard on the source (the wiring is in a composable).
+     */
+    @Test
+    fun `a stock page is only ever opened through show and the stack`() {
+        val path = "src/main/java/io/github/justcallmesu/aristotle/ui/AristotleApp.kt"
+        val text = listOf(File(path), File("app/$path")).first { it.exists() }.readText()
+        assertFalse("no direct jump to a stock page", Regex("page\\s*=\\s*PairedPage\\.StockDetail").containsMatchIn(text))
+        assertTrue(text.contains("val openStock: (String) -> Unit = { code -> show(stocksStack().openStock(code)) }"))
+        // The screens that open stocks get that one lambda: News, Home's stocks nav, and the Screener's candidates.
+        assertTrue(text.contains("onOpenStock = openStock"))
+        assertEquals(2, Regex("onOpenStock = openStock\\b").findAll(text).count())
+        assertTrue(text.contains("openStock = openStock,"))
+        // The screener pages are entered through the stack too.
+        assertFalse(Regex("page\\s*=\\s*PairedPage\\.StocksScreener").containsMatchIn(text))
     }
 
     @Test

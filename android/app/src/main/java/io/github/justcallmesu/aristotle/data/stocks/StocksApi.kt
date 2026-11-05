@@ -41,6 +41,8 @@ sealed interface StocksError {
         const val UPSTREAM_BLOCKED = "upstream_blocked"
         const val UPSTREAM_ERROR = "upstream_error"
         const val STATE_ERROR = "state_error"
+        const val TOO_SOON = "too_soon"
+        const val SCAN_RUNNING = "scan_running"
     }
 }
 
@@ -124,6 +126,46 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
     suspend fun analysis(code: String): StocksResult<AnalysisStatus> =
         call(StocksRequest(GET, "analysis/$code"), AnalysisStatus.serializer()) { it }
 
+    /** The screener list (§20.3); without [mode] the server picks: today's scans when one ran today, else the last close. */
+    suspend fun screener(mode: ScreenerMode? = null): StocksResult<ScreenerBody> {
+        val query = mode?.let { mapOf("mode" to it.query) } ?: emptyMap()
+        return call(StocksRequest(GET, "screener", query), ScreenerBody.serializer()) { it }
+    }
+
+    suspend fun screenerSettings(): StocksResult<ScreenerSettings> =
+        call(StocksRequest(GET, "screener/settings"), ScreenerSettings.serializer()) { it }
+
+    /** Replaces the whole settings object: the server needs every field ([ScreenerSettingsJson]). */
+    suspend fun putScreenerSettings(settings: ScreenerSettings): StocksResult<ScreenerSettings> =
+        call(StocksRequest(PUT, "screener/settings", body = ScreenerSettingsJson.encode(settings)), ScreenerSettings.serializer()) { it }
+
+    /** Scan now (`202`); `429 too_soon` with `retry_after_s` within 2 min of the last scan, `409 scan_running`. */
+    suspend fun scanNow(): StocksResult<ScanStarted> = call(StocksRequest(POST, "screener/scan"), ScanStarted.serializer()) { it }
+
+    suspend fun jobs(): StocksResult<List<JobView>> = call(StocksRequest(GET, "jobs"), JobsBody.serializer()) { it.jobs }
+
+    /** An interval job's minutes (`screener.scan`: 5..30, §20.2). */
+    suspend fun putJobEvery(id: String, everyMin: Int): StocksResult<JobView> {
+        val body = buildJsonObject { put("every_min", everyMin) }
+        return call(StocksRequest(PUT, "jobs/$id", body = body.toString()), JobView.serializer()) { it }
+    }
+
+    suspend fun universe(): StocksResult<UniverseBody> = call(StocksRequest(GET, "universe"), UniverseBody.serializer()) { it }
+
+    /** Replaces the stock list on the PC (§20.2); [validFrom] is optional. */
+    suspend fun putUniverse(lq45: List<String>, idx80: List<String>, validTo: String, validFrom: String?): StocksResult<UniverseBody> {
+        val body = buildJsonObject {
+            put("lq45", buildJsonArray { lq45.forEach { add(it) } })
+            put("idx80", buildJsonArray { idx80.forEach { add(it) } })
+            put("valid_to", validTo)
+            validFrom?.let { put("valid_from", it) }
+        }
+        return call(StocksRequest(PUT, "universe", body = body.toString()), UniverseBody.serializer()) { it }
+    }
+
+    /** Back to the bundled list (idempotent). */
+    suspend fun resetUniverse(): StocksResult<UniverseBody> = call(StocksRequest(DELETE, "universe"), UniverseBody.serializer()) { it }
+
     private suspend fun <B, T> call(request: StocksRequest, serializer: KSerializer<B>, pick: (B) -> T): StocksResult<T> =
         when (val reply = send(request)) {
             is StocksReply.Failed -> StocksResult.Failed(StocksError.Unreachable(reply.problem))
@@ -160,6 +202,10 @@ object StocksParser {
     fun search(text: String): List<SearchResult>? = decode(text, SearchBody.serializer())?.results
     fun chart(text: String): ChartBody? = decode(text, ChartBody.serializer())
     fun analysis(text: String): AnalysisStatus? = decode(text, AnalysisStatus.serializer())
+    fun screener(text: String): ScreenerBody? = decode(text, ScreenerBody.serializer())
+    fun screenerSettings(text: String): ScreenerSettings? = decode(text, ScreenerSettings.serializer())
+    fun jobs(text: String): List<JobView>? = decode(text, JobsBody.serializer())?.jobs
+    fun universe(text: String): UniverseBody? = decode(text, UniverseBody.serializer())
 
     /** An error answer: the body's `error` and `retry_after_s`, the `Retry-After` header when the body has none. */
     fun error(reply: StocksReply.Http): StocksError.Server {

@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.ui.stocks
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -41,16 +45,17 @@ import io.github.justcallmesu.aristotle.ui.theme.ButtonShape
 import io.github.justcallmesu.aristotle.ui.theme.Spacing
 
 /**
- * Settings › Stocks: the broker fees P/L counts with (Q88, `/v1/stocks/settings`, kept on the PC) and the broker app
- * (Q94: Ajaib; its Open action shows only when Ajaib is installed).
+ * Settings › Stocks: the broker fees P/L counts with (Q88, `/v1/stocks/settings`, kept on the PC), the Screener's own page
+ * (TSC3, [onOpenScreener]) and the broker app (Q94: Ajaib; its Open action shows only when Ajaib is installed).
  */
 @Composable
-fun StocksSettingsSection(viewModel: StocksViewModel) {
+fun StocksSettingsSection(viewModel: StocksViewModel, onOpenScreener: (() -> Unit)? = null) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel, state.reachable) { if (state.reachable) viewModel.showFees() }
     val snackbar = remember { SnackbarHostState() }
     StocksMessages(state.message, snackbar, viewModel::messageShown)
     FeesBlock(state.fees, state.reachable, state.feesSaving, state.feesProblem?.let { stocksErrorText(it) }, viewModel::saveFees)
+    onOpenScreener?.let { ScreenerBlock(it) }
     BrokerBlock()
     SnackbarHost(hostState = snackbar)
 }
@@ -112,6 +117,22 @@ private fun FeeField(value: String, onValue: (String) -> Unit, label: String, pr
         shape = MaterialTheme.shapes.small,
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** "Screener": setups, liquidity floor, scan interval and the stock list, on its own page. */
+@Composable
+private fun ScreenerBlock(onOpen: () -> Unit) {
+    GroupedRows(1) {
+        ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = { Text(stringResource(R.string.screener_settings_row), style = MaterialTheme.typography.bodyLarge) },
+            supportingContent = {
+                Text(stringResource(R.string.screener_settings_row_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            trailingContent = { Icon(painter = painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+            modifier = Modifier.clickable(role = Role.Button, onClick = onOpen),
+        )
+    }
 }
 
 /** "Broker app · Ajaib": Open when installed; otherwise it says so and offers nothing (Q94). Checked again on resume. */

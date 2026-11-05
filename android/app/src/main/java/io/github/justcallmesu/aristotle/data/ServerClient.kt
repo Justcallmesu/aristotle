@@ -232,7 +232,9 @@ internal suspend fun OkHttpClient.sendStocks(baseUrl: String, token: DeviceToken
     val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v1/stocks").addPathSegments(request.path).apply {
         request.query.forEach { (key, value) -> addQueryParameter(key, value) }
     }.build()
-    val body = request.body?.toRequestBody(STOCKS_JSON) ?: if (request.method == StocksApi.PUT) EMPTY_BODY.toRequestBody(STOCKS_JSON) else null
+    // OkHttp needs a body for PUT and POST (`POST /screener/scan` has none to send).
+    val body = request.body?.toRequestBody(STOCKS_JSON)
+        ?: if (request.method == StocksApi.PUT || request.method == StocksApi.POST) EMPTY_BODY.toRequestBody(STOCKS_JSON) else null
     val built = Request.Builder().url(url).header("Authorization", "Bearer ${token.value}").method(request.method, body).build()
     return await(built, StocksReply::Failed) { response ->
         StocksReply.Http(response.code, response.body.string(), response.header("Retry-After")?.trim()?.toIntOrNull())
