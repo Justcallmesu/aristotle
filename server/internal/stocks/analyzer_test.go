@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,7 +23,8 @@ import (
 type fakeAnalyst struct {
 	mu        sync.Mutex
 	checkErr  error
-	openErr   error
+	openErr   error // Open fails before a session exists
+	createErr error // Open fails after the session was created (its id reached the analyzer)
 	replies   []any // string or error, consumed across sessions
 	gate      chan struct{}
 	prompts   []string
@@ -39,14 +41,21 @@ func (f *fakeAnalyst) Check(context.Context) error {
 	return f.checkErr
 }
 
-func (f *fakeAnalyst) Open(context.Context) (AnalystSession, error) {
+func (f *fakeAnalyst) Open(_ context.Context, created func(string)) (AnalystSession, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	if f.openErr != nil {
+		defer f.mu.Unlock()
 		return nil, f.openErr
 	}
 	f.opened++
-	return &fakeSession{f: f, id: fmt.Sprintf("local-%d", f.opened)}, nil
+	s := &fakeSession{f: f, id: fmt.Sprintf("local-%d", f.opened)}
+	createErr := f.createErr
+	f.mu.Unlock()
+	created(s.id)
+	if createErr != nil {
+		return nil, createErr
+	}
+	return s, nil
 }
 
 func (f *fakeAnalyst) DeleteSession(_ context.Context, id string) error {
@@ -257,6 +266,8 @@ func TestAnalyzeFailuresKeepLastResult(t *testing.T) {
 		{"interrupted", []any{hermes.ErrTurnInterrupted}, nil, "interrupted", true},
 		{"model error", []any{&hermes.TurnError{Reason: "rate_limit"}}, nil, "model_error", true},
 		{"socket drop", []any{hermes.ErrConnLost}, nil, "hermes_lost", true},
+		{"refused", []any{&hermes.RPCError{Method: "prompt.submit", Code: 4001, Reason: "session_busy"}}, nil, "hermes_refused", true},
+		{"bad answer", []any{fmt.Errorf("%w: prompt.submit", hermes.ErrBadAnswer)}, nil, "hermes_refused", true},
 		{"tools present", nil, fmt.Errorf("%w: 3", hermes.ErrToolsPresent), "tools_present", false},
 	}
 	for _, c := range cases {
@@ -360,11 +371,77 @@ func TestAnalyzeCloseInterruptsRunningJob(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+	if st, _ := loadAnalyses(h.dir); len(st.Failed) != 1 || st.Failed[0].SessionID != "local-1" {
+		t.Fatalf("the session is on file while its turn runs: %v", st.Failed)
+	}
 	h.svc.Close()
+	h.expect("POST", "/v1/stocks/analyze/TSTB", `{"lang":"en"}`, 503, "shutting_down")
 	st, _ := loadAnalyses(h.dir)
 	if len(st.Failed) != 1 || h.svc.analyzer.status("TSTA").Error == nil || *h.svc.analyzer.status("TSTA").Error != "interrupted" {
 		t.Fatalf("after close: failed %v status %+v", st.Failed, h.svc.analyzer.status("TSTA"))
 	}
+}
+
+// TestAnalyzeRecordsSessionUntilDeleted: the id is on file from session.create until a delete succeeds,
+// whatever fails in between (TA1 review MINOR-2).
+func TestAnalyzeRecordsSessionUntilDeleted(t *testing.T) {
+	kept := fmt.Errorf("%w: tool_count 3: %w: refused", hermes.ErrToolsPresent, hermes.ErrSessionKept)
+	cases := []struct {
+		name               string
+		openErr, createErr error
+		deleteErr          error
+		want               string // job error, "" = done
+		recorded           bool
+		log                string
+	}{
+		{"deleted after the verdict", nil, nil, nil, "", false, ""},
+		{"delete after the verdict fails", nil, nil, hermes.ErrConnLost, "", true, "analysis session not deleted"},
+		{"tools present, deleted unused", nil, fmt.Errorf("%w: tool_count 3", hermes.ErrToolsPresent), nil, "tools_present", false, ""},
+		{"tools present, delete failed", nil, kept, nil, "tools_present", true, "session=local-1"},
+		{"stopped after create", nil, context.Canceled, nil, "interrupted", true, "session=local-1"},
+		{"stopped during create", context.Canceled, nil, nil, "interrupted", false, "session=unknown"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fa := &fakeAnalyst{replies: []any{goodReply("TSTA")}, openErr: c.openErr, createErr: c.createErr, deleteErr: c.deleteErr}
+			h := analyzerHarness(t, fa)
+			h.expect("POST", "/v1/stocks/analyze/TSTA", `{"lang":"en"}`, 202, "")
+			got := h.waitState("TSTA")
+			if e, _ := got["error"].(string); e != c.want || got["state"] != jobState(c.want) {
+				t.Fatalf("GET = %v, want error %q", got, c.want)
+			}
+			st, _ := loadAnalyses(h.dir)
+			if (len(st.Failed) == 1 && st.Failed[0].SessionID == "local-1") != c.recorded || len(st.Failed) > 1 {
+				t.Fatalf("records %v, want recorded %v", st.Failed, c.recorded)
+			}
+			if c.log != "" && !strings.Contains(h.logs.String(), c.log) {
+				t.Fatalf("log lacks %q: %s", c.log, h.logs)
+			}
+		})
+	}
+}
+
+func TestAnalyzeRefusesNewJobsOnceClosing(t *testing.T) {
+	fa := &fakeAnalyst{replies: []any{"AUTO", "AUTO", "AUTO", "AUTO"}}
+	h := analyzerHarness(t, fa)
+	var wg sync.WaitGroup
+	for _, c := range []string{"TSTA", "TSTB", "TSTC"} {
+		wg.Go(func() {
+			for range 20 {
+				switch status, body, _ := h.do("POST", "/v1/stocks/analyze/"+c, `{"lang":"en"}`); {
+				case status == 202, status == 409, status == 429:
+				case status == 503 && body["error"] == "shutting_down":
+					return
+				default:
+					t.Errorf("POST %s = %d %v", c, status, body)
+					return
+				}
+			}
+		})
+	}
+	h.svc.Close() // races the POSTs: -race and the WaitGroup must stay quiet
+	wg.Wait()
+	h.expect("POST", "/v1/stocks/analyze/TSTA", `{"lang":"en"}`, 503, "shutting_down")
 }
 
 func TestSweepDeletesFailedSessionsAfterSevenDays(t *testing.T) {
@@ -408,6 +485,52 @@ func TestSweepDeletesFailedSessionsAfterSevenDays(t *testing.T) {
 	}
 }
 
+// TestSweepSkipsRefusedAndUnreadableRecords: a refused delete does not stall the later ones (TA1 review
+// MINOR-3); an unreadable failed_at is kept and logged, never swept; an unreachable Hermes stops the pass.
+func TestSweepSkipsRefusedAndUnreadableRecords(t *testing.T) {
+	dir := t.TempDir()
+	st := emptyAnalyses()
+	st.Failed = []failedSession{
+		{SessionID: "local-a", FailedAt: "2026-10-20T09:00:00+07:00"},
+		{SessionID: "local-refused", FailedAt: "2026-10-21T09:00:00+07:00"},
+		{SessionID: "local-b", FailedAt: "2026-10-22T09:00:00+07:00"},
+		{SessionID: "local-bad-time", FailedAt: "yesterday"},
+	}
+	writeAnalyses(t, dir, st)
+	fa := &fakeAnalyst{sweepErrs: map[string]error{"local-refused": &hermes.RPCError{Method: "session.mutate", Code: 4001, Reason: "not_owner"}}}
+	logs := &bytes.Buffer{}
+	ticks, parked := make(chan time.Time), make(chan struct{}, 4)
+	svc := New(Options{StateDir: dir, Provider: newFakeProvider(), Now: newClock("2026-11-05T10:00:00+07:00").Now, Analyst: fa,
+		Log: slog.New(slog.NewTextHandler(logs, nil)), FetchFeed: fixtureFetch(t, "", nil, nil),
+		NewsAfter:  func(time.Duration) <-chan time.Time { return nil },
+		SweepAfter: func(time.Duration) <-chan time.Time { parked <- struct{}{}; return ticks }}) // called once a pass is over
+	defer svc.Close()
+	<-parked
+	st, _ = loadAnalyses(dir)
+	if _, _, swept, _ := fa.snapshot(); fmt.Sprint(st.Failed) != "[{local-refused 2026-10-21T09:00:00+07:00} {local-bad-time yesterday}]" ||
+		fmt.Sprint(swept) != "[local-a local-refused local-b]" {
+		t.Fatalf("after the start sweep: failed %v swept %v", st.Failed, swept)
+	}
+	for _, want := range []string{"unreadable failed_at are kept, not swept\" file=stocks-analyses.json count=1",
+		"retried tomorrow\" count=1 err=hermes_refused", "old analysis sessions deleted\" count=2"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("log lacks %q: %s", want, logs)
+		}
+	}
+	// Hermes unreachable: the pass stops at the first record instead of trying every one.
+	svc.analyzer.mu.Lock()
+	svc.analyzer.st.Failed = append(svc.analyzer.st.Failed, failedSession{SessionID: "local-c", FailedAt: "2026-10-23T09:00:00+07:00"})
+	svc.analyzer.mu.Unlock()
+	fa.mu.Lock()
+	fa.sweepErrs, fa.swept = map[string]error{"local-refused": fmt.Errorf("%w: dial", hermes.ErrHermesNotRunning)}, nil
+	fa.mu.Unlock()
+	ticks <- time.Now()
+	<-parked
+	if _, _, swept, _ := fa.snapshot(); fmt.Sprint(swept) != "[local-refused]" || !strings.Contains(logs.String(), "count=2 err=hermes_lost") {
+		t.Fatalf("unreachable: swept %v, logs %s", swept, logs)
+	}
+}
+
 func TestKeptResultsCappedNewestWins(t *testing.T) {
 	h := analyzerHarness(t, &fakeAnalyst{})
 	an := h.svc.analyzer
@@ -438,6 +561,31 @@ func TestUnusableAnalysesFileIsLeftAlone(t *testing.T) {
 	}
 	if got := h.expect("GET", "/v1/stocks/analysis/TSTA", "", 200, ""); got["result"] == nil {
 		t.Fatal("results stay in memory")
+	}
+}
+
+// TestNewerAnalysesFileIsReadOnly: after a downgrade the newer file is read (unknown fields ignored) and
+// served, but never written.
+func TestNewerAnalysesFileIsReadOnly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, analysesFile)
+	newer := `{"version":2,"analyses":{"TSTA":{"code":"TSTA","verdict":"wait","analyzed_at":"2026-11-04T10:00:00+07:00","extra":1}},` +
+		`"failed_sessions":[],"settings":{}}`
+	if err := os.WriteFile(path, []byte(newer), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := &harness{t: t, prov: newFakeProvider(), clock: newClock("2026-11-05T10:00:00+07:00"), dir: dir, logs: &bytes.Buffer{}, analyst: &fakeAnalyst{}}
+	h.start()
+	if got := h.expect("GET", "/v1/stocks/analysis/TSTA", "", 200, ""); got["result"].(map[string]any)["verdict"] != "wait" {
+		t.Fatalf("GET = %v", got)
+	}
+	h.svc.analyzer.keep("TSTB", AnalysisResult{Code: "TSTB", AnalyzedAt: "x"})
+	h.svc.analyzer.recordSession("local-9")
+	if b, _ := os.ReadFile(path); string(b) != newer {
+		t.Fatalf("file overwritten: %s", b)
+	}
+	if logs := h.logs.String(); !strings.Contains(logs, "written by a newer server") || !strings.Contains(logs, "version=2") || strings.Contains(logs, "unusable") {
+		t.Fatalf("logs = %s", logs)
 	}
 }
 

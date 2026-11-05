@@ -2,6 +2,7 @@ package stocks
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -53,14 +54,16 @@ var (
 	errHermesDown      = &apiError{status: http.StatusServiceUnavailable, code: "hermes_unavailable"}
 	errNotSetUp        = &apiError{status: http.StatusServiceUnavailable, code: "analyzer_not_set_up"}
 	errNoDataAPI       = &apiError{status: http.StatusUnprocessableEntity, code: "no_data"}
+	errShuttingDown    = &apiError{status: http.StatusServiceUnavailable, code: "shutting_down"}
 )
 
 // Analyst is the Hermes seam of the analyzer (HermesAnalyst in production, a fake in tests).
 type Analyst interface {
 	// Check reports whether Hermes runs and serves AnalystProfile (hermes.ErrUnknownProfile when not).
 	Check(ctx context.Context) error
-	// Open creates one tool-less analysis session.
-	Open(ctx context.Context) (AnalystSession, error)
+	// Open creates one tool-less analysis session. created hears the session id as soon as Hermes has
+	// made it, before any later step can fail (also when Open then fails).
+	Open(ctx context.Context, created func(id string)) (AnalystSession, error)
 	// DeleteSession removes a session left by an earlier failed job.
 	DeleteSession(ctx context.Context, id string) error
 }
@@ -83,8 +86,8 @@ func (h hermesAnalyst) Check(ctx context.Context) error {
 	return h.c.ServesProfile(ctx, AnalystProfile)
 }
 
-func (h hermesAnalyst) Open(ctx context.Context) (AnalystSession, error) {
-	s, err := h.c.OpenAnalysis(ctx, hermes.AnalysisOptions{Profile: AnalystProfile})
+func (h hermesAnalyst) Open(ctx context.Context, created func(id string)) (AnalystSession, error) {
+	s, err := h.c.OpenAnalysis(ctx, hermes.AnalysisOptions{Profile: AnalystProfile, Created: created})
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +128,8 @@ type AnalysisResult struct {
 	News        []NewsRef      `json:"news"`
 }
 
+// failedSession is a Hermes session awaiting the sweep. It is recorded when session.create answers and
+// dropped once the session is deleted, so FailedAt is the creation time (spec P7: kept 7 days).
 type failedSession struct {
 	SessionID string `json:"session_id"`
 	FailedAt  string `json:"failed_at"`
@@ -157,8 +162,9 @@ type analyzer struct {
 	mu      sync.Mutex
 	jobs    map[string]*analysisJob // the latest job per code since the start
 	running int
+	closing bool // close has begun: no new job (and no wg.Add racing its Wait)
 	st      analysesState
-	persist bool // false when the file was unusable: it is left alone and results stay in memory
+	persist bool // false when the file was unusable or newer: it is left alone and results stay in memory
 }
 
 func newAnalyzer(s *Service, a Analyst, after func(time.Duration) <-chan time.Time) *analyzer {
@@ -168,7 +174,13 @@ func newAnalyzer(s *Service, a Analyst, after func(time.Duration) <-chan time.Ti
 		an.after = time.After
 	}
 	st, err := loadAnalyses(s.dir)
-	if err != nil {
+	var newer *newerAnalysesError
+	switch {
+	case errors.As(err, &newer):
+		an.persist = false
+		s.log.Warn("stocks: analyses file was written by a newer server; it is read but never written, new results stay in memory",
+			"file", analysesFile, "version", newer.version, "supported", analysesVersion)
+	case err != nil:
 		an.persist = false
 		s.log.Error("stocks: analyses file unusable; analyses are kept in memory until it is fixed or removed", "file", analysesFile, "err", err)
 		st = emptyAnalyses()
@@ -192,14 +204,28 @@ func loadAnalyses(dir string) (analysesState, error) {
 	if err != nil {
 		return analysesState{}, err
 	}
-	var st analysesState
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&st); err != nil {
+	var head struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal(data, &head); err != nil {
 		return analysesState{}, fmt.Errorf("%s: %w", analysesFile, err)
 	}
-	if st.Version != analysesVersion {
-		return analysesState{}, fmt.Errorf("%s: version %d, want %d", analysesFile, st.Version, analysesVersion)
+	var st analysesState
+	switch {
+	case head.Version > analysesVersion:
+		// After a downgrade: read what this version knows (unknown fields ignored), never write it back.
+		if err := json.Unmarshal(data, &st); err != nil {
+			return analysesState{}, fmt.Errorf("%s: %w", analysesFile, err)
+		}
+		err = &newerAnalysesError{version: head.Version}
+	case head.Version != analysesVersion:
+		return analysesState{}, fmt.Errorf("%s: version %d, want %d", analysesFile, head.Version, analysesVersion)
+	default:
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&st); err != nil {
+			return analysesState{}, fmt.Errorf("%s: %w", analysesFile, err)
+		}
 	}
 	if st.Analyses == nil {
 		st.Analyses = map[string]AnalysisResult{}
@@ -207,7 +233,15 @@ func loadAnalyses(dir string) (analysesState, error) {
 	if st.Failed == nil {
 		st.Failed = []failedSession{}
 	}
-	return st, nil
+	return st, err
+}
+
+// newerAnalysesError: the file has a newer version than this server writes. loadAnalyses still returns
+// what it could read; the analyzer then uses it read-only.
+type newerAnalysesError struct{ version int }
+
+func (e *newerAnalysesError) Error() string {
+	return fmt.Sprintf("%s: version %d is newer than %d", analysesFile, e.version, analysesVersion)
 }
 
 // saveLocked writes the file; the caller holds mu.
@@ -224,8 +258,11 @@ func (an *analyzer) saveLocked() {
 	}
 }
 
-// close cancels running jobs (each interrupts its turn) and waits for them, bounded.
+// close refuses new jobs, cancels running ones (each interrupts its turn) and waits for them, bounded.
 func (an *analyzer) close() {
+	an.mu.Lock()
+	an.closing = true
+	an.mu.Unlock()
 	an.cancel()
 	done := make(chan struct{})
 	go func() { an.wg.Wait(); close(done) }()
@@ -311,13 +348,19 @@ func (an *analyzer) start(ctx context.Context, code, lang string) (int, any, err
 		an.release(code, prev)
 		return 0, nil, err
 	}
-	an.wg.Go(func() { an.run(job, code, in, daily) })
+	go func() {
+		defer an.wg.Done() // added by reserve
+		an.run(job, code, in, daily)
+	}()
 	return http.StatusAccepted, analyzeBody{JobID: job.ID, State: JobRunning, StartedAt: *rfc(job.StartedAt)}, nil
 }
 
 func (an *analyzer) reserve(code string) (job, prev *analysisJob, err error) {
 	an.mu.Lock()
 	defer an.mu.Unlock()
+	if an.closing {
+		return nil, nil, errShuttingDown
+	}
 	prev = an.jobs[code]
 	if prev != nil && prev.State == JobRunning {
 		return nil, nil, errAnalysisRunning
@@ -328,6 +371,7 @@ func (an *analyzer) reserve(code string) (job, prev *analysisJob, err error) {
 	job = &analysisJob{ID: "an_" + randomHex(6), State: JobRunning, StartedAt: an.svc.now()}
 	an.jobs[code] = job
 	an.running++
+	an.wg.Add(1) // under mu: close sets closing under mu before it waits, so no Add can race that Wait
 	return job, prev, nil
 }
 
@@ -340,6 +384,7 @@ func (an *analyzer) release(code string, prev *analysisJob) {
 	} else {
 		an.jobs[code] = prev
 	}
+	an.wg.Done()
 }
 
 // preflight: the user's state (held or not), Hermes and the profile, then the daily bars.
@@ -389,10 +434,10 @@ func (an *analyzer) name(st State, code, fromChart string) string {
 // run is one job: gather, compute, ask, check, keep.
 func (an *analyzer) run(job *analysisJob, code string, in analysisInput, daily []Bar) {
 	began := time.Now()
-	sessionID, errCode := an.analyze(code, in, daily, began)
+	errCode := an.analyze(code, in, daily, began)
 	an.svc.log.Info("stocks: analysis finished", "job", job.ID, "code", code, "state", jobState(errCode),
 		"error", errCode, "duration_ms", time.Since(began).Milliseconds())
-	an.finish(job, sessionID, errCode)
+	an.finish(job, errCode)
 }
 
 func jobState(errCode string) string {
@@ -402,20 +447,25 @@ func jobState(errCode string) string {
 	return JobFailed
 }
 
-// analyze keeps the result, or returns the error code and the id of the session a failure keeps.
-func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began time.Time) (keptSession, errCode string) {
+// analyze keeps the result or returns the error code. The Hermes session is recorded for the sweep the
+// moment it exists and forgotten only once it is deleted, so no failure path can orphan it (P7).
+func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began time.Time) (errCode string) {
 	in, err := an.gather(code, in, daily)
 	if err != nil {
-		return "", "data_unavailable"
+		return "data_unavailable"
 	}
-	sess, err := an.analyst.Open(an.ctx)
+	created := ""
+	sess, err := an.analyst.Open(an.ctx, func(id string) {
+		created = id
+		an.recordSession(id)
+	})
 	if err != nil {
-		return "", hermesErrorCode(err)
+		return an.openFailed(code, created, err)
 	}
 	defer sess.Close()
 	v, flags, repaired, errCode := an.converse(sess, in)
 	if errCode != "" {
-		return sess.ID(), errCode
+		return errCode // the session stays recorded: kept 7 days for debugging
 	}
 	res := resultFrom(in, v, flags, repaired, sess.Model(), an.svc.now(), time.Since(began))
 	an.keep(code, res)
@@ -423,9 +473,26 @@ func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began ti
 	defer cancel()
 	if err := sess.Delete(dctx); err != nil {
 		an.svc.log.Warn("stocks: analysis session not deleted; the sweep retries", "code", code, "err", hermesErrorCode(err))
-		an.rememberFailed(sess.ID())
+		return ""
 	}
-	return "", ""
+	an.forgetSession(sess.ID())
+	return ""
+}
+
+// openFailed maps a failed Open. A session deleted unused (tools present) is forgotten; one Open could not
+// delete stays recorded. When the job stopped while the create was in flight, Hermes may hold a hidden
+// session whose id never reached us: that is logged, with the id when known.
+func (an *analyzer) openFailed(code, created string, err error) string {
+	switch {
+	case created != "" && errors.Is(err, hermes.ErrToolsPresent) && !errors.Is(err, hermes.ErrSessionKept):
+		an.forgetSession(created)
+	case created != "" && errors.Is(err, hermes.ErrSessionKept):
+		an.svc.log.Warn("stocks: analysis session with tools not deleted; the sweep retries", "code", code, "session", created)
+	case errors.Is(err, context.Canceled) || (created == "" && errors.Is(err, hermes.ErrBadAnswer)):
+		an.svc.log.Warn("stocks: analysis stopped while its Hermes session was being created; a hidden session may be left",
+			"code", code, "session", cmp.Or(created, "unknown"))
+	}
+	return hermesErrorCode(err)
 }
 
 // converse asks once and, when the reply fails the schema or the checks, once more with the errors.
@@ -458,6 +525,9 @@ func judge(reply string, in analysisInput) (v Verdict, flags, errs, rejects []st
 		return v, nil, errs, nil
 	}
 	rejects, flags = checkVerdict(v, in.Ind)
+	if len(rejects) == 0 {
+		v, flags = capNewsOnly(v, flags)
+	}
 	return v, flags, nil, rejects
 }
 
@@ -522,6 +592,7 @@ func resultFrom(in analysisInput, v Verdict, flags []string, repaired bool, mode
 // hermesErrorCode maps an analysis failure to the job's error code (protocol §20).
 func hermesErrorCode(err error) string {
 	var te *hermes.TurnError
+	var re *hermes.RPCError
 	switch {
 	case errors.Is(err, hermes.ErrToolsPresent):
 		return "tools_present"
@@ -535,8 +606,10 @@ func hermesErrorCode(err error) string {
 		return "model_error"
 	case errors.Is(err, hermes.ErrUnknownProfile):
 		return "analyzer_not_set_up"
+	case errors.As(err, &re), errors.Is(err, hermes.ErrBadAnswer):
+		return "hermes_refused"
 	default:
-		return "hermes_lost"
+		return "hermes_lost" // socket, dial or ticket failure
 	}
 }
 
@@ -557,10 +630,7 @@ func (an *analyzer) keep(code string, res AnalysisResult) {
 	an.saveLocked()
 }
 
-func (an *analyzer) finish(job *analysisJob, sessionID, errCode string) {
-	if sessionID != "" {
-		an.rememberFailed(sessionID)
-	}
+func (an *analyzer) finish(job *analysisJob, errCode string) {
 	an.mu.Lock()
 	defer an.mu.Unlock()
 	an.running--
@@ -568,14 +638,22 @@ func (an *analyzer) finish(job *analysisJob, sessionID, errCode string) {
 	job.State, job.Error = jobState(errCode), errCode
 }
 
-// rememberFailed records a kept session for the sweep (P7: failed sessions stay 7 days for debugging).
-func (an *analyzer) rememberFailed(id string) {
+// recordSession records a session for the sweep (P7: failed sessions stay 7 days for debugging).
+func (an *analyzer) recordSession(id string) {
 	an.mu.Lock()
 	defer an.mu.Unlock()
 	an.st.Failed = append(an.st.Failed, failedSession{SessionID: id, FailedAt: *rfc(an.svc.now())})
 	if n := len(an.st.Failed); n > maxFailedSessions {
 		an.st.Failed = slices.Clone(an.st.Failed[n-maxFailedSessions:])
 	}
+	an.saveLocked()
+}
+
+// forgetSession drops the record of a session that is gone from Hermes.
+func (an *analyzer) forgetSession(id string) {
+	an.mu.Lock()
+	defer an.mu.Unlock()
+	an.st.Failed = slices.DeleteFunc(an.st.Failed, func(f failedSession) bool { return f.SessionID == id })
 	an.saveLocked()
 }
 
@@ -591,26 +669,49 @@ func (an *analyzer) sweepLoop() {
 	}
 }
 
+// sweep deletes the records older than 7 days. A refused delete is skipped and retried the next day;
+// when Hermes cannot be reached at all the rest wait too. A record whose failed_at does not parse is
+// kept (and logged) rather than swept, so a damaged file never deletes a session early.
 func (an *analyzer) sweep() {
 	an.mu.Lock()
 	cutoff := an.svc.now().Add(-failedSessionTTL)
 	var due []string
+	unreadable := 0
 	for _, f := range an.st.Failed {
-		if t, err := time.Parse(time.RFC3339, f.FailedAt); err != nil || t.Before(cutoff) {
+		t, err := time.Parse(time.RFC3339, f.FailedAt)
+		switch {
+		case err != nil:
+			unreadable++
+		case t.Before(cutoff):
 			due = append(due, f.SessionID)
 		}
 	}
 	an.mu.Unlock()
+	if unreadable > 0 {
+		an.svc.log.Warn("stocks: analysis session records with an unreadable failed_at are kept, not swept", "file", analysesFile, "count", unreadable)
+	}
 	gone := map[string]bool{}
-	for _, id := range due {
+	left, lastErr := 0, error(nil)
+	for i, id := range due {
 		ctx, cancel := context.WithTimeout(an.ctx, analysisCleanup)
 		err := an.analyst.DeleteSession(ctx, id)
 		cancel()
-		if err != nil && !errors.Is(err, hermes.ErrSessionNotFound) {
-			an.svc.log.Warn("stocks: sweep of old analysis sessions stopped", "err", err)
-			break
+		var re *hermes.RPCError
+		switch {
+		case err == nil || errors.Is(err, hermes.ErrSessionNotFound):
+			gone[id] = true
+			continue
+		case errors.As(err, &re):
+			left++ // Hermes refused this one: the others may still go
+			lastErr = err
+			continue
 		}
-		gone[id] = true
+		left += len(due) - i // unreachable or stopping: every later delete would fail the same way
+		lastErr = err
+		break
+	}
+	if left > 0 {
+		an.svc.log.Warn("stocks: old analysis sessions not deleted; retried tomorrow", "count", left, "err", hermesErrorCode(lastErr))
 	}
 	if len(gone) == 0 {
 		return

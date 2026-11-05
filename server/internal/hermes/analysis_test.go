@@ -208,15 +208,38 @@ func TestAnalysisSuccessCreatesToollessSessionAndDeletes(t *testing.T) {
 }
 
 func TestAnalysisToolCountAbortsBeforeSubmit(t *testing.T) {
-	for _, count := range []string{"3", "null"} {
-		c, fa, _ := newFakeAnalyst(t, map[string]func(*hermestest.Peer, rpc) []string{"session.create": createOK(count)})
-		_, err := c.OpenAnalysis(testCtx(t), AnalysisOptions{Profile: stocksProfile})
-		if !errors.Is(err, ErrToolsPresent) {
-			t.Fatalf("tool_count %s: err = %v", count, err)
+	for _, tc := range []struct {
+		count     string
+		deleteErr string // the delete's refusal reason; "" = deleted
+		kept      bool
+	}{{"3", "", false}, {"null", "", false}, {"3", "not_found", false}, {"3", "persistence_failed", true}} {
+		handlers := map[string]func(*hermestest.Peer, rpc) []string{"session.create": createOK(tc.count)}
+		if tc.deleteErr != "" {
+			handlers["session.mutate"] = func(_ *hermestest.Peer, r rpc) []string { return []string{refusal(r, tc.deleteErr, "")} }
+		}
+		c, fa, _ := newFakeAnalyst(t, handlers)
+		var created []string
+		_, err := c.OpenAnalysis(testCtx(t), AnalysisOptions{Profile: stocksProfile, Created: func(id string) { created = append(created, id) }})
+		if !errors.Is(err, ErrToolsPresent) || errors.Is(err, ErrSessionKept) != tc.kept {
+			t.Fatalf("%+v: err = %v", tc, err)
+		}
+		if fmt.Sprint(created) != "[local-a1]" {
+			t.Fatalf("%+v: Created heard %v (the id must reach the caller before the delete)", tc, created)
 		}
 		if got := strings.Join(fa.methods(), ","); got != "session.create,session.mutate" {
-			t.Fatalf("tool_count %s: methods = %s (delete, never submit)", count, got)
+			t.Fatalf("%+v: methods = %s (delete, never submit)", tc, got)
 		}
+	}
+}
+
+func TestAnalysisCreateUnusableAnswer(t *testing.T) {
+	c, _, _ := newFakeAnalyst(t, map[string]func(*hermestest.Peer, rpc) []string{
+		"session.create": func(_ *hermestest.Peer, r rpc) []string { return []string{result(r, `{"revision":1}`)} },
+	})
+	called := false
+	_, err := c.OpenAnalysis(testCtx(t), AnalysisOptions{Profile: stocksProfile, Created: func(string) { called = true }})
+	if !errors.Is(err, ErrBadAnswer) || called {
+		t.Fatalf("err = %v, Created called %v", err, called)
 	}
 }
 

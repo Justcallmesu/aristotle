@@ -30,6 +30,11 @@ var (
 	ErrConnLost = errors.New("hermes connection lost")
 	// ErrSessionNotFound: Hermes does not know the session (already deleted).
 	ErrSessionNotFound = errors.New("hermes session not found")
+	// ErrSessionKept: OpenAnalysis failed after the session was created and could not delete it, so it
+	// still exists in Hermes (wrapped together with the cause, e.g. ErrToolsPresent).
+	ErrSessionKept = errors.New("hermes analysis session was not deleted")
+	// ErrBadAnswer: Hermes answered a request with something the server cannot use.
+	ErrBadAnswer = errors.New("hermes answer unusable")
 )
 
 // TurnError is a turn that ended with status "error" (model or provider failure). Reason is Hermes'
@@ -72,7 +77,10 @@ func analysisCreateParams(requestID string) map[string]any {
 
 // AnalysisOptions configure OpenAnalysis.
 type AnalysisOptions struct {
-	Profile     string        // served profile name, e.g. "aristotle-stocks"
+	Profile string // served profile name, e.g. "aristotle-stocks"
+	// Created, when set, is called with the session id as soon as session.create answers, before any
+	// later step can fail, so the caller can record the session for its cleanup (spec P7).
+	Created     func(sessionID string)
 	TurnTimeout time.Duration // default DefaultTurnTimeout
 	PingEvery   time.Duration // gateway.ping period while waiting; default 15 s
 }
@@ -112,7 +120,8 @@ type AnalysisSession struct {
 }
 
 // OpenAnalysis dials a profile-scoped socket and creates the session. When the session would load
-// any tool it is deleted at once and ErrToolsPresent is returned.
+// any tool it is deleted at once and ErrToolsPresent is returned (with ErrSessionKept when that delete
+// failed). o.Created hears the id first, so a session is never left without the caller knowing it.
 func (c *Connector) OpenAnalysis(ctx context.Context, o AnalysisOptions) (*AnalysisSession, error) {
 	conn, err := c.DialProfile(ctx, o.Profile)
 	if err != nil {
@@ -135,16 +144,23 @@ func (c *Connector) OpenAnalysis(ctx context.Context, o AnalysisOptions) (*Analy
 	}
 	if err := json.Unmarshal(snap, &res); err != nil || res.SessionID == "" {
 		s.Close()
-		return nil, fmt.Errorf("hermes session.create: unusable answer")
+		return nil, fmt.Errorf("%w: session.create", ErrBadAnswer)
 	}
 	s.sessionID, s.revision, s.generation, s.model = res.SessionID, res.Revision, res.Generation, res.Info.Model
+	if o.Created != nil {
+		o.Created(s.sessionID)
+	}
 	if res.Info.ToolCount == nil || *res.Info.ToolCount != 0 {
-		_ = s.Delete(ctx)
-		s.Close()
-		if res.Info.ToolCount == nil {
-			return nil, fmt.Errorf("%w: tool_count missing", ErrToolsPresent)
+		count := "missing"
+		if res.Info.ToolCount != nil {
+			count = fmt.Sprint(*res.Info.ToolCount)
 		}
-		return nil, fmt.Errorf("%w: %d", ErrToolsPresent, *res.Info.ToolCount)
+		delErr := s.Delete(ctx)
+		s.Close()
+		if delErr != nil && !errors.Is(delErr, ErrSessionNotFound) {
+			return nil, fmt.Errorf("%w: tool_count %s: %w: %v", ErrToolsPresent, count, ErrSessionKept, delErr)
+		}
+		return nil, fmt.Errorf("%w: tool_count %s", ErrToolsPresent, count)
 	}
 	return s, nil
 }
@@ -207,7 +223,7 @@ func (s *AnalysisSession) Ask(ctx context.Context, text string) (string, error) 
 		Generation  *int64 `json:"execution_generation"`
 	}
 	if json.Unmarshal(res, &adm) != nil || adm.AdmissionID == "" {
-		return "", errors.New("hermes prompt.submit: no admission_id")
+		return "", fmt.Errorf("%w: prompt.submit without admission_id", ErrBadAnswer)
 	}
 	if adm.Generation != nil {
 		s.generation = *adm.Generation
