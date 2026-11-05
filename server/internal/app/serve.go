@@ -50,6 +50,8 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 	}
 	// Only the real server announces on the network; tests build servers without a responder.
 	srv.discovery.Start = discovery.MDNSStart
+	// Only the real server runs the stocks jobs (they call Yahoo); tests build servers without them.
+	srv.stocksJobs = true
 	return srv.run(ctx)
 }
 
@@ -73,6 +75,8 @@ type server struct {
 	terms     *terminal.Hub       // /v1/terminal shells
 	pcstatus  *pcstatus.Collector // GET /v1/pc-status
 	stocks    *stocks.Service     // /v1/stocks/* (stocks.json)
+	// stocksJobs starts the stocks scheduler in run (catch-up at boot, then every 30 s); off in tests.
+	stocksJobs bool
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -194,6 +198,9 @@ func (s *server) run(ctx context.Context) error {
 	}
 	s.log.Info("listening", "addr", ln.Addr().String(), "kind", "loopback", "state_dir", s.stateDir, "version", s.version)
 	wg.Go(func() { s.listen.Run(ctx) })
+	if s.stocksJobs {
+		s.stocks.Start()
+	}
 	err = serveListener(ctx, ln, httpapi.NewRouter(s.version, s.log), s.log)
 	cancel()
 	s.closeRelays()

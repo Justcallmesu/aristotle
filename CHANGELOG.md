@@ -10,6 +10,7 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- Server: Stocks jobs on your PC (`/v1/stocks/jobs`): a scheduler that keeps working across sleep and catches up missed jobs at start, a daily 16:20 download of a year of daily prices for the LQ45/IDX80 list, your watchlist and holdings (`stocks-bars.json`), and an editable LQ45/IDX80 list (`/v1/stocks/universe`, `stocks-universe.json`).
 - Phone: Analyze on a stock's page runs the AI analyzer on your PC (shows progress, you can leave the page) and shows a verdict card — Buy today / Wait / Avoid or Add / Hold / Sell, confidence, entry zone, target and stop with % from the price, reasons with their news sources, data time, and "Analysis only, not financial advice".
 - Phone: A stock's page: price chart in candles or line for 1 day to 1 year with volume (touch and hold to read any bar), today's numbers, your holding with profit and loss after fees, news about the stock, add or remove it from the watchlist, and "Open in Ajaib".
 - Phone: Stocks on Home: tap "Stocks" in the title to see your IDX watchlist with today's moves, your holdings with profit and loss after broker fees, and market news; add, reorder and remove stocks, edit holdings, and set the broker fees in Settings › Stocks.

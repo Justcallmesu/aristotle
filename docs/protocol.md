@@ -1208,7 +1208,7 @@ replace; missing = empty lists and fees 0.15/0.25; a file that is not valid vers
 `500 state_error` (quotes with `?codes`, charts, news, search still work). Yahoo (`query1`, browser User-Agent, TS0 §0): quotes from
 `v7/finance/spark` in batches of 20, bars from `v8/finance/chart`, search from `v1/finance/search` kept to `.JK`/`JKT`. Caches: quotes
 60 s, intraday bars 60 s, daily bars 15 min, search 24 h. A 429 or a 5xx starts a backoff (1, 2, 4, 8, then 15 min) in which no Yahoo call
-goes out; cached data is served with `stale:true`. Yahoo is called only when a phone asks. News: polled every 10 min only while some
+goes out; cached data is served with `stale:true`. Yahoo is called when a phone asks and by the daily bars job (§20.2). News: polled every 10 min only while some
 device asked in the last 30 min (the first ask after a quiet spell fetches at once); ring of 300 by publish time, deduplicated by link.
 Search lists the bundled universe first (LQ45 + IDX80 of the current index period, `in_universe:true`, plus a few search-only
 names), then Yahoo's IDX hits; an exact bundled code skips Yahoo. Logs carry no holdings values.
@@ -1304,3 +1304,54 @@ shape as above. New routes: no `ProtocolVersion` bump.
    then the conflict's revision; `not_found` counts as deleted. A refused delete is skipped and retried the next day (the pass goes on;
    the count is logged); when Hermes cannot be reached the pass stops and the rest wait for the next day. A record whose `failed_at` does
    not parse is kept and logged, never swept. ASSUMED: deleting a cold session from a new socket succeeds (history-claim path, not exercised).
+
+### 20.2 Jobs and universe (`/v1/stocks/jobs`, `/v1/stocks/universe`, TSC1; design `docs/v2-stocks/runs/TSC0/design.md` §1-§2, spec Q20, Q31, Q85, P8)
+
+Code: `server/internal/stocks/{scheduler,bars,universe_override}.go`. Same auth, headers and error shape as §20. New routes: no
+`ProtocolVersion` bump. The screener, brief and alert routes of slice 2/3 are added here by their tickets.
+
+| Method, path | Body | Answer |
+|---|---|---|
+| `GET /v1/stocks/jobs` | — | `200 {"jobs":[job…]}` in registration order |
+| `PUT /v1/stocks/jobs/{id}` | `{"on":true,"at":"16:20","every_min":10}` (each optional, ≥ 1 present) | `200` job |
+| `GET /v1/stocks/universe` | — | `200` universe object |
+| `PUT /v1/stocks/universe` | `{"lq45":[…],"idx80":[…],"valid_to":"2027-01-29","valid_from":"2026-11-02"}` (`valid_from` optional; ≤ 16 KiB) | `200` universe object |
+| `DELETE /v1/stocks/universe` | — | `200` universe object (back to the bundled list; idempotent) |
+
+- **Job.** `{"id","on","at":"HH:MM"|null,"every_min":N|null,"running","last_due","last_run","last_status":"ok|partial|failed|missed"|null,
+  "last_error","late","next_run","editable":["on","at"|"every_min"]}`. An "at" job runs once per trading day at `at` (WIB); an interval job
+  every `every_min` minutes inside its windows of a trading day. `last_due` = the slot the last run (or miss) was for; `last_run` = when that
+  run started; `late` = it was a catch-up; `next_run` = the next slot after now, `null` while `on` is false. `last_error` is a short code
+  (`upstream_blocked`, `codes_failed`, `interrupted`, `state_error`, `internal_error`, …), `null` after `ok` or `missed`.
+- **Jobs now.** `bars.daily` (default `16:20`, on, editable `on` and `at`). Later tickets register theirs (`scan`, `eod_screen`, `brief`,
+  `alerts`, `news`; Q20: on/off for each, time for `brief`/`bars.daily`, interval for `scan`).
+- **PUT errors.** `404 unknown_job`; `400 bad_request`: empty body or unknown field, a field not in the job's `editable`, `at` not `HH:MM`
+  or outside 05:00-23:00, `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
+- **Scheduler.** One loop reads the wall clock every 30 s (a Go timer stops while a laptop sleeps; the tick notices the jump within 30 s);
+  holidays from the bundled IDX calendar. A job never overlaps itself; slots it is still busy for are skipped. **Catch-up (Q31)**, at boot and
+  after a sleep: only an "at" job's latest slot counts. Run within 2 min of the slot = on time; later = `late`: `bars.daily` always runs
+  late (the store must not stay behind); other "at" jobs run late until 16:00 WIB of the slot's day, else the slot is recorded `missed`
+  (logged; not retried). Interval slots run only within 2 min of their time (no burst after a sleep; the job resumes at the next slot).
+  A slot that passes while a job is off is never caught up. `stocks-jobs.json` (0600, atomic): `{"version":1,"jobs":{"<id>":{"on","at",
+  "every_min" (only once set by PUT), "handled":"YYYY-MM-DD" (last at-slot run or missed: no repeat after a restart), "last_due",
+  "last_run","last_status","last_error","late"}}}`; records of unknown ids are kept. A file that is not valid version 1 is left untouched:
+  jobs run on their defaults and PUT answers `500 state_error`. Stored values out of bounds fall back to the default (logged).
+- **Bar store (P8).** `stocks-bars.json` (0600, atomic, compact): `{"version":1,"codes":{"BBCA":{"name","fetched_at","bars":[[t,o,h,l,c,v],…]}}}`,
+  completed daily sessions only (dated before the session date at the fetch; a run during a session drops today's partial bar), ≤ 300 bars
+  and ≤ 400 days per code, ≤ 400 codes, ≤ 32 MiB. Read once at start; a file that cannot be used is logged and the store starts empty (it
+  is a cache). `bars.daily` takes the quoted set = universe ∪ watchlist ∪ holdings (≤ 300), never-fetched codes first, then the oldest;
+  per code one Yahoo `1y` daily chart, always from the source (not the 15-min cache), 1.5 s apart, through the shared backoff. A block (429,
+  5xx or backoff in force) stops the run: what was fetched is kept, `last_error:"upstream_blocked"` (`partial` when some codes were fetched,
+  else `failed`); the next day's run starts with the codes left over. A code Yahoo does not answer counts in `codes_failed` (the run goes on).
+  After a run that was not stopped, codes outside the set are dropped (not when `stocks.json` is unusable). The file is rewritten once per
+  run. The analyzer reads a code's daily bars from the store when they are **fresh** (fetched at or after 16:15 WIB of the last trading day
+  before the current session date), else from Yahoo as in §20.1.
+- **Universe object.** `{"source":"bundled|file","valid_from","valid_to","expired","count","lq45":[…],"idx80":[…],"file_error":null|"invalid"}`,
+  codes sorted; `count` = distinct codes of LQ45 ∪ IDX80 (the screener universe, Q85); `expired` = today (WIB) is after `valid_to`.
+  `file_error:"invalid"`: `stocks-universe.json` exists but is unusable, so the bundled list is used (the file is left alone and logged).
+- **Universe override.** `stocks-universe.json` in the state dir (0600, atomic): `{"version":1,"valid_from","valid_to","lq45":[…],
+  "idx80":[…],"updated_at"}`, unknown fields refused; read at start (a hand edit needs a restart) and replaced by PUT. PUT: codes upper-cased
+  and trimmed, repeats dropped; `400 bad_code` for a code not `^[A-Z]{4}$`; `400 bad_request` for a missing list, 0 or > 200 distinct codes
+  over both lists, `valid_to` not `YYYY-MM-DD`, `valid_from` not a date or after `valid_to`, an unknown field or a body over 16 KiB;
+  `500 state_error` when the file cannot be written. Names, aliases and search stay from the bundled list (a code it lacks still counts as a
+  member, unnamed); `in_universe` in search follows the list in use.

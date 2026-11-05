@@ -1,0 +1,10 @@
+# Batch review brief — TM3s (f6e507f, server) + TM3a (8fff8da, android) minors
+
+Fresh reviewer, deep. Repo `/home/justcallmesu/project/personal/Aristotle`. Review the COMMITS: `git show f6e507f` and `git show 8fff8da` (android part
+only; docs in it are PM docs). Inputs: briefs + reports in `docs/v2-stocks/runs/TM3s/` and `TM3a/`, the findings they fix in `runs/TS1/`, `runs/TS3/`,
+`runs/TA2/` review reports. PM: full gate `runs/pm-gate-tm3` GREEN; mutations caught (CASH name rule; chart hold during refresh). Another worker is
+editing `server/**` now (TSC1) — ignore the working tree, read only the commits. Read-only: only your report; no gradle/go runs on the tree; no git
+state changes; no adb.
+Check each finding is really closed, no regression (esp. Yahoo backoff on 5xx not blocking cached answers; chart cache LRU under concurrency;
+systemGestureExclusion scope; ChartFit at 1.3x; Back from news no loop; holding guard). Only BLOCKER/MAJOR matter.
+Report ≤ 20 lines at `docs/v2-stocks/runs/review-TM3.md`, last line `VERDICT: ...`.

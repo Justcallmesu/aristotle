@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -63,6 +64,10 @@ type Options struct {
 	Analyst Analyst
 	// SweepAfter drives the daily sweep of failed analysis sessions (tests); nil: time.After.
 	SweepAfter func(time.Duration) <-chan time.Time
+	// JobsAfter drives the scheduler's 30 s tick (tests); nil: time.After.
+	JobsAfter func(time.Duration) <-chan time.Time
+	// BarsPace waits between two Yahoo calls of the bars job (tests); nil: 1.5 s.
+	BarsPace func(ctx context.Context) error
 }
 
 // Service owns the stocks state and serves /v1/stocks/*.
@@ -72,8 +77,13 @@ type Service struct {
 	log      *slog.Logger
 	market   *Market
 	news     *News
-	universe *Universe
+	bundled  *Universe
+	universe atomic.Pointer[universeState] // read through uni()
+	uniMu    sync.Mutex                    // orders universe PUT/DELETE
 	analyzer *analyzer
+	sched    *scheduler
+	bars     *barStore
+	barsPace func(ctx context.Context) error
 	mux      *http.ServeMux
 
 	mu       sync.Mutex // guards st; held across a save so writes stay ordered
@@ -84,7 +94,7 @@ type Service struct {
 // New loads stocks.json. A file that cannot be used is reported and left alone: the state
 // routes then answer 500 state_error, quotes/charts/news/search still work.
 func New(o Options) *Service {
-	s := &Service{dir: o.StateDir, now: o.Now, log: o.Log, universe: bundledUniverse()}
+	s := &Service{dir: o.StateDir, now: o.Now, log: o.Log, bundled: bundledUniverse(), barsPace: o.BarsPace}
 	if s.now == nil {
 		s.now = time.Now
 	}
@@ -110,19 +120,34 @@ func New(o Options) *Service {
 		s.log.Error("stocks: state unusable; watchlist and holdings are off until it is fixed or removed",
 			"file", stateFile, "err", s.stateErr)
 	}
-	if s.universe.Expired(s.now()) {
-		s.log.Warn("stocks: bundled LQ45/IDX80 list is past its period; edit universe.json", "valid_to", s.universe.ValidTo)
+	if s.barsPace == nil {
+		s.barsPace = sleepPace
 	}
+	us := loadUniverse(s.dir, s.bundled, s.log)
+	s.universe.Store(&us)
+	if u := s.uni(); u.Expired(s.now()) {
+		s.log.Warn("stocks: LQ45/IDX80 list is past its period; replace it (PUT /v1/stocks/universe or "+universeFile+")",
+			"source", u.Source, "valid_to", u.ValidTo)
+	}
+	s.bars = loadBarStore(s.dir, s.log)
 	s.analyzer = newAnalyzer(s, o.Analyst, o.SweepAfter)
+	s.sched = newScheduler(s.dir, s.now, o.JobsAfter, s.log)
+	s.sched.register(JobSpec{ID: BarsJobID, At: barsJobAt, TradingDays: true, CatchUp: CatchUpAlways,
+		Editable: []string{EditOn, EditAt}, Run: s.runBarsDaily})
 	s.mux = s.routes()
 	return s
 }
 
+// Start runs the scheduler: catch-up at once, then a wall-clock check every 30 s. The real server calls it;
+// tests that only want the routes do not, so no job reaches Yahoo.
+func (s *Service) Start() { s.sched.start() }
+
 // ServeHTTP serves /v1/stocks/*; the caller has checked the device token.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
-// Close stops the news poller and the analysis jobs (running turns are interrupted).
+// Close stops the scheduler, the news poller and the analysis jobs (running jobs and turns are interrupted).
 func (s *Service) Close() {
+	s.sched.close()
 	s.news.Close()
 	s.analyzer.close()
 }
@@ -154,6 +179,11 @@ func (s *Service) routes() *http.ServeMux {
 	handle("GET /v1/stocks/search", s.getSearch)
 	handle("POST /v1/stocks/analyze/{code}", s.postAnalyze)
 	handle("GET /v1/stocks/analysis/{code}", s.getAnalysis)
+	handle("GET /v1/stocks/jobs", s.getJobs)
+	handle("PUT /v1/stocks/jobs/{id}", s.putJob)
+	handle("GET /v1/stocks/universe", s.getUniverse)
+	handle("PUT /v1/stocks/universe", s.putUniverse)
+	handle("DELETE /v1/stocks/universe", s.deleteUniverse)
 	handle("/v1/stocks/", func(*http.Request) (int, any, error) { return 0, nil, errNotFound })
 	return mux
 }
@@ -196,7 +226,7 @@ func (s *Service) resolveName(ctx context.Context, st State, code string) (strin
 	if i := st.holdingIndex(code); i >= 0 {
 		return st.Holdings[i].Name, nil
 	}
-	if b, ok := s.universe.Lookup(code); ok {
+	if b, ok := s.uni().Lookup(code); ok {
 		return b.Name, nil
 	}
 	ch, err := s.market.Chart(ctx, code, "1d")

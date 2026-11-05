@@ -403,19 +403,19 @@ func (an *analyzer) preflight(ctx context.Context, code, lang string) (analysisI
 		}
 		return analysisInput{}, nil, errHermesDown
 	}
-	ch, err := s.market.Chart(ctx, code, "1y")
+	daily, srcName, err := s.dailyBars(ctx, code) // the bar store when fresh, else Yahoo
 	if err != nil {
 		return analysisInput{}, nil, err
 	}
-	if len(completedBars(ch.Bars, SessionDate(s.now()))) == 0 {
+	if len(completedBars(daily, SessionDate(s.now()))) == 0 {
 		return analysisInput{}, nil, errNoDataAPI
 	}
-	in := analysisInput{Code: code, Lang: lang, Name: an.name(st, code, ch.Name)}
+	in := analysisInput{Code: code, Lang: lang, Name: an.name(st, code, srcName)}
 	if i := st.holdingIndex(code); i >= 0 {
 		h := st.Holdings[i]
 		in.Holding = &HoldingInput{Lots: h.Lots, AvgPrice: h.AvgPrice}
 	}
-	return in, ch.Bars, nil
+	return in, daily, nil
 }
 
 func (an *analyzer) name(st State, code, fromChart string) string {
@@ -425,7 +425,7 @@ func (an *analyzer) name(st State, code, fromChart string) string {
 	if i := st.holdingIndex(code); i >= 0 {
 		return st.Holdings[i].Name
 	}
-	if b, ok := an.svc.universe.Lookup(code); ok {
+	if b, ok := an.svc.uni().Lookup(code); ok {
 		return b.Name
 	}
 	if fromChart != "" {

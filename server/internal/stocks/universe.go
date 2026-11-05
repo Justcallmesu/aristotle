@@ -27,12 +27,17 @@ type Stock struct {
 // InIndex reports whether the stock belongs to the screener universe (LQ45 or IDX80, spec Q85).
 func (s Stock) InIndex() bool { return len(s.Tags) > 0 }
 
-// Universe is the bundled list, keyed by code.
+// Universe is the ticker list, keyed by code: the bundled one, or the bundled names with the index
+// membership of the state dir's stocks-universe.json (Source "file").
 type Universe struct {
 	ValidFrom string  `json:"valid_from"`
 	ValidTo   string  `json:"valid_to"`
 	Stocks    []Stock `json:"stocks"`
+	Source    string  `json:"-"` // "bundled" | "file"
 	byCode    map[string]Stock
+	extra     []string // override members the bundled list does not name (not searchable, no name)
+	lq45      []string // members per index, sorted
+	idx80     []string
 }
 
 func parseUniverse(data []byte) (*Universe, error) {
@@ -40,6 +45,7 @@ func parseUniverse(data []byte) (*Universe, error) {
 	if err := json.Unmarshal(data, &u); err != nil {
 		return nil, fmt.Errorf("universe.json: %w", err)
 	}
+	u.Source = universeBundled
 	u.byCode = make(map[string]Stock, len(u.Stocks))
 	for _, s := range u.Stocks {
 		if !codeRe.MatchString(s.Code) || s.Name == "" {
@@ -50,6 +56,7 @@ func parseUniverse(data []byte) (*Universe, error) {
 		}
 		u.byCode[s.Code] = s
 	}
+	u.lq45, u.idx80 = u.tagged("LQ45"), u.tagged("IDX80")
 	return &u, nil
 }
 

@@ -54,9 +54,12 @@ func normCode(raw string) (string, error) {
 }
 
 // decodeBody reads one JSON object of at most 4 KiB with no unknown fields.
-func decodeBody(r *http.Request, v any) error {
-	data, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytesIn+1))
-	if err != nil || len(data) > maxBodyBytesIn {
+func decodeBody(r *http.Request, v any) error { return decodeBodyMax(r, v, maxBodyBytesIn) }
+
+// decodeBodyMax is decodeBody with a size limit of limit bytes.
+func decodeBodyMax(r *http.Request, v any, limit int) error {
+	data, err := io.ReadAll(io.LimitReader(r.Body, int64(limit)+1))
+	if err != nil || len(data) > limit {
 		return errBadRequest
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -394,7 +397,7 @@ func (s *Service) knownNames() map[string]string {
 func (s *Service) enrich(q Quote, names map[string]string, now time.Time) Quote {
 	if n := names[q.Code]; n != "" {
 		q.Name = n
-	} else if st, ok := s.universe.Lookup(q.Code); ok {
+	} else if st, ok := s.uni().Lookup(q.Code); ok {
 		q.Name = st.Name
 	}
 	ref := q.Price
@@ -508,7 +511,7 @@ func (s *Service) candidates(extra string) []Candidate {
 			return
 		}
 		c := Candidate{Code: code, Name: name}
-		if st, ok := s.universe.Lookup(code); ok {
+		if st, ok := s.uni().Lookup(code); ok {
 			c.Aliases = st.Aliases
 			if c.Name == "" {
 				c.Name = st.Name
@@ -541,8 +544,9 @@ func (s *Service) getSearch(r *http.Request) (int, any, error) {
 	if n := utf8.RuneCountInString(q); n < 1 || n > maxSearchLen {
 		return 0, nil, errBadRequest
 	}
-	results := s.universe.Search(q, maxSearchRows)
-	if _, exact := s.universe.Lookup(strings.ToUpper(q)); exact || len(results) >= maxSearchRows {
+	u := s.uni()
+	results := u.Search(q, maxSearchRows)
+	if _, exact := u.Lookup(strings.ToUpper(q)); exact || len(results) >= maxSearchRows {
 		return http.StatusOK, searchBody{Results: results}, nil
 	}
 	more, err := s.market.Search(r.Context(), q)
@@ -556,9 +560,10 @@ func (s *Service) getSearch(r *http.Request) (int, any, error) {
 		if slices.ContainsFunc(results, func(x SearchResult) bool { return x.Code == m.Code }) {
 			continue
 		}
-		if st, ok := s.universe.Lookup(m.Code); ok {
-			m.Name, m.InUniverse = st.Name, st.InIndex()
+		if st, ok := u.Lookup(m.Code); ok {
+			m.Name = st.Name
 		}
+		m.InUniverse = u.InIndex(m.Code)
 		results = append(results, m)
 	}
 	return http.StatusOK, searchBody{Results: results}, nil

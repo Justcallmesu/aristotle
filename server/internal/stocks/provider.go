@@ -246,12 +246,7 @@ func (m *Market) Chart(ctx context.Context, code, rng string) (Chart, error) {
 		ch, err = m.Src.Chart(ctx, code, rng)
 		if err = m.note(err); err == nil {
 			m.mu.Lock()
-			m.charts[key] = stamped[Chart]{ch, m.now()}
-			m.touchChart(key)
-			for len(m.charts) > maxCachedCharts && len(m.chartUse) > 0 {
-				delete(m.charts, m.chartUse[0])
-				m.chartUse = m.chartUse[1:]
-			}
+			m.keepChartLocked(key, ch)
 			m.mu.Unlock()
 			return ch, nil
 		}
@@ -262,6 +257,36 @@ func (m *Market) Chart(ctx context.Context, code, rng string) (Chart, error) {
 		return ch, nil
 	}
 	return Chart{}, err
+}
+
+// ChartFresh always asks the source (never a cached or stale answer) and caches what it gets. It shares the
+// backoff: while blocked, and when the source refuses, it returns a *BlockedError. For the bars job, which must
+// tell a block (stop the run) from a cached answer.
+func (m *Market) ChartFresh(ctx context.Context, code, rng string) (Chart, error) {
+	if err := m.blockedErr(); err != nil {
+		return Chart{}, err
+	}
+	ch, err := m.Src.Chart(ctx, code, rng)
+	if err = m.note(err); err != nil {
+		return Chart{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.keepChartLocked(code+"|"+rng, ch)
+	return ch, nil
+}
+
+// keepChartLocked caches ch under key, dropping the least recently used chart past the cap. Callers hold m.mu.
+func (m *Market) keepChartLocked(key string, ch Chart) {
+	if m.charts == nil {
+		m.charts = map[string]stamped[Chart]{}
+	}
+	m.charts[key] = stamped[Chart]{ch, m.now()}
+	m.touchChart(key)
+	for len(m.charts) > maxCachedCharts && len(m.chartUse) > 0 {
+		delete(m.charts, m.chartUse[0])
+		m.chartUse = m.chartUse[1:]
+	}
 }
 
 // Search asks the source (cached 24 h); while blocked or failing it returns nothing and the error.
