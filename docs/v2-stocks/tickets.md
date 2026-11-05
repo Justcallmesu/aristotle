@@ -72,3 +72,11 @@
 - 2026-11-05 TSC3 review CHANGES-REQUIRED (MAJOR-1: bearish flag hidden when a code is both candidate and flagged; breaks Q106). TSC3b dispatched with MINOR 1-5; TSC3 held uncommitted until TSC3b passes.
 - 2026-11-05 TSC3b built (1304, 7 tests RED first). pm-gate-tsc3b GREEN; mutation bearish-last -> ScreenerLogicTest 1/8 fails (XML). Re-review of TSC3+TSC3b dispatched.
 - 2026-11-05 TSC3b re-review APPROVED. TSC3+TSC3b committed (android). CHANGELOG Phone line rides with TBA1's commit (shared file, TBA1 editing it). MINOR-6 (TalkBack re-reads the cooldown every second) -> TBA2 brief.
+- 2026-11-05 TBA1 built (653 Go, -race ok). PM mutations: auto-run cap -> caught; brief TradingDays flag -> SURVIVED (first try hit the view-only check at brief.go:804; real guard stocks.go:159 has no test) -> required fix via review. Deep review + TBA2 (phone) dispatched.
+- 2026-11-05 15:50 PAUSED by the user. Installed on the phone: b96e305 (slices 1-2 + analyzer); real server updated to b96e305.
+### RESUME POINT (2026-11-05 15:50)
+1. In flight at pause: TBA1 deep review (deleg_4374755d task 0) and TBA2 build (task 1). Their results arrive during the pause: log TBA2 as BUILT (unreviewed); record the TBA1 verdict; no fix round, gate or commit until "go".
+2. On "go": TBA1 — add the missing test (brief job must not run on weekends/holidays: `stocks.go:159` TradingDays mutant survived) + any review BLOCKER/MAJOR as TBA1b; gate, mutate, commit (CHANGELOG also takes TSC3's Phone line from runs/TSC3/build-report.md "Doc text").
+3. Then TBA2: PM gate + mutation (filter by real class name, check the XML), deep review, commit; TBA2's CHANGELOG line from its report.
+4. Device checks waiting for the user: pairing with the real server; first live Analyze (time + Claude cost); chart back-gesture edge strips; 1.3x/Large text on the stock page and screener settings; Edit list sheet with the keyboard; screener after the 16:20 bars job; alerts with the screen off on HyperOS (TBA2); T22 v1 release check; D45 licence notices.
+5. Open user confirmations: none (Q101-Q112 decided).
