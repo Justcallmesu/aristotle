@@ -32,6 +32,7 @@ type fakeAnalyst struct {
 	deleted   []string // sessions deleted after a good verdict
 	swept     []string // DeleteSession calls
 	sweepErrs map[string]error
+	slowSweep string // DeleteSession for this id waits for its ctx to end
 	deleteErr error
 }
 
@@ -58,10 +59,16 @@ func (f *fakeAnalyst) Open(_ context.Context, created func(string)) (AnalystSess
 	return s, nil
 }
 
-func (f *fakeAnalyst) DeleteSession(_ context.Context, id string) error {
+func (f *fakeAnalyst) DeleteSession(ctx context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.swept = append(f.swept, id)
+	if id == f.slowSweep {
+		f.mu.Unlock()
+		<-ctx.Done()
+		f.mu.Lock()
+		return ctx.Err()
+	}
 	return f.sweepErrs[id]
 }
 

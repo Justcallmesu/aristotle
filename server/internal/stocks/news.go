@@ -128,6 +128,9 @@ func articleFrom(f Feed, it rssItem) (Article, bool) {
 			img = html.UnescapeString(m[1])
 		}
 	}
+	if !(strings.HasPrefix(img, "https://") || strings.HasPrefix(img, "http://")) {
+		img = "" // javascript:, data: and the like never reach the phone
+	}
 	sum := sha256.Sum256([]byte(link))
 	return Article{ID: hex.EncodeToString(sum[:6]), Source: f.Source, Title: title, Link: link, Published: pub,
 		Summary: truncate(clean(it.Description), maxSummaryLen), ImageURL: img}, true
@@ -177,6 +180,7 @@ type News struct {
 	polling   bool
 	inflight  chan struct{} // closed when the running refresh ends
 	stop      chan struct{}
+	closed    bool // Close ran: no poller starts again
 }
 
 func (n *News) now() time.Time {
@@ -216,7 +220,7 @@ func (n *News) Items(ctx context.Context) ([]Article, []SourceStatus) {
 	n.mu.Lock()
 	n.lastReq = n.now()
 	stale := n.lastFetch.IsZero() || n.now().Sub(n.lastFetch) >= n.interval()
-	if !n.polling {
+	if !n.polling && !n.closed {
 		n.polling = true
 		if n.stop == nil {
 			n.stop = make(chan struct{})
@@ -265,10 +269,11 @@ func (n *News) poll(stop chan struct{}) {
 	}
 }
 
-// Close stops the poller.
+// Close stops the poller; a request that is still in flight cannot start it again.
 func (n *News) Close() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	n.closed = true
 	if n.stop != nil {
 		close(n.stop)
 		n.stop = nil

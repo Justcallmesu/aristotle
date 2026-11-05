@@ -40,6 +40,9 @@ const (
 	analyzerStopWait    = 5 * time.Second
 )
 
+// sweepDeleteTimeout bounds one delete of the sweep (a variable so a test need not wait 15 s).
+var sweepDeleteTimeout = analysisCleanup
+
 // Job states.
 const (
 	JobIdle    = "idle"
@@ -488,7 +491,9 @@ func (an *analyzer) openFailed(code, created string, err error) string {
 		an.forgetSession(created)
 	case created != "" && errors.Is(err, hermes.ErrSessionKept):
 		an.svc.log.Warn("stocks: analysis session with tools not deleted; the sweep retries", "code", code, "session", created)
-	case errors.Is(err, context.Canceled) || (created == "" && errors.Is(err, hermes.ErrBadAnswer)):
+	case created == "" && errors.Is(err, hermes.ErrBadAnswer):
+		an.svc.log.Warn("stocks: Hermes gave an unusable answer to the session create; a hidden session may be left", "code", code)
+	case errors.Is(err, context.Canceled):
 		an.svc.log.Warn("stocks: analysis stopped while its Hermes session was being created; a hidden session may be left",
 			"code", code, "session", cmp.Or(created, "unknown"))
 	}
@@ -693,16 +698,17 @@ func (an *analyzer) sweep() {
 	gone := map[string]bool{}
 	left, lastErr := 0, error(nil)
 	for i, id := range due {
-		ctx, cancel := context.WithTimeout(an.ctx, analysisCleanup)
+		ctx, cancel := context.WithTimeout(an.ctx, sweepDeleteTimeout)
 		err := an.analyst.DeleteSession(ctx, id)
+		timedOut := ctx.Err() != nil && an.ctx.Err() == nil // this delete ran out of time; the job is not stopping
 		cancel()
 		var re *hermes.RPCError
 		switch {
 		case err == nil || errors.Is(err, hermes.ErrSessionNotFound):
 			gone[id] = true
 			continue
-		case errors.As(err, &re):
-			left++ // Hermes refused this one: the others may still go
+		case errors.As(err, &re), timedOut:
+			left++ // Hermes refused this one or was slow on it: the others may still go
 			lastErr = err
 			continue
 		}

@@ -1168,7 +1168,7 @@ errors are `{"error":"<code>"}`. New routes only: no `ProtocolVersion` bump (§0
 `400 bad_request`: bad JSON (one object ≤ 4 KiB, unknown fields refused), a value out of range, a bad `range`/`limit`/`q`, > 50 codes.
 `404 not_found`: any other path or method under `/v1/stocks/`. `409 limit_reached`: a 51st watchlist entry or holding.
 `422 unknown_symbol`: adding a code outside the bundled list that Yahoo does not know (chart 404); the same for a chart.
-`503 upstream_blocked` + `"retry_after_s":N` and a `Retry-After` header: Yahoo refused us (429) and nothing cached can answer.
+`503 upstream_blocked` + `"retry_after_s":N` and a `Retry-After` header: Yahoo refused us (429) or is failing (5xx) and nothing cached can answer.
 `502 upstream_error`: any other Yahoo failure with nothing cached. `500 state_error`: `stocks.json` is unusable (below) or could not be saved.
 
 **Holdings object.** `{"at","holdings":[{"code","name","lots","avg_price","price","cost","value","pl","pl_pct","today","stale"}],
@@ -1197,7 +1197,7 @@ are dropped; today's daily bar with a null close takes the last price. `prev_clo
 **News object.** `{"items":[{"id","source":"cnbc|kontan|idxchannel","title","link","published_at","summary","image_url","codes":[…],
 "match":"strong|weak"|null}],"sources":[{"source","ok","fetched_at","error"}]}`, newest first. Feeds: `cnbcindonesia.com/market/rss`,
 `investasi.kontan.co.id/rss`, `idxchannel.com/rss` (only `MARKET NEWS` and `ECONOMICS` items). `summary` is plain text ≤ 300
-characters; `image_url` the enclosure or first `<img>`, else `null`. `codes` are matched at read time against the watchlist, the
+characters; `image_url` the enclosure or first `<img>` (http(s) only), else `null`. `codes` are matched at read time against the watchlist, the
 holdings and `?code`: a token equal to the code (case-sensitive; `K-CASH` is not `CASH`) is `strong` as `(CODE)` or after
 "saham"/"emiten", else `weak`; IHSG, MSCI, BUMN, … never match; codes that are words (BUMI, EMAS, CASH, MINE, …) need the strong form;
 the full company name (no PT/Tbk/(Persero)) is `strong` with ≥ 2 words, else `weak`; a bundled alias ("BCA", "Antam") is `weak`.
@@ -1207,7 +1207,7 @@ With `?code`, only items matching it. `sources[].fetched_at` is the last success
 replace; missing = empty lists and fees 0.15/0.25; a file that is not valid version-1 state is left untouched and the state routes answer
 `500 state_error` (quotes with `?codes`, charts, news, search still work). Yahoo (`query1`, browser User-Agent, TS0 §0): quotes from
 `v7/finance/spark` in batches of 20, bars from `v8/finance/chart`, search from `v1/finance/search` kept to `.JK`/`JKT`. Caches: quotes
-60 s, intraday bars 60 s, daily bars 15 min, search 24 h. A 429 starts a backoff (1, 2, 4, 8, then 15 min) in which no Yahoo call
+60 s, intraday bars 60 s, daily bars 15 min, search 24 h. A 429 or a 5xx starts a backoff (1, 2, 4, 8, then 15 min) in which no Yahoo call
 goes out; cached data is served with `stale:true`. Yahoo is called only when a phone asks. News: polled every 10 min only while some
 device asked in the last 30 min (the first ask after a quiet spell fetches at once); ring of 300 by publish time, deduplicated by link.
 Search lists the bundled universe first (LQ45 + IDX80 of the current index period, `in_universe:true`, plus a few search-only

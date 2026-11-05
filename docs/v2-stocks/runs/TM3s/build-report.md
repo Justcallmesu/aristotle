@@ -1,0 +1,5 @@
+# TM3s build report (server minors)
+Fixed in `server/internal/stocks`: news `Close()` sets `closed`, `Items` starts no poller after it (news.go); Yahoo 5xx backs off like 429 via `UpstreamError.Status` handled in `Market.note` (provider.go, yahoo.go); name equal to the code is skipped in `nameHit`, so CASH keeps the word-code rule (match.go); `image_url` http(s) only (news.go); chart cache LRU, cap 200 (provider.go); `Evaluate` zero-cost guard (pl.go); create answer `ErrBadAnswer` with no id logs "unusable answer to the session create" instead of "stopped while…" (analyzer.go); a sweep delete that times out is skipped and the pass goes on, unreachable Hermes still stops it (analyzer.go; `sweepDeleteTimeout` var for tests). news_only rule untouched.
+Tests: new `tm3s_test.go` (8 tests, one per fix), `fakeAnalyst.slowSweep` in analyzer_test.go.
+Protocol §20: 5xx backoff and http(s)-only image_url worded (lines 1171, 1200, 1210).
+Gate: `GATE_ONLY=server bash docs/v1-tickets/gates.sh docs/v2-stocks/runs/TM3s` PASS (550 tests); `go test -race ./internal/stocks/...` ok. No commits.

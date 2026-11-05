@@ -75,7 +75,10 @@ func Evaluate(h Holding, price *int64, set Settings) Position {
 	}
 	v := Value(*price, h.Lots, set.SellFeePct)
 	pl := v - p.Cost
-	pct := Pct(pl, p.Cost)
+	pct := 0.0
+	if p.Cost > 0 {
+		pct = Pct(pl, p.Cost)
+	}
 	p.Value, p.PL, p.PLPct = &v, &pl, &pct
 	return p
 }

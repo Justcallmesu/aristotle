@@ -140,7 +140,7 @@ func plainName(name string) string {
 }
 
 func nameHit(c Candidate, text, lower string) string {
-	if n := plainName(c.Name); n != "" && containsWord(lower, strings.ToLower(n)) {
+	if n := plainName(c.Name); n != "" && !strings.EqualFold(n, c.Code) && containsWord(lower, strings.ToLower(n)) {
 		if len(strings.Fields(n)) >= 2 {
 			return MatchStrong
 		}

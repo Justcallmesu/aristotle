@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,10 @@ func (e *BlockedError) Error() string {
 }
 
 // UpstreamError is any other failure of the source (HTTP status, network, bad body).
-type UpstreamError struct{ Reason string }
+type UpstreamError struct {
+	Reason string
+	Status int // HTTP status when there was one
+}
 
 func (e *UpstreamError) Error() string { return "upstream error: " + e.Reason }
 
@@ -84,13 +88,14 @@ var ChartRanges = map[string]string{"1d": "5m", "5d": "15m", "1mo": "1h", "6mo":
 
 // Cache lifetimes.
 const (
-	QuoteTTL      = 60 * time.Second
-	IntradayTTL   = 60 * time.Second
-	DailyTTL      = 15 * time.Minute
-	SearchTTL     = 24 * time.Hour
-	firstBackoff  = time.Minute
-	maxBackoff    = 15 * time.Minute
-	maxCachedSrch = 500
+	QuoteTTL        = 60 * time.Second
+	IntradayTTL     = 60 * time.Second
+	DailyTTL        = 15 * time.Minute
+	SearchTTL       = 24 * time.Hour
+	firstBackoff    = time.Minute
+	maxBackoff      = 15 * time.Minute
+	maxCachedSrch   = 500
+	maxCachedCharts = 200 // least recently used chart goes first
 )
 
 type stamped[T any] struct {
@@ -109,6 +114,7 @@ type Market struct {
 	mu           sync.Mutex
 	quotes       map[string]stamped[Quote]
 	charts       map[string]stamped[Chart]
+	chartUse     []string // chart keys, least recently used first
 	searches     map[string]stamped[[]SearchResult]
 	blockedUntil time.Time
 	backoff      time.Duration
@@ -136,7 +142,11 @@ func (m *Market) note(err error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var be *BlockedError
-	if !errors.As(err, &be) {
+	var ue *UpstreamError
+	switch {
+	case errors.As(err, &be):
+	case errors.As(err, &ue) && ue.Status >= 500: // an outage backs off like a 429
+	default:
 		if err == nil {
 			m.backoff = 0
 		}
@@ -223,6 +233,9 @@ func (m *Market) Chart(ctx context.Context, code, rng string) (Chart, error) {
 		m.charts = map[string]stamped[Chart]{}
 	}
 	e, cached := m.charts[key]
+	if cached {
+		m.touchChart(key)
+	}
 	m.mu.Unlock()
 	if cached && m.now().Sub(e.at) < chartTTL(rng) {
 		return e.v, nil
@@ -234,6 +247,11 @@ func (m *Market) Chart(ctx context.Context, code, rng string) (Chart, error) {
 		if err = m.note(err); err == nil {
 			m.mu.Lock()
 			m.charts[key] = stamped[Chart]{ch, m.now()}
+			m.touchChart(key)
+			for len(m.charts) > maxCachedCharts && len(m.chartUse) > 0 {
+				delete(m.charts, m.chartUse[0])
+				m.chartUse = m.chartUse[1:]
+			}
 			m.mu.Unlock()
 			return ch, nil
 		}
@@ -269,4 +287,12 @@ func (m *Market) Search(ctx context.Context, q string) ([]SearchResult, error) {
 	m.searches[key] = stamped[[]SearchResult]{res, m.now()}
 	m.mu.Unlock()
 	return res, nil
+}
+
+// touchChart marks key as the most recently used chart. Callers hold m.mu.
+func (m *Market) touchChart(key string) {
+	if i := slices.Index(m.chartUse, key); i >= 0 {
+		m.chartUse = slices.Delete(m.chartUse, i, i+1)
+	}
+	m.chartUse = append(m.chartUse, key)
 }
