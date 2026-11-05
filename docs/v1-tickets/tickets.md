@@ -109,6 +109,7 @@ Tickets marked ⟳ are re-scoped after T01, because the spike decides which Herm
 | TY6 | Q81e: Claude plan limits in the model sheet | TX1 | android | DONE |
 | TY7 | Q83: Claude limits row on Home under the PC card (model.options without session; ≤ every 5 min while visible) | TY3, TY6 | android | DONE |
 | TY2 | Q81b: usage per session (tokens; $ when > 0) in chat header + list | TY3 | android | TODO |
+| TF1 | Fix: systemd user unit PrivateTmp blocks peer checks -> every PC control command refused (found on first real install) | - | server | BUILDING |
 | T22 | v1 QA on the Poco + release signing | all above | all | PAUSED (after tickets + UI pass) |
 
 Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T20 after T02.
@@ -451,3 +452,4 @@ Acceptance criteria for T14–T19 are written after T01, from `docs/protocol.md`
 - 2026-11-04 User: Claude limits on Home too -> Q83 (row of 4 bars under the PC card). PM refresh rule: open + ≤5 min while visible (Hermes refreshes from Anthropic per call). TY7 waits for the TY review/commit (same files).
 - 2026-11-04 Review-TY PASS-WITH-FINDINGS (all RPC names/fields match Hermes; sort rules copied faithfully). Committed TY1+TY3+TY6. Minors folded into TY7.
 - 2026-11-05 TY7: pm-gate-62 GREEN (1103); mutation (Home limits every 10 s) fails 6. Committed (minor round folded; diff reviewed in T22). D50 RepairTest flake, D51 cold-cache retry recorded.
+- 2026-11-05 Real install (Q95): `pair` refused from a normal PC terminal (seen_by=unreadable_peer). Root cause PrivateTmp in a user unit -> user namespace -> /proc/<pid>/environ EACCES (PM probe). Drop-in PrivateTmp=no applied as workaround; TF1 dispatched.

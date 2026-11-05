@@ -69,8 +69,7 @@ file (`chmod 600`) or remove it (that also removes every grant), then run `termi
   - **No sudo**: the unit has `NoNewPrivileges=yes`, so `sudo`, `su`, `pkexec`, `passwd` and `fusermount` (sshfs,
     rclone mount) fail. This is also a safety net against a stolen phone becoming root, though the shell can still
     ask your desktop session to run something outside the sandbox.
-  - **Private /tmp**: `PrivateTmp=yes` gives the service its own `/tmp`. `tmux attach` does not find your desktop's
-    tmux sessions (their sockets live in the real `/tmp`). It does not hide X: X11's abstract sockets stay reachable.
+  - **Shared /tmp**: the unit has no `PrivateTmp` (or `ProtectHome`, `ProtectSystem`, ...): in a user unit systemd turns them into a private user namespace, which hides other processes' `/proc/<pid>/environ` from the server and makes it refuse every control command from your PC terminal. So `tmux attach` finds your desktop's sessions.
   - **umask 077**: files the shell creates are private to you (mode 600/700) unless you change the umask.
 - No reattach (spec Q55): closing the app, losing the connection or switching networks ends the shell. Limits: 30
   minutes without typing (output does not count), 8 hours in all, 2 terminals per phone, 4 in all.

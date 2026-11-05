@@ -46,6 +46,9 @@ func UnitDir() (string, error) {
 // StateDirectory= (systemd would create 0755 dirs; the server enforces 0700).
 // Delegate=yes hands the service its own cgroup subtree: each remote terminal
 // runs in a child cgroup that is killed whole when it closes (T19a).
+// No PrivateTmp/ProtectHome/ProtectSystem/PrivateDevices/... : in a user unit systemd implies a private user
+// namespace for them, and then the server cannot read /proc/<pid>/environ of processes outside the unit, so
+// terminal.Hub.InTerminal fails closed and refuses every control command from a PC terminal (TF1).
 func UnitText(bin string) (string, error) {
 	q, err := quoteExec(bin)
 	if err != nil {
@@ -59,7 +62,6 @@ func UnitText(bin string) (string, error) {
 		"Restart=on-failure\n" +
 		"RestartSec=5\n" +
 		"NoNewPrivileges=yes\n" +
-		"PrivateTmp=yes\n" +
 		"UMask=0077\n" +
 		"Delegate=yes\n" +
 		"\n[Install]\n" +

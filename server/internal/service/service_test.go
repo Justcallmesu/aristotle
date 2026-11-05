@@ -49,7 +49,7 @@ func TestUnitText(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, w := range []string{"Type=simple\n", "ExecStart=/opt/a/aristotle-server serve\n", "Restart=on-failure\n", "RestartSec=5\n",
-		"NoNewPrivileges=yes\n", "PrivateTmp=yes\n", "UMask=0077\n", "Delegate=yes\n", "WantedBy=default.target\n"} {
+		"NoNewPrivileges=yes\n", "UMask=0077\n", "Delegate=yes\n", "WantedBy=default.target\n"} {
 		if !strings.Contains(got, w) {
 			t.Errorf("missing %q in\n%s", w, got)
 		}
@@ -221,7 +221,6 @@ ExecStart=/opt/a/aristotle-server serve
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=yes
-PrivateTmp=yes
 UMask=0077
 Delegate=yes
 
@@ -230,6 +229,28 @@ WantedBy=default.target
 `
 	if got != want {
 		t.Fatalf("unit text:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// systemd.exec(5): in user mode (no CAP_SYS_ADMIN) these options are only honoured by implicitly enabling
+// PrivateUsers=, which hides other processes' /proc/<pid>/environ from the server and breaks the PC-terminal
+// check (terminal.Hub.InTerminal fails closed). None may appear in the unit (TF1).
+func TestUnitTextNoUserNamespaceOptions(t *testing.T) {
+	got, err := UnitText("/opt/a/aristotle-server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(got, "\n") {
+		key := strings.TrimSpace(strings.SplitN(line, "=", 2)[0])
+		for _, bad := range []string{"PrivateTmp", "PrivateUsers", "PrivateDevices", "PrivateNetwork", "PrivateMounts", "ProtectHome",
+			"ProtectSystem", "ProtectKernel", "ProtectControlGroups", "ProtectClock", "ProtectHostname", "ProtectProc", "ProcSubset",
+			"RestrictNamespaces", "ReadOnlyPaths", "ReadWritePaths", "InaccessiblePaths", "TemporaryFileSystem", "BindPaths",
+			"BindReadOnlyPaths", "MountAPIVFS", "RootDirectory", "RootImage", "MemoryDenyWriteExecute", "LockPersonality",
+			"RestrictSUIDSGID", "RestrictRealtime", "SystemCallFilter", "CapabilityBoundingSet"} {
+			if strings.HasPrefix(key, bad) {
+				t.Errorf("unit must not set %q (implies a private user namespace in a user unit): %q", bad, line)
+			}
+		}
 	}
 }
 
