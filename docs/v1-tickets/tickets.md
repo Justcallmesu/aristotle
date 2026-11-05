@@ -180,6 +180,7 @@ Frontier at approval: **T01, T02, T03** (disjoint files; may run in parallel). T
 | D49 | mDNS instance name has no conflict handling: two PCs with the same short hostname share "Aristotle on <host>", so the phone may only see the other one and never find yours. Add the 8-hex fp hint to the instance and target names. | User Q 2026-11-04 | DONE (TL1d) |
 | D50 | RepairTest flaky: a pins assertion failed once in the TR7 gate and once in the TY7 gate, passed on re-run. Prove the cause (flaky-test-triage) before release. | TR7, TY7 gates | TODO (T22) |
 | D51 | Home Claude limits row stays absent for up to 5 min after a cold Hermes cache (first model.options read empty). Add one silent retry after ~3 s. | TY7 report | TODO |
+| D53 | PcStatusPollerTest.readsEveryTenSecondsWhileVisibleAndOnline flaky under load: asserts the wait before it is guaranteed to start (TA2 builder). Fix with D50 via flaky-test-triage. | TA2 gate | TODO (T22) |
 | D33-old | On an endpoint switch the app opens the new relay socket but never closes the old one; the server reaps it after ~42 s (1011). Seen on device 15:46 and 22:04. Risk: 4-per-device cap (4430) on rapid switches. Close the old socket before switching (device test DC1) | T11b | OPEN |
 | D17 | No test that every listener shares the rejection-log limiter (`serve.go:112`); `Content-Length` allowlist entry is a no-op, no POST-body test through `Do`; import grouping, long doc line, §11 "pin is Linux-only" (T05c review F3-F5) | T06 | DONE (T06) |
 

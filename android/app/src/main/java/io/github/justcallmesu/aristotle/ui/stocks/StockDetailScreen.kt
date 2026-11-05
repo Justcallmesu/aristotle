@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.R
+import io.github.justcallmesu.aristotle.data.stocks.AnalysisLang
 import io.github.justcallmesu.aristotle.data.stocks.ChartLabels
 import io.github.justcallmesu.aristotle.data.stocks.ChartModel
 import io.github.justcallmesu.aristotle.data.stocks.ChartRange
@@ -92,9 +93,10 @@ import java.util.Locale
 
 /**
  * A stock's page (TS3, board "Stock detail", route `stock/{code}`): the code and name; the last price with its change
- * and the time it is from; the readout, the chart and its range / type controls; today's numbers; the holding (or Add
- * holding); news that mentions it; Open in Ajaib when Ajaib is installed (Q94). The chart, quote and news are
- * [detail]'s; the watchlist, holdings, fees and the holding sheet are the stocks pages' shared [viewModel].
+ * and the time it is from; the readout, the chart and its range / type controls; today's numbers; the AI analysis
+ * ([AnalysisSection], TA2); the holding (or Add holding); news that mentions it; Open in Ajaib when Ajaib is installed
+ * (Q94). The chart, quote, news and analysis are [detail]'s; the watchlist, holdings, fees and the holding sheet are the
+ * stocks pages' shared [viewModel].
  */
 @Composable
 fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDetailViewModel, onBack: () -> Unit, onOpenNews: () -> Unit) {
@@ -137,6 +139,18 @@ fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDet
                     ChartSection(page, code, quote, muted, locale, detail)
                     SectionHeader(stringResource(R.string.stocks_today))
                     KeyNumbers(quote, TodayOpen.of(page.day, quote), page.day?.prevClose, muted)
+                    val today = StockTimes.today(System.currentTimeMillis())
+                    AnalysisSection(
+                        code = code,
+                        view = page.analysisView((page.quotes ?: state.quotes)?.market, today),
+                        readProblem = page.analysisReadProblem,
+                        reachable = page.reachable,
+                        quote = quote,
+                        today = today,
+                        locale = locale,
+                        onAnalyze = { detail.analyze(AnalysisLang.of(locale)) },
+                        onReadAgain = detail::retryAnalysisRead,
+                    )
                     SectionHeader(stringResource(R.string.stocks_your_holding))
                     when {
                         held != null -> HoldingCard(held, quote, state.fees, muted, onEdit = { viewModel.editHolding(code) })

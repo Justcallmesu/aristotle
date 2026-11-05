@@ -114,10 +114,20 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
     suspend fun search(query: String): StocksResult<List<SearchResult>> =
         call(StocksRequest(GET, "search", mapOf("q" to query)), SearchBody.serializer()) { it.results }
 
+    /** Starts an analysis on the PC (§20.1, `202`); [lang] `id` or `en` ([AnalysisLang], Q101). */
+    suspend fun analyze(code: String, lang: String): StocksResult<AnalysisStarted> {
+        val body = buildJsonObject { put("lang", lang) }
+        return call(StocksRequest(POST, "analyze/$code", body = body.toString()), AnalysisStarted.serializer()) { it }
+    }
+
+    /** The latest job for [code] and the kept verdict (§20.1); answers while Hermes is down. */
+    suspend fun analysis(code: String): StocksResult<AnalysisStatus> =
+        call(StocksRequest(GET, "analysis/$code"), AnalysisStatus.serializer()) { it }
+
     private suspend fun <B, T> call(request: StocksRequest, serializer: KSerializer<B>, pick: (B) -> T): StocksResult<T> =
         when (val reply = send(request)) {
             is StocksReply.Failed -> StocksResult.Failed(StocksError.Unreachable(reply.problem))
-            is StocksReply.Http -> if (reply.status == OK) {
+            is StocksReply.Http -> if (reply.status in SUCCESS) {
                 StocksParser.decode(reply.body, serializer)?.let { StocksResult.Ok(pick(it)) } ?: StocksResult.Failed(StocksError.BadAnswer)
             } else {
                 StocksResult.Failed(StocksParser.error(reply))
@@ -128,7 +138,10 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
         const val GET = "GET"
         const val PUT = "PUT"
         const val DELETE = "DELETE"
-        private const val OK = 200
+        const val POST = "POST"
+
+        /** `200`, and `202` for a started analysis. */
+        private val SUCCESS = 200..299
 
         /** The news feed reads this many (the server keeps 300). */
         const val NEWS_LIMIT = 100
@@ -146,6 +159,7 @@ object StocksParser {
     fun news(text: String): NewsBody? = decode(text, NewsBody.serializer())
     fun search(text: String): List<SearchResult>? = decode(text, SearchBody.serializer())?.results
     fun chart(text: String): ChartBody? = decode(text, ChartBody.serializer())
+    fun analysis(text: String): AnalysisStatus? = decode(text, AnalysisStatus.serializer())
 
     /** An error answer: the body's `error` and `retry_after_s`, the `Retry-After` header when the body has none. */
     fun error(reply: StocksReply.Http): StocksError.Server {

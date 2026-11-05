@@ -1225,7 +1225,7 @@ shape as above. New routes: no `ProtocolVersion` bump.
 
 - **State.** `state`, `job_id`, `started_at`, `finished_at`, `error` describe the latest job for the code since the server started (all
   `null` and `state:"idle"` when there was none; jobs do not survive a restart). `result` is the **kept** last good verdict (Q99), shown
-  whatever the job state; a failed job never replaces it. The phone polls `GET` (every 2 s) while `state` is `running`.
+  whatever the job state; a failed job never replaces it. The phone polls `GET` every 3 s while `state` is `running` and the stock page is visible (TA2).
 - **Errors (POST).** `400 bad_code`; `400 bad_request` (body missing, unknown field, `lang` not `id`/`en`); `409 analysis_running` (a job
   for this code runs); `429 busy` (2 jobs run); `503 hermes_unavailable` (control socket missing/refused, not ready, unsupported runtime);
   `503 analyzer_not_set_up` (Hermes does not serve profile `aristotle-stocks`, or the server has no analyzer); `422 unknown_symbol`;

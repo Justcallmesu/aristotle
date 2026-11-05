@@ -11,9 +11,10 @@
 | TS3 | Phone: stock detail + chart (Canvas candles/volume/line, ranges, crosshair), Open in Ajaib | TS2 | android | DONE |
 | TA0 | Research: running a stock analysis in Hermes from the server (methods, no-tools mode, profile setup, prompt + JSON verdict, contract, indicators) | - | docs | DONE |
 | TA1 | Server: indicators + analysis job (`/v1/stocks/analyze`), verdict validation, kept last result | TA0 | server | DONE |
-| TA1b | Analyzer hardening (TA1 review): untrusted-data instruction + flag news-only reasons (MINOR-1); record session id before any post-create failure (MINOR-2); sweep continues past errors + first-real-run check of cross-socket delete (MINOR-3); nits (refusal codes, hold target check, shutdown race, failed_at parse, title caps, duplicate keys) | TA1 | server | BUILDING |
-| TA2 | Phone: Analyze button + verdict card on the stock page | TA1, TS3 | android | BUILDING |
+| TA1b | Analyzer hardening (TA1 review): untrusted-data instruction + flag news-only reasons (MINOR-1); record session id before any post-create failure (MINOR-2); sweep continues past errors + first-real-run check of cross-socket delete (MINOR-3); nits (refusal codes, hold target check, shutdown race, failed_at parse, title caps, duplicate keys) | TA1 | server | DONE (review folded into TA2's) |
+| TA2 | Phone: Analyze button + verdict card on the stock page | TA1, TS3 | android | DONE |
 | TS3b | TS3 minors: stale long-range bars need Retry/refetch; 60 s refresh must not cut a crosshair hold; exclude chart from system back-gesture edge; 1.3x font overflow (device check); 1D slot for bars at 12:00/11:30/pre-09:00; Back from All news -> stock; single-bar line; Add holding before load; Ajaib uninstall feedback | TS3 | android | TODO |
+| TA2b | Analyzer minors: news_only cap dodged by one indicator citation (backstop only); misleading create log; sweep timeout stops the pass; 'From <day>' should name the session; stale start error after a later done read | TA2 | server+android | TODO |
 
 ## Log
 - 2026-11-05 v2 grill: Q84-Q90 (all A). Yahoo + RSS re-probed 200. TS0 + TD4 dispatched in parallel.
@@ -32,3 +33,6 @@
 - 2026-11-05 TA1 built; pm-gate-ta1 GREEN (527 Go, -race clean per builder); mutations tool_count guard 1 fail, Buy order 1 fail. Deep review dispatched.
 - 2026-11-05 TA2 dispatched against TA1's uncommitted contract (read-only) while TA1 is reviewed; steer if the review changes the contract.
 - 2026-11-05 TA1 review PASS-WITH-FINDINGS (8 security checks hold). Committed with TS3's CHANGELOG line. MINOR-1 (prompt injection) fixed now as TA1b (advice quality = core promise); TA2 steered: summary/reasons plain text only.
+- 2026-11-05 TA1b: pm-gate-ta1b GREEN (542 Go); mutation news-only cap removed -> 1 fail. Committed c1f8904 without its own review; TA2's review re-checks `git show c1f8904`. TA2 steered with the new codes + news_only flag.
+- 2026-11-05 TA2 built (1228). PM: protocol §20.1 poll 2 s -> 3 s (code is right), CHANGELOG Phone line applied from the report. Gate + mutation (VerdictCard link guard removed) running; review waits for the mutation. D53 flake recorded.
+- 2026-11-05 TA2 + TA1b review PASS-WITH-FINDINGS. CHANGELOG line moved to the top (newest first). Q101 marked PM reading (app language). Committed.

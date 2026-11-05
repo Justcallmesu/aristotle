@@ -5,9 +5,14 @@ import androidx.lifecycle.viewModelScope
 import io.github.justcallmesu.aristotle.data.LinkState
 import io.github.justcallmesu.aristotle.data.PcCredentials
 import io.github.justcallmesu.aristotle.data.serverEndpoint
+import io.github.justcallmesu.aristotle.data.stocks.AnalysisProblem
+import io.github.justcallmesu.aristotle.data.stocks.AnalysisStates
+import io.github.justcallmesu.aristotle.data.stocks.AnalysisStatus
+import io.github.justcallmesu.aristotle.data.stocks.AnalysisView
 import io.github.justcallmesu.aristotle.data.stocks.ChartBody
 import io.github.justcallmesu.aristotle.data.stocks.ChartCache
 import io.github.justcallmesu.aristotle.data.stocks.ChartRange
+import io.github.justcallmesu.aristotle.data.stocks.MarketStatus
 import io.github.justcallmesu.aristotle.data.stocks.NewsItem
 import io.github.justcallmesu.aristotle.data.stocks.QuoteRefresher
 import io.github.justcallmesu.aristotle.data.stocks.QuotesBody
@@ -16,6 +21,7 @@ import io.github.justcallmesu.aristotle.data.stocks.StocksApi
 import io.github.justcallmesu.aristotle.data.stocks.StocksError
 import io.github.justcallmesu.aristotle.data.stocks.StocksResult
 import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
+import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -45,11 +51,23 @@ data class StockDetailState(
     /** News that mentions the code, newest first; null until read. */
     val news: List<NewsItem>? = null,
     val newsProblem: StocksError? = null,
+    /** The last `GET /analysis` (TA2); null until read. */
+    val analysis: AnalysisStatus? = null,
+    /** Why the last `GET /analysis` failed (the last answer stays). */
+    val analysisReadProblem: StocksError? = null,
+    /** A `POST /analyze` is on its way. */
+    val analyzing: Boolean = false,
+    /** Why the last start was refused; cleared by the next start or a job seen running. */
+    val analyzeProblem: AnalysisProblem? = null,
 ) {
     val reachable: Boolean get() = link.serverEndpoint != null
     val quote: StockQuote? get() = quotes?.quoteOf(code)
     val chart: ChartSlot get() = charts[range] ?: ChartSlot()
     val day: ChartBody? get() = charts[ChartRange.Day]?.body
+
+    /** The Analyze section on [today] (WIB); [market] decides the current session (the page's quotes, else the home's). */
+    fun analysisView(market: MarketStatus?, today: LocalDate): AnalysisView =
+        AnalysisStates.view(analysis, analyzing, analyzeProblem, AnalysisStates.currentSession(market, today))
 }
 
 /**
@@ -59,6 +77,10 @@ data class StockDetailState(
  * market is open, by the Stocks home's rules ([QuoteRefresher]); outside a session once on showing, then at the next
  * open. 1D is always read (the day's open comes from it). A range Yahoo refused is read again after its
  * `retry_after_s`.
+ *
+ * The analyzer (TA2, protocol §20.1): the job's state is read once each time the page shows; while a job runs and the
+ * page is visible it is read every 3 s ([AnalysisStates.POLL_MILLIS], [analysisPause] is the test seam) and the polling
+ * stops at done / failed or when the page hides. The job runs on the PC, so leaving the page loses nothing.
  */
 class StockDetailViewModel(
     private val code: String,
@@ -69,6 +91,7 @@ class StockDetailViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     pause: suspend (Long) -> Unit = { delay(it) },
     private val retryPause: suspend (Long) -> Unit = { delay(it) },
+    private val analysisPause: suspend (Long) -> Unit = { delay(it) },
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     private val state = MutableStateFlow(StockDetailState(code, link = link.value))
@@ -80,6 +103,7 @@ class StockDetailViewModel(
     private val refresher = QuoteRefresher(work, active, market = { state.value.quotes?.market }, read = ::refresh, clock = clock, pause = pause)
     private val inFlight = mutableSetOf<ChartRange>()
     private var retryJob: Job? = null
+    private var pollJob: Job? = null
 
     init {
         work.launch { link.collect { l -> state.update { it.copy(link = l) } } }
@@ -92,7 +116,67 @@ class StockDetailViewModel(
                 if (state.value.news == null) loadNews()
             }
         }
+        work.launch {
+            active.collect { on -> if (on) follow(readFirst = true) else pollJob?.cancel() }
+        }
         refresher.start()
+    }
+
+    /** Starts an analysis in [lang] (`id` / `en`, [io.github.justcallmesu.aristotle.data.stocks.AnalysisLang]); then follows it. */
+    fun analyze(lang: String) {
+        val now = state.value
+        if (!now.reachable || now.analyzing || now.analysis?.running == true) return
+        state.update { it.copy(analyzing = true, analyzeProblem = null) }
+        work.launch {
+            when (val result = api()?.analyze(code, lang)) {
+                null -> state.update { it.copy(analyzing = false) }
+                is StocksResult.Ok -> {
+                    state.update {
+                        val running = AnalysisStatus(code, AnalysisStatus.RUNNING, result.value.jobId, result.value.startedAt, result = it.analysis?.result)
+                        it.copy(analyzing = false, analysis = running)
+                    }
+                    follow(readFirst = false)
+                }
+                is StocksResult.Failed -> {
+                    val problem = AnalysisProblem.ofPost(result.error)
+                    if (problem == AnalysisProblem.AlreadyRunning) {
+                        // Another phone or a raced tap: read that job, which shows and follows it.
+                        state.update { it.copy(analyzing = false) }
+                        follow(readFirst = true)
+                    } else {
+                        state.update { it.copy(analyzing = false, analyzeProblem = problem) }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Reads the analysis again after a failed read. */
+    fun retryAnalysisRead() {
+        if (state.value.reachable) follow(readFirst = true)
+    }
+
+    /** Reads the job's state (when [readFirst]), then every [AnalysisStates.POLL_MILLIS] while it runs and the page is visible. */
+    private fun follow(readFirst: Boolean) {
+        pollJob?.cancel()
+        pollJob = work.launch {
+            if (readFirst) readAnalysis()
+            while (active.value && state.value.analysis?.running == true) {
+                analysisPause(AnalysisStates.POLL_MILLIS)
+                if (!active.value) break
+                readAnalysis()
+            }
+        }
+    }
+
+    private suspend fun readAnalysis() {
+        when (val result = api()?.analysis(code) ?: return) {
+            is StocksResult.Ok -> state.update {
+                val body = result.value
+                it.copy(analysis = body, analysisReadProblem = null, analyzeProblem = if (body.running) null else it.analyzeProblem)
+            }
+            is StocksResult.Failed -> state.update { it.copy(analysisReadProblem = result.error) }
+        }
     }
 
     /** The page is on screen and resumed (or not). */

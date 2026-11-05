@@ -50,6 +50,18 @@ class StocksTransportTest {
     }
 
     @Test
+    fun postSendsItsBody() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(202).body("""{"job_id":"an_0123456789ab","state":"running"}""").build())
+        val reply = client.sendStocks(endpoint.baseUrl, token, StocksRequest("POST", "analyze/BBCA", body = """{"lang":"id"}"""))
+        assertEquals(202, (reply as StocksReply.Http).status)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/v1/stocks/analyze/BBCA", request.url.encodedPath)
+        assertEquals("""{"lang":"id"}""", request.body!!.utf8())
+        assertEquals("Bearer t0k3n", request.headers["Authorization"])
+    }
+
+    @Test
     fun errorStatusesComeBackWithTheirBodyAndRetryAfter() = runBlocking {
         server.enqueue(MockResponse.Builder().code(503).setHeader("Retry-After", "60").body("""{"error":"upstream_blocked","retry_after_s":60}""").build())
         val reply = client.sendStocks(endpoint.baseUrl, token, StocksRequest("GET", "quotes"))
