@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aristotle — AI track record board (TD6)</title>
+<!-- Self-contained: fonts, icons and EN/ID strings are embedded by build.py. No network. -->
+<style>
+:root{--fs:1}
+/*@BASECSS@*/
+body[data-fs="1.3"] :is(.phone,.pal){--fs:1.3}
+/* ===== TD6 additions ===== */
+/* heights become minimums so text at 1.3x never clips (Compose: heightIn(min = ...)) */
+.btn{height:auto;min-height:40px;padding-top:6px;padding-bottom:6px;white-space:normal;text-align:center}
+.modeseg{height:auto}.modeseg button{min-height:40px}
+.sec .act{height:auto;min-height:32px}
+.topbar{height:auto;min-height:64px}
+.statusbar,.navbar{flex:none}
+.sec{flex-wrap:wrap}
+/* filter chips (as screener board) */
+.chips{display:flex;gap:8px;padding:4px 16px 8px;flex:none;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.fchip{min-height:32px;display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:var(--r-sm);border:1px solid var(--outline-variant);font:600 14px/20px var(--f-ui);flex:none;white-space:nowrap}
+.fchip .ms{width:18px;height:18px;margin-right:-4px}
+.fchip.on{background:var(--secondary-container);color:var(--on-secondary-container);border-color:transparent}
+.fchip.clr{border-color:transparent;color:var(--primary)}
+.chips.dim{opacity:.38;pointer-events:none}
+/* result chip (not a button): extraSmall 4 dp, labelMedium; two styles by Tweak */
+.rc{display:inline-flex;align-items:center;gap:2px;min-height:24px;padding:2px 8px;border-radius:var(--r-xs);font:600 12px/16px var(--f-ui);font-variant-numeric:tabular-nums;flex:none;max-width:52%;text-align:right;justify-content:flex-end}
+.rc .ms{width:16px;height:16px;margin:0 2px 0 -2px;display:none;flex:none}
+.rc.neu{background:var(--surface-high);color:var(--on-surface)}
+.rc.win{background:var(--gain-c);color:var(--on-gain-c)}
+.rc.loss{background:var(--loss-c);color:var(--on-loss-c)}
+.rc.pend{background:transparent;box-shadow:inset 0 0 0 1px var(--outline);color:var(--on-surface-variant)}
+body[data-rc="outline"] .rc{background:transparent!important;box-shadow:inset 0 0 0 1px var(--outline);color:var(--on-surface)}
+body[data-rc="outline"] .rc.win{color:var(--gain);box-shadow:inset 0 0 0 1px var(--gain)}
+body[data-rc="outline"] .rc.loss{color:var(--loss);box-shadow:inset 0 0 0 1px var(--loss)}
+body[data-rc="outline"] .rc.pend{color:var(--on-surface-variant);box-shadow:inset 0 0 0 1px var(--outline-variant)}
+body[data-rc="outline"] .rc .ms{display:inline-block}
+/* forced chip style inside the variant panel, whatever the Tweak says */
+[data-rcforce="tonal"] .rc{box-shadow:none!important}
+[data-rcforce="tonal"] .rc .ms{display:none!important}
+[data-rcforce="tonal"] .rc.neu{background:var(--surface-high)!important;color:var(--on-surface)!important}
+[data-rcforce="tonal"] .rc.win{background:var(--gain-c)!important;color:var(--on-gain-c)!important}
+[data-rcforce="tonal"] .rc.loss{background:var(--loss-c)!important;color:var(--on-loss-c)!important}
+[data-rcforce="tonal"] .rc.pend{background:transparent!important;color:var(--on-surface-variant)!important;box-shadow:inset 0 0 0 1px var(--outline)!important}
+[data-rcforce="tonal"] .rc.pend .ms{display:inline-block!important}
+[data-rcforce="outline"] .rc{background:transparent!important;box-shadow:inset 0 0 0 1px var(--outline)!important;color:var(--on-surface)!important}
+[data-rcforce="outline"] .rc .ms{display:inline-block!important}
+[data-rcforce="outline"] .rc.win{color:var(--gain)!important;box-shadow:inset 0 0 0 1px var(--gain)!important}
+[data-rcforce="outline"] .rc.loss{color:var(--loss)!important;box-shadow:inset 0 0 0 1px var(--loss)!important}
+[data-rcforce="outline"] .rc.pend{color:var(--on-surface-variant)!important;box-shadow:inset 0 0 0 1px var(--outline-variant)!important}
+.stale .rc{background:var(--surface-high)!important;color:var(--on-surface-variant)!important;box-shadow:none!important}
+.stale .rc.pend{background:transparent!important;box-shadow:inset 0 0 0 1px var(--outline-variant)!important}
+.stale .bar i{background:var(--outline)!important}
+/* verdict cards on the track-record page */
+.gi.vc{display:block;min-height:0;padding:12px 16px 12px}
+.vc .h1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.vc .h1 .nm{flex:1;min-width:0}
+.vc .h1 .nn{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.vc .avgv{margin-left:auto;text-align:right;display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.vc .avgv .lb{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.vc .rate{margin-top:2px;font:400 14px/20px var(--f-ui)}
+.vc .rate b{font-weight:600}
+.vc .rate.few{color:var(--on-surface-variant)}
+.bar{display:flex;height:8px;gap:2px;margin:10px 0 8px;border-radius:var(--r-xs);overflow:hidden}
+.bar i{display:block;min-width:2px}
+.bar .w{background:var(--gain)}.bar .l{background:var(--loss)}.bar .f{background:var(--outline)}.bar .n{background:var(--outline-variant)}
+.cnts{display:flex;flex-wrap:wrap;gap:2px 14px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.cnts b{font:600 14px/20px var(--f-ui);color:var(--on-surface)}
+.d3{margin-top:6px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.chg.neutral{color:var(--on-surface);background:transparent}
+.chg.neutral .ms{color:var(--on-surface-variant)}
+.stale .chg.neutral{color:var(--on-surface-variant)}
+/* table variant */
+.tbl .th,.tbl .tr{display:grid;grid-template-columns:minmax(0,1fr) 34px 34px 40px 34px 84px;gap:4px;align-items:center;padding:0 16px}
+.tbl .th{min-height:40px;font:600 12px/16px var(--f-ui);color:var(--on-surface-variant);align-items:end;padding-bottom:4px;text-align:right}
+.tbl .th span:first-child{text-align:left}
+.tbl .tr{background:var(--surface-low);min-height:56px;padding-top:8px;padding-bottom:8px;font:400 14px/20px var(--f-ui);font-variant-numeric:tabular-nums;text-align:right}
+.tbl .tr .vn{text-align:left;font:600 14px/20px var(--f-ui)}
+.tbl .tr .vn small{display:block;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.tbl .tr .dash{color:var(--on-surface-variant)}
+.tbl .tr .av{white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end}
+.tbl .tr .av .d3t{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.tbl .tr .few{grid-column:2/-1;text-align:left;color:var(--on-surface-variant);font:400 12px/16px var(--f-ui)}
+.tbl{margin:0 16px;display:flex;flex-direction:column;gap:2px}
+.tbl .tr{border-radius:var(--r-xs)}
+.tbl .th+.tr{border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg)}
+.tbl .tr:last-child{border-bottom-left-radius:var(--r-lg);border-bottom-right-radius:var(--r-lg)}
+.legend{padding:10px 16px 0;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.foot{padding:14px 16px 20px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.foot .btn.text{min-height:40px;padding:0;margin-top:2px;font-size:14px}
+.empty.big{padding:28px 16px 8px}.empty.big p{max-width:40ch;margin:0 0 14px}
+.notice{min-height:48px}
+.notice>.ms{flex:none;color:var(--on-surface-variant)}.notice span.tx{flex:1;min-width:0}
+.notice .btn.text{flex:none;padding:0 8px}
+.mkt .l1{flex-wrap:wrap}
+/* past calls rows */
+.gi.pc{min-height:64px;gap:8px;flex-wrap:wrap}
+.pc .tx{min-width:96px}
+.gi.more{min-height:48px;justify-content:center;color:var(--primary);font:600 14px/20px var(--f-ui)}
+.pc .rc{margin-left:auto}
+/* verdict card (existing component, drawn for context) */
+.vcard{margin:0 16px;padding:12px 16px 14px;border-radius:var(--r-lg);background:var(--surface-low)}
+.vcard .vh{display:flex;align-items:center;gap:8px}
+.vcard .vw{flex:1;min-width:0;font:600 24px/32px var(--f-ui);font-variant-numeric:tabular-nums}
+.vw.up{color:var(--gain)}.vw.down{color:var(--loss)}
+.cchip{padding:4px 10px;border-radius:var(--r-sm);background:var(--surface-highest);font:600 14px/20px var(--f-ui);flex:none}
+.rl{display:flex;align-items:center;gap:2px;min-height:48px;margin:0 -8px 0 0;padding:0 0 0 0;width:calc(100% + 8px);text-align:left;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.rl .tx{flex:1;min-width:0}
+.rl b{font-weight:600;color:var(--on-surface)}
+.rl .ms{width:20px;height:20px;margin-right:4px}
+.rl.saved b{color:var(--on-surface-variant)}
+.vcard .sum{margin:0 0 0;font:400 14px/20px var(--f-ui)}
+.lv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.lv .lb{font:600 12px/16px var(--f-ui);color:var(--on-surface-variant);letter-spacing:.3px}
+.lv .v{font:600 14px/20px var(--f-ui);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.lv .p{font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.vcard .src{margin-top:4px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.vcard .why{margin-top:14px;font:600 12px/16px var(--f-ui);color:var(--on-surface-variant);letter-spacing:.3px}
+.vcard .rs{padding:8px 0;border-top:1px solid var(--outline-variant);font:400 14px/20px var(--f-ui)}
+.vcard .rs:first-of-type{border-top:0;padding-top:4px}
+.vcard .mt{margin-top:10px;font:400 12px/16px var(--f-ui);color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+.vcard .btn.outlined{margin-top:10px}
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.kgrid .lb{font:600 12px/16px var(--f-ui);color:var(--on-surface-variant)}
+.kgrid .v{font:600 14px/20px var(--f-ui);font-variant-numeric:tabular-nums}
+.card{margin:0 16px;padding:14px 16px;border-radius:var(--r-lg);background:var(--surface-low)}
+.dcode{font:600 18px/24px var(--f-mono)}
+.stale .vcard .vw{color:var(--on-surface-variant)}
+.stale .kgrid .v{color:var(--on-surface-variant)}
+.nh{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px}
+/* sheet */
+.sheet .shs{overflow-y:auto;overflow-x:hidden;scrollbar-width:none;flex:1;min-height:0;padding:12px 24px 0}
+.sheet .shs::-webkit-scrollbar{display:none}
+.sheet .it{padding:0 0 14px}
+.sheet .it .title-s{margin-bottom:2px}
+.sheet .btnrow{display:flex;justify-content:flex-end;padding:8px 24px 20px;flex:none}
+/* snippet panels (states) */
+.pal{border-radius:20px;background:var(--surface);color:var(--on-surface);width:393px;padding:4px 0 14px;font:400 14px/20px var(--f-ui)}
+.pal .cap{padding:12px 16px 6px;font:600 12px/16px var(--f-ui);letter-spacing:.3px;color:var(--on-surface-variant);text-transform:uppercase}
+.pal.sn .vcard{margin-top:4px}
+.pal .vcard .vh{margin-bottom:0}
+.empty.sm{padding:8px 16px 8px}.empty.sm .title-m{margin-bottom:2px}.empty.sm p{margin:0}
+.seg.scn{display:none}body[data-view="proto"] .seg.scn{display:inline-flex}
+#proto .side p{margin:0 0 8px}
+.menu.left{left:16px;right:auto}
+.avatar{flex:none}
+</style>
+</head>
+<body data-theme="both" data-view="board" data-lang="en" data-fs="1" data-sum="cards" data-rc="tonal" data-scn="live" data-pl="gr">
+
+<div class="tweaks" role="toolbar" aria-label="Tweaks">
+  <b>Tweaks</b>
+  <div class="seg"><span>View</span><div class="opts" data-tweak="view"><button data-v="board">Board</button><button data-v="proto">Clickable path</button></div></div>
+  <div class="seg"><span>Theme</span><div class="opts" data-tweak="theme"><button data-v="both">Light + dark</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
+  <div class="seg"><span>Language</span><div class="opts" data-tweak="lang"><button data-v="en">EN</button><button data-v="id">ID</button></div></div>
+  <div class="seg"><span>Text</span><div class="opts" data-tweak="fs"><button data-v="1">1.0×</button><button data-v="1.3">1.3×</button></div></div>
+  <div class="seg"><span>Summary</span><div class="opts" data-tweak="sum"><button data-v="cards">Cards (rec.)</button><button data-v="table">Table</button></div></div>
+  <div class="seg"><span>Result chips</span><div class="opts" data-tweak="rc"><button data-v="tonal">Tonal fill (rec.)</button><button data-v="outline">Outline + icon</button></div></div>
+  <div class="seg scn"><span>Scenario</span><div class="opts" data-tweak="scn"><button data-v="live">History</button><button data-v="first">Today only</button><button data-v="nohist">No history</button><button data-v="offline">PC offline</button></div></div>
+</div>
+
+<section class="intro">
+  <h1>Aristotle — AI track record board (TD6)</h1>
+  <p>Scores every analyzer verdict against what the price did afterwards (spec Q116–Q120). Same v2 stocks language as <code>screener.html</code>: palette A, Soft corners,
+  grouped rows, Literata titles, Atkinson Hyperlegible, green / red text for gain / loss, M3 Compose parts only. 393 × 873 dp, light and dark, EN and ID (Tweaks).
+  Notes and the Compose mapping: <code>docs/design/v3/track-record-notes.md</code>.</p>
+  <p><b>Surfaces.</b> The track record page is a <b>Compare</b> surface (one row per verdict type, same measures, read down the page); the verdict-card line and the Past calls list are
+  small <b>Monitor</b> additions to the stock page; the scoring sheet is <b>Learn</b>. No hero, no stat tiles.</p>
+  <p><b>Samples, not results.</b> Codes are real IDX tickers; every verdict, outcome, percent and count below is generated for the board (deterministic, 12 Oct – 5 Nov 2026) and follows the spec rules. They say nothing about the real AI.
+  The numbers come from one sample list, so filters in the clickable path recompute them. Open choices (marked <b>PM</b>): minimum 10 verdicts per type, result base = top of the entry zone, rate denominator = decided calls. See the report, "Needs the user".</p>
+  <p><b>Picks for the user</b> (recommended one first, both are Tweaks): <b>1</b> summary as cards · table · <b>2</b> result chips as tonal fill · outline with icon.</p>
+</section>
+
+<main id="board"></main>
+<div id="proto"><div id="protoPhone"></div><aside class="side">
+  <h2>Clickable path</h2>
+  <ol>
+    <li>Stocks home: tap <b>⋮</b> (bottom bar) → <b>AI track record</b>.</li>
+    <li>Or tap the ADRO row → the verdict card → its <b>AI record</b> line.</li>
+    <li>Page: the three filter chips open menus and recompute the table; <b>ⓘ</b> opens how scoring works.</li>
+    <li>Stock page: Past calls shows 3, <b>Show more</b> expands.</li>
+  </ol>
+  <p style="opacity:.7">Scenario in Tweaks: no history, only today's verdicts, PC offline. Theme "Light + dark" shows light.</p>
+</aside></div>
+
+<script>
+const ICONS = /*@ICONS@*/{};
+const STR = /*@STRINGS@*/{};
+const B=()=>document.body.dataset;
+const I=(n,c="")=>`<svg class="ms ${c}" viewBox="0 -960 960 960" aria-hidden="true"><path d="${ICONS[n]||""}"/></svg>`;
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const t=(k,...a)=>{let s=(STR[k]&&(STR[k][B().lang]||STR[k].en))||k;a.forEach((v,i)=>{s=s.split("{"+i+"}").join(v)});return s};
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const NF=new Intl.NumberFormat("id-ID");
+const n0=v=>NF.format(Math.round(v));
+const f1=v=>v.toLocaleString("id-ID",{minimumFractionDigits:1,maximumFractionDigits:1});
+const sgn=v=>v>0?"+":v<0?"−":"";
+const pct1=v=>sgn(+v.toFixed(1))+f1(Math.abs(v))+" %";
+const dir=v=>v>0?"up":v<0?"down":"flat";
+const chg=(v,text,cls="")=>`<span class="chg ${dir(v)} ${cls}">${I(v>0?"arrow_drop_up":v<0?"arrow_drop_down":"remove")}<span>${text}</span></span>`;
+const neutralChg=(v,text)=>`<span class="chg neutral md">${I(v>0?"arrow_drop_up":v<0?"arrow_drop_down":"remove")}<span>${text}</span></span>`;
+const tick=p=>p<200?1:p<500?2:p<2000?5:p<5000?10:25;
+const snap=p=>{const k=tick(p);return Math.max(k,Math.round(p/k)*k)};
+function rng(seed){let a=seed*2654435761>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(r){return Math.sqrt(-2*Math.log(r()+1e-9))*Math.cos(2*Math.PI*r())}
+
+/* ======================= sample data (labelled samples; today = Thu 5 Nov 2026) ======================= */
+const MIN=10; /* PM proposal: fewer decided verdicts than this -> no rate (needs the user) */
+const DN={en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],id:["Min","Sen","Sel","Rab","Kam","Jum","Sab"]};
+const MN={en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],id:["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"]};
+const dayS=d=>`${DN[B().lang][d.getUTCDay()]} ${d.getUTCDate()} ${MN[B().lang][d.getUTCMonth()]}`;
+const dmS=d=>`${d.getUTCDate()} ${MN[B().lang][d.getUTCMonth()]}`;
+const TODAY=new Date(Date.UTC(2026,10,5));
+const DAYS=(()=>{const a=[];const d=new Date(Date.UTC(2026,9,12));while(d<TODAY){if(d.getUTCDay()%6)a.push(new Date(d));d.setUTCDate(d.getUTCDate()+1)}return a})();
+const dayIdx=(m,d)=>DAYS.findIndex(x=>x.getUTCMonth()===m&&x.getUTCDate()===d);
+const PX={BBCA:9875,BBRI:4230,TLKM:3150,ADRO:2480,ANTM:3390,PGAS:1645,MDKA:2070,INDF:7350,ASII:5050,GOTO:68};
+const HELDC=["BBCA","BBRI","TLKM","GOTO"],FREEC=["ANTM","PGAS","MDKA","INDF","ASII"];
+const BUYISH=v=>v==="buy_today"||v==="add";
+const VORDER=["buy_today","add","hold","avoid","sell","wait"];
+function mkCall(v,code,day,model,trig,conf,out,r){
+  const p=snap(PX[code]*(1+(r()-.5)*.08));let x=null;
+  if(BUYISH(v)){const eh=snap(p*(1-.004*r())),tg=snap(eh*(1+.035+.03*r())),st=snap(eh*(1-.02-.012*r()));
+    if(out==="win")x=(tg-eh)/eh*100;else if(out==="loss")x=(st-eh)/eh*100;else if(out==="flat")x=(snap(eh*(1+(r()*2.6-1.1)/100))-eh)/eh*100}
+  else if(v==="avoid"||v==="sell")x=out==="win"?-(r()*2.8):.3+r()*2.7;
+  else if(v==="hold")x=out==="win"?(r()*3.8-.9):-(2+r()*1.6);
+  else x=r()*6-2.6;
+  x=x==null?null:Math.round(x*10)/10;
+  return{v,code,day,model,trig,conf,out,pct:x,d3:x==null?null:Math.round((x+(r()-.5)*5)*10)/10};
+}
+const CALLS=(()=>{
+  const r=rng(41),list=[];
+  const plan={buy_today:30,add:8,hold:22,avoid:24,sell:6,wait:20};
+  let pool=[];Object.entries(plan).forEach(([v,n])=>{for(let i=0;i<n;i++)pool.push(v)});
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+  pool.forEach((v,i)=>{
+    const held=["add","hold","sell"].includes(v),codes=held?HELDC:FREEC,code=codes[Math.floor(r()*codes.length)];
+    const day=Math.floor(i*DAYS.length/pool.length);
+    const manual=r()<.55,mix=r()<.08,trig=manual?"manual":"auto",model=(manual!==mix)?"Opus":"Sonnet";
+    const q=r(),conf=q<.2?"low":q<.7?"med":"high";
+    let out;const u=r();
+    if(BUYISH(v))out=u<.15?"notrig":(u2=>u2<.42?"win":u2<.8?"loss":"flat")(r());
+    else if(v==="avoid"||v==="sell")out=u<.62?"win":"loss";
+    else if(v==="hold")out=u<.78?"win":"loss";else out="wait";
+    list.push(mkCall(v,code,day,model,trig,conf,out,r));
+  });
+  /* ADRO's own history (the stock page sample) */
+  const hr=rng(7),H=(v,m,d,model,trig,conf,out)=>list.push(mkCall(v,"ADRO",dayIdx(m,d),model,trig,conf,out,hr));
+  H("wait",10,4,"Sonnet","auto","low","wait");H("buy_today",9,30,"Opus","manual","med","win");H("avoid",9,28,"Opus","manual","high","win");
+  H("buy_today",9,22,"Sonnet","auto","med","notrig");H("buy_today",9,19,"Opus","manual","high","loss");H("wait",9,15,"Sonnet","auto","low","wait");H("avoid",9,13,"Opus","manual","med","loss");
+  return list;
+})();
+const PENDING=[{code:"ADRO",v:"buy_today",model:"Opus",trig:"manual",conf:"med"},{code:"BBCA",v:"hold",model:"Sonnet",trig:"auto",conf:"high"},{code:"MDKA",v:"wait",model:"Sonnet",trig:"auto",conf:"low"}];
+const mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const match=(c,f)=>(!f.model||c.model===f.model)&&(!f.trig||c.trig===f.trig)&&(!f.conf||c.conf===f.conf);
+function agg(v,f={}){
+  const L=CALLS.filter(c=>c.v===v&&match(c,f)),n=L.length,cnt=o=>L.filter(c=>c.out===o).length;
+  const win=cnt("win"),loss=cnt("loss"),flat=cnt("flat"),nt=cnt("notrig"),sc=L.filter(c=>c.pct!=null),s3=L.filter(c=>c.d3!=null);
+  const denom=v==="wait"?n:BUYISH(v)?win+loss+flat:win+loss;
+  return{v,n,win,loss,flat,nt,avg:sc.length?mean(sc.map(c=>c.pct)):null,d3:s3.length?mean(s3.map(c=>c.d3)):null,denom,enough:denom>=MIN};
+}
+const total=f=>CALLS.filter(c=>match(c,f)).length;
+const rateHtml=a=>{const b=x=>`<b>${x}</b>`;
+  if(a.v==="wait")return t("rate_wait",b(pct1(a.avg)));
+  return t(BUYISH(a.v)?"rate_buy":a.v==="hold"?"rate_hold":"rate_right",b(a.win),b(a.denom))};
+const isAvoidish=v=>v==="avoid"||v==="sell";
+
+/* ======================= small parts ======================= */
+function chip(c,pending){
+  if(pending)return `<span class="rc pend">${I("schedule")}<span>${t("r_pend")}</span></span>`;
+  const v=c.v,p=c.pct==null?"":" "+pct1(c.pct);
+  let cls="neu",ic="",w="";
+  if(v==="wait"){w=t("r_buy",pct1(c.pct));return `<span class="rc neu"><span>${w}</span></span>`}
+  if(BUYISH(v)){if(c.out==="win"){cls="win";ic="check";w=t("r_target")+p}else if(c.out==="loss"){cls="loss";ic="close";w=t("r_stop")+p}
+    else if(c.out==="flat"){w=t("r_flat")+p}else w=t("r_nt")}
+  else if(isAvoidish(v)){if(c.out==="win"){cls="win";ic="check";w=t("r_right")+p}else{cls="loss";ic="close";w=t("r_wrong")+p}}
+  else{if(c.out==="win"){cls="win";ic="check";w=t("r_held")+p}else{cls="loss";ic="close";w=t("r_stop")+p}}
+  return `<span class="rc ${cls}">${ic?I(ic):""}<span>${w}</span></span>`;
+}
+function pastRow(c,pending){
+  const d=pending?t("today"):dayS(DAYS[c.day]),tg=c.trig==="auto"?t("auto"):t("manual");
+  const aria=esc(`${t("v_"+c.v)}, ${d}, ${c.model}, ${tg}`);
+  return `<div class="gi pc" aria-label="${aria}"><div class="tx"><div class="title-s">${t("v_"+c.v)}</div><div class="body-s muted">${d} · ${c.model} · ${tg}</div></div>${chip(c,pending)}</div>`;
+}
+const pastOf=code=>{const past=CALLS.filter(c=>c.code===code).sort((a,b)=>b.day-a.day).map(c=>({c,p:false}));
+  return PENDING.filter(c=>c.code===code).map(c=>({c,p:true})).concat(past)};
+function pastSection(code,{open=false,scn="live",saved="10:52"}={}){
+  const items=scn==="nohist"?[]:scn==="first"?pastOf(code).filter(x=>x.p):pastOf(code),n=items.length;
+  const head=`<div class="sec">${t("past_t")} <span class="n">· ${n}</span></div>`;
+  if(!n)return head+`<div class="empty sm"><div class="title-m">${t("past_empty",code)}</div><p class="body-m muted">${t("past_empty_b")}</p></div>`;
+  const shown=open?items:items.slice(0,3),rest=n-3;
+  const more=rest>0?`<button class="gi more tap" data-pastmore aria-expanded="${open}">${open?t("past_less"):t("past_more",rest)}</button>`:"";
+  const off=scn==="offline"?`<div class="body-s muted" style="padding:0 16px 6px">${t("past_off",saved)}</div>`:"";
+  return head+off+`<div class="glist${scn==="offline"?" stale":""}">${shown.map(x=>pastRow(x.c,x.p)).join("")}${more}</div>`;
+}
+/* the one-line AI record under the verdict */
+function recLine(v,scn="live"){
+  const vw=t("v_"+v);let body;
+  if(scn==="nohist"||scn==="first")body=t("line_none");
+  else{const a=agg(v);body=a.enough?t("line_have",vw,rateHtml(a)):t("line_few",vw)}
+  const saved=scn==="offline"?` · ${t("line_saved")}`:"";
+  return `<button class="rl tap${scn==="offline"?" saved":""}" data-go="page" aria-label="${esc((body+saved).replace(/<[^>]+>/g,""))}"><span class="tx">${body}${saved}</span>${I("chevron_right")}</button>`;
+}
+
+/* ======================= shell ======================= */
+const statusbar=tm=>`<div class="statusbar"><span>${tm}</span><span class="si">${I("signal_cellular_alt","s16")}${I("wifi","s16")}${I("battery_5_bar","s16")}</span></div>`;
+const shell=(inner,tm="14:20")=>`<div class="screen">${statusbar(tm)}<div class="app">${inner}</div><div class="navbar"><i></i></div></div>`;
+const topbar=(title,sub,go,right)=>`<header class="topbar"><button class="icbtn on" data-go="${go}" aria-label="Back">${I("arrow_back")}</button><div class="tt"><div class="ttl">${title}</div><div class="subline" style="white-space:normal">${sub}</div></div>${right||""}</header>`;
+const avatarBtn=()=>`<button class="avbtn" aria-label="Hermes profile: pm"><span class="avatar" aria-hidden="true">P</span><span class="pl" aria-hidden="true">pm</span></button>`;
+
+/* ---- stocks home (context for the ⋮ entry) ---- */
+const STK={BBCA:{last:9875,prev:9750,seed:3,n:"Bank Central Asia Tbk"},BBRI:{last:4230,prev:4290,seed:7,n:"Bank Rakyat Indonesia (Persero) Tbk"},TLKM:{last:3150,prev:3150,seed:13,n:"Telkom Indonesia (Persero) Tbk"},ADRO:{last:2480,prev:2410,seed:19,n:"Alamtri Resources Indonesia Tbk"},GOTO:{last:68,prev:70,seed:23,n:"GoTo Gojek Tokopedia Tbk"}};
+function series(code){const s=STK[code],r=rng(s.seed),k=tick(s.last),sig=Math.max(k*.7,s.last*.0016),n=21,w=[0];
+  for(let i=1;i<n;i++)w.push(w[i-1]+gauss(r)*sig);
+  const open=s.prev+(code==="BBCA"?1:code==="GOTO"?-1:0)*k;
+  return w.map((x,i)=>snap(open+(s.last-open)*i/(n-1)+x-w[n-1]*i/(n-1)))}
+function spark(code,w=64,h=28){const s=STK[code],c=series(code),n=c.length,lo=Math.min(s.prev,...c),hi=Math.max(s.prev,...c),span=hi-lo||1;
+  const X=i=>2+(w-4)*i/(n-1),Y=v=>2+(h-4)*(1-(v-lo)/span);
+  const pts=c.map((v,i)=>[X(i),Y(v)].map(q=>q.toFixed(1)).join(",")).join(" ");
+  return `<svg class="spark ${dir(s.last-s.prev)}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><line class="base" x1="2" x2="${w-2}" y1="${Y(s.prev).toFixed(1)}" y2="${Y(s.prev).toFixed(1)}"/><polyline class="pl" points="${pts}"/></svg>`}
+function watchRow(code){const s=STK[code],d=s.last-s.prev,p=d/s.prev*100;
+  const pc=sgn(+p.toFixed(2))+Math.abs(p).toLocaleString("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2})+" %";
+  return `<div class="gi wrow tap" role="button" ${code==="ADRO"?'data-go="stock"':""} aria-label="${code}, ${esc(s.n)}, ${n0(s.last)}"><div class="tx"><div class="code">${code}</div><div class="nm ell">${esc(s.n)}</div></div>${spark(code)}
+    <div class="pxcol"><div class="px pxd ${dir(d)}">${n0(s.last)}</div>${chg(d,`${sgn(d)}${n0(Math.abs(d))} · ${pc}`)}</div></div>`}
+function homeScreen(o={}){
+  const off=o.scn==="offline";
+  const menu=`<div class="menu up${o.menu?" open":""}" role="menu"><div class="mi" role="menuitem">${t("menu_fees")}</div><div class="mi" role="menuitem" data-go="page">${t("title")}</div><div class="mi" role="menuitem">${t("menu_settings")}</div></div>`;
+  const mk=off?`<div class="mkt" role="status"><div class="l1">${I("cloud_off")}<span>${t("off_since","11:03")}</span><button class="retry">${t("retry")}</button></div></div>`
+    :`<div class="mkt" role="status"><div class="l1">${t("mk1")}</div><div class="l2">${t("mk2")}</div></div>`;
+  return shell(`<header class="bighead"><div class="tt"><div class="wordmark">Aristotle</div><div class="modeseg" role="radiogroup"><button role="radio" aria-checked="false">${t("chats")}</button><button role="radio" aria-checked="true">${I("check")}${t("stocks")}</button></div></div>${avatarBtn()}</header>${mk}
+    <div class="scroll${off?" stale":""}"><div class="sec">${t("watch")} <span class="n">· 5</span></div><div class="glist">${["BBCA","BBRI","TLKM","ADRO","GOTO"].map(watchRow).join("")}</div><div style="height:12px"></div></div>
+    <nav class="bab"><button class="icbtn" aria-label="${t("news")}">${I("newspaper")}</button><button class="icbtn" aria-label="${t("holdings")}">${I("account_balance_wallet")}</button>
+    <button class="icbtn${o.menu?" on":""}" data-menu aria-label="${t("more")}">${I("more_vert")}</button><button class="fab" aria-label="${t("add_w")}">${I("add")}</button></nav>${menu}`,off?"11:03":"14:20");
+}
+
+/* ---- stock page (ADRO) ---- */
+function verdictCard(o={}){
+  const scn=o.scn||"live",off=scn==="offline";
+  return `<div class="vcard${off?" stale":""}"><div class="vh"><span class="vw up">${t("v_buy_today")}</span><span class="cchip">${t("conf_med")}</span></div>
+    ${recLine("buy_today",scn)}
+    <p class="sum">${t("summary")}</p>
+    <div class="lv"><div><div class="lb">${t("lv_entry")}</div><div class="v">2.450–2.480</div><div class="p">−1,2 % – 0,0 %</div></div>
+    <div><div class="lb">${t("lv_target")}</div><div class="v">2.570</div><div class="p">+3,6 %</div></div>
+    <div><div class="lb">${t("lv_stop")}</div><div class="v">2.400</div><div class="p">−3,2 %</div></div></div>
+    <div class="src">${t("lv_from")}</div>
+    <div class="why">${t("why")}</div><div class="rs">${t("rs1")}</div><div class="rs">${t("rs2")}</div><div class="rs">${t("rs3")}</div>
+    <div class="mt">${t("meta")}</div><div class="mt" style="margin-top:0">${t("disc")}</div>
+    <button class="btn outlined">${t("again")}</button></div>`;
+}
+function stockScreen(o={}){
+  const scn=o.scn||"live",off=scn==="offline";
+  const mk=off?`<div class="mkt" role="status"><div class="l1">${I("cloud_off")}<span>${t("off_since","11:03")}</span><button class="retry">${t("retry")}</button></div></div>`:"";
+  const today=`<div class="sec">${t("today_h")}</div><div class="card"><div class="kgrid"><div><div class="lb">${t("k_open")}</div><div class="v">2.420</div></div><div><div class="lb">${t("k_prev")}</div><div class="v">2.410</div></div>
+    <div><div class="lb">${t("k_high")}</div><div class="v">2.490</div></div><div><div class="lb">${t("k_low")}</div><div class="v">2.410</div></div>
+    <div><div class="lb">${t("k_vol")}</div><div class="v">184.200</div></div><div><div class="lb">${t("k_52")}</div><div class="v">1.795–2.940</div></div></div></div>`;
+  const body=today+`<div class="sec">${t("ai_title")}</div>`+(scn==="nohist"||scn==="first"||scn==="live"||off?verdictCard({scn}):"")
+    +`<div style="height:8px"></div>`+pastSection("ADRO",{open:o.open,scn})
+    +`<div class="sec">${t("hold_h")}</div><div class="gi nh" style="margin:0 16px;border-radius:var(--r-lg);background:var(--surface-low)"><span class="body-m">${t("nothold","ADRO")}</span><button class="btn text">${t("add_hold")}</button></div><div style="height:16px"></div>`;
+  return shell(`<header class="topbar"><button class="icbtn on" data-go="home" aria-label="Back">${I("arrow_back")}</button><div class="tt"><div class="dcode">ADRO</div><div class="subline">${esc(STK.ADRO.n)}</div></div><button class="icbtn" aria-label="${t("more")}">${I("more_vert")}</button></header>${mk}
+    <div class="scroll">${body}</div>`,off?"11:03":"14:20");
+}
+
+/* ======================= TRACK RECORD PAGE ======================= */
+const FOPT={model:["Opus","Sonnet"],trig:["manual","auto"],conf:["low","med","high"]};
+const FLAB={model:"f_model",trig:"f_trig",conf:"f_conf"};
+const optLabel=(k,v)=>k==="trig"?t(v==="auto"?"o_auto":"o_manual"):k==="conf"?t(v):v;
+const allLabel={model:"all_model",trig:"all_trig",conf:"all_conf"};
+function chipRow(f,{dim=false,menu=null}={}){
+  const any=f.model||f.trig||f.conf;
+  const c=k=>`<button class="fchip${f[k]?" on":""}" data-fmenu="${k}" aria-haspopup="menu" aria-expanded="${menu===k}">${f[k]?I("check"):""}${t(FLAB[k])}${f[k]?": "+optLabel(k,f[k]):""}${I("expand_more")}</button>`;
+  return `<div class="chips${dim?" dim":""}" role="group" aria-label="Filters">${any?`<button class="fchip clr" data-fclear>${I("close")}${t("clear")}</button>`:""}${c("model")}${c("trig")}${c("conf")}</div>`;
+}
+function filterMenu(k,f,left){
+  const opts=FOPT[k];
+  return `<div class="menu down open" style="top:${left}px;left:16px;right:auto" role="menu"><div class="mi" role="menuitemradio" aria-checked="${!f[k]}" data-fset="${k}:">${!f[k]?I("check"):'<span style="width:24px"></span>'}${t(allLabel[k])}</div>`
+    +opts.map(o=>`<div class="mi" role="menuitemradio" aria-checked="${f[k]===o}" data-fset="${k}:${o}">${f[k]===o?I("check"):'<span style="width:24px"></span>'}${optLabel(k,o)}</div>`).join("")+`</div>`;
+}
+const infoBtn=()=>`<button class="icbtn on" data-go="sheet" aria-label="${t("how")}">${I("info")}</button>`;
+function barHtml(a){const tot=a.win+a.loss+a.flat+a.nt;if(!tot||a.v==="wait")return "";
+  const seg=(c,x)=>x?`<i class="${c}" style="flex:${x}"></i>`:"";return `<div class="bar" aria-hidden="true">${seg("w",a.win)}${seg("l",a.loss)}${seg("f",a.flat)}${seg("n",a.nt)}</div>`}
+function avgCell(a){if(a.avg==null||!a.enough)return `<span class="muted">–</span>`;return isAvoidish(a.v)?neutralChg(a.avg,pct1(a.avg)):chg(a.avg,pct1(a.avg),"md")}
+function cardsList(rows){
+  return `<div class="glist">${rows.map(a=>{
+    const w=a.v==="wait";
+    const rate=a.enough?`<div class="rate">${cap(rateHtml(a))}</div>`:`<div class="rate few"><b>${t("few")}</b> · ${t("few_n",a.denom,MIN)}</div>`;
+    const cn=w?"":`<div class="cnts"><span><b>${a.win}</b> ${t("win").toLowerCase()}</span><span><b>${a.loss}</b> ${t("loss").toLowerCase()}</span>${BUYISH(a.v)?`<span><b>${a.nt}</b> ${t("notrig").toLowerCase()}</span><span><b>${a.flat}</b> ${t("flat").toLowerCase()}</span>`:""}</div>`;
+    const right=a.enough&&!w?`<span class="avgv"><span class="lb">${t("avg")}</span>${avgCell(a)}</span>`:"";
+    const d3=a.enough&&a.d3!=null?`<div class="d3">${t("d3",pct1(a.d3))}</div>`:"";
+    return `<div class="gi vc"><div class="h1"><span class="title-m nm">${t("v_"+a.v)}</span><span class="nn">${t("n_v",a.n)}</span></div>
+      <div class="h1" style="margin-top:0">${a.enough?`<div style="flex:1;min-width:0">${rate}</div>`:`<div style="flex:1;min-width:0">${rate}</div>`}${right}</div>${barHtml(a)}${cn}${d3}</div>`}).join("")}</div>`;
+}
+function tableList(rows){
+  const hd=`<div class="th" role="row"><span>&nbsp;</span><span>${t("h_win")}</span><span>${t("h_loss")}</span><span>${t("h_nt")}</span><span>${t("h_flat")}</span><span>${t("h_avg")}</span></div>`;
+  const d=`<span class="dash">–</span>`;
+  const trs=rows.map(a=>{const w=a.v==="wait",b=BUYISH(a.v);
+    const name=`<span class="vn">${t("v_"+a.v)}<small>${t("n_v",a.n)}</small></span>`;
+    if(!a.enough)return `<div class="tr" role="row">${name}<span class="few">${t("few")} · ${a.denom}/${MIN}</span></div>`;
+    const av=`<span class="av">${avgCell(a)}${a.d3!=null?`<span class="d3t">${t("d3s",pct1(a.d3))}</span>`:""}</span>`;
+    return `<div class="tr" role="row">${name}${w?d+d+d+d:`<span>${a.win}</span><span>${a.loss}</span>${b?`<span>${a.nt}</span><span>${a.flat}</span>`:d+d}`}${av}</div>`}).join("");
+  return `<div class="tbl" role="table">${hd}${trs}</div><div class="legend">${t("legend")}</div>`;
+}
+function pageScreen(o={}){
+  const scn=o.scn||"live",f=o.f||{},off=scn==="offline",any=f.model||f.trig||f.conf;
+  const tm=off?"11:03":"14:20",N=total({}),Nf=total(f);
+  const pend=PENDING.length;
+  const sheet=o.sheet?sheetHtml(o.sheet):"";
+  const right=infoBtn();
+  if(scn==="nohist"||scn==="first"){
+    const first=scn==="first";
+    return shell(topbar(t("title"),first?t("sub_first"):t("sub_first"),"home",right)
+      +`<div class="scroll"><div class="empty big"><div class="title-m">${first?t("first_t"):t("nohist_t")}</div><p class="body-m muted">${first?t("first_b",pend):t("nohist_b")}</p><button class="btn tonal" data-go="sheet">${t("how")}</button></div></div>${sheet}`,tm);
+  }
+  const sub=any?t("sub_f",Nf,N):t("sub",N,dmS(DAYS[0]));
+  const offl=off?`<div class="mkt" role="status"><div class="l1">${I("cloud_off")}<span>${t("off_since","11:03")}</span><button class="retry">${t("retry")}</button></div><div class="l2">${t("off_sub","10:52")}</div></div>`:"";
+  const banner=off?"":`<div class="notice" role="status">${I("schedule")}<span class="tx">${t("pend_banner",pend)}</span></div>`;
+  const rows=VORDER.map(v=>agg(v,off?{}:f)).filter(a=>a.n>0);
+  let body;
+  if(!rows.length)body=`<div class="empty big"><div class="title-m">${t("nomatch")}</div><p class="body-m muted">${t("nomatch_b")}</p><button class="btn tonal" data-fclear>${t("clear_all")}</button></div>`;
+  else body=`<div class="sec">${t("sec_v")} <span class="n">· ${any&&!off?Nf:N}</span></div>${B().sum==="table"?tableList(rows):cardsList(rows)}
+    <div class="foot">${t("footer")}<br><button class="btn text" data-go="sheet">${t("how")}</button></div>`;
+  const menu=o.menu?filterMenu(o.menu,f,o.menuTop||112):"";
+  return shell(topbar(t("title"),sub,"home",right)+offl+chipRow(f,{dim:off})+banner+`<div class="scroll${off?" stale":""}">${body}</div>${menu}${sheet}`,tm);
+}
+function sheetHtml(){
+  const it=(a,b)=>`<div class="it"><div class="title-s">${t(a)}</div><div class="body-m muted" style="color:var(--on-surface)">${t(b)}</div></div>`;
+  return `<div class="scrim" data-go="page"></div><div class="sheet" style="top:84px" role="dialog" aria-label="${t("sh_title")}"><div class="handle"></div>
+    <div class="pad"><h2 class="headline-s">${t("sh_title")}</h2></div>
+    <div class="shs scroll" data-sheetscroll><p class="body-m muted" style="margin:0 0 14px">${t("sh_intro")}</p>
+    ${it("sh_win_t","sh_win_b")}${it("sh_buy_t","sh_buy_b")}${it("sh_both_t","sh_both_b")}${it("sh_avoid_t","sh_avoid_b")}${it("sh_hold_t","sh_hold_b")}${it("sh_wait_t","sh_wait_b")}${it("sh_d3_t","sh_d3_b")}${it("sh_avg_t","sh_avg_b")}${it("sh_min_t","sh_min_b")}
+    <p class="body-s muted" style="margin:0 0 8px">${t("sh_note")}</p></div>
+    <div class="btnrow"><button class="btn tonal" data-go="page">${t("sh_close")}</button></div></div>`;
+}
+
+/* ======================= board ======================= */
+const SC={
+  "home-menu":{f:()=>homeScreen({menu:true}),cap:"Stocks home · ⋮ menu",note:"Entry 1. The bottom-bar ⋮ gets one item, AI track record, between Broker fees and Settings (the menu keeps its order; nothing else changes)."},
+  "stock-ai":{f:()=>stockScreen({scn:"live"}),cap:"Stock page · verdict card with the record line",note:"Entry 2 and the new line. One line under the verdict word and confidence: \"AI record on Buy today: 11 of 21 hit target\", the numbers in ink, the rest muted, a chevron, the whole line (48 dp) opens the page. Everything else on the card is the shipped one."},
+  "stock-past":{f:()=>stockScreen({scn:"live"}),scroll:"end",cap:"Stock page · Past calls (collapsed to 3)",note:"New section under the card, newest first: today's verdict first with \"Scored after 16:20\", then date · model · manual/auto and a result chip. Show 5 more expands in place. Rows open nothing (the old reasons are not kept)."},
+  "page-top":{f:()=>pageScreen({}),cap:"Track record page",note:"Top bar (back, title, subline, ⓘ), three dropdown filter chips, a notice that today's verdicts are scored after 16:20, then one card per verdict type. Small samples (Add, Sell) show \"Not enough calls yet\"."},
+  "page-end":{f:()=>pageScreen({}),scroll:"end",cap:"Track record page · scrolled to the end",note:"Wait is not scored: it shows what a buy would have made. Footer: how it is scored, not advice, and a link to the sheet."},
+  "page-menu":{f:()=>pageScreen({f:{model:"Sonnet"},menu:"trig"}),cap:"Track record page · filter menu open",note:"Each chip opens a DropdownMenu (single choice, check on the active one). Active chips fill with secondaryContainer and name the value; Clear removes all. The subline becomes \"N of M scored verdicts\"."},
+  "sheet-top":{f:()=>pageScreen({sheet:true}),cap:"How scoring works · top",note:"ModalBottomSheet, plain words, one short item per rule (Q117–Q120). Scrolls inside; Close at the bottom."},
+  "sheet-end":{f:()=>pageScreen({sheet:true}),scroll:"sheet",cap:"How scoring works · end",note:"The stop-first rule, what 3 days later is, what Avg result means for Avoid / Sell, and the minimum sample."},
+  "st-nohist":{f:()=>pageScreen({scn:"nohist"}),cap:"State · no history yet",note:"Feature just installed: names the cause and the one action (run Analyze, come back after the close). The Past calls on a stock page say the same in one line."},
+  "st-first":{f:()=>pageScreen({scn:"first"}),cap:"State · only today's verdicts",note:"Verdicts exist but none is scored: \"The record starts after the close\" with the count and the time."},
+  "st-small":{f:()=>pageScreen({f:{model:"Sonnet",conf:"high"}}),cap:"State · small sample (Sonnet + High)",note:"Rows under 10 decided verdicts keep their counts but show no rate or average: \"Not enough calls yet · 3 of 10 needed\"."},
+  "st-nomatch":{f:()=>pageScreen({f:{model:"Opus",trig:"auto",conf:"high"}}),cap:"State · filters match nothing",note:"Opus runs are mostly manual and Sonnet's automatic, so some pairs are empty: says so and offers Clear filters."},
+  "st-off":{f:()=>pageScreen({scn:"offline"}),cap:"State · PC offline",note:"The record lives on the PC. The phone shows the last copy it loaded (all verdicts), muted, with the offline line and Retry now; filters are off until the PC answers. PM reading: needs the user."},
+};
+const phone=(id,mode)=>{const s=SC[id];return `<div class="phone" data-mode="${mode}" ${s.scroll?`data-scroll="${s.scroll}"`:""}>${s.f()}</div>`};
+function lineStates(m){
+  const A=v=>agg(v);const items=[
+    ["Buy today · enough verdicts",()=>recLine("buy_today"),"buy_today"],["Add · fewer than 10 decided",()=>recLine("add"),"add"],
+    ["Avoid",()=>recLine("avoid"),"avoid"],["Hold",()=>recLine("hold"),"hold"],["Wait · no right or wrong",()=>recLine("wait"),"wait"],
+    ["No history yet",()=>recLine("buy_today","nohist"),"buy_today"],["PC offline · saved copy",()=>recLine("buy_today","offline"),"buy_today"]];
+  const tone={buy_today:"up",add:"up",avoid:"down",sell:"down"};
+  return `<figure class="shot" style="width:auto" data-mode="${m}"><div class="row" style="gap:16px">${items.map(([cp,f,v])=>`<div class="pal sn" data-mode="${m}"><div class="cap">${cp}</div>
+    <div class="vcard${cp.includes("offline")?" stale":""}"><div class="vh"><span class="vw ${tone[v]||""}">${t("v_"+v)}</span><span class="cchip">${t("conf_med")}</span></div>${f()}</div></div>`).join("")}</div>
+    <figcaption><b>Record line in each state · ${m}</b>${m==="light"?"Minimum 10 decided verdicts (PM proposal) before any rate shows. The line is the only new element on the card; it always opens the page, even when it says \"not enough calls yet\", so the counts are one tap away.":""}</figcaption></figure>`;
+}
+function pastStates(m){
+  const P=(cap,html)=>`<div class="pal" data-mode="${m}"><div class="cap">${cap}</div>${html}</div>`;
+  return `<figure class="shot" style="width:auto" data-mode="${m}"><div class="row" style="gap:16px">
+    ${P("Expanded",pastSection("ADRO",{open:true}))}${P("No past verdicts",pastSection("ADRO",{scn:"nohist"}))}${P("Only today's verdict",pastSection("ADRO",{scn:"first"}))}${P("PC offline · saved copy",pastSection("ADRO",{scn:"offline"}))}</div>
+    <figcaption><b>Past calls states · ${m}</b>${m==="light"?"Newest first. 7 scored verdicts plus today's pending one = 8; collapsed shows 3. Offline mutes the chips and says when the copy is from.":""}</figcaption></figure>`;
+}
+function variantSummary(m){
+  const rows=["buy_today","add","wait"].map(v=>agg(v));
+  const P=(cap,html,cls)=>`<div class="pal" data-mode="${m}"><div class="cap">${cap}</div>${html}</div>`;
+  return `<figure class="shot" style="width:auto" data-mode="${m}"><div class="row" style="gap:16px">${P("Cards (rec.)",cardsList(rows))}${P("Table",tableList(rows))}</div>
+    <figcaption><b>Summary variants · ${m}</b>${m==="light"?"Buy today (enough), Add (too few), Wait. Cards read one verdict at a time and wrap at any text size; the table lines up Win / Loss / Not trig. / Flat / Avg down the page but needs 5 narrow columns, so at 1.3× text the headers wrap and the verdict name wraps to two lines. Recommended: cards, because a win means something different for each verdict, so comparing down a column says little.":""}</figcaption></figure>`;
+}
+function variantChips(m){
+  const mk=(v,out,pct)=>({v,out,pct,code:"X"});
+  const set=[mk("buy_today","win",3.6),mk("buy_today","loss",-3.2),mk("buy_today","flat",.4),mk("buy_today","notrig",null),mk("avoid","win",-1.2),mk("hold","loss",-2.4),mk("wait","wait",1.1)];
+  const P=(cap,rc)=>`<div class="pal" data-mode="${m}"><div class="cap">${cap}</div><div style="padding:0 16px;display:flex;flex-direction:column;gap:8px;align-items:flex-start" data-rcforce="${rc}">${set.map(c=>chip(c,false)).join("")}${chip({},true)}</div></div>`;
+  return `<figure class="shot" style="width:auto" data-mode="${m}"><div class="row" style="gap:16px">${P("Tonal fill (rec.)","tonal")}${P("Outline + icon","outline")}</div>
+    <figcaption><b>Result chips · ${m}</b>${m==="light"?"Same 24 dp, extraSmall, labelMedium parts as the screener's setup labels, so they never read as the 12 dp filter chips. The words carry the result (Target hit, Stop hit, Right, Wrong, Held); colour only confirms it, and Not triggered / Closed flat / Wait stay neutral. Recommended: tonal fill, one shape with the screener labels.":""}</figcaption></figure>`;
+}
+const GROUPS=[
+  {h:"1 · Entry points",p:"<b>Monitor.</b> From Stocks ⋮ and from the verdict card's one line. Nothing else on either screen moves.",ids:["home-menu","stock-ai"],extra:m=>lineStates(m)},
+  {h:"2 · Track record page",p:"<b>Compare.</b> One card per verdict type: the rate in words, the split as a bar and counts, the average result, and \"3 days later\" in small grey type under it (information only, Q117). Wait is drawn as \"would have made\", not as right or wrong (Q120). Filters: model, trigger, confidence.",ids:["page-top","page-end","page-menu"]},
+  {h:"3 · How scoring works",p:"<b>Learn.</b> Plain words for Q117–Q120, including the stop-first rule (Q119).",ids:["sheet-top","sheet-end"]},
+  {h:"4 · Stock page · Past calls",p:"<b>Monitor.</b> The verdicts for this stock, newest first, collapsed to 3.",ids:["stock-past"],extra:m=>pastStates(m)},
+  {h:"5 · States",p:"Each names its cause and the next action. Today's pending verdicts are the notice on the main page and the chip \"Scored after 16:20\" in Past calls.",ids:["st-nohist","st-first","st-small","st-nomatch","st-off"]},
+  {h:"6 · Variants side by side",p:"Two choices depend on taste; the Tweaks bar applies them to every phone above. Recommended: <b>cards</b> and <b>tonal chips</b>.",ids:[],extra:m=>variantSummary(m)+`<div style="height:20px"></div>`+variantChips(m)},
+];
+function renderBoard(){
+  document.getElementById("board").innerHTML=GROUPS.map(g=>`<section class="group"><h2>${g.h}</h2><p>${g.p}</p>
+    ${g.ids.length?`<div class="row" style="margin-bottom:28px">${g.ids.flatMap(id=>["light","dark"].map(m=>`<figure class="shot" id="${id}-${m}" data-mode="${m}">${phone(id,m)}<figcaption><b>${SC[id].cap} · ${m}</b>${m==="light"?SC[id].note:""}</figcaption></figure>`)).join("")}</div>`:""}
+    ${g.extra?["light","dark"].map(m=>g.extra(m)).join('<div style="height:20px"></div>'):""}</section>`).join("");
+}
+
+/* ---- clickable path ---- */
+const P={screen:"home",f:{},menu:null,sheet:false,open:false,menuHome:false};
+function renderProto(){
+  const mode=B().theme==="dark"?"dark":"light",scn=B().scn,el=document.getElementById("protoPhone");
+  const keep=el.querySelector(".scroll")?.scrollTop||0;
+  const h={home:()=>homeScreen({scn,menu:P.menuHome}),stock:()=>stockScreen({scn,open:P.open}),page:()=>pageScreen({scn,f:P.f,menu:P.menu,menuTop:P.menuTop,sheet:P.sheet})}[P.screen]();
+  el.innerHTML=`<div class="phone" data-mode="${mode}">${h}</div>`;
+  const s=el.querySelector(".app>.scroll");if(s)s.scrollTop=keep;
+}
+function render(){renderBoard();renderProto();fixScroll()}
+function fixScroll(){document.querySelectorAll(".phone[data-scroll]").forEach(p=>{
+  const s=p.dataset.scroll==="sheet"?p.querySelector("[data-sheetscroll]"):p.querySelector(".app>.scroll");if(s)s.scrollTop=1e5})}
+document.addEventListener("click",e=>{
+  const x=e.target,inP=x.closest("#protoPhone");if(!inP)return;
+  const m=x.closest("[data-menu]");if(m){P.menuHome=!P.menuHome;renderProto();return}
+  const g=x.closest("[data-go]");
+  if(g){const to=g.dataset.go;
+    if(to==="sheet"){P.sheet=true}else if(to==="page"){if(P.screen!=="page")P.from=P.screen;P.sheet=false;P.menu=null;P.menuHome=false;P.screen="page"}else if(to==="stock"){P.screen="stock";P.menuHome=false}else if(to==="home"){P.screen=P.screen==="page"&&P.sheet?"page":(P.screen==="page"&&P.from==="stock"?"stock":"home");P.sheet=false}
+    renderProto();return}
+  const fm=x.closest("[data-fmenu]");if(fm){const k=fm.dataset.fmenu;P.menu=P.menu===k?null:k;P.menuTop=fm.getBoundingClientRect().bottom-inP.querySelector(".app").getBoundingClientRect().top+4;renderProto();return}
+  const fs=x.closest("[data-fset]");if(fs){const[k,v]=fs.dataset.fset.split(":");if(v)P.f[k]=v;else delete P.f[k];P.menu=null;renderProto();return}
+  if(x.closest("[data-fclear]")){P.f={};P.menu=null;renderProto();return}
+  if(x.closest("[data-pastmore]")){P.open=!P.open;renderProto();return}
+});
+
+/* ======================= tweaks ======================= */
+const saved=JSON.parse(localStorage.getItem("aristotle-td6")||"{}");
+Object.entries(saved).forEach(([k,v])=>{B()[k]=v});
+function syncTweaks(){document.querySelectorAll("[data-tweak]").forEach(g=>g.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",B()[g.dataset.tweak]===b.dataset.v)));document.documentElement.lang=B().lang}
+document.querySelectorAll("[data-tweak]").forEach(g=>g.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  B()[g.dataset.tweak]=b.dataset.v;saved[g.dataset.tweak]=b.dataset.v;localStorage.setItem("aristotle-td6",JSON.stringify(saved));syncTweaks();
+  if(g.dataset.tweak==="view"&&b.dataset.v==="proto"){P.screen="home";P.sheet=false;P.menu=null;P.menuHome=false}
+  render()}));
+syncTweaks();render();
+document.fonts?.ready.then(render);
+</script>
+<style id="fonts">/*@FONTS@*/</style>
+</body>
+</html>

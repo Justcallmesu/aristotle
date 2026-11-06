@@ -13,3 +13,5 @@ Spec: `docs/track-record/spec.md` (Q116-Q120, readings Q120a/b). Kit, gates and 
 ## Log
 - 2026-11-06 Feature opened after v2 slice 3. Discovery: no verdict history exists (analyzer.go:712-727, Q99 keeps the last per code).
   User answered Q116-Q120 all A. Q120a/b recorded as PM readings to confirm. Nothing dispatched; waiting for the user's go.
+- 2026-11-06 TR0 (research, std) and TD6 (design board, std) dispatched in parallel. TR0 may probe Yahoo (<= 8 requests).
+- 2026-11-06 TR0 done (5m past bars ~60 days VERIFIED; Q120b confirmed by code; holiday list fine). TD6 board done (cards + tonal chips recommended). P10-P14 recorded. TR1 dispatched (deep): API returns counts only, rates/min-count on the phone pending Q121-Q124.

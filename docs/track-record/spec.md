@@ -24,9 +24,30 @@ confidence, so the user can judge whether the AI spend (Q103 Opus, Q110 Sonnet) 
 - The brief's focus items carry a stance `watch_buy|watch|avoid` (`server/internal/stocks/brief.go:71`) and cite level ids, no own
   price levels (RULES line, `server/internal/stocks/brief.go:640`).
 
-## Assumed (to confirm in the research/design ticket)
-- A1: Yahoo serves 5-minute bars for a past session for at least ~30 days (TS3's 1D chart uses intraday bars for today only).
-- A2: Analyze can run on a code outside the bar store's quoted set (any stock page); such a code then needs its own fetch.
+## Research findings (TR0, `docs/track-record/runs/TR0/report.md`, live Yahoo probe 2026-11-06, 7 requests)
+- A1 VERIFIED: past-session 5-minute bars come back for 1, 5, 20 and 40 trading days back (56 calendar days); 70 days back gives
+  HTTP 422, so the limit is ~60 days. One request can cover several sessions. Sessions run 09:00-16:10 in 5-minute bars, no bars in the
+  lunch break; a weekend day answers 200 with 0 bars. The shipped client sends only `range`+`interval`: the scorer needs a new
+  provider method taking `period1`/`period2`.
+- Q120b VERIFIED in code: a call before 16:00 on a trading day gets that day as `session_date`; after 16:00, on a weekend or holiday,
+  the next trading day.
+- A2 VERIFIED: Analyze works on any code (falls back to Yahoo's 1y chart), so the scorer fetches per code, ~1 request per scored code.
+- Size: ~450 bytes per scored record, ~1.1 MB a year at 10 calls a day: no cap needed.
+- Not a problem: the bundled holiday list holds 2026 dates only from 12-24 on (`server/internal/stocks/idxcal.go:18-22`, "only the dates
+  still ahead when this was written"); the history starts after that, so no past holiday is scored as a session.
+- Unverified: the exact 5-minute cut-off (56-70 days) and whether the day's last 5-minute bars exist at 16:30.
+
+## PM technical
+| Id | Decision | Why |
+|---|---|---|
+| P10 | History: append-only `stocks-verdicts.json` (compact record, no reasons/news/indicators), appended in the analyzer's `keep`; Q99's last-result file unchanged. Seeded once from the results kept today. | One writer; Q99 untouched. |
+| P11 | Scoring is its own scheduler job `track.score` at **17:00** WIB, trading days, catch-up always (one run scores every unscored session still inside Yahoo's ~60-day 5-minute window; older unscored calls are scored from daily bars with the stop-first rule and marked "daily only"). | Leaves margin after 16:20 bars and the unverified 16:30 availability; Q31 catch-up. |
+| P12 | No look-ahead: a call scores only bars that START after its `analyzed_at` (a 14:00 call ignores the morning). A bar touching two levels counts stop first; a target in the same bar as the entry fill does not count (TR0 rule). | Otherwise a morning touch counts as a fill the user could not have had. |
+| P13 | Scores are stored with the record and carry a `rule` version; they are never silently recomputed. | Numbers the user saw do not change under him. |
+| P14 | Offline: the phone shows the PC-offline state, no cached copy (no new phone cache in this feature). | YAGNI; the stock page already shows offline the same way. |
+
+## Assumptions (resolved by TR0, see Research findings)
+- A1 (5-minute bars for past sessions): VERIFIED, ~60 days. A2 (codes outside the bar store): VERIFIED, fetched per code.
 
 ## Decisions
 | Id | Decision | Source |
@@ -37,11 +58,6 @@ confidence, so the user can judge whether the AI spend (Q103 Opus, Q110 Sonnet) 
 | Q119 | A session that touches both target and stop (or entry and a level) is ordered with that session's 5-minute bars from Yahoo, fetched once after close; when they are not available the call counts as **stop first**. | User 2026-11-06 "A". |
 | Q120 | Avoid / Sell: right when the close at the end of the window is not above the price at the call. Hold: by its own stop/target. Wait: shows what a buy would have made, no right/wrong. | User 2026-11-06 "A". |
 | Q120a | **PM reading — confirm:** Hold with only a stop = right when the stop is not hit by the window's close (and win when a target exists and is reached first). Wait's "would have made" = buy at its entry high if it gave an entry, else at the price at the call, to the window's close. Avoid/Sell use the session close for the score and the 3-day close for the info column. | PM 2026-11-06. |
-| Q120b | **PM reading — confirm:** a call made after the close (market_state closed) belongs to the NEXT session (its `session_date`), which is what the analyzer already targets. | PM 2026-11-06; verify `session_date` semantics in TR0. |
+| Q120b | A call made after the close (market_state closed) belongs to the NEXT session (its `session_date`). | PM reading, **confirmed by code** (TR0 §3). |
 
-## PM technical (proposed, P-rows once the Q rows are decided)
-- History store: new append-only `stocks-verdicts.json` (compact record: the fields above minus reasons/news/indicators), written
-  in `keep`; Q99's "last result" file stays unchanged. Seeded once from the up-to-50 results kept today.
-- Scoring runs after the 16:20 bars job on trading days, from stored bars; results stored with the verdict, never recomputed
-  silently (a rule change bumps a `rule` version and rescoring is explicit).
-- Logs carry codes and counts only.
+Logs of the track-record job carry codes and counts only.

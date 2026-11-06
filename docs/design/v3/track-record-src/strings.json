@@ -1,0 +1,546 @@
+{
+"title": {
+"en": "AI track record",
+"id": "Rekam jejak AI"
+},
+"menu_fees": {
+"en": "Broker fees",
+"id": "Biaya broker"
+},
+"menu_settings": {
+"en": "Settings",
+"id": "Pengaturan"
+},
+"sub": {
+"en": "{0} verdicts scored · since {1}",
+"id": "{0} verdict dinilai · sejak {1}"
+},
+"sub_f": {
+"en": "{0} of {1} scored verdicts",
+"id": "{0} dari {1} verdict dinilai"
+},
+"sub_first": {
+"en": "Nothing scored yet",
+"id": "Belum ada yang dinilai"
+},
+"how": {
+"en": "How scoring works",
+"id": "Cara penilaian"
+},
+"f_model": {
+"en": "Model",
+"id": "Model"
+},
+"f_trig": {
+"en": "Trigger",
+"id": "Pemicu"
+},
+"f_conf": {
+"en": "Confidence",
+"id": "Keyakinan"
+},
+"all_model": {
+"en": "All models",
+"id": "Semua model"
+},
+"all_trig": {
+"en": "All triggers",
+"id": "Semua pemicu"
+},
+"all_conf": {
+"en": "All levels",
+"id": "Semua tingkat"
+},
+"manual": {
+"en": "manual",
+"id": "manual"
+},
+"auto": {
+"en": "auto",
+"id": "otomatis"
+},
+"o_manual": {
+"en": "Manual",
+"id": "Manual"
+},
+"o_auto": {
+"en": "Auto",
+"id": "Otomatis"
+},
+"low": {
+"en": "Low",
+"id": "Rendah"
+},
+"med": {
+"en": "Medium",
+"id": "Sedang"
+},
+"high": {
+"en": "High",
+"id": "Tinggi"
+},
+"clear": {
+"en": "Clear",
+"id": "Hapus"
+},
+"pend_banner": {
+"en": "{0} of today's verdicts are scored after 16:20",
+"id": "{0} verdict hari ini dinilai setelah 16:20"
+},
+"sec_v": {
+"en": "By verdict",
+"id": "Per jenis verdict"
+},
+"n_v": {
+"en": "{0} verdicts",
+"id": "{0} verdict"
+},
+"win": {
+"en": "Win",
+"id": "Menang"
+},
+"loss": {
+"en": "Loss",
+"id": "Kalah"
+},
+"notrig": {
+"en": "Not triggered",
+"id": "Tidak terpicu"
+},
+"flat": {
+"en": "Closed flat",
+"id": "Tutup datar"
+},
+"avg": {
+"en": "Avg result",
+"id": "Rata-rata hasil"
+},
+"avg_wait": {
+"en": "Would have made",
+"id": "Akan menghasilkan"
+},
+"d3": {
+"en": "3 days later {0} · for information",
+"id": "3 hari kemudian {0} · hanya info"
+},
+"h_win": {
+"en": "Win",
+"id": "Menang"
+},
+"h_loss": {
+"en": "Loss",
+"id": "Kalah"
+},
+"h_nt": {
+"en": "Not trig.",
+"id": "Tdk terpicu"
+},
+"h_flat": {
+"en": "Flat",
+"id": "Datar"
+},
+"h_avg": {
+"en": "Avg",
+"id": "Rata²"
+},
+"d3s": {
+"en": "3 d {0}",
+"id": "3 hr {0}"
+},
+"legend": {
+"en": "Not trig. = entry zone never reached. Flat = entered, closed between stop and target. 3 d = three sessions later, information only. Wait row: what a buy would have made.",
+"id": "Tdk terpicu = zona masuk tidak tercapai. Datar = masuk, tutup di antara stop dan target. 3 hr = tiga sesi kemudian, hanya info. Baris Tunggu: hasil seandainya beli."
+},
+"rate_buy": {
+"en": "{0} of {1} hit target",
+"id": "{0} dari {1} capai target"
+},
+"rate_right": {
+"en": "{0} of {1} were right",
+"id": "{0} dari {1} tepat"
+},
+"rate_hold": {
+"en": "{0} of {1} held above the stop",
+"id": "{0} dari {1} bertahan di atas stop"
+},
+"rate_wait": {
+"en": "a buy would have made {0} on average",
+"id": "beli akan menghasilkan {0} rata-rata"
+},
+"few": {
+"en": "Not enough calls yet",
+"id": "Belum cukup verdict"
+},
+"few_n": {
+"en": "{0} of {1} needed to show a rate",
+"id": "{0} dari {1} dibutuhkan untuk menampilkan angka"
+},
+"nomatch": {
+"en": "No verdicts match these filters",
+"id": "Tidak ada verdict yang cocok dengan filter ini"
+},
+"nomatch_b": {
+"en": "Opus and Sonnet usually split manual and automatic runs. Try fewer filters.",
+"id": "Opus dan Sonnet biasanya dibagi antara analisis manual dan otomatis. Coba kurangi filter."
+},
+"clear_all": {
+"en": "Clear filters",
+"id": "Hapus filter"
+},
+"nohist_t": {
+"en": "Nothing to score yet",
+"id": "Belum ada yang dinilai"
+},
+"nohist_b": {
+"en": "Your PC saves each Analyze verdict and scores it after the close, from 16:20. Run Analyze on a stock, then come back after the close.",
+"id": "PC kamu menyimpan tiap verdict Analisis dan menilainya setelah penutupan, mulai 16:20. Jalankan Analisis pada sebuah saham, lalu kembali setelah penutupan."
+},
+"first_t": {
+"en": "The record starts after the close",
+"id": "Rekam jejak mulai setelah penutupan"
+},
+"first_b": {
+"en": "{0} verdicts from today are scored after 16:20. The first numbers appear then.",
+"id": "{0} verdict hari ini dinilai setelah 16:20. Angka pertama muncul saat itu."
+},
+"off_since": {
+"en": "Offline since {0}",
+"id": "Offline sejak {0}"
+},
+"retry": {
+"en": "Retry now",
+"id": "Coba sekarang"
+},
+"off_sub": {
+"en": "Saved copy from {0}, all verdicts. Filters need the PC.",
+"id": "Salinan tersimpan dari {0}, semua verdict. Filter butuh PC."
+},
+"footer": {
+"en": "Scored from stored daily prices after 16:20. A past record is not a promise. Analysis only, not financial advice.",
+"id": "Dinilai dari harga harian tersimpan setelah 16:20. Rekam jejak bukan janji. Hanya analisis, bukan nasihat keuangan."
+},
+"line_have": {
+"en": "AI record on {0}: {1}",
+"id": "Rekam AI untuk {0}: {1}"
+},
+"line_few": {
+"en": "AI record on {0}: not enough calls yet",
+"id": "Rekam AI untuk {0}: belum cukup verdict"
+},
+"line_none": {
+"en": "No AI record yet · this verdict is scored after 16:20",
+"id": "Belum ada rekam AI · verdict ini dinilai setelah 16:20"
+},
+"line_saved": {
+"en": "saved copy",
+"id": "salinan tersimpan"
+},
+"past_t": {
+"en": "Past calls",
+"id": "Verdict sebelumnya"
+},
+"past_more": {
+"en": "Show {0} more",
+"id": "Tampilkan {0} lagi"
+},
+"past_less": {
+"en": "Show less",
+"id": "Lebih sedikit"
+},
+"past_empty": {
+"en": "No past verdicts for {0} yet",
+"id": "Belum ada verdict lama untuk {0}"
+},
+"past_empty_b": {
+"en": "Each Analyze run is saved and scored after the close.",
+"id": "Setiap analisis disimpan dan dinilai setelah penutupan."
+},
+"past_off": {
+"en": "Saved copy from {0}",
+"id": "Salinan tersimpan dari {0}"
+},
+"today": {
+"en": "Today",
+"id": "Hari ini"
+},
+"r_target": {
+"en": "Target hit",
+"id": "Capai target"
+},
+"r_stop": {
+"en": "Stop hit",
+"id": "Kena stop"
+},
+"r_flat": {
+"en": "Closed flat",
+"id": "Tutup datar"
+},
+"r_nt": {
+"en": "Not triggered",
+"id": "Tidak terpicu"
+},
+"r_right": {
+"en": "Right",
+"id": "Tepat"
+},
+"r_wrong": {
+"en": "Wrong",
+"id": "Meleset"
+},
+"r_held": {
+"en": "Held",
+"id": "Bertahan"
+},
+"r_buy": {
+"en": "If bought {0}",
+"id": "Jika beli {0}"
+},
+"r_pend": {
+"en": "Scored after 16:20",
+"id": "Dinilai setelah 16:20"
+},
+"v_buy_today": {
+"en": "Buy today",
+"id": "Beli hari ini"
+},
+"v_add": {
+"en": "Add",
+"id": "Tambah"
+},
+"v_hold": {
+"en": "Hold",
+"id": "Tahan"
+},
+"v_avoid": {
+"en": "Avoid",
+"id": "Hindari"
+},
+"v_sell": {
+"en": "Sell",
+"id": "Jual"
+},
+"v_wait": {
+"en": "Wait",
+"id": "Tunggu"
+},
+"sh_title": {
+"en": "How scoring works",
+"id": "Cara penilaian"
+},
+"sh_intro": {
+"en": "Each AI verdict is checked against what the price did on the one trading day it was made for. It asks: did the idea work today?",
+"id": "Setiap verdict AI dicek dengan apa yang dilakukan harga pada satu hari perdagangan yang dituju. Pertanyaannya: apakah idenya berhasil hari ini?"
+},
+"sh_win_t": {
+"en": "The window",
+"id": "Jangka waktu"
+},
+"sh_win_b": {
+"en": "One trading session. A verdict made after the close counts for the next session. Scoring runs after 16:20, from the day's prices.",
+"id": "Satu sesi perdagangan. Verdict yang dibuat setelah penutupan dihitung untuk sesi berikutnya. Penilaian berjalan setelah 16:20, dari harga hari itu."
+},
+"sh_buy_t": {
+"en": "Buy today and Add",
+"id": "Beli hari ini dan Tambah"
+},
+"sh_buy_b": {
+"en": "Win: the price reached the target. Loss: it reached the stop-loss. Not triggered: the price never entered the entry zone, so it is neither a win nor a loss. Closed flat: it entered, then touched neither target nor stop before the close.",
+"id": "Menang: harga mencapai target. Kalah: harga mencapai stop-loss. Tidak terpicu: harga tidak pernah masuk zona masuk, jadi bukan menang dan bukan kalah. Tutup datar: harga masuk, lalu tidak menyentuh target maupun stop sebelum penutupan."
+},
+"sh_both_t": {
+"en": "Target and stop on the same day",
+"id": "Target dan stop di hari yang sama"
+},
+"sh_both_b": {
+"en": "The 5-minute prices of that day show which came first. When they are not available, the verdict counts as stop first, so a loss.",
+"id": "Harga 5 menit hari itu menunjukkan mana yang lebih dulu. Jika tidak tersedia, verdict dihitung stop lebih dulu, jadi kalah."
+},
+"sh_avoid_t": {
+"en": "Avoid and Sell",
+"id": "Hindari dan Jual"
+},
+"sh_avoid_b": {
+"en": "Right when the close at the end of the session is not above the price at the time of the verdict.",
+"id": "Tepat jika harga penutupan di akhir sesi tidak di atas harga saat verdict dibuat."
+},
+"sh_hold_t": {
+"en": "Hold",
+"id": "Tahan"
+},
+"sh_hold_b": {
+"en": "Right when its stop is not hit by the close. With a target, reaching the target first counts as a win.",
+"id": "Tepat jika stop tidak tersentuh sampai penutupan. Jika ada target, mencapai target lebih dulu dihitung menang."
+},
+"sh_wait_t": {
+"en": "Wait",
+"id": "Tunggu"
+},
+"sh_wait_b": {
+"en": "No right or wrong. It shows what a buy would have made: bought at the top of the entry zone, or at the price at the verdict when there was no zone, held to the close.",
+"id": "Tidak ada benar atau salah. Hanya menunjukkan hasil seandainya beli: di batas atas zona masuk, atau di harga saat verdict jika tidak ada zona, ditahan sampai penutupan."
+},
+"sh_d3_t": {
+"en": "3 days later",
+"id": "3 hari kemudian"
+},
+"sh_d3_b": {
+"en": "A second result three trading days on, in grey. For information only: it is not in the counts or the rates.",
+"id": "Hasil kedua tiga hari perdagangan kemudian, berwarna abu-abu. Hanya info: tidak masuk hitungan atau angka."
+},
+"sh_avg_t": {
+"en": "Avg result",
+"id": "Rata-rata hasil"
+},
+"sh_avg_b": {
+"en": "The mean percent result of the verdicts that were not \"not triggered\". For Avoid and Sell it is the price move, so below 0 means the AI was right.",
+"id": "Rata-rata hasil persen dari verdict yang bukan \"tidak terpicu\". Untuk Hindari dan Jual ini adalah pergerakan harga, jadi di bawah 0 berarti AI tepat."
+},
+"sh_min_t": {
+"en": "Small samples",
+"id": "Sampel kecil"
+},
+"sh_min_b": {
+"en": "Under 10 scored verdicts of one type, the rate and the average are not shown.",
+"id": "Di bawah 10 verdict dinilai untuk satu jenis, angka dan rata-rata tidak ditampilkan."
+},
+"sh_note": {
+"en": "A past record is not a promise. Analysis only, not financial advice.",
+"id": "Rekam jejak bukan janji. Hanya analisis, bukan nasihat keuangan."
+},
+"sh_close": {
+"en": "Close",
+"id": "Tutup"
+},
+"ai_title": {
+"en": "AI analysis",
+"id": "Analisis AI"
+},
+"conf_med": {
+"en": "Medium confidence",
+"id": "Keyakinan sedang"
+},
+"summary": {
+"en": "Broke above its 20-day high on volume 2.3 times the average; coal names are firm today.",
+"id": "Menembus level tertinggi 20 hari dengan volume 2,3 kali rata-rata; saham batu bara kuat hari ini."
+},
+"lv_entry": {
+"en": "Entry zone",
+"id": "Zona masuk"
+},
+"lv_target": {
+"en": "Target",
+"id": "Target"
+},
+"lv_stop": {
+"en": "Stop-loss",
+"id": "Stop-loss"
+},
+"lv_from": {
+"en": "Percentages from the last price 2.480",
+"id": "Persentase dari harga terakhir 2.480"
+},
+"why": {
+"en": "Why",
+"id": "Alasan"
+},
+"rs1": {
+"en": "Last close 2.470 is above the 20-day high; volume is 2.3 times the 20-day average.",
+"id": "Penutupan terakhir 2.470 di atas level tertinggi 20 hari; volume 2,3 kali rata-rata 20 hari."
+},
+"rs2": {
+"en": "Coal prices firmed this week and two headlines name the company.",
+"id": "Harga batu bara menguat pekan ini dan dua berita menyebut perusahaan ini."
+},
+"rs3": {
+"en": "The stop at 2.400 is under the last two sessions' lows; the risk is about 3 %.",
+"id": "Stop di 2.400 berada di bawah titik terendah dua sesi terakhir; risikonya sekitar 3 %."
+},
+"meta": {
+"en": "Data as of 10:35 · Opus · 63 s",
+"id": "Data per 10:35 · Opus · 63 dtk"
+},
+"disc": {
+"en": "Analysis only, not financial advice.",
+"id": "Hanya analisis, bukan nasihat keuangan."
+},
+"again": {
+"en": "Analyze again",
+"id": "Analisis lagi"
+},
+"k_open": {
+"en": "Open",
+"id": "Buka"
+},
+"k_prev": {
+"en": "Prev close",
+"id": "Tutup sebelumnya"
+},
+"k_high": {
+"en": "High",
+"id": "Tertinggi"
+},
+"k_low": {
+"en": "Low",
+"id": "Terendah"
+},
+"k_vol": {
+"en": "Volume (lots)",
+"id": "Volume (lot)"
+},
+"k_52": {
+"en": "52-week range",
+"id": "Rentang 52 minggu"
+},
+"today_h": {
+"en": "Today",
+"id": "Hari ini"
+},
+"hold_h": {
+"en": "Your holding",
+"id": "Kepemilikan kamu"
+},
+"nothold": {
+"en": "You don't hold {0}",
+"id": "Kamu tidak memegang {0}"
+},
+"add_hold": {
+"en": "Add holding",
+"id": "Tambah kepemilikan"
+},
+"chats": {
+"en": "Chats",
+"id": "Chat"
+},
+"stocks": {
+"en": "Stocks",
+"id": "Saham"
+},
+"mk1": {
+"en": "Session 2 · closes 15:49",
+"id": "Sesi 2 · tutup 15:49"
+},
+"mk2": {
+"en": "Prices 10 min delayed · as of 14:10",
+"id": "Harga tertunda 10 mnt · per 14:10"
+},
+"watch": {
+"en": "Watchlist",
+"id": "Daftar pantau"
+},
+"news": {
+"en": "News",
+"id": "Berita"
+},
+"holdings": {
+"en": "Holdings",
+"id": "Kepemilikan"
+},
+"more": {
+"en": "More actions",
+"id": "Aksi lainnya"
+},
+"add_w": {
+"en": "Add to watchlist",
+"id": "Tambah ke daftar pantau"
+}
+}
