@@ -111,7 +111,7 @@ import java.util.Locale
  * stocks pages' shared [viewModel].
  */
 @Composable
-fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDetailViewModel, onBack: () -> Unit, onOpenNews: () -> Unit) {
+fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDetailViewModel, onBack: () -> Unit, onOpenNews: () -> Unit, onOpenTrackRecord: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val page by detail.uiState.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel, detail) {
@@ -165,7 +165,10 @@ fun StockDetailScreen(code: String, viewModel: StocksViewModel, detail: StockDet
                         locale = locale,
                         onAnalyze = { detail.analyze(AnalysisLang.of(locale)) },
                         onReadAgain = detail::retryAnalysisRead,
+                        record = { verdict -> page.recordLine(verdict) },
+                        onOpenRecord = onOpenTrackRecord,
                     )
+                    PastCalls(code, page.pastCalls, page.pastExpanded, muted = !page.reachable, locale = locale, onToggle = detail::togglePast)
                     SectionHeader(stringResource(R.string.stocks_your_holding))
                     when {
                         held != null -> HoldingCard(held, quote, state.fees, muted, onEdit = { viewModel.editHolding(code) })

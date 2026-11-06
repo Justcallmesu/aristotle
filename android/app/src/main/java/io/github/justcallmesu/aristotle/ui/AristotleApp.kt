@@ -46,6 +46,8 @@ import io.github.justcallmesu.aristotle.data.stocks.StockOpen
 import io.github.justcallmesu.aristotle.ui.stocks.AlertsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.BriefScreen
 import io.github.justcallmesu.aristotle.ui.stocks.BriefViewModel
+import io.github.justcallmesu.aristotle.ui.stocks.TrackRecordScreen
+import io.github.justcallmesu.aristotle.ui.stocks.TrackRecordViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.HoldingsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.StockAlertsViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.NewsScreen
@@ -211,6 +213,8 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     StocksScreener, StocksScreenerSettings,
     /** TBA2: the 08:30 brief and the stock alerts list (both on the stocks back stack). */
     StocksBrief, StocksAlerts,
+    /** TR2: the AI track record page (on the stocks back stack). */
+    StocksTrackRecord,
     SettingsConnection(SettingsPage.Connection),
     SettingsNotifications(SettingsPage.Notifications),
     SettingsAppearance(SettingsPage.Appearance),
@@ -386,6 +390,7 @@ private fun PairedPages(
                             openScreener = { show(stocksStack().openScreener()) },
                             openBrief = { openStockTarget(StockOpen.Brief) },
                             openAlerts = { openStockTarget(StockOpen.Alerts) },
+                            openTrackRecord = { show(stocksStack().openTrackRecord()) },
                         )
                         HomeStocks(homeMode, settings::setHomeMode) {
                             StocksHomeBody(stocksViewModel, nav, sessionsViewModel::timeText, screenerViewModel, briefViewModel, alertsViewModel)
@@ -444,6 +449,7 @@ private fun PairedPages(
             PairedPage.StocksScreenerSettings -> ScreenerSettingsScreen(screenerViewModel(container, stocksRoutes, pc), onBack = goBack)
             PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack, onOpenStock = openStock)
             PairedPage.StocksBrief -> BriefScreen(briefViewModel(container, stocksRoutes, pc), onBack = goBack, onOpenStock = openStock)
+            PairedPage.StocksTrackRecord -> TrackRecordScreen(trackRecordViewModel(container, stocksRoutes, pc), onBack = goBack)
             PairedPage.StocksAlerts -> AlertsScreen(alertsViewModel(container, stocksRoutes, pc), onBack = goBack, onOpen = openStockTarget)
             PairedPage.StockDetail -> {
                 val code = stockCode
@@ -456,6 +462,7 @@ private fun PairedPages(
                         stocks = stocksViewModel(container, stocksRoutes, pc),
                         onBack = goBack,
                         onOpenNews = { show(stocksStack().openNews()) },
+                        onOpenTrackRecord = { show(stocksStack().openTrackRecord()) },
                     )
                 } else {
                     LaunchedEffect(Unit) { page = PairedPage.Sessions }
@@ -571,6 +578,13 @@ private fun briefViewModel(container: AppContainer, stocksRoutes: RouteStores, p
     return viewModel(viewModelStoreOwner = owner) { BriefViewModel(pc, container.link.state, container.stocksTransport) }
 }
 
+/** TR2: the AI track record page, in the stocks pages' store. */
+@Composable
+private fun trackRecordViewModel(container: AppContainer, stocksRoutes: RouteStores, pc: PcCredentials): TrackRecordViewModel {
+    val owner = remember(pc.pcId) { stocksRoutes.ownerFor("stocks-${pc.pcId}") }
+    return viewModel(viewModelStoreOwner = owner) { TrackRecordViewModel(pc, container.link.state, container.stocksTransport, retryLink = container.link::retryNow) }
+}
+
 /** TBA2: Stocks home's alerts row, the alerts page and Settings › Stocks › Alerts, over the process-wide alert list. */
 @Composable
 private fun alertsViewModel(container: AppContainer, stocksRoutes: RouteStores, pc: PcCredentials): StockAlertsViewModel {
@@ -665,6 +679,7 @@ private fun StockRoute(
     stocks: StocksViewModel,
     onBack: () -> Unit,
     onOpenNews: () -> Unit,
+    onOpenTrackRecord: () -> Unit,
 ) {
     val activity = LocalActivity.current
     DisposableEffect(Unit) {
@@ -672,7 +687,7 @@ private fun StockRoute(
     }
     RouteScope(stockRoutes, "stock-${pc.pcId}-$code") {
         val detail = viewModel { StockDetailViewModel(code, pc, container.link.state, container.stocksTransport) }
-        StockDetailScreen(code, stocks, detail, onBack, onOpenNews)
+        StockDetailScreen(code, stocks, detail, onBack, onOpenNews, onOpenTrackRecord)
     }
 }
 

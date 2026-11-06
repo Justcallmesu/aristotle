@@ -52,6 +52,9 @@ internal data class StocksBackStack(val page: PairedPage, val code: String? = nu
     /** TBA2: the 08:30 brief's page (Stocks home's card, a brief notification). */
     fun openBrief(): StocksBackStack = go(PairedPage.StocksBrief, null)
 
+    /** TR2: the AI track record page (Stocks home's ⋮, the verdict card's record line). */
+    fun openTrackRecord(): StocksBackStack = go(PairedPage.StocksTrackRecord, null)
+
     /** TBA2: the stock alerts list (Stocks home's row and ⋮, a summary notification). */
     fun openAlerts(): StocksBackStack = go(PairedPage.StocksAlerts, null)
 
@@ -85,7 +88,7 @@ internal data class StocksBackStack(val page: PairedPage, val code: String? = nu
         /** The pages this stack covers. */
         val PAGES = setOf(
             PairedPage.StocksHoldings, PairedPage.StocksNews, PairedPage.StockDetail, PairedPage.StocksScreener, PairedPage.StocksScreenerSettings,
-            PairedPage.StocksBrief, PairedPage.StocksAlerts,
+            PairedPage.StocksBrief, PairedPage.StocksAlerts, PairedPage.StocksTrackRecord,
         )
 
         /** Pages outside the stack that a stocks page can be opened from and goes back to (they keep their own back). */

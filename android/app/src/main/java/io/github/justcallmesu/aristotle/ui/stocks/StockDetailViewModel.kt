@@ -21,6 +21,12 @@ import io.github.justcallmesu.aristotle.data.stocks.StocksApi
 import io.github.justcallmesu.aristotle.data.stocks.StocksError
 import io.github.justcallmesu.aristotle.data.stocks.StocksResult
 import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
+import io.github.justcallmesu.aristotle.data.stocks.PastCalls
+import io.github.justcallmesu.aristotle.data.stocks.PastCallsView
+import io.github.justcallmesu.aristotle.data.stocks.RecordLine
+import io.github.justcallmesu.aristotle.data.stocks.TrackRecordBody
+import io.github.justcallmesu.aristotle.data.stocks.TrackRecords
+import io.github.justcallmesu.aristotle.data.stocks.Verdict
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -59,11 +65,21 @@ data class StockDetailState(
     val analyzing: Boolean = false,
     /** Why the last start was refused; cleared by the next start or a job seen running or done. */
     val analyzeProblem: AnalysisProblem? = null,
+    /** TR2: `GET /track-record?code=` (§20.5): the whole summary (for the card line) and this code's past calls; null until read. */
+    val track: TrackRecordBody? = null,
+    /** Past calls shown in full ("Show more"); kept here so it survives a rotation. */
+    val pastExpanded: Boolean = false,
 ) {
     val reachable: Boolean get() = link.serverEndpoint != null
     val quote: StockQuote? get() = quotes?.quoteOf(code)
     val chart: ChartSlot get() = charts[range] ?: ChartSlot()
     val day: ChartBody? get() = charts[ChartRange.Day]?.body
+
+    /** The verdict card's record line (Q124): [verdict]'s record over all models and triggers; null until the record is read. */
+    fun recordLine(verdict: Verdict?): RecordLine? = track?.let { body -> verdict?.let { TrackRecords.line(body.summary, it) } }
+
+    /** Past calls of this code, collapsed to 3 unless [pastExpanded]; null until read. */
+    val pastCalls: PastCallsView? get() = track?.let { PastCalls.view(it.calls, pastExpanded) }
 
     /** The Analyze section on [today] (WIB); [market] decides the current session (the page's quotes, else the home's). */
     fun analysisView(market: MarketStatus?, today: LocalDate): AnalysisView =
@@ -114,6 +130,7 @@ class StockDetailViewModel(
                 val range = state.value.range
                 if (range != ChartRange.Day && due(range)) loadChart(range)
                 if (state.value.news == null) loadNews()
+                loadTrack()
             }
         }
         work.launch {
@@ -171,11 +188,27 @@ class StockDetailViewModel(
 
     private suspend fun readAnalysis() {
         when (val result = api()?.analysis(code) ?: return) {
-            is StocksResult.Ok -> state.update {
-                val body = result.value
-                it.copy(analysis = body, analysisReadProblem = null, analyzeProblem = if (body.running || body.state == AnalysisStatus.DONE) null else it.analyzeProblem)
+            is StocksResult.Ok -> {
+                val finished = result.value.state == AnalysisStatus.DONE && state.value.analysis?.running == true
+                state.update {
+                    val body = result.value
+                    it.copy(analysis = body, analysisReadProblem = null, analyzeProblem = if (body.running || body.state == AnalysisStatus.DONE) null else it.analyzeProblem)
+                }
+                // A finished run was just appended to the history: read the record again (its call waits for a score).
+                if (finished) loadTrack()
             }
             is StocksResult.Failed -> state.update { it.copy(analysisReadProblem = result.error) }
+        }
+    }
+
+    /** "Show more" / "Show less" on Past calls. */
+    fun togglePast() = state.update { it.copy(pastExpanded = !it.pastExpanded) }
+
+    /** The record and this code's past calls; a failure keeps what was read (the card line and the list just stay as they were). */
+    private suspend fun loadTrack() {
+        when (val result = api()?.trackRecord(code) ?: return) {
+            is StocksResult.Ok -> state.update { it.copy(track = result.value) }
+            is StocksResult.Failed -> Unit
         }
     }
 

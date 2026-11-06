@@ -112,7 +112,7 @@ class PairedPageTest {
             val line = text.lines().single { it.contains("-> $screen") }
             assertTrue(line, line.contains("onBack = goBack"))
         }
-        assertEquals("StockRoute, Running, the two Screener pages, the brief and the alerts list use it too", 8, Regex("onBack = goBack\\b").findAll(text).count())
+        assertEquals("StockRoute, Running, the two Screener pages, the brief, the alerts list and the track record use it too", 9, Regex("onBack = goBack\\b").findAll(text).count())
         assertFalse("no remembered origins left to loop", text.contains("stockFrom") || text.contains("newsFrom"))
     }
 
@@ -214,5 +214,16 @@ class PairedPageTest {
         assertEquals(PairedPage.Sessions, PairedPage.Running.backFrom(PairedPage.Sessions))
         assertEquals(PairedPage.Sessions, PairedPage.Chat.backFrom(PairedPage.Chat)) // only Running is redirected
         assertEquals(PairedPage.Settings, PairedPage.SettingsAbout.backFrom(PairedPage.Chat))
+    }
+
+    @Test
+    fun `the track record page opens from Home or a stock and goes back to where it came from (TR2)`() {
+        val fromHome = StocksBackStack(PairedPage.Sessions).openTrackRecord()
+        assertEquals(StocksBackStack(PairedPage.StocksTrackRecord), fromHome)
+        assertEquals(PairedPage.Sessions, fromHome.back().page)
+        val fromStock = StocksBackStack(PairedPage.Sessions).openStock("BBCA").openTrackRecord()
+        assertEquals(StocksBackStack(PairedPage.StocksTrackRecord, null, listOf(StockPlace(PairedPage.StockDetail, "BBCA"))), fromStock)
+        assertEquals(StocksBackStack(PairedPage.StockDetail, "BBCA"), fromStock.back())
+        assertEquals(StockPlace(PairedPage.StocksTrackRecord), StockPlace.decode(StockPlace(PairedPage.StocksTrackRecord).encode()))
     }
 }

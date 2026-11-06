@@ -104,6 +104,8 @@ class StocksNav(
     /** TBA2: the brief's page and the alerts list. */
     val openBrief: () -> Unit = {},
     val openAlerts: () -> Unit = {},
+    /** TR2: the AI track record page. */
+    val openTrackRecord: () -> Unit = {},
 )
 
 /**
@@ -455,7 +457,7 @@ fun sourceName(source: String): String = when (source) {
     else -> source
 }
 
-/** The Stocks bottom bar (stocks-notes §3): News, Holdings, ⋮ (Broker fees, Settings), and + to add to the watchlist. */
+/** The Stocks bottom bar (stocks-notes §3): News, Holdings, ⋮ (Alerts, AI track record, Broker fees, Settings), and + to add to the watchlist. */
 @Composable
 private fun StocksBottomBar(online: Boolean, nav: StocksNav, onAdd: () -> Unit) {
     val icons = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -483,6 +485,11 @@ private fun StocksBottomBar(online: Boolean, nav: StocksNav, onAdd: () -> Unit) 
                         text = { Text(stringResource(R.string.stocks_alerts)) },
                         leadingIcon = { Icon(painter = painterResource(R.drawable.ic_notifications), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         onClick = { menu = false; nav.openAlerts() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.stocks_record_title)) },
+                        leadingIcon = { Icon(painter = painterResource(R.drawable.ic_history), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        onClick = { menu = false; nav.openTrackRecord() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.stocks_broker_fees)) },

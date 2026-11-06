@@ -205,6 +205,12 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
         return call(StocksRequest(POST, "brief", body = body.toString()), BriefStarted.serializer()) { it }
     }
 
+    /** The AI track record (§20.5): the whole summary, and the calls (newest first) of [code] when given. */
+    suspend fun trackRecord(code: String? = null): StocksResult<TrackRecordBody> {
+        val query = code?.let { mapOf("code" to it) } ?: emptyMap()
+        return call(StocksRequest(GET, "track-record", query), TrackRecordBody.serializer()) { it }
+    }
+
     suspend fun universe(): StocksResult<UniverseBody> = call(StocksRequest(GET, "universe"), UniverseBody.serializer()) { it }
 
     /** Replaces the stock list on the PC (§20.2); [validFrom] is optional. */

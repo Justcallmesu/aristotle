@@ -42,6 +42,7 @@ import io.github.justcallmesu.aristotle.data.stocks.AnalysisResult
 import io.github.justcallmesu.aristotle.data.stocks.AnalysisStates
 import io.github.justcallmesu.aristotle.data.stocks.AnalysisView
 import io.github.justcallmesu.aristotle.data.stocks.Confidence
+import io.github.justcallmesu.aristotle.data.stocks.RecordLine
 import io.github.justcallmesu.aristotle.data.stocks.SourceLabel
 import io.github.justcallmesu.aristotle.data.stocks.StockFormat
 import io.github.justcallmesu.aristotle.data.stocks.StockQuote
@@ -82,6 +83,9 @@ internal fun AnalysisSection(
     locale: Locale,
     onAnalyze: () -> Unit,
     onReadAgain: () -> Unit,
+    /** TR2: the card's record line for a verdict (Q124); null while the record is not read. */
+    record: (Verdict?) -> RecordLine? = { null },
+    onOpenRecord: () -> Unit = {},
 ) {
     SectionHeader(stringResource(R.string.stocks_analysis_title))
     when (view.phase) {
@@ -108,6 +112,8 @@ internal fun AnalysisSection(
             // A failure above already offers Retry; the card offers Analyze again only when it is the answer.
             onAnalyzeAgain = onAnalyze.takeIf { view.phase == AnalysisPhase.Done },
             enabled = reachable,
+            recordLine = record(Verdict.of(result.verdict)),
+            onOpenRecord = onOpenRecord,
         )
     }
 }
@@ -213,6 +219,8 @@ private fun VerdictCard(
     locale: Locale,
     onAnalyzeAgain: (() -> Unit)?,
     enabled: Boolean,
+    recordLine: RecordLine?,
+    onOpenRecord: () -> Unit,
 ) {
     val model = VerdictCardModel.of(result, quote)
     val muted = staleFrom != null
@@ -234,6 +242,8 @@ private fun VerdictCard(
             )
             model.confidence?.let { ConfidenceChip(it) }
         }
+        // TR2 (Q124): this verdict type's record across all models and triggers; tap opens the track record page.
+        recordLine?.let { RecordLineRow(it, muted = !enabled, onOpen = onOpenRecord) }
         if (model.summary.isNotEmpty()) {
             // Plain text, verbatim: never Markdown, never linkified (TA1 review MINOR-1).
             Text(model.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = Spacing.s))

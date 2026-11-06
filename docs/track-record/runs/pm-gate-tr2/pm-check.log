@@ -1,0 +1,38 @@
+== A1 not triggered inside the buy rate (TrackRecord.kt:128, Q123)
+TrackRecordTest > buy today - the rate is win over win plus loss plus closed, not triggered stays outside FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:102
+TrackRecordTest > add - same rule as buy today FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:112
+TrackRecordTest > scored records that are not decided never count toward the threshold FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:162
+TrackRecordTest > the card line counts a verdict type across every model and trigger FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:243
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.TrackRecordTest.xml
+testcase name="buy today - the rate is win over win plus loss plus closed, not triggered stays outside"
+testcase name="add - same rule as buy today"
+testcase name="scored records that are not decided never count toward the threshold"
+testcase name="the card line counts a verdict type across every model and trigger"
+== A2 rate from 1 call (TrackRecord.kt:174, Q122)
+TrackRecordTest > scored records that are not decided never count toward the threshold FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:163
+TrackRecordTest > the card line is not enough calls below 10 decided, and none when the verdict has no scored call FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:265
+TrackRecordTest > the rate shows from 10 decided calls, not 9 (Q122) FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:149
+TrackRecordTest > filters sum the groups they keep FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:186
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.TrackRecordTest.xml
+testcase name="scored records that are not decided never count toward the threshold"
+testcase name="the card line is not enough calls below 10 decided, and none when the verdict has no scored call"
+testcase name="the rate shows from 10 decided calls, not 9 (Q122)"
+testcase name="filters sum the groups they keep"
+SKIP server (0)
+PASS android (0)
+gate exit=0
+SKIP server (0)
+PASS android (0)
+unit tests: 1406
