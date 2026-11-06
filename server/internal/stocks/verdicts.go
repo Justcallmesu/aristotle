@@ -46,9 +46,13 @@ type VerdictRecord struct {
 	Score       *Score   `json:"score"`
 }
 
+// verdictsDoc is the file, exactly version 1 as c74df38 wrote it (a rolled-back binary decodes it strictly). Failures
+// is only read: the TR1d build wrote the failure dates here, they now live in stocks-track-failures.json; a leftover
+// is moved there at load and never written again.
 type verdictsDoc struct {
-	Version int             `json:"version"`
-	Records []VerdictRecord `json:"records"`
+	Version  int                `json:"version"`
+	Records  []VerdictRecord    `json:"records"`
+	Failures map[string]failRun `json:"failures,omitempty"`
 }
 
 // verdictHistory is the in-memory history. Records are appended; a score is attached by replacing the record's
@@ -61,6 +65,7 @@ type verdictHistory struct {
 	recs    []VerdictRecord // oldest first
 	seen    map[string]bool // code|analyzed_at
 	persist bool            // false: the file was newer or unusable; it is left alone
+	fails   *failureLog     // the failure dates of track.score (their own file)
 }
 
 // loadVerdictHistory reads stocks-verdicts.json; when there is none yet it seeds the history from seed (the
@@ -73,6 +78,7 @@ func loadVerdictHistory(dir string, log logger, seed []AnalysisResult, seedOK bo
 	if errors.Is(err, fs.ErrNotExist) {
 		if !seedOK {
 			h.persist = false
+			h.fails = loadFailureLog(dir, log, nil)
 			log.Warn("stocks: verdict history not created while the analyses file is unusable (the seed waits); new verdicts stay in memory",
 				"file", verdictsFile)
 			return h
@@ -85,12 +91,17 @@ func loadVerdictHistory(dir string, log logger, seed []AnalysisResult, seedOK bo
 			}
 		}
 		h.saveLocked()
+		h.fails = loadFailureLog(dir, log, nil)
 		log.Info("stocks: verdict history created", "file", verdictsFile, "seeded", n)
 		return h
 	}
 	var recs []VerdictRecord
+	var legacy map[string]failRun
 	if err == nil {
-		recs, err = parseVerdicts(data)
+		recs, legacy, err = parseVerdicts(data)
+	}
+	if err != nil {
+		legacy = nil // only a version-1 file's leftover counts
 	}
 	var newer *newerFileError
 	switch {
@@ -103,6 +114,7 @@ func loadVerdictHistory(dir string, log logger, seed []AnalysisResult, seedOK bo
 		log.Error("stocks: verdict history unusable; it is left alone and new verdicts are kept in memory", "file", verdictsFile, "err", err)
 		recs = nil
 	}
+	h.fails = loadFailureLog(dir, log, legacy)
 	for _, r := range recs {
 		if !scorable(r) {
 			log.Warn("stocks: verdict record cannot be scored; it is skipped", "code", r.Code)
@@ -115,22 +127,25 @@ func loadVerdictHistory(dir string, log logger, seed []AnalysisResult, seedOK bo
 
 // parseVerdicts reads the file: version 1 strictly; a newer version leniently (with a *newerFileError). Either way
 // every record needs an id and a code (else the file is unusable); scorability is checked per record by the caller.
-func parseVerdicts(data []byte) ([]VerdictRecord, error) {
+func parseVerdicts(data []byte) ([]VerdictRecord, map[string]failRun, error) {
 	if len(data) > maxVerdictsFileBytes {
-		return nil, fmt.Errorf("%s: %d bytes, over the cap", verdictsFile, len(data))
+		return nil, nil, fmt.Errorf("%s: %d bytes, over the cap", verdictsFile, len(data))
 	}
 	var doc verdictsDoc
 	err := decodeVersioned(verdictsFile, data, verdictsVersion, &doc)
 	var newer *newerFileError
 	if err != nil && !errors.As(err, &newer) {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, r := range doc.Records {
 		if r.ID == "" || !codeRe.MatchString(r.Code) {
-			return nil, fmt.Errorf("%s: bad record", verdictsFile)
+			return nil, nil, fmt.Errorf("%s: bad record", verdictsFile)
 		}
 	}
-	return doc.Records, err
+	if err != nil {
+		return doc.Records, nil, err
+	}
+	return doc.Records, doc.Failures, nil
 }
 
 // add appends a kept result (once per code and analyzed_at) and saves.
@@ -177,9 +192,6 @@ func (h *verdictHistory) snapshot() []VerdictRecord {
 // apply attaches scores by record id: a record without a score takes the whole score; a scored record only takes
 // a missing info_3d (P13: a score is never recomputed). It saves once and reports the save error.
 func (h *verdictHistory) apply(updates map[string]Score) error {
-	if len(updates) == 0 {
-		return nil
-	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	changed := false

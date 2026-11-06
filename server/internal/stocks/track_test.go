@@ -936,12 +936,20 @@ func TestTrackJobRecent422Waits(t *testing.T) {
 		t.Fatalf("calls = %s\nwant    %s", got, want)
 	}
 	for key, r := range h.records() {
-		if r.Score != nil {
+		if r.Score != nil { // one failing run gives nothing up, whatever the age (P16b)
 			t.Fatalf("%s scored after a recent 422: %+v", key, r.Score)
 		}
 	}
 	if v := h.job(); *v.LastStatus != JobStatusFailed || *v.LastError != "codes_failed" {
 		t.Fatalf("job = %+v", v)
+	}
+	h.runAt("2026-11-09T17:00:10+07:00") // a second failing day: RECB's September record (40 trading days) is given up
+	recs := h.records()
+	if s := recs["RECB@2026-09-14"].Score; s == nil || s.Outcome != OutcomeUnscorable {
+		t.Fatalf("RECB September = %+v", s)
+	}
+	if recs["RECA@"+thuDay].Score != nil || recs["RECB@"+thuDay].Score != nil {
+		t.Fatal("a recent record was scored or given up")
 	}
 }
 
@@ -985,5 +993,133 @@ func TestHistoryNeverAppendsUnscorable(t *testing.T) {
 		if !strings.Contains(h.logs.String(), "verdict not added to the history (no scorable verdict)\" code="+c) {
 			t.Fatalf("%s not logged: %s", c, h.logs)
 		}
+	}
+}
+
+// --- TR1d: give-up across restarts, 403 gap, body-read error ---
+
+var err403 = &UpstreamError{Reason: "http 403", Status: 403}
+
+// reopen restarts the server on the same state dir (a daily restart of the laptop's service).
+func (h *trackHarness) reopen() {
+	h.svc.Close()
+	h.open()
+}
+
+// TestTrackJobGiveUpSurvivesRestart (P16b): the first failing day, a restart, the next day's failure: given up. The
+// failure dates are in stocks-track-failures.json; a missing file reads as "no failures".
+func TestTrackJobGiveUpSurvivesRestart(t *testing.T) {
+	h := newTrackHarness(t, "2026-10-13T08:00:00+07:00", "")
+	h.keepOld("FAIL")
+	h.prov.periodErrs = map[string]error{"FAIL|5m": err403}
+	h.runAt("2026-11-05T17:00:10+07:00")
+	if s := h.records()["FAIL@2026-10-13"].Score; s != nil {
+		t.Fatalf("given up on the first failing day: %+v", s)
+	}
+	if f := readFailuresFile(t, h.dir)["FAIL"]; f.First != "2026-11-05" || f.Last != "2026-11-05" {
+		t.Fatalf("failure dates not persisted: %+v", f)
+	}
+	h.reopen()
+	h.runAt("2026-11-06T17:00:10+07:00")
+	if s := h.records()["FAIL@2026-10-13"].Score; s == nil || s.Outcome != OutcomeUnscorable {
+		t.Fatalf("after a restart the second failing day = %+v", s)
+	}
+}
+
+// TestTrackJobDailyRestartDoesNotResetStreak (P16b): a restart before every run (a daily restart) never resets the
+// streak: the second failing day gives up, the first never does.
+func TestTrackJobDailyRestartDoesNotResetStreak(t *testing.T) {
+	h := newTrackHarness(t, "2026-10-13T08:00:00+07:00", "")
+	h.keepOld("FAIL")
+	h.prov.periodErrs = map[string]error{"FAIL|5m": err403}
+	for i, at := range []string{"2026-11-04T17:00:10+07:00", "2026-11-05T17:00:10+07:00"} {
+		h.reopen()
+		h.runAt(at)
+		s := h.records()["FAIL@2026-10-13"].Score
+		if (i == 0) != (s == nil) {
+			t.Fatalf("%s: score = %+v", at, s)
+		}
+	}
+}
+
+// TestTrackJobIsolatedFailuresNeverGiveUp (P16b): two failures weeks apart are two streaks.
+func TestTrackJobIsolatedFailuresNeverGiveUp(t *testing.T) {
+	h := newTrackHarness(t, "2026-10-13T08:00:00+07:00", "")
+	h.keepOld("FAIL")
+	h.prov.periodErrs = map[string]error{"FAIL|5m": err403}
+	for _, at := range []string{"2026-11-05T17:00:10+07:00", "2026-11-20T17:00:10+07:00"} {
+		h.reopen()
+		h.runAt(at)
+		if s := h.records()["FAIL@2026-10-13"].Score; s != nil {
+			t.Fatalf("%s: given up on an isolated failure: %+v", at, s)
+		}
+	}
+	h.reopen()
+	h.runAt("2026-11-23T17:00:10+07:00") // the next trading day: a run of two days now
+	if s := h.records()["FAIL@2026-10-13"].Score; s == nil || s.Outcome != OutcomeUnscorable {
+		t.Fatalf("failing on consecutive trading days = %+v", s)
+	}
+}
+
+// TestTrackJobHardLimitThirtyTradingDays (P16b): a record unscored 30 trading days after its session is unscorable on
+// the first failing run, logged.
+func TestTrackJobHardLimitThirtyTradingDays(t *testing.T) {
+	h := newTrackHarness(t, "2026-10-13T08:00:00+07:00", "")
+	h.keepOld("FAIL")
+	h.prov.periodErrs = map[string]error{"FAIL|5m": err403}
+	h.runAt("2026-11-20T17:00:10+07:00") // 28 trading days
+	if s := h.records()["FAIL@2026-10-13"].Score; s != nil {
+		t.Fatalf("before the limit: %+v", s)
+	}
+	h.reopen()
+	h.runAt("2026-12-02T17:00:10+07:00") // a new streak (a week later), but past 30 trading days
+	if s := h.records()["FAIL@2026-10-13"].Score; s == nil || s.Outcome != OutcomeUnscorable {
+		t.Fatalf("past the hard limit = %+v", s)
+	}
+	if !strings.Contains(h.logs.String(), "unscorable") {
+		t.Fatalf("not logged: %s", h.logs)
+	}
+}
+
+// TestTrackJob403OnOldWindowWaits (P16a): a 403 on a window whose first session is 52 days old is not "too old": no
+// daily fallback (only a 422 is). Fails if tooOld accepts any status >= 400.
+func TestTrackJob403OnOldWindowWaits(t *testing.T) {
+	h := newTrackHarness(t, "2026-10-13T08:00:00+07:00", "")
+	h.keepOld("OLDX")
+	h.prov.periods = map[string][]Bar{"OLDX|1d": {dly("2026-10-13", 5110, 4920, 5080)}}
+	h.prov.periodErrs = map[string]error{"OLDX|5m": err403}
+	h.runAt("2026-12-04T17:00:10+07:00")
+	if got := strings.Join(h.prov.takePeriodCalls(), " "); got != "OLDX|5m|2026-10-13|2026-10-14" {
+		t.Fatalf("calls = %s (a 403 must neither retry nor fall back to 1d)", got)
+	}
+	if s := h.records()["OLDX@2026-10-13"].Score; s != nil && s.Source != SourceNone {
+		t.Fatalf("scored from bars after a 403: %+v", s)
+	}
+}
+
+// errBody is a response body that breaks after some bytes.
+type errBody struct{ read bool }
+
+func (b *errBody) Read(p []byte) (int, error) {
+	if b.read {
+		return 0, fmt.Errorf("connection reset")
+	}
+	b.read = true
+	return copy(p, `{"chart":`), nil
+}
+func (b *errBody) Close() error { return nil }
+
+type brokenBodyTransport struct{}
+
+func (brokenBodyTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: 200, Body: &errBody{}, Header: http.Header{}, Request: r}, nil
+}
+
+// TestYahooBodyReadErrorIsNetwork: a body that breaks after a 200 is a network error (it stops a run), not a code failure.
+func TestYahooBodyReadErrorIsNetwork(t *testing.T) {
+	y := &Yahoo{Client: &http.Client{Transport: brokenBodyTransport{}}}
+	_, err := y.ChartPeriod(context.Background(), "BBCA", wibs("2026-11-03 00:00:00"), wibs("2026-11-05 00:00:00"), Interval5m)
+	if !isNetwork(err) || !isStop(context.Background(), err) {
+		t.Fatalf("err = %v, want a network error", err)
 	}
 }

@@ -89,9 +89,8 @@ type Service struct {
 	barsPace func(ctx context.Context) error
 	mux      *http.ServeMux
 
-	alerts     *alertEngine
-	briefs     *briefer
-	trackFails failStreaks // track.score: codes failing since an earlier day (P16a)
+	alerts *alertEngine
+	briefs *briefer
 
 	mu        sync.Mutex // guards st and levels; held across a save so writes stay ordered
 	st        State

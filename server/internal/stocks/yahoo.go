@@ -74,8 +74,8 @@ func fetch(ctx context.Context, c *http.Client, u, accept string) ([]byte, error
 		return nil, ErrUnknownSymbol
 	case resp.StatusCode != http.StatusOK:
 		return nil, &UpstreamError{Reason: fmt.Sprintf("http %d", resp.StatusCode), Status: resp.StatusCode}
-	case err != nil:
-		return nil, &UpstreamError{Reason: "read body"}
+	case err != nil: // the answer did not arrive whole: no answer, like a failed request
+		return nil, &UpstreamError{Reason: reasonNetwork}
 	}
 	return body, nil
 }

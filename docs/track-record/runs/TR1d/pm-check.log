@@ -1,0 +1,26 @@
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=763 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=763 failed=0
+SKIP android (0)
+== S1 no 30-day hard limit (track.go:288)
+--- FAIL: TestTrackJobRecent422Waits (0.04s)
+    track_test.go:946: job = {ID:track.score On:true At:0xa45c1c1d830 EveryMin:<nil> Running:false LastDue:0xa45c1c1d7f0 LastRun:0xa45c1c1d800 LastStatus:0xa45c1c1d810 LastError:0xa45c1c1d820 Late:false NextRun:0xa45c1c1d840 Editable:[on]}
+--- FAIL: TestTrackJobHardLimitThirtyTradingDays (0.06s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== S2 failure runs not saved (verdicts.go:270)
+--- FAIL: TestTrackJobGiveUpSurvivesRestart (0.03s)
+--- FAIL: TestTrackJobDailyRestartDoesNotResetStreak (0.07s)
+--- FAIL: TestTrackJobIsolatedFailuresNeverGiveUp (0.09s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== race
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	11.530s
+ok  	github.com/justcallmesu/aristotle/server/internal/httpapi	1.576s

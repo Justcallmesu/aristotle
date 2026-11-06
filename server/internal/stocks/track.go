@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 )
 
@@ -29,6 +28,9 @@ const (
 	// giveUpTradingDays: a record still unscored this many trading days after its session, its code failing again
 	// after failing on an earlier day, is scored unscorable (P16, P16a).
 	giveUpTradingDays = 10
+	// hardGiveUpTradingDays: a record still unscored this many trading days after its session, its code failing in
+	// the run after failing on an earlier date (since its last success), is scored unscorable (P16b).
+	hardGiveUpTradingDays = 30
 	// info3dMaxAge: a scored record whose info_3d is still missing this long after its session is not asked again.
 	info3dMaxAge = 30 * 24 * time.Hour
 	// info3dEarliest: info_3d needs at least this long after the session (3 trading days are at least 3 days later).
@@ -216,10 +218,12 @@ type trackRun struct {
 // missing info_3d. At most one 5-minute request per code (one window over its sessions; a second one only after a
 // 422, P15a), plus one daily window when the bar store cannot answer; calls paced like the bars job. A block stops
 // the run (so does a network error, P16a): what was scored is kept. A code that fails again after failing on an
-// earlier day gives up its records 10 trading days old (P16, P16a).
+// earlier day gives up its records 10 trading days old, one that also failed on an earlier date those 30 days old
+// (P16, P16a, P16b).
 func (s *Service) runTrackScore(ctx context.Context, _ JobRun) error {
 	now := s.now()
 	hist := s.analyzer.history
+	fails := hist.fails
 	plans, skipped := planTrack(hist.snapshot(), now)
 	codes := sortedKeys(plans)
 	f := &trackFetch{s: s, ctx: ctx, now: now}
@@ -245,10 +249,10 @@ func (s *Service) runTrackScore(ctx context.Context, _ JobRun) error {
 		n.done++
 		if f.failed {
 			n.failed++
-			n.gaveUp += s.giveUp(code, p.score, now, updates)
+			n.gaveUp += s.failCode(code, p.score, now, updates, fails)
 			continue
 		}
-		s.trackFails.clear(code)
+		fails.clear(code)
 		for _, r := range p.score {
 			updates[r.ID] = scoreRecord(r, intraday, daily, now)
 			n.scored++
@@ -256,6 +260,7 @@ func (s *Service) runTrackScore(ctx context.Context, _ JobRun) error {
 		n.filled += s.fillInfo3d(code, p.info, daily, updates)
 	}
 	saveErr := hist.apply(updates)
+	fails.flush()
 	s.log.Info("stocks: track-record run", "codes", len(codes), "scored", n.scored, "info_filled", n.filled, "failed", n.failed,
 		"left", len(codes)-n.done, "requests", f.asked, "unscorable", n.gaveUp, "skipped", skipped)
 	partial := n.scored+n.filled+n.gaveUp > 0
@@ -270,54 +275,51 @@ func (s *Service) runTrackScore(ctx context.Context, _ JobRun) error {
 	return nil
 }
 
-// giveUp scores unscorable the records of a failed code that are giveUpTradingDays trading days past their session,
-// only when the code also failed on an earlier day's run (P16a: one failing run after an offline gap gives up
-// nothing), and returns how many.
-func (s *Service) giveUp(code string, recs []VerdictRecord, now time.Time, updates map[string]Score) int {
-	if len(recs) == 0 || !s.trackFails.failedBefore(code, now) {
+// failCode records the failure of a code with records to score, then gives up the ones that are old enough. A failure
+// with nothing to score (only info_3d waits) is not noted: it never gives anything up. Returns how many were given up.
+func (s *Service) failCode(code string, recs []VerdictRecord, now time.Time, updates map[string]Score, fails *failureLog) int {
+	if len(recs) == 0 {
 		return 0
 	}
-	n := 0
+	return s.giveUp(code, recs, now, updates, fails.note(code, now))
+}
+
+// giveUp scores unscorable the records of a failed code (its failure already noted, prior) that are
+// giveUpTradingDays trading days past their session, only when its failure streak began on an earlier date (P16a, kept
+// across restarts, P16b: one failing run after an offline gap gives up nothing), and those hardGiveUpTradingDays past
+// it when it also failed on an earlier date since its last success. A code whose records are all given up is forgotten
+// by the failure log. Returns how many.
+func (s *Service) giveUp(code string, recs []VerdictRecord, now time.Time, updates map[string]Score, prior priorFailure) int {
+	n, hard := 0, 0
 	for _, r := range recs {
 		day, _ := parseSessionDay(r.SessionDate)
-		if tradingDaysAfter(day, now, giveUpTradingDays) >= giveUpTradingDays {
-			updates[r.ID] = unscorableScore(now)
-			n++
+		age := tradingDaysAfter(day, now, hardGiveUpTradingDays)
+		switch {
+		case age >= hardGiveUpTradingDays && prior.ever:
+			hard++
+		case age >= giveUpTradingDays && prior.streak:
+		default:
+			continue
 		}
+		updates[r.ID] = unscorableScore(now)
+		n++
 	}
 	if n > 0 {
-		s.log.Warn("stocks: track-record records unscorable (Yahoo kept failing)", "code", code, "count", n)
+		s.log.Warn("stocks: track-record records unscorable (Yahoo kept failing)", "code", code, "count", n, "hard_limit", hard)
+	}
+	if n == len(recs) {
+		s.analyzer.history.fails.clear(code)
 	}
 	return n
 }
 
-// failStreaks keeps, per code, the WIB date of the first run of its current failing streak (a run that scored the code
-// ends it). In memory only: a restart forgets it, which only delays a give-up by one failing day (P16a).
-type failStreaks struct {
-	mu    sync.Mutex
-	since map[string]string
-}
-
-// failedBefore notes that code failed in the run at now and reports whether its streak began on an earlier date.
-func (f *failStreaks) failedBefore(code string, now time.Time) bool {
-	day := now.In(WIB).Format(time.DateOnly)
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	first, ok := f.since[code]
-	if !ok {
-		if f.since == nil {
-			f.since = map[string]string{}
-		}
-		f.since[code] = day
+// previousTradingDay is the latest IDX trading day before the WIB date of t.
+func previousTradingDay(t time.Time) string {
+	d := t.In(WIB).AddDate(0, 0, -1)
+	for !IsTradingDay(d) {
+		d = d.AddDate(0, 0, -1)
 	}
-	return ok && first < day
-}
-
-// clear ends code's failing streak.
-func (f *failStreaks) clear(code string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	delete(f.since, code)
+	return d.Format(time.DateOnly)
 }
 
 // fillInfo3d sets the missing info_3d of scored records from daily and returns how many; a record whose session close

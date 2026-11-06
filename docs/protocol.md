@@ -1550,9 +1550,9 @@ Code: `server/internal/stocks/{alerts,brief,levels}.go`. Same auth, headers and 
   lives in memory only. On a first start the hits cursor begins at the newest hit (history is not news).
 - **Logs** carry kinds, codes, counts, states and error codes: never an alert's or the brief's text, the prompt, a verdict or a holding value.
 
-### 20.5 Track record (`/v1/stocks/track-record`, TR1, TR1b, TR1c; spec `docs/track-record/spec.md` Q116-Q120b, Q122, Q125, P10-P16a, research `docs/track-record/runs/TR0/report.md`)
+### 20.5 Track record (`/v1/stocks/track-record`, TR1, TR1b, TR1c, TR1d; spec `docs/track-record/spec.md` Q116-Q120b, Q122, Q125, P10-P16b, research `docs/track-record/runs/TR0/report.md`)
 
-Code: `server/internal/stocks/{verdicts,score,track}.go`, `ChartPeriod` in `{provider,yahoo}.go`. Same auth, headers and error shape as §20.
+Code: `server/internal/stocks/{verdicts,score,track,trackfails,versioned}.go`, `ChartPeriod` in `{provider,yahoo}.go`. Same auth, headers and error shape as §20.
 New route: no `ProtocolVersion` bump. The phone shows the PC-offline state when the server is down (P14: no cached copy).
 
 | Method, path | Query | Answer |
@@ -1587,17 +1587,26 @@ New route: no `ProtocolVersion` bump. The phone shows the PC-offline state when 
   - **Daily fallback (Q119, P15, P15a, P16a).** Only when Yahoo has no 5-minute bars of the session: older than ~58 days (not asked), a
     `422` for a window starting with a session older than ~50 days ("too old"), or a `200` without bars for it. A `404` (unknown symbol)
     counts only when Yahoo has no daily bars of the code either (→ `no_session`). Every other failure (400, 401, 403, a `422` for a window of
-    sessions all younger than ~50 days, a 404 for a code with daily bars, a bad body; a network error, 429 and 5xx stop the run) leaves the
+    sessions all younger than ~50 days, a 404 for a code with daily bars, an unparsable body; a network error, 429 and 5xx stop the run) leaves the
     record unscored for the next run. The session's daily bar then decides with **stop first**; the whole day is the fill bar,
     so a buy filled that day (low ≤ `entry_high`) is a `loss` when the day touched the stop, else `closed` (a target in the fill day never
     counts); a hold: stop → `loss`, else target → `win`, else `right`; `source:"daily"`. The daily bar cannot exclude the hours before a call:
     a fallback may count a touch from before `analyzed_at`. No daily bar either (no trade that day, an unlisted holiday, an unknown code) →
     `no_session`, never a loss.
-  - **Unscorable (P16, P16a).** A record still unscored 10 trading days (IDX calendar) after its session is scored
-    `{"outcome":"unscorable","source":"none"}` (no result, close or info; logged with its code) when its code fails in a run AND already
-    failed in a run on an earlier date (WIB) with no run scoring the code in between; one failing run after an offline gap gives up nothing,
-    and a network error or a block never counts as a failure of the code. The earlier failure is kept in memory: a restart only delays a
-    give-up. It is excluded from every rate.
+  - **Unscorable (P16, P16a, P16b).** A record still unscored 10 trading days (IDX calendar) after its session is scored
+    `{"outcome":"unscorable","source":"none"}` (no result, close or info; logged with its code) when its code fails in a run AND its
+    failure run began on an earlier date (WIB); one failing run after an offline gap gives up nothing, and a network error (a request
+    with no HTTP answer, or a body that breaks while being read after a `200`) or a block never counts as a failure of the code.
+    A failure streak ends when a run scores the code or when its last failure is older than the previous trading day (failures weeks apart
+    are two streaks). Each failing code's dates are kept in their own file `stocks-track-failures.json`
+    (`{"version":1,"failures":{"BBCA":{"since":"YYYY-MM-DD","first":"YYYY-MM-DD","last":"YYYY-MM-DD"}}}`: `since` = its first failure since the
+    last success, `first`/`last` = the current streak; written atomically; an unusable file is logged, read as no failures and never overwritten;
+    a newer version is read, never written; entries with a bad code or date are dropped), so a restart neither resets nor bypasses the rule.
+    `stocks-verdicts.json` stays exactly version 1 as before TR1d, so a rolled-back server still reads the history; a `failures` field an
+    earlier TR1d build left in it is moved to the new file once and dropped by the next verdicts write. An entry is removed when the code
+    scores again or all its unscored records are given up. Hard limit: a record still unscored 30 trading days after its session
+    is `unscorable` in a run where its code fails AND the code also failed on an earlier date since its last success (one failing run
+    after a long gap gives up nothing). It is excluded from every rate.
   - `info_3d_pct` (Q117, information only): the close of the 3rd trading session after `session_date` (counted from the daily bars, not the
     calendar) vs the same base; `null` until that bar exists, filled by a later run (asked for up to 30 days after the session; never for a
     `no_session` or `unscorable` record). A later run first compares the refetched session close with the stored `close`: more than 1 % apart

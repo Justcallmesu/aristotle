@@ -1,0 +1,1596 @@
+?   	github.com/justcallmesu/aristotle/server/cmd/aristotle-server	[no test files]
+=== RUN   TestRunDispatch
+=== RUN   TestRunDispatch/no_args
+=== RUN   TestRunDispatch/unknown
+=== RUN   TestRunDispatch/version
+=== RUN   TestRunDispatch/help
+--- PASS: TestRunDispatch (0.00s)
+    --- PASS: TestRunDispatch/no_args (0.00s)
+    --- PASS: TestRunDispatch/unknown (0.00s)
+    --- PASS: TestRunDispatch/version (0.00s)
+    --- PASS: TestRunDispatch/help (0.00s)
+=== RUN   TestServeListenerGracefulShutdown
+--- PASS: TestServeListenerGracefulShutdown (0.01s)
+=== RUN   TestDiscoveryAnnouncesLANOnlyAndStopsWithServer
+--- PASS: TestDiscoveryAnnouncesLANOnlyAndStopsWithServer (0.03s)
+=== RUN   TestDiscoveryOffByConfig
+--- PASS: TestDiscoveryOffByConfig (0.03s)
+=== RUN   TestPairPrintsTheQRCodeFirstThenTheManualData
+--- PASS: TestPairPrintsTheQRCodeFirstThenTheManualData (0.00s)
+=== RUN   TestNoQRPrintsOnlyTheManualData
+--- PASS: TestNoQRPrintsOnlyTheManualData (0.00s)
+=== RUN   TestNoAddressNoQRCode
+--- PASS: TestNoAddressNoQRCode (0.00s)
+=== RUN   TestQRCodeAlwaysFitsEightyColumns
+--- PASS: TestQRCodeAlwaysFitsEightyColumns (0.02s)
+=== RUN   TestQRCodeTakesAtMostEightAddresses
+--- PASS: TestQRCodeTakesAtMostEightAddresses (0.01s)
+=== RUN   TestPairQROnStdoutOnly
+--- PASS: TestPairQROnStdoutOnly (0.05s)
+=== RUN   TestPairDevicesRevokeEndToEnd
+--- PASS: TestPairDevicesRevokeEndToEnd (0.07s)
+=== RUN   TestPairRejectsBadName
+--- PASS: TestPairRejectsBadName (0.04s)
+=== RUN   TestCLIWithoutServer
+--- PASS: TestCLIWithoutServer (0.00s)
+=== RUN   TestSecondServerRefused
+--- PASS: TestSecondServerRefused (0.04s)
+=== RUN   TestPrintPairing
+--- PASS: TestPrintPairing (0.00s)
+=== RUN   TestPairOutputOrderAndInterfaces
+--- PASS: TestPairOutputOrderAndInterfaces (0.04s)
+=== RUN   TestPhoneGetsEveryAddressPairPrints
+--- PASS: TestPhoneGetsEveryAddressPairPrints (0.03s)
+=== RUN   TestEveryListenerSharesRejectLog
+--- PASS: TestEveryListenerSharesRejectLog (0.03s)
+=== RUN   TestShutdownClosesRelays
+--- PASS: TestShutdownClosesRelays (2.03s)
+=== RUN   TestRemoteListenersAreWrappedForTheRelay
+--- PASS: TestRemoteListenersAreWrappedForTheRelay (0.02s)
+=== RUN   TestTailscaleListenerIsPinnedTLS
+--- PASS: TestTailscaleListenerIsPinnedTLS (0.04s)
+=== RUN   TestInstallCommand
+--- PASS: TestInstallCommand (0.00s)
+=== RUN   TestInstallRefusesDifferent
+--- PASS: TestInstallRefusesDifferent (0.00s)
+=== RUN   TestUninstallKeepsState
+--- PASS: TestUninstallKeepsState (0.00s)
+=== RUN   TestPurgeConfirmation
+--- PASS: TestPurgeConfirmation (0.00s)
+=== RUN   TestStatusServerDown
+--- PASS: TestStatusServerDown (0.00s)
+=== RUN   TestLogsCommand
+--- PASS: TestLogsCommand (0.00s)
+=== RUN   TestWatchSignalsSecondExits130
+--- PASS: TestWatchSignalsSecondExits130 (0.05s)
+=== RUN   TestHTTPErrorsGoThroughSlog
+--- PASS: TestHTTPErrorsGoThroughSlog (0.00s)
+=== RUN   TestHelperCLI
+    terminal_test.go:31: helper process only
+--- SKIP: TestHelperCLI (0.00s)
+=== RUN   TestTerminalCLI
+--- PASS: TestTerminalCLI (0.05s)
+=== RUN   TestControlRefusesEscalationFromATerminalProcess
+--- PASS: TestControlRefusesEscalationFromATerminalProcess (0.12s)
+=== RUN   TestControlFromATerminalIsAnAllowlist
+--- PASS: TestControlFromATerminalIsAnAllowlist (0.02s)
+=== RUN   TestUnusableTerminalStateDisablesOnlyTheTerminal
+=== RUN   TestUnusableTerminalStateDisablesOnlyTheTerminal/corrupt
+=== RUN   TestUnusableTerminalStateDisablesOnlyTheTerminal/wrong_permissions
+--- PASS: TestUnusableTerminalStateDisablesOnlyTheTerminal (0.06s)
+    --- PASS: TestUnusableTerminalStateDisablesOnlyTheTerminal/corrupt (0.03s)
+    --- PASS: TestUnusableTerminalStateDisablesOnlyTheTerminal/wrong_permissions (0.03s)
+=== RUN   TestTerminalShellCannotPair
+--- PASS: TestTerminalShellCannotPair (0.07s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/app	2.887s
+=== RUN   TestDefaults
+--- PASS: TestDefaults (0.00s)
+=== RUN   TestParseLANInterfaces
+--- PASS: TestParseLANInterfaces (0.00s)
+=== RUN   TestParseTerminalKeepEnv
+--- PASS: TestParseTerminalKeepEnv (0.00s)
+=== RUN   TestParseListenerToggles
+--- PASS: TestParseListenerToggles (0.00s)
+=== RUN   TestParse
+=== RUN   TestParse/port_override
+=== RUN   TestParse/ipv6_loopback
+=== RUN   TestParse/invalid_json
+=== RUN   TestParse/unknown_key
+=== RUN   TestParse/trailing_data
+=== RUN   TestParse/wildcard_refused
+=== RUN   TestParse/empty_host_refused
+=== RUN   TestParse/lan_host_refused
+=== RUN   TestParse/upper-case_key
+=== RUN   TestParse/mixed-case_key
+=== RUN   TestParse/duplicate_key
+=== RUN   TestParse/empty_file
+=== RUN   TestParse/bad_port
+=== RUN   TestParse/null_file
+=== RUN   TestParse/array_file
+=== RUN   TestParse/null_value
+=== RUN   TestParse/mixed-case_toggle
+=== RUN   TestParse/toggle_wrong_type
+=== RUN   TestParse/lan_interfaces_list
+=== RUN   TestParse/lan_interfaces_empty
+=== RUN   TestParse/lan_interfaces_null
+=== RUN   TestParse/lan_interfaces_string
+=== RUN   TestParse/lan_interfaces_empty_name
+=== RUN   TestParse/lan_interfaces_path
+=== RUN   TestParse/lan_interfaces_space
+=== RUN   TestParse/lan_interfaces_too_long
+=== RUN   TestParse/lan_interfaces_duplicate
+=== RUN   TestParse/lan_interfaces_mixed_case_key
+=== RUN   TestParse/terminal_keep_env
+=== RUN   TestParse/terminal_empty
+=== RUN   TestParse/terminal_unknown_key
+=== RUN   TestParse/terminal_mixed-case_key
+=== RUN   TestParse/terminal_duplicate_key
+=== RUN   TestParse/terminal_null
+=== RUN   TestParse/terminal_not_an_object
+=== RUN   TestParse/keep_env_null
+=== RUN   TestParse/keep_env_bad_name
+=== RUN   TestParse/keep_env_empty_name
+=== RUN   TestParse/keep_env_duplicate
+--- PASS: TestParse (0.00s)
+    --- PASS: TestParse/port_override (0.00s)
+    --- PASS: TestParse/ipv6_loopback (0.00s)
+    --- PASS: TestParse/invalid_json (0.00s)
+    --- PASS: TestParse/unknown_key (0.00s)
+    --- PASS: TestParse/trailing_data (0.00s)
+    --- PASS: TestParse/wildcard_refused (0.00s)
+    --- PASS: TestParse/empty_host_refused (0.00s)
+    --- PASS: TestParse/lan_host_refused (0.00s)
+    --- PASS: TestParse/upper-case_key (0.00s)
+    --- PASS: TestParse/mixed-case_key (0.00s)
+    --- PASS: TestParse/duplicate_key (0.00s)
+    --- PASS: TestParse/empty_file (0.00s)
+    --- PASS: TestParse/bad_port (0.00s)
+    --- PASS: TestParse/null_file (0.00s)
+    --- PASS: TestParse/array_file (0.00s)
+    --- PASS: TestParse/null_value (0.00s)
+    --- PASS: TestParse/mixed-case_toggle (0.00s)
+    --- PASS: TestParse/toggle_wrong_type (0.00s)
+    --- PASS: TestParse/lan_interfaces_list (0.00s)
+    --- PASS: TestParse/lan_interfaces_empty (0.00s)
+    --- PASS: TestParse/lan_interfaces_null (0.00s)
+    --- PASS: TestParse/lan_interfaces_string (0.00s)
+    --- PASS: TestParse/lan_interfaces_empty_name (0.00s)
+    --- PASS: TestParse/lan_interfaces_path (0.00s)
+    --- PASS: TestParse/lan_interfaces_space (0.00s)
+    --- PASS: TestParse/lan_interfaces_too_long (0.00s)
+    --- PASS: TestParse/lan_interfaces_duplicate (0.00s)
+    --- PASS: TestParse/lan_interfaces_mixed_case_key (0.00s)
+    --- PASS: TestParse/terminal_keep_env (0.00s)
+    --- PASS: TestParse/terminal_empty (0.00s)
+    --- PASS: TestParse/terminal_unknown_key (0.00s)
+    --- PASS: TestParse/terminal_mixed-case_key (0.00s)
+    --- PASS: TestParse/terminal_duplicate_key (0.00s)
+    --- PASS: TestParse/terminal_null (0.00s)
+    --- PASS: TestParse/terminal_not_an_object (0.00s)
+    --- PASS: TestParse/keep_env_null (0.00s)
+    --- PASS: TestParse/keep_env_bad_name (0.00s)
+    --- PASS: TestParse/keep_env_empty_name (0.00s)
+    --- PASS: TestParse/keep_env_duplicate (0.00s)
+=== RUN   TestLoadInvalidFileNamesPath
+--- PASS: TestLoadInvalidFileNamesPath (0.00s)
+=== RUN   TestPathsHonourXDG
+--- PASS: TestPathsHonourXDG (0.00s)
+=== RUN   TestEnsureDirNewIs0700
+--- PASS: TestEnsureDirNewIs0700 (0.00s)
+=== RUN   TestEnsureDirTightensExisting
+--- PASS: TestEnsureDirTightensExisting (0.00s)
+=== RUN   TestEnsureDirRefusesSymlink
+--- PASS: TestEnsureDirRefusesSymlink (0.00s)
+=== RUN   TestEnsureDirRefusesFileInPlace
+--- PASS: TestEnsureDirRefusesFileInPlace (0.00s)
+=== RUN   TestCheckDirSafe
+=== RUN   TestCheckDirSafe/own_dir
+=== RUN   TestCheckDirSafe/other_owner
+=== RUN   TestCheckDirSafe/symlink
+=== RUN   TestCheckDirSafe/regular_file
+--- PASS: TestCheckDirSafe (0.00s)
+    --- PASS: TestCheckDirSafe/own_dir (0.00s)
+    --- PASS: TestCheckDirSafe/other_owner (0.00s)
+    --- PASS: TestCheckDirSafe/symlink (0.00s)
+    --- PASS: TestCheckDirSafe/regular_file (0.00s)
+=== RUN   TestDiscoveryDefaultsOnAndCanBeDisabled
+--- PASS: TestDiscoveryDefaultsOnAndCanBeDisabled (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/config	0.027s
+=== RUN   TestCallRoundTripAndSocketMode
+--- PASS: TestCallRoundTripAndSocketMode (0.00s)
+=== RUN   TestOtherUIDRefused
+--- PASS: TestOtherUIDRefused (0.00s)
+=== RUN   TestRealPeerUIDIsOwnUID
+--- PASS: TestRealPeerUIDIsOwnUID (0.00s)
+=== RUN   TestListenStaleLiveAndNonSocket
+--- PASS: TestListenStaleLiveAndNonSocket (0.00s)
+=== RUN   TestConcurrentListenOneWinner
+--- PASS: TestConcurrentListenOneWinner (0.03s)
+=== RUN   TestAuthorizeRefusesByPeerPID
+--- PASS: TestAuthorizeRefusesByPeerPID (0.00s)
+=== RUN   TestRealPeerPIDIsOwnPID
+--- PASS: TestRealPeerPIDIsOwnPID (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/control	0.057s
+=== RUN   TestAddAuthenticateRevoke
+--- PASS: TestAddAuthenticateRevoke (0.01s)
+=== RUN   TestFileHasOnlyHashAndIs0600
+--- PASS: TestFileHasOnlyHashAndIs0600 (0.00s)
+=== RUN   TestReloadKeepsDevicesAndRevocation
+--- PASS: TestReloadKeepsDevicesAndRevocation (0.01s)
+=== RUN   TestLastSeenWrittenAtMostOncePerMinute
+--- PASS: TestLastSeenWrittenAtMostOncePerMinute (0.02s)
+=== RUN   TestOpenRefusesLooseFile
+--- PASS: TestOpenRefusesLooseFile (0.00s)
+=== RUN   TestOpenRefusesUnknownFields
+--- PASS: TestOpenRefusesUnknownFields (0.00s)
+=== RUN   TestOnRevokeRunsAfterRemovalOnly
+--- PASS: TestOnRevokeRunsAfterRemovalOnly (0.01s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/devices	0.064s
+=== RUN   TestOnlyLANInterfacesAreAnnounced
+--- PASS: TestOnlyLANInterfacesAreAnnounced (0.00s)
+=== RUN   TestTXTAndInstanceName
+--- PASS: TestTXTAndInstanceName (0.00s)
+=== RUN   TestFingerprintHint
+--- PASS: TestFingerprintHint (0.00s)
+=== RUN   TestStartStopFollowsListeners
+--- PASS: TestStartStopFollowsListeners (0.00s)
+=== RUN   TestCloseStopsAll
+--- PASS: TestCloseStopsAll (0.00s)
+=== RUN   TestDisabledAnnouncesNothing
+--- PASS: TestDisabledAnnouncesNothing (0.00s)
+=== RUN   TestStartFailureRetriesWithBackoffAndWarnsOnce
+--- PASS: TestStartFailureRetriesWithBackoffAndWarnsOnce (0.00s)
+=== RUN   TestChangedErrorWarnsAgain
+--- PASS: TestChangedErrorWarnsAgain (0.00s)
+=== RUN   TestBackoffDelays
+--- PASS: TestBackoffDelays (0.00s)
+=== RUN   TestDeadResponderIsRestarted
+--- PASS: TestDeadResponderIsRestarted (0.00s)
+=== RUN   TestFilterDropsForeignPackets
+--- PASS: TestFilterDropsForeignPackets (0.00s)
+=== RUN   TestFilterAnswersOnLinkQueries
+--- PASS: TestFilterAnswersOnLinkQueries (0.00s)
+=== RUN   TestLegacyQueryGetsUnicastReplyWithShortTTL
+--- PASS: TestLegacyQueryGetsUnicastReplyWithShortTTL (0.01s)
+=== RUN   TestFilterDropsOversizedQueries
+--- PASS: TestFilterDropsOversizedQueries (0.00s)
+=== RUN   TestNamespaceResponderStaysOnLAN
+--- PASS: TestNamespaceResponderStaysOnLAN (12.00s)
+=== RUN   TestAnnouncesTwiceThenGoodbyeOnStop
+--- PASS: TestAnnouncesTwiceThenGoodbyeOnStop (0.03s)
+=== RUN   TestStopDuringAnnounceStillSaysGoodbyeLast
+--- PASS: TestStopDuringAnnounceStillSaysGoodbyeLast (0.01s)
+=== RUN   TestMulticastAnswersAreRateLimitedPerRecord
+--- PASS: TestMulticastAnswersAreRateLimitedPerRecord (0.13s)
+=== RUN   TestReadFailureSurfaces
+--- PASS: TestReadFailureSurfaces (0.01s)
+=== RUN   TestRecordSetAndTTLs
+--- PASS: TestRecordSetAndTTLs (0.00s)
+=== RUN   TestGoodbyeHasTTLZero
+--- PASS: TestGoodbyeHasTTLZero (0.00s)
+=== RUN   TestTargetHostIsOurs
+--- PASS: TestTargetHostIsOurs (0.00s)
+=== RUN   TestZoneRefusesNonIPv4
+--- PASS: TestZoneRefusesNonIPv4 (0.00s)
+=== RUN   TestAnswerMatchesOnlyOurQuestions
+--- PASS: TestAnswerMatchesOnlyOurQuestions (0.00s)
+=== RUN   TestNamesCarryFingerprintHint
+--- PASS: TestNamesCarryFingerprintHint (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/discovery	12.197s
+=== RUN   TestAnalysisSuccessCreatesToollessSessionAndDeletes
+--- PASS: TestAnalysisSuccessCreatesToollessSessionAndDeletes (0.51s)
+=== RUN   TestAnalysisToolCountAbortsBeforeSubmit
+--- PASS: TestAnalysisToolCountAbortsBeforeSubmit (0.01s)
+=== RUN   TestAnalysisCreatePinsModelAndBudget
+--- PASS: TestAnalysisCreatePinsModelAndBudget (0.00s)
+=== RUN   TestAnalysisCreateUnusableAnswer
+--- PASS: TestAnalysisCreateUnusableAnswer (0.00s)
+=== RUN   TestAnalysisTimeoutInterrupts
+--- PASS: TestAnalysisTimeoutInterrupts (0.30s)
+=== RUN   TestAnalysisTurnOutcomes
+=== RUN   TestAnalysisTurnOutcomes/interrupted
+=== RUN   TestAnalysisTurnOutcomes/model_error
+=== RUN   TestAnalysisTurnOutcomes/server_request
+=== RUN   TestAnalysisTurnOutcomes/approval_event
+=== RUN   TestAnalysisTurnOutcomes/clarify_event
+=== RUN   TestAnalysisTurnOutcomes/socket_drop
+--- PASS: TestAnalysisTurnOutcomes (0.02s)
+    --- PASS: TestAnalysisTurnOutcomes/interrupted (0.00s)
+    --- PASS: TestAnalysisTurnOutcomes/model_error (0.01s)
+    --- PASS: TestAnalysisTurnOutcomes/server_request (0.00s)
+    --- PASS: TestAnalysisTurnOutcomes/approval_event (0.00s)
+    --- PASS: TestAnalysisTurnOutcomes/clarify_event (0.00s)
+    --- PASS: TestAnalysisTurnOutcomes/socket_drop (0.00s)
+=== RUN   TestAnalysisReplayGapUsesReceipt
+--- PASS: TestAnalysisReplayGapUsesReceipt (0.01s)
+=== RUN   TestAnalysisContextCancelInterrupts
+--- PASS: TestAnalysisContextCancelInterrupts (0.10s)
+=== RUN   TestAnalysisProfileMustBeServed
+--- PASS: TestAnalysisProfileMustBeServed (0.00s)
+=== RUN   TestDeleteAnalysisSessionSweep
+--- PASS: TestDeleteAnalysisSessionSweep (0.00s)
+=== RUN   TestIdentifyAndDialHappyPath
+--- PASS: TestIdentifyAndDialHappyPath (0.00s)
+=== RUN   TestTicketIsSingleUse
+--- PASS: TestTicketIsSingleUse (0.00s)
+=== RUN   TestDialNeverSendsOrigin
+--- PASS: TestDialNeverSendsOrigin (0.00s)
+=== RUN   TestUnsupportedProtocolFailsClosed
+--- PASS: TestUnsupportedProtocolFailsClosed (0.00s)
+=== RUN   TestSocketMissingIsNotRunning
+--- PASS: TestSocketMissingIsNotRunning (0.00s)
+=== RUN   TestStaleSocketFileIsNotRunning
+--- PASS: TestStaleSocketFileIsNotRunning (0.00s)
+=== RUN   TestSocketPathFileIsHonoured
+--- PASS: TestSocketPathFileIsHonoured (0.00s)
+=== RUN   TestRestartRedialsNewOrigin
+--- PASS: TestRestartRedialsNewOrigin (0.00s)
+=== RUN   TestDoMintsFreshTicketPerRequest
+--- PASS: TestDoMintsFreshTicketPerRequest (0.00s)
+=== RUN   TestBackoffMonotonicAndCapped
+--- PASS: TestBackoffMonotonicAndCapped (0.00s)
+=== RUN   TestDoMintsTicketForTargetProfile
+--- PASS: TestDoMintsTicketForTargetProfile (0.00s)
+=== RUN   TestDoUnknownProfileMintsNothing
+--- PASS: TestDoUnknownProfileMintsNothing (0.00s)
+=== RUN   TestDoDoesNotFollowRedirects
+--- PASS: TestDoDoesNotFollowRedirects (0.00s)
+=== RUN   TestDoStripsCallerCredentialHeaders
+--- PASS: TestDoStripsCallerCredentialHeaders (0.00s)
+=== RUN   TestDoStripsNonCanonicalCredentialKeys
+--- PASS: TestDoStripsNonCanonicalCredentialKeys (0.00s)
+=== RUN   TestDoForwardsOnlyAllowlistedHeaders
+--- PASS: TestDoForwardsOnlyAllowlistedHeaders (0.00s)
+=== RUN   TestDialKeepsSeveralPreAckFrames
+--- PASS: TestDialKeepsSeveralPreAckFrames (0.00s)
+=== RUN   TestDialPreAckOverflowFails
+--- PASS: TestDialPreAckOverflowFails (0.00s)
+=== RUN   TestDialAckTimeout
+--- PASS: TestDialAckTimeout (0.20s)
+=== RUN   TestCloseCodesSurface
+--- PASS: TestCloseCodesSurface (0.00s)
+=== RUN   TestCloseCodesSurfaceOnReadAfterDial
+--- PASS: TestCloseCodesSurfaceOnReadAfterDial (0.01s)
+=== RUN   TestSocketDiscoveryPrefersDirectOverStalePointer
+--- PASS: TestSocketDiscoveryPrefersDirectOverStalePointer (0.00s)
+=== RUN   TestStalePointerWithoutDirectIsNotRunning
+--- PASS: TestStalePointerWithoutDirectIsNotRunning (0.00s)
+=== RUN   TestForeignUIDSocketRefused
+--- PASS: TestForeignUIDSocketRefused (0.00s)
+=== RUN   TestControlHonoursContextCancel
+--- PASS: TestControlHonoursContextCancel (0.10s)
+=== RUN   TestDoForwardsPostBody
+--- PASS: TestDoForwardsPostBody (0.00s)
+=== RUN   TestProfileHomeWithoutSocketUsesTheRootGateway
+--- PASS: TestProfileHomeWithoutSocketUsesTheRootGateway (0.01s)
+=== RUN   TestRootGatewayNotServingTheProfileIsNotRunning
+--- PASS: TestRootGatewayNotServingTheProfileIsNotRunning (0.00s)
+=== RUN   TestRootFallbackNeedsAHermesRootAndAProfileName
+--- PASS: TestRootFallbackNeedsAHermesRootAndAProfileName (0.00s)
+=== RUN   TestProfileHomeWithoutAnyGatewayIsNotRunning
+--- PASS: TestProfileHomeWithoutAnyGatewayIsNotRunning (0.00s)
+=== RUN   TestRootFallbackResolvesLinksLikeHermes
+--- PASS: TestRootFallbackResolvesLinksLikeHermes (0.00s)
+=== RUN   TestServesNeedsExactlyOneEntryWithAnID
+--- PASS: TestServesNeedsExactlyOneEntryWithAnID (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/hermes	1.334s
+?   	github.com/justcallmesu/aristotle/server/internal/hermes/hermestest	[no test files]
+=== RUN   TestHealthz
+--- PASS: TestHealthz (0.00s)
+=== RUN   TestMethodAndUnknownPath
+--- PASS: TestMethodAndUnknownPath (0.00s)
+=== RUN   TestLogsOmitBodyAndAuth
+--- PASS: TestLogsOmitBodyAndAuth (0.00s)
+=== RUN   TestLogUsesRouteWithoutQuery
+--- PASS: TestLogUsesRouteWithoutQuery (0.00s)
+=== RUN   TestPCStatusNeedsTokenAndMatchesSection16
+--- PASS: TestPCStatusNeedsTokenAndMatchesSection16 (0.00s)
+=== RUN   TestPCStatusNullsAndAbsent
+--- PASS: TestPCStatusNullsAndAbsent (0.01s)
+=== RUN   TestRelayRouteNeedsDeviceToken
+--- PASS: TestRelayRouteNeedsDeviceToken (0.00s)
+=== RUN   TestRelayRouteAbsentWithoutRelay
+--- PASS: TestRelayRouteAbsentWithoutRelay (0.00s)
+=== RUN   TestUpgradeLoggedWhileSocketOpen
+--- PASS: TestUpgradeLoggedWhileSocketOpen (0.11s)
+=== RUN   TestPairThenMe
+--- PASS: TestPairThenMe (0.00s)
+=== RUN   TestMeServerBlock
+--- PASS: TestMeServerBlock (0.00s)
+=== RUN   TestPairAndAddressesListTheListeners
+--- PASS: TestPairAndAddressesListTheListeners (0.01s)
+=== RUN   TestPairNamePrecedence
+--- PASS: TestPairNamePrecedence (0.01s)
+=== RUN   TestPairRejects
+--- PASS: TestPairRejects (0.01s)
+=== RUN   TestAuth
+--- PASS: TestAuth (0.00s)
+=== RUN   TestRevokeTakesEffectOnNextRequest
+--- PASS: TestRevokeTakesEffectOnNextRequest (0.01s)
+=== RUN   TestLogsNeverHoldSecrets
+--- PASS: TestLogsNeverHoldSecrets (0.01s)
+=== RUN   TestUnmatchedRouteLogsConstant
+--- PASS: TestUnmatchedRouteLogsConstant (0.00s)
+=== RUN   TestLoopbackRouterHasNoV1
+--- PASS: TestLoopbackRouterHasNoV1 (0.00s)
+=== RUN   TestPairNameStripped
+--- PASS: TestPairNameStripped (0.02s)
+=== RUN   TestPairLockoutIsPerPeer
+--- PASS: TestPairLockoutIsPerPeer (0.00s)
+=== RUN   TestPairGlobalCapAndLogThrottle
+--- PASS: TestPairGlobalCapAndLogThrottle (0.00s)
+=== RUN   TestRejectLogOneLinePerInterval
+--- PASS: TestRejectLogOneLinePerInterval (0.00s)
+=== RUN   TestPairSlowBodyCutOff
+--- PASS: TestPairSlowBodyCutOff (0.21s)
+=== RUN   TestSharedRejectLogLimitsAcrossRouters
+--- PASS: TestSharedRejectLogLimitsAcrossRouters (0.00s)
+=== RUN   TestStocksMountNeedsTokenAndHandler
+--- PASS: TestStocksMountNeedsTokenAndHandler (0.00s)
+=== RUN   TestTrackRecordNeedsToken
+--- PASS: TestTrackRecordNeedsToken (0.01s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/httpapi	0.415s
+=== RUN   TestDeviceControlSetsOptionBeforeBind
+--- PASS: TestDeviceControlSetsOptionBeforeBind (0.00s)
+=== RUN   TestDeviceControlFailureRefusesTheBind
+--- PASS: TestDeviceControlFailureRefusesTheBind (0.00s)
+=== RUN   TestSetDeviceOnRealSocket
+--- PASS: TestSetDeviceOnRealSocket (0.00s)
+=== RUN   TestSetDeviceUnknownInterfaceFails
+--- PASS: TestSetDeviceUnknownInterfaceFails (0.00s)
+=== RUN   TestListenConfigPinsSocket
+--- PASS: TestListenConfigPinsSocket (0.00s)
+=== RUN   TestBindTCPPinsToEndpointInterface
+--- PASS: TestBindTCPPinsToEndpointInterface (0.00s)
+=== RUN   TestErrorLogLevels
+--- PASS: TestErrorLogLevels (0.00s)
+=== RUN   TestErrorLogDropsHandshakeNoiseAtInfo
+--- PASS: TestErrorLogDropsHandshakeNoiseAtInfo (0.00s)
+=== RUN   TestManagerServerLogsThroughSlog
+--- PASS: TestManagerServerLogsThroughSlog (0.01s)
+=== RUN   TestClassify
+--- PASS: TestClassify (0.00s)
+=== RUN   TestSelect
+=== RUN   TestSelect/physical_LAN_and_tailscale_tun
+=== RUN   TestSelect/lan_only
+=== RUN   TestSelect/tailscale_only
+=== RUN   TestSelect/none
+=== RUN   TestSelect/allowlist_replaces_the_physical_rule
+=== RUN   TestSelect/allowlist_with_lan_disabled
+--- PASS: TestSelect (0.00s)
+    --- PASS: TestSelect/physical_LAN_and_tailscale_tun (0.00s)
+    --- PASS: TestSelect/lan_only (0.00s)
+    --- PASS: TestSelect/tailscale_only (0.00s)
+    --- PASS: TestSelect/none (0.00s)
+    --- PASS: TestSelect/allowlist_replaces_the_physical_rule (0.00s)
+    --- PASS: TestSelect/allowlist_with_lan_disabled (0.00s)
+=== RUN   TestSelectTailnetRangeNeedsTailscaleTun
+--- PASS: TestSelectTailnetRangeNeedsTailscaleTun (0.00s)
+=== RUN   TestSelectOrderDefaultRouteFirst
+--- PASS: TestSelectOrderDefaultRouteFirst (0.00s)
+=== RUN   TestSelectOneEndpointPerAddress
+--- PASS: TestSelectOneEndpointPerAddress (0.00s)
+=== RUN   TestHostAnnotate
+--- PASS: TestHostAnnotate (0.00s)
+=== RUN   TestParseDefaultRoute
+--- PASS: TestParseDefaultRoute (0.00s)
+=== RUN   TestSystemInterfacesHasAddresses
+--- PASS: TestSystemInterfacesHasAddresses (0.00s)
+=== RUN   TestEndpointURL
+--- PASS: TestEndpointURL (0.00s)
+=== RUN   TestBindTCPRefuses
+--- PASS: TestBindTCPRefuses (0.00s)
+=== RUN   TestPeerGate
+--- PASS: TestPeerGate (0.00s)
+=== RUN   TestManagerAddsAndRemovesOnChange
+--- PASS: TestManagerAddsAndRemovesOnChange (0.00s)
+=== RUN   TestManagerLogsBindFailureOnceAndRetries
+--- PASS: TestManagerLogsBindFailureOnceAndRetries (0.01s)
+=== RUN   TestManagerScanErrorKeepsListeners
+--- PASS: TestManagerScanErrorKeepsListeners (0.00s)
+=== RUN   TestManagerServesWithPeerGateAndStops
+--- PASS: TestManagerServesWithPeerGateAndStops (0.02s)
+=== RUN   TestTailscaleListenerRefusesPlainHTTP
+--- PASS: TestTailscaleListenerRefusesPlainHTTP (0.01s)
+=== RUN   TestManagerWithoutTLSBindsNothing
+--- PASS: TestManagerWithoutTLSBindsNothing (0.01s)
+=== RUN   TestManagerTwoLANListenersStartCleanly
+--- PASS: TestManagerTwoLANListenersStartCleanly (0.06s)
+=== RUN   TestManagerServesThroughWrap
+--- PASS: TestManagerServesThroughWrap (0.01s)
+=== RUN   TestManagerOnChangeFollowsActiveSet
+--- PASS: TestManagerOnChangeFollowsActiveSet (0.01s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/listen	0.129s
+=== RUN   TestCodeAlphabetAndLength
+--- PASS: TestCodeAlphabetAndLength (0.00s)
+=== RUN   TestRedeem
+=== RUN   TestRedeem/exact
+=== RUN   TestRedeem/lower_case_with_hyphen
+=== RUN   TestRedeem/just_before_expiry
+=== RUN   TestRedeem/at_expiry
+=== RUN   TestRedeem/wrong
+=== RUN   TestRedeem/empty
+--- PASS: TestRedeem (0.00s)
+    --- PASS: TestRedeem/exact (0.00s)
+    --- PASS: TestRedeem/lower_case_with_hyphen (0.00s)
+    --- PASS: TestRedeem/just_before_expiry (0.00s)
+    --- PASS: TestRedeem/at_expiry (0.00s)
+    --- PASS: TestRedeem/wrong (0.00s)
+    --- PASS: TestRedeem/empty (0.00s)
+=== RUN   TestNormalizeCrockfordAliases
+--- PASS: TestNormalizeCrockfordAliases (0.00s)
+=== RUN   TestSingleUse
+--- PASS: TestSingleUse (0.00s)
+=== RUN   TestPerPeerLockout
+--- PASS: TestPerPeerLockout (0.00s)
+=== RUN   TestIPv4MappedPeerSharesBucket
+--- PASS: TestIPv4MappedPeerSharesBucket (0.00s)
+=== RUN   TestLockedPeerAttemptsDoNotCount
+--- PASS: TestLockedPeerAttemptsDoNotCount (0.00s)
+=== RUN   TestGlobalCapInvalidates
+--- PASS: TestGlobalCapInvalidates (0.00s)
+=== RUN   TestNineteenSpreadAttemptsKeepCode
+--- PASS: TestNineteenSpreadAttemptsKeepCode (0.00s)
+=== RUN   TestNewCodeReplacesOld
+--- PASS: TestNewCodeReplacesOld (0.00s)
+=== RUN   TestConcurrentRedeemSucceedsOnce
+--- PASS: TestConcurrentRedeemSucceedsOnce (0.00s)
+=== RUN   TestPayloadMatchesTheSharedFixture
+--- PASS: TestPayloadMatchesTheSharedFixture (0.00s)
+=== RUN   TestPayloadCarriesEveryAddressInOrderEscaped
+--- PASS: TestPayloadCarriesEveryAddressInOrderEscaped (0.00s)
+=== RUN   TestPayloadKeepsAtMostEightAddresses
+--- PASS: TestPayloadKeepsAtMostEightAddresses (0.00s)
+=== RUN   TestPayloadUppercasesAnUngroupedFingerprint
+--- PASS: TestPayloadUppercasesAnUngroupedFingerprint (0.00s)
+=== RUN   TestPayloadRefusesBadInput
+--- PASS: TestPayloadRefusesBadInput (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/pairing	0.003s
+=== RUN   TestBattery
+--- PASS: TestBattery (0.00s)
+=== RUN   TestCPU
+--- PASS: TestCPU (0.00s)
+=== RUN   TestMemory
+--- PASS: TestMemory (0.00s)
+=== RUN   TestUptime
+--- PASS: TestUptime (0.00s)
+=== RUN   TestDisk
+--- PASS: TestDisk (0.00s)
+=== RUN   TestStatusAssemblesEveryField
+--- PASS: TestStatusAssemblesEveryField (0.00s)
+=== RUN   TestStatusNullsWhenUnreadable
+--- PASS: TestStatusNullsWhenUnreadable (0.00s)
+=== RUN   TestStatusOtherOSIsNulls
+--- PASS: TestStatusOtherOSIsNulls (0.00s)
+=== RUN   TestSamplerLifecycle
+--- PASS: TestSamplerLifecycle (0.29s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/pcstatus	0.303s
+=== RUN   TestRelaySlowPhoneGetsEveryLargeFrame
+--- PASS: TestRelaySlowPhoneGetsEveryLargeFrame (3.06s)
+=== RUN   TestRelaySlowPhoneKeptByDrainWhilePongsAreLate
+    liveness_test.go:250: read 4718592 bytes in 2.5s
+--- PASS: TestRelaySlowPhoneKeptByDrainWhilePongsAreLate (2.60s)
+=== RUN   TestRelayKeepaliveClosesPhoneThatStopsReadingMidFrame
+--- PASS: TestRelayKeepaliveClosesPhoneThatStopsReadingMidFrame (2.26s)
+=== RUN   TestRelayRevokeCutsStalledPhoneWithinOneSecond
+--- PASS: TestRelayRevokeCutsStalledPhoneWithinOneSecond (0.90s)
+=== RUN   TestRelayKeepaliveClosesDeadPhoneWhileHermesStreams
+    liveness_test.go:398: closed 1011 after 302ms
+    liveness_test.go:398: 7 events written to the dead phone
+--- PASS: TestRelayKeepaliveClosesDeadPhoneWhileHermesStreams (0.31s)
+=== RUN   TestRelayKeepaliveClosesDeadPhoneUnderFastStreamSmallBuffers
+    liveness_test.go:407: closed 1011 after 303ms
+    liveness_test.go:407: 276 events written to the dead phone
+--- PASS: TestRelayKeepaliveClosesDeadPhoneUnderFastStreamSmallBuffers (0.32s)
+=== RUN   TestRelayKeepaliveClosesDeadPhoneUnderCPUAndGCLoad
+    liveness_test.go:475: closed 1011 after 305ms
+    liveness_test.go:475: 171 events written to the dead phone
+--- PASS: TestRelayKeepaliveClosesDeadPhoneUnderCPUAndGCLoad (0.34s)
+=== RUN   TestRelayPingsPhoneWhileForwardingWaitsForHermes
+--- PASS: TestRelayPingsPhoneWhileForwardingWaitsForHermes (0.51s)
+=== RUN   TestTransportOfIsBounded
+--- PASS: TestTransportOfIsBounded (0.00s)
+=== RUN   TestPhoneSocketHasNotSentLowat
+--- PASS: TestPhoneSocketHasNotSentLowat (0.01s)
+=== RUN   TestInspectPhoneRefusesDesktopLocal
+--- PASS: TestInspectPhoneRefusesDesktopLocal (0.00s)
+=== RUN   TestInspectPhoneCountsUnknownMethodsAsOther
+--- PASS: TestInspectPhoneCountsUnknownMethodsAsOther (0.00s)
+=== RUN   TestRelayRefusesDesktopLocal
+--- PASS: TestRelayRefusesDesktopLocal (0.18s)
+=== RUN   TestRedactShapeAPassesByteForByte
+--- PASS: TestRedactShapeAPassesByteForByte (0.00s)
+=== RUN   TestRedactShapeBEvent
+--- PASS: TestRedactShapeBEvent (0.00s)
+=== RUN   TestRedactResults
+--- PASS: TestRedactResults (0.01s)
+=== RUN   TestRedactEventsSinceElements
+--- PASS: TestRedactEventsSinceElements (0.00s)
+=== RUN   TestRedactSystemPromptChars
+--- PASS: TestRedactSystemPromptChars (0.00s)
+=== RUN   TestRedactOnlyListedPaths
+--- PASS: TestRedactOnlyListedPaths (0.00s)
+=== RUN   TestRedactKeepsTextBytes
+--- PASS: TestRedactKeepsTextBytes (0.00s)
+=== RUN   TestRedactRefusesUnparsable
+--- PASS: TestRedactRefusesUnparsable (0.00s)
+=== RUN   TestRedactEveryCapturedFrame
+--- PASS: TestRedactEveryCapturedFrame (0.01s)
+=== RUN   TestRelayHappyPath
+--- PASS: TestRelayHappyPath (0.02s)
+=== RUN   TestRelayOverTLSWithHTTP2Enabled
+--- PASS: TestRelayOverTLSWithHTTP2Enabled (0.01s)
+=== RUN   TestRelayOverTailscaleTLSListenerWatchesWrites
+--- PASS: TestRelayOverTailscaleTLSListenerWatchesWrites (0.01s)
+=== RUN   TestRelayUnauthenticated
+--- PASS: TestRelayUnauthenticated (0.00s)
+=== RUN   TestRelayDialErrorsBecomeCloseCodes
+=== RUN   TestRelayDialErrorsBecomeCloseCodes/not_running
+=== RUN   TestRelayDialErrorsBecomeCloseCodes/unsupported_protocol
+=== RUN   TestRelayDialErrorsBecomeCloseCodes/draining
+=== RUN   TestRelayDialErrorsBecomeCloseCodes/refused
+--- PASS: TestRelayDialErrorsBecomeCloseCodes (0.01s)
+    --- PASS: TestRelayDialErrorsBecomeCloseCodes/not_running (0.00s)
+    --- PASS: TestRelayDialErrorsBecomeCloseCodes/unsupported_protocol (0.00s)
+    --- PASS: TestRelayDialErrorsBecomeCloseCodes/draining (0.00s)
+    --- PASS: TestRelayDialErrorsBecomeCloseCodes/refused (0.00s)
+=== RUN   TestRelayForwardsHermesClose
+--- PASS: TestRelayForwardsHermesClose (0.01s)
+=== RUN   TestRelayRateLimit
+--- PASS: TestRelayRateLimit (0.10s)
+=== RUN   TestWindowAllowsNPerPeriod
+--- PASS: TestWindowAllowsNPerPeriod (0.00s)
+=== RUN   TestRelayFrameLimits
+--- PASS: TestRelayFrameLimits (0.04s)
+=== RUN   TestRelayPerDeviceCap
+--- PASS: TestRelayPerDeviceCap (0.02s)
+=== RUN   TestRelayRevokeClosesWithinOneSecond
+--- PASS: TestRelayRevokeClosesWithinOneSecond (0.02s)
+=== RUN   TestRelayDeviceGoneAtRegisterIsRevoked
+--- PASS: TestRelayDeviceGoneAtRegisterIsRevoked (0.01s)
+=== RUN   TestRelayShutdownClosesGoingAway
+--- PASS: TestRelayShutdownClosesGoingAway (0.01s)
+=== RUN   TestRelayKeepaliveClosesWithoutPong
+--- PASS: TestRelayKeepaliveClosesWithoutPong (0.50s)
+=== RUN   TestRelayKeepaliveKeepsReadingPhoneOpen
+--- PASS: TestRelayKeepaliveKeepsReadingPhoneOpen (0.30s)
+=== RUN   TestRelayNoGoroutineLeak
+    relay_test.go:581: goroutines: 5 before, 5 after 20 cycles
+--- PASS: TestRelayNoGoroutineLeak (0.38s)
+=== RUN   TestRelayAuditLinesHaveNoFrameContent
+--- PASS: TestRelayAuditLinesHaveNoFrameContent (0.02s)
+=== RUN   TestCloseMappings
+--- PASS: TestCloseMappings (0.00s)
+=== RUN   TestRelaySupersededByOtherListener
+--- PASS: TestRelaySupersededByOtherListener (0.01s)
+=== RUN   TestRelaySameListenerTwiceKeepsBoth
+--- PASS: TestRelaySameListenerTwiceKeepsBoth (0.01s)
+=== RUN   TestRelaySwitchAtCapIsAdmitted
+--- PASS: TestRelaySwitchAtCapIsAdmitted (0.01s)
+=== RUN   TestTrackedConnReportsOnlyWritesThatWaited
+--- PASS: TestTrackedConnReportsOnlyWritesThatWaited (0.61s)
+=== RUN   TestTrackedConnCopyAndWritevGoThroughDrainTracking
+=== RUN   TestTrackedConnCopyAndWritevGoThroughDrainTracking/io.Copy
+=== RUN   TestTrackedConnCopyAndWritevGoThroughDrainTracking/net.Buffers
+--- PASS: TestTrackedConnCopyAndWritevGoThroughDrainTracking (0.01s)
+    --- PASS: TestTrackedConnCopyAndWritevGoThroughDrainTracking/io.Copy (0.01s)
+    --- PASS: TestTrackedConnCopyAndWritevGoThroughDrainTracking/net.Buffers (0.00s)
+=== RUN   TestTrackedConnWriteErrorsLookLikeTCPConns
+--- PASS: TestTrackedConnWriteErrorsLookLikeTCPConns (0.00s)
+=== RUN   TestTrackedConnWriteEndsOnDeadlineAndClose
+--- PASS: TestTrackedConnWriteEndsOnDeadlineAndClose (0.21s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/relay	12.838s
+=== RUN   TestUnitText
+--- PASS: TestUnitText (0.00s)
+=== RUN   TestUnitTextQuotesPath
+--- PASS: TestUnitTextQuotesPath (0.00s)
+=== RUN   TestUnitDirXDG
+--- PASS: TestUnitDirXDG (0.00s)
+=== RUN   TestInstallWritesAndEnables
+--- PASS: TestInstallWritesAndEnables (0.00s)
+=== RUN   TestInstallStart
+--- PASS: TestInstallStart (0.00s)
+=== RUN   TestInstallIdempotentSameUnit
+--- PASS: TestInstallIdempotentSameUnit (0.00s)
+=== RUN   TestInstallRefusesDifferentUnitUnlessForce
+--- PASS: TestInstallRefusesDifferentUnitUnlessForce (0.00s)
+=== RUN   TestInstallEnableFailure
+--- PASS: TestInstallEnableFailure (0.00s)
+=== RUN   TestUninstall
+--- PASS: TestUninstall (0.00s)
+=== RUN   TestUninstallWhenNotInstalled
+--- PASS: TestUninstallWhenNotInstalled (0.00s)
+=== RUN   TestState
+--- PASS: TestState (0.00s)
+=== RUN   TestLogs
+--- PASS: TestLogs (0.00s)
+=== RUN   TestUnitTextGolden
+--- PASS: TestUnitTextGolden (0.00s)
+=== RUN   TestUnitTextNoUserNamespaceOptions
+--- PASS: TestUnitTextNoUserNamespaceOptions (0.00s)
+=== RUN   TestInstalledUnitDelegates
+--- PASS: TestInstalledUnitDelegates (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/service	0.006s
+=== RUN   TestWriteAtomicReplacesWith0600
+--- PASS: TestWriteAtomicReplacesWith0600 (0.00s)
+=== RUN   TestWriteAtomicFailureLeavesNoTempAndOtherFilesIntact
+--- PASS: TestWriteAtomicFailureLeavesNoTempAndOtherFilesIntact (0.00s)
+=== RUN   TestWriteAtomicReplacesSymlinkWithoutFollowing
+--- PASS: TestWriteAtomicReplacesSymlinkWithoutFollowing (0.00s)
+=== RUN   TestReadRefuses
+--- PASS: TestReadRefuses (0.00s)
+=== RUN   TestCheckPrivateOtherOwner
+--- PASS: TestCheckPrivateOtherOwner (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/statefile	0.010s
+=== RUN   TestAnalyzeThroughFakeHermes
+--- PASS: TestAnalyzeThroughFakeHermes (0.02s)
+=== RUN   TestAnalyzeSuccessKeepsResult
+--- PASS: TestAnalyzeSuccessKeepsResult (0.03s)
+=== RUN   TestAnalyzeHeldRepairsOnce
+--- PASS: TestAnalyzeHeldRepairsOnce (0.02s)
+=== RUN   TestAnalyzeFailuresKeepLastResult
+=== RUN   TestAnalyzeFailuresKeepLastResult/rejected_twice
+=== RUN   TestAnalyzeFailuresKeepLastResult/invalid_twice
+=== RUN   TestAnalyzeFailuresKeepLastResult/repair_turn_fails
+=== RUN   TestAnalyzeFailuresKeepLastResult/timeout
+=== RUN   TestAnalyzeFailuresKeepLastResult/unexpected_prompt
+=== RUN   TestAnalyzeFailuresKeepLastResult/interrupted
+=== RUN   TestAnalyzeFailuresKeepLastResult/model_error
+=== RUN   TestAnalyzeFailuresKeepLastResult/socket_drop
+=== RUN   TestAnalyzeFailuresKeepLastResult/refused
+=== RUN   TestAnalyzeFailuresKeepLastResult/bad_answer
+=== RUN   TestAnalyzeFailuresKeepLastResult/tools_present
+--- PASS: TestAnalyzeFailuresKeepLastResult (0.39s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/rejected_twice (0.06s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/invalid_twice (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/repair_turn_fails (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/timeout (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/unexpected_prompt (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/interrupted (0.04s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/model_error (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/socket_drop (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/refused (0.04s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/bad_answer (0.03s)
+    --- PASS: TestAnalyzeFailuresKeepLastResult/tools_present (0.04s)
+=== RUN   TestAnalyzePreflightErrors
+--- PASS: TestAnalyzePreflightErrors (0.04s)
+=== RUN   TestAnalyzeOneJobPerCodeTwoInTotal
+--- PASS: TestAnalyzeOneJobPerCodeTwoInTotal (0.06s)
+=== RUN   TestAnalyzeCloseInterruptsRunningJob
+--- PASS: TestAnalyzeCloseInterruptsRunningJob (0.02s)
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted/deleted_after_the_verdict
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted/delete_after_the_verdict_fails
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted/tools_present,_deleted_unused
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted/tools_present,_delete_failed
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted/stopped_after_create
+=== RUN   TestAnalyzeRecordsSessionUntilDeleted/stopped_during_create
+--- PASS: TestAnalyzeRecordsSessionUntilDeleted (0.14s)
+    --- PASS: TestAnalyzeRecordsSessionUntilDeleted/deleted_after_the_verdict (0.05s)
+    --- PASS: TestAnalyzeRecordsSessionUntilDeleted/delete_after_the_verdict_fails (0.03s)
+    --- PASS: TestAnalyzeRecordsSessionUntilDeleted/tools_present,_deleted_unused (0.01s)
+    --- PASS: TestAnalyzeRecordsSessionUntilDeleted/tools_present,_delete_failed (0.01s)
+    --- PASS: TestAnalyzeRecordsSessionUntilDeleted/stopped_after_create (0.02s)
+    --- PASS: TestAnalyzeRecordsSessionUntilDeleted/stopped_during_create (0.02s)
+=== RUN   TestAnalyzeRefusesNewJobsOnceClosing
+--- PASS: TestAnalyzeRefusesNewJobsOnceClosing (0.04s)
+=== RUN   TestSweepDeletesFailedSessionsAfterSevenDays
+--- PASS: TestSweepDeletesFailedSessionsAfterSevenDays (0.02s)
+=== RUN   TestSweepSkipsRefusedAndUnreadableRecords
+--- PASS: TestSweepSkipsRefusedAndUnreadableRecords (0.01s)
+=== RUN   TestKeptResultsCappedNewestWins
+--- PASS: TestKeptResultsCappedNewestWins (0.17s)
+=== RUN   TestUnusableAnalysesFileIsLeftAlone
+--- PASS: TestUnusableAnalysesFileIsLeftAlone (0.00s)
+=== RUN   TestNewerAnalysesFileIsReadOnly
+--- PASS: TestNewerAnalysesFileIsReadOnly (0.00s)
+=== RUN   TestBarsJobFillsStoreAndPrunes
+--- PASS: TestBarsJobFillsStoreAndPrunes (0.05s)
+=== RUN   TestBarsJobStopsOnBlockAndResumesNextDay
+--- PASS: TestBarsJobStopsOnBlockAndResumesNextDay (0.04s)
+=== RUN   TestBarsJobBlockedAtFirstCallAndFailedCodes
+--- PASS: TestBarsJobBlockedAtFirstCallAndFailedCodes (0.06s)
+=== RUN   TestBarStoreCorruptStartsEmpty
+=== RUN   TestBarStoreCorruptStartsEmpty/json
+=== RUN   TestBarStoreCorruptStartsEmpty/version
+=== RUN   TestBarStoreCorruptStartsEmpty/code
+=== RUN   TestBarStoreCorruptStartsEmpty/order
+--- PASS: TestBarStoreCorruptStartsEmpty (0.00s)
+    --- PASS: TestBarStoreCorruptStartsEmpty/json (0.00s)
+    --- PASS: TestBarStoreCorruptStartsEmpty/version (0.00s)
+    --- PASS: TestBarStoreCorruptStartsEmpty/code (0.00s)
+    --- PASS: TestBarStoreCorruptStartsEmpty/order (0.00s)
+=== RUN   TestBarStoreCaps
+--- PASS: TestBarStoreCaps (0.00s)
+=== RUN   TestBarsFresh
+--- PASS: TestBarsFresh (0.00s)
+=== RUN   TestDailyBarsPrefersFreshStore
+--- PASS: TestDailyBarsPrefersFreshStore (0.03s)
+=== RUN   TestChartFreshSkipsCacheAndReportsBlock
+--- PASS: TestChartFreshSkipsCacheAndReportsBlock (0.00s)
+=== RUN   TestBarsCatchUpSkippedWhenStoreFresh
+--- PASS: TestBarsCatchUpSkippedWhenStoreFresh (0.05s)
+=== RUN   TestBarsCatchUpSuppressesTodaysSlot
+--- PASS: TestBarsCatchUpSuppressesTodaysSlot (0.06s)
+=== RUN   TestBarsSetCappedUniverseFirst
+--- PASS: TestBarsSetCappedUniverseFirst (0.02s)
+=== RUN   TestWatchlistEndpoints
+--- PASS: TestWatchlistEndpoints (0.02s)
+=== RUN   TestWatchlistLimitAndBlockedCheck
+--- PASS: TestWatchlistLimitAndBlockedCheck (0.01s)
+=== RUN   TestHoldingsEndpoints
+--- PASS: TestHoldingsEndpoints (0.03s)
+=== RUN   TestHoldingsLimit
+--- PASS: TestHoldingsLimit (0.01s)
+=== RUN   TestSettingsEndpoints
+--- PASS: TestSettingsEndpoints (0.01s)
+=== RUN   TestQuotesEndpoint
+--- PASS: TestQuotesEndpoint (0.02s)
+=== RUN   TestChartEndpoint
+--- PASS: TestChartEndpoint (0.00s)
+=== RUN   TestNewsEndpoint
+--- PASS: TestNewsEndpoint (0.01s)
+=== RUN   TestSearchEndpoint
+--- PASS: TestSearchEndpoint (0.01s)
+=== RUN   TestUnknownRouteAndMethod
+--- PASS: TestUnknownRouteAndMethod (0.00s)
+=== RUN   TestBadStateFileFailsClosed
+--- PASS: TestBadStateFileFailsClosed (0.01s)
+=== RUN   TestLogsCarryNoHoldingValues
+--- PASS: TestLogsCarryNoHoldingValues (0.01s)
+=== RUN   TestMarketStatus
+=== RUN   TestMarketStatus/Thu_pre-open
+=== RUN   TestMarketStatus/Thu_session_1
+=== RUN   TestMarketStatus/Thu_lunch_break
+=== RUN   TestMarketStatus/Thu_session_2
+=== RUN   TestMarketStatus/Thu_after_close
+=== RUN   TestMarketStatus/Fri_session_1_ends_11:30
+=== RUN   TestMarketStatus/Fri_long_break
+=== RUN   TestMarketStatus/Fri_still_break_at_13:45
+=== RUN   TestMarketStatus/Fri_session_2
+=== RUN   TestMarketStatus/Fri_evening_→_Monday
+=== RUN   TestMarketStatus/Saturday
+=== RUN   TestMarketStatus/Christmas_Eve_holiday
+=== RUN   TestMarketStatus/year_end
+=== RUN   TestMarketStatus/Lebaran_week_2027
+--- PASS: TestMarketStatus (0.00s)
+    --- PASS: TestMarketStatus/Thu_pre-open (0.00s)
+    --- PASS: TestMarketStatus/Thu_session_1 (0.00s)
+    --- PASS: TestMarketStatus/Thu_lunch_break (0.00s)
+    --- PASS: TestMarketStatus/Thu_session_2 (0.00s)
+    --- PASS: TestMarketStatus/Thu_after_close (0.00s)
+    --- PASS: TestMarketStatus/Fri_session_1_ends_11:30 (0.00s)
+    --- PASS: TestMarketStatus/Fri_long_break (0.00s)
+    --- PASS: TestMarketStatus/Fri_still_break_at_13:45 (0.00s)
+    --- PASS: TestMarketStatus/Fri_session_2 (0.00s)
+    --- PASS: TestMarketStatus/Fri_evening_→_Monday (0.00s)
+    --- PASS: TestMarketStatus/Saturday (0.00s)
+    --- PASS: TestMarketStatus/Christmas_Eve_holiday (0.00s)
+    --- PASS: TestMarketStatus/year_end (0.00s)
+    --- PASS: TestMarketStatus/Lebaran_week_2027 (0.00s)
+=== RUN   TestHolidays2027Count
+--- PASS: TestHolidays2027Count (0.00s)
+=== RUN   TestTickBands
+--- PASS: TestTickBands (0.00s)
+=== RUN   TestAutoReject
+--- PASS: TestAutoReject (0.00s)
+=== RUN   TestRSIWilderHandComputed
+--- PASS: TestRSIWilderHandComputed (0.00s)
+=== RUN   TestATRWilderHandComputed
+--- PASS: TestATRWilderHandComputed (0.00s)
+=== RUN   TestTrendLabels
+--- PASS: TestTrendLabels (0.00s)
+=== RUN   TestSwingLevelsAndPivot
+--- PASS: TestSwingLevelsAndPivot (0.00s)
+=== RUN   TestTradingMinutesAndSessionDate
+--- PASS: TestTradingMinutesAndSessionDate (0.00s)
+=== RUN   TestComputeIndicatorsDuringSession
+--- PASS: TestComputeIndicatorsDuringSession (0.00s)
+=== RUN   TestComputeIndicatorsAfterCloseUsesOwnClose
+--- PASS: TestComputeIndicatorsAfterCloseUsesOwnClose (0.00s)
+=== RUN   TestComputeIndicatorsEdges
+--- PASS: TestComputeIndicatorsEdges (0.00s)
+=== RUN   TestMatchArticle
+=== RUN   TestMatchArticle/bare_code_is_weak
+=== RUN   TestMatchArticle/(CODE)_is_strong
+=== RUN   TestMatchArticle/after_saham_is_strong
+=== RUN   TestMatchArticle/after_emiten_is_strong
+=== RUN   TestMatchArticle/lower_case_code_is_no_hit
+=== RUN   TestMatchArticle/longer_token_is_no_hit
+=== RUN   TestMatchArticle/full_name_is_strong
+=== RUN   TestMatchArticle/alias_is_weak
+=== RUN   TestMatchArticle/alias_is_case-sensitive
+=== RUN   TestMatchArticle/IHSG_never_a_code
+=== RUN   TestMatchArticle/MSCI_never_a_code
+=== RUN   TestMatchArticle/K-CASH_is_not_CASH
+=== RUN   TestMatchArticle/CASH_as_a_word_needs_context
+=== RUN   TestMatchArticle/CASH_in_parentheses_counts
+=== RUN   TestMatchArticle/emas_as_a_word
+=== RUN   TestMatchArticle/EMAS_after_saham
+=== RUN   TestMatchArticle/bumi_as_a_word
+=== RUN   TestMatchArticle/BUMI_by_full_name
+=== RUN   TestMatchArticle/MINE_as_a_word
+=== RUN   TestMatchArticle/one-word_name_is_weak
+=== RUN   TestMatchArticle/name_inside_a_word_is_no_hit
+=== RUN   TestMatchArticle/several_codes,_strongest_wins
+--- PASS: TestMatchArticle (0.00s)
+    --- PASS: TestMatchArticle/bare_code_is_weak (0.00s)
+    --- PASS: TestMatchArticle/(CODE)_is_strong (0.00s)
+    --- PASS: TestMatchArticle/after_saham_is_strong (0.00s)
+    --- PASS: TestMatchArticle/after_emiten_is_strong (0.00s)
+    --- PASS: TestMatchArticle/lower_case_code_is_no_hit (0.00s)
+    --- PASS: TestMatchArticle/longer_token_is_no_hit (0.00s)
+    --- PASS: TestMatchArticle/full_name_is_strong (0.00s)
+    --- PASS: TestMatchArticle/alias_is_weak (0.00s)
+    --- PASS: TestMatchArticle/alias_is_case-sensitive (0.00s)
+    --- PASS: TestMatchArticle/IHSG_never_a_code (0.00s)
+    --- PASS: TestMatchArticle/MSCI_never_a_code (0.00s)
+    --- PASS: TestMatchArticle/K-CASH_is_not_CASH (0.00s)
+    --- PASS: TestMatchArticle/CASH_as_a_word_needs_context (0.00s)
+    --- PASS: TestMatchArticle/CASH_in_parentheses_counts (0.00s)
+    --- PASS: TestMatchArticle/emas_as_a_word (0.00s)
+    --- PASS: TestMatchArticle/EMAS_after_saham (0.00s)
+    --- PASS: TestMatchArticle/bumi_as_a_word (0.00s)
+    --- PASS: TestMatchArticle/BUMI_by_full_name (0.00s)
+    --- PASS: TestMatchArticle/MINE_as_a_word (0.00s)
+    --- PASS: TestMatchArticle/one-word_name_is_weak (0.00s)
+    --- PASS: TestMatchArticle/name_inside_a_word_is_no_hit (0.00s)
+    --- PASS: TestMatchArticle/several_codes,_strongest_wins (0.00s)
+=== RUN   TestPlainName
+--- PASS: TestPlainName (0.00s)
+=== RUN   TestParseFeeds
+=== RUN   TestParseFeeds/cnbc
+=== RUN   TestParseFeeds/kontan
+=== RUN   TestParseFeeds/idxchannel
+--- PASS: TestParseFeeds (0.00s)
+    --- PASS: TestParseFeeds/cnbc (0.00s)
+    --- PASS: TestParseFeeds/kontan (0.00s)
+    --- PASS: TestParseFeeds/idxchannel (0.00s)
+=== RUN   TestNewsMergeDedupesAndCaps
+--- PASS: TestNewsMergeDedupesAndCaps (0.00s)
+=== RUN   TestNewsPollsOnlyWhileAsked
+--- PASS: TestNewsPollsOnlyWhileAsked (0.02s)
+=== RUN   TestNewsSourceFailureIsReported
+--- PASS: TestNewsSourceFailureIsReported (0.00s)
+=== RUN   TestCostValuePct
+=== RUN   TestCostValuePct/contract_example_§20
+=== RUN   TestCostValuePct/no_fees,_loss
+=== RUN   TestCostValuePct/fractional_avg,_cost_rounds_up
+=== RUN   TestCostValuePct/cost_exactly_half_rounds_up
+=== RUN   TestCostValuePct/value_exactly_half_rounds_up
+=== RUN   TestCostValuePct/max_lots_stays_exact
+--- PASS: TestCostValuePct (0.00s)
+    --- PASS: TestCostValuePct/contract_example_§20 (0.00s)
+    --- PASS: TestCostValuePct/no_fees,_loss (0.00s)
+    --- PASS: TestCostValuePct/fractional_avg,_cost_rounds_up (0.00s)
+    --- PASS: TestCostValuePct/cost_exactly_half_rounds_up (0.00s)
+    --- PASS: TestCostValuePct/value_exactly_half_rounds_up (0.00s)
+    --- PASS: TestCostValuePct/max_lots_stays_exact (0.00s)
+=== RUN   TestPctRoundsHalfAwayFromZero
+--- PASS: TestPctRoundsHalfAwayFromZero (0.00s)
+=== RUN   TestEvaluateWithoutPriceAndTotals
+--- PASS: TestEvaluateWithoutPriceAndTotals (0.00s)
+=== RUN   TestMarketQuotesTTL
+--- PASS: TestMarketQuotesTTL (0.00s)
+=== RUN   TestMarketBackoffServesStaleCache
+--- PASS: TestMarketBackoffServesStaleCache (0.00s)
+=== RUN   TestMarketChartTTLAndStale
+--- PASS: TestMarketChartTTLAndStale (0.00s)
+=== RUN   TestMarketSearchCached
+--- PASS: TestMarketSearchCached (0.00s)
+=== RUN   TestSchedulerAtJobOnTimeOncePerTradingDay
+--- PASS: TestSchedulerAtJobOnTimeOncePerTradingDay (0.02s)
+=== RUN   TestSchedulerHolidaysSkipped
+--- PASS: TestSchedulerHolidaysSkipped (0.01s)
+=== RUN   TestSchedulerSuspendJumpCatchesUpLatestSlotOnce
+--- PASS: TestSchedulerSuspendJumpCatchesUpLatestSlotOnce (0.02s)
+=== RUN   TestSchedulerBootCatchUpAcrossRestarts
+--- PASS: TestSchedulerBootCatchUpAcrossRestarts (0.01s)
+=== RUN   TestSchedulerOffJobNeverCatchesUp
+--- PASS: TestSchedulerOffJobNeverCatchesUp (0.01s)
+=== RUN   TestSchedulerTimeEditRunsOncePerDay
+--- PASS: TestSchedulerTimeEditRunsOncePerDay (0.01s)
+=== RUN   TestSchedulerIntervalJob
+--- PASS: TestSchedulerIntervalJob (0.03s)
+=== RUN   TestSchedulerNoOverlapAndOutcomes
+--- PASS: TestSchedulerNoOverlapAndOutcomes (0.01s)
+=== RUN   TestSchedulerStoredSettings
+--- PASS: TestSchedulerStoredSettings (0.00s)
+=== RUN   TestSchedulerLoopReadsWallClock
+--- PASS: TestSchedulerLoopReadsWallClock (0.01s)
+=== RUN   TestJobsHTTP
+--- PASS: TestJobsHTTP (0.01s)
+=== RUN   TestSchedulerPutDuringRunIsRaceFree
+--- PASS: TestSchedulerPutDuringRunIsRaceFree (0.21s)
+=== RUN   TestSchedulerIntervalLastSlotPersists
+--- PASS: TestSchedulerIntervalLastSlotPersists (0.01s)
+=== RUN   TestSchedulerUnusableFileCatchUpOncePerProcess
+--- PASS: TestSchedulerUnusableFileCatchUpOncePerProcess (0.00s)
+=== RUN   TestSchedulerMinAt
+--- PASS: TestSchedulerMinAt (0.01s)
+=== RUN   TestScoreRecordTable
+=== RUN   TestScoreRecordTable/buy_win_after_the_fill
+=== RUN   TestScoreRecordTable/buy_loss_after_the_fill
+=== RUN   TestScoreRecordTable/a_bar_touching_both_counts_the_stop
+=== RUN   TestScoreRecordTable/a_target_in_the_fill_bar_does_not_count
+=== RUN   TestScoreRecordTable/a_stop_in_the_fill_bar_is_a_loss
+=== RUN   TestScoreRecordTable/buy_closed:_neither_level_by_the_close
+=== RUN   TestScoreRecordTable/buy_not_triggered
+=== RUN   TestScoreRecordTable/look-ahead:_a_14:00_call_ignores_a_10:00_touch
+=== RUN   TestScoreRecordTable/look-ahead:_no_bar_after_the_call_fills_it
+=== RUN   TestScoreRecordTable/daily_fallback:_stop_first
+=== RUN   TestScoreRecordTable/daily_fallback:_a_target_in_the_fill_day_does_not_count
+=== RUN   TestScoreRecordTable/Q125:_a_gap_below_the_zone_fills,_then_the_target
+=== RUN   TestScoreRecordTable/Q125:_a_gap_below_the_zone_and_the_stop_is_a_loss
+=== RUN   TestScoreRecordTable/Q125:_a_gap_below_the_zone,_then_back_up:_closed
+=== RUN   TestScoreRecordTable/Q125:_daily_fallback,_a_day_below_the_zone_fills
+=== RUN   TestScoreRecordTable/a_bar_starting_exactly_at_the_call_does_not_count
+=== RUN   TestScoreRecordTable/daily_fallback:_not_triggered
+=== RUN   TestScoreRecordTable/5m_bars_of_other_days_only:_daily
+=== RUN   TestScoreRecordTable/no_session:_no_bar_at_all
+=== RUN   TestScoreRecordTable/no_session:_other_days_only_(unlisted_holiday)
+=== RUN   TestScoreRecordTable/no_session:_no_info_3d_even_when_later_sessions_exist_(P16)
+=== RUN   TestScoreRecordTable/hold:_stop_first_is_a_loss
+=== RUN   TestScoreRecordTable/hold:_target_first_is_a_win
+=== RUN   TestScoreRecordTable/hold:_both_in_one_bar_is_a_loss
+=== RUN   TestScoreRecordTable/hold_without_a_target:_the_stop_held
+=== RUN   TestScoreRecordTable/hold_daily_fallback:_stop_first
+=== RUN   TestScoreRecordTable/avoid:_close_below_the_price_is_right
+=== RUN   TestScoreRecordTable/avoid:_close_equal_to_the_price_is_right
+=== RUN   TestScoreRecordTable/sell:_close_above_the_price_is_wrong
+=== RUN   TestScoreRecordTable/wait_with_an_entry:_from_entry_high
+=== RUN   TestScoreRecordTable/wait_without_an_entry:_from_the_price
+=== RUN   TestScoreRecordTable/Friday_short_session
+=== RUN   TestScoreRecordTable/a_call_after_16:00_scores_the_next_session
+=== RUN   TestScoreRecordTable/close_from_the_last_5m_bar_without_a_daily_bar
+=== RUN   TestScoreRecordTable/info_3d:_the_third_session_after
+--- PASS: TestScoreRecordTable (0.01s)
+    --- PASS: TestScoreRecordTable/buy_win_after_the_fill (0.00s)
+    --- PASS: TestScoreRecordTable/buy_loss_after_the_fill (0.00s)
+    --- PASS: TestScoreRecordTable/a_bar_touching_both_counts_the_stop (0.00s)
+    --- PASS: TestScoreRecordTable/a_target_in_the_fill_bar_does_not_count (0.00s)
+    --- PASS: TestScoreRecordTable/a_stop_in_the_fill_bar_is_a_loss (0.00s)
+    --- PASS: TestScoreRecordTable/buy_closed:_neither_level_by_the_close (0.00s)
+    --- PASS: TestScoreRecordTable/buy_not_triggered (0.00s)
+    --- PASS: TestScoreRecordTable/look-ahead:_a_14:00_call_ignores_a_10:00_touch (0.00s)
+    --- PASS: TestScoreRecordTable/look-ahead:_no_bar_after_the_call_fills_it (0.00s)
+    --- PASS: TestScoreRecordTable/daily_fallback:_stop_first (0.00s)
+    --- PASS: TestScoreRecordTable/daily_fallback:_a_target_in_the_fill_day_does_not_count (0.00s)
+    --- PASS: TestScoreRecordTable/Q125:_a_gap_below_the_zone_fills,_then_the_target (0.00s)
+    --- PASS: TestScoreRecordTable/Q125:_a_gap_below_the_zone_and_the_stop_is_a_loss (0.00s)
+    --- PASS: TestScoreRecordTable/Q125:_a_gap_below_the_zone,_then_back_up:_closed (0.00s)
+    --- PASS: TestScoreRecordTable/Q125:_daily_fallback,_a_day_below_the_zone_fills (0.00s)
+    --- PASS: TestScoreRecordTable/a_bar_starting_exactly_at_the_call_does_not_count (0.00s)
+    --- PASS: TestScoreRecordTable/daily_fallback:_not_triggered (0.00s)
+    --- PASS: TestScoreRecordTable/5m_bars_of_other_days_only:_daily (0.00s)
+    --- PASS: TestScoreRecordTable/no_session:_no_bar_at_all (0.00s)
+    --- PASS: TestScoreRecordTable/no_session:_other_days_only_(unlisted_holiday) (0.00s)
+    --- PASS: TestScoreRecordTable/no_session:_no_info_3d_even_when_later_sessions_exist_(P16) (0.00s)
+    --- PASS: TestScoreRecordTable/hold:_stop_first_is_a_loss (0.00s)
+    --- PASS: TestScoreRecordTable/hold:_target_first_is_a_win (0.00s)
+    --- PASS: TestScoreRecordTable/hold:_both_in_one_bar_is_a_loss (0.00s)
+    --- PASS: TestScoreRecordTable/hold_without_a_target:_the_stop_held (0.00s)
+    --- PASS: TestScoreRecordTable/hold_daily_fallback:_stop_first (0.00s)
+    --- PASS: TestScoreRecordTable/avoid:_close_below_the_price_is_right (0.00s)
+    --- PASS: TestScoreRecordTable/avoid:_close_equal_to_the_price_is_right (0.00s)
+    --- PASS: TestScoreRecordTable/sell:_close_above_the_price_is_wrong (0.00s)
+    --- PASS: TestScoreRecordTable/wait_with_an_entry:_from_entry_high (0.00s)
+    --- PASS: TestScoreRecordTable/wait_without_an_entry:_from_the_price (0.00s)
+    --- PASS: TestScoreRecordTable/Friday_short_session (0.00s)
+    --- PASS: TestScoreRecordTable/a_call_after_16:00_scores_the_next_session (0.00s)
+    --- PASS: TestScoreRecordTable/close_from_the_last_5m_bar_without_a_daily_bar (0.00s)
+    --- PASS: TestScoreRecordTable/info_3d:_the_third_session_after (0.00s)
+=== RUN   TestInfo3dAcrossWeekendAndHoliday
+--- PASS: TestInfo3dAcrossWeekendAndHoliday (0.00s)
+=== RUN   TestScoreRecordUnscorable
+=== RUN   TestScoreRecordUnscorable/buy_without_levels
+=== RUN   TestScoreRecordUnscorable/bad_session_date
+=== RUN   TestScoreRecordUnscorable/unknown_verdict
+=== RUN   TestScoreRecordUnscorable/buy_entry_low_above_entry_high
+=== RUN   TestScoreRecordUnscorable/buy_price_zero
+=== RUN   TestScoreRecordUnscorable/hold_without_a_stop
+=== RUN   TestScoreRecordUnscorable/bad_analyzed_at
+=== RUN   TestScoreRecordUnscorable/buy_stop_zero
+=== RUN   TestScoreRecordUnscorable/buy_stop_at_entry_low
+=== RUN   TestScoreRecordUnscorable/buy_target_at_entry_high
+=== RUN   TestScoreRecordUnscorable/avoid_price_zero
+--- PASS: TestScoreRecordUnscorable (0.00s)
+    --- PASS: TestScoreRecordUnscorable/buy_without_levels (0.00s)
+    --- PASS: TestScoreRecordUnscorable/bad_session_date (0.00s)
+    --- PASS: TestScoreRecordUnscorable/unknown_verdict (0.00s)
+    --- PASS: TestScoreRecordUnscorable/buy_entry_low_above_entry_high (0.00s)
+    --- PASS: TestScoreRecordUnscorable/buy_price_zero (0.00s)
+    --- PASS: TestScoreRecordUnscorable/hold_without_a_stop (0.00s)
+    --- PASS: TestScoreRecordUnscorable/bad_analyzed_at (0.00s)
+    --- PASS: TestScoreRecordUnscorable/buy_stop_zero (0.00s)
+    --- PASS: TestScoreRecordUnscorable/buy_stop_at_entry_low (0.00s)
+    --- PASS: TestScoreRecordUnscorable/buy_target_at_entry_high (0.00s)
+    --- PASS: TestScoreRecordUnscorable/avoid_price_zero (0.00s)
+=== RUN   TestLaterInfo3dSplitBothWays
+=== RUN   TestLaterInfo3dSplitBothWays/split_1:5
+=== RUN   TestLaterInfo3dSplitBothWays/reverse_split_5:1
+=== RUN   TestLaterInfo3dSplitBothWays/1.1_%_up
+=== RUN   TestLaterInfo3dSplitBothWays/within_1_%
+--- PASS: TestLaterInfo3dSplitBothWays (0.00s)
+    --- PASS: TestLaterInfo3dSplitBothWays/split_1:5 (0.00s)
+    --- PASS: TestLaterInfo3dSplitBothWays/reverse_split_5:1 (0.00s)
+    --- PASS: TestLaterInfo3dSplitBothWays/1.1_%_up (0.00s)
+    --- PASS: TestLaterInfo3dSplitBothWays/within_1_% (0.00s)
+=== RUN   TestEvalIntradayTable
+=== RUN   TestEvalIntradayTable/breakout
+=== RUN   TestEvalIntradayTable/breakout_price_not_above_the_high
+=== RUN   TestEvalIntradayTable/breakout_volume_too_low
+=== RUN   TestEvalIntradayTable/spike_paced_by_market_time
+=== RUN   TestEvalIntradayTable/spike_needs_30_data-min
+=== RUN   TestEvalIntradayTable/breakout_needs_15_data-min
+=== RUN   TestEvalIntradayTable/rsi_rebound
+=== RUN   TestEvalIntradayTable/rsi_below_the_level
+=== RUN   TestEvalIntradayTable/gap_up_BBCA_daily_open
+=== RUN   TestEvalIntradayTable/gap_BBCA_first_5-min_open
+=== RUN   TestEvalIntradayTable/gap_down
+=== RUN   TestEvalIntradayTable/gap_open_unknown
+=== RUN   TestEvalIntradayTable/50_bars
+=== RUN   TestEvalIntradayTable/stale_quote
+=== RUN   TestEvalIntradayTable/no_quote
+=== RUN   TestEvalIntradayTable/prev_close_mismatch
+=== RUN   TestEvalIntradayTable/prev_close_within_a_tick
+=== RUN   TestEvalIntradayTable/at_ara
+--- PASS: TestEvalIntradayTable (0.03s)
+    --- PASS: TestEvalIntradayTable/breakout (0.00s)
+    --- PASS: TestEvalIntradayTable/breakout_price_not_above_the_high (0.00s)
+    --- PASS: TestEvalIntradayTable/breakout_volume_too_low (0.00s)
+    --- PASS: TestEvalIntradayTable/spike_paced_by_market_time (0.00s)
+    --- PASS: TestEvalIntradayTable/spike_needs_30_data-min (0.00s)
+    --- PASS: TestEvalIntradayTable/breakout_needs_15_data-min (0.00s)
+    --- PASS: TestEvalIntradayTable/rsi_rebound (0.00s)
+    --- PASS: TestEvalIntradayTable/rsi_below_the_level (0.00s)
+    --- PASS: TestEvalIntradayTable/gap_up_BBCA_daily_open (0.00s)
+    --- PASS: TestEvalIntradayTable/gap_BBCA_first_5-min_open (0.00s)
+    --- PASS: TestEvalIntradayTable/gap_down (0.01s)
+    --- PASS: TestEvalIntradayTable/gap_open_unknown (0.00s)
+    --- PASS: TestEvalIntradayTable/50_bars (0.00s)
+    --- PASS: TestEvalIntradayTable/stale_quote (0.00s)
+    --- PASS: TestEvalIntradayTable/no_quote (0.00s)
+    --- PASS: TestEvalIntradayTable/prev_close_mismatch (0.00s)
+    --- PASS: TestEvalIntradayTable/prev_close_within_a_tick (0.00s)
+    --- PASS: TestEvalIntradayTable/at_ara (0.00s)
+=== RUN   TestEvalIntradayShowsYesterdaysMACross
+--- PASS: TestEvalIntradayShowsYesterdaysMACross (0.00s)
+=== RUN   TestEvalEODTable
+=== RUN   TestEvalEODTable/breakout_spike_cross
+=== RUN   TestEvalEODTable/breakout_only
+=== RUN   TestEvalEODTable/no_breakout_at_the_high
+=== RUN   TestEvalEODTable/cross_down
+=== RUN   TestEvalEODTable/rsi_rebound
+=== RUN   TestEvalEODTable/too_few_bars
+--- PASS: TestEvalEODTable (0.01s)
+    --- PASS: TestEvalEODTable/breakout_spike_cross (0.00s)
+    --- PASS: TestEvalEODTable/breakout_only (0.00s)
+    --- PASS: TestEvalEODTable/no_breakout_at_the_high (0.00s)
+    --- PASS: TestEvalEODTable/cross_down (0.00s)
+    --- PASS: TestEvalEODTable/rsi_rebound (0.00s)
+    --- PASS: TestEvalEODTable/too_few_bars (0.00s)
+=== RUN   TestRankOrderLiquidityAndFlags
+--- PASS: TestRankOrderLiquidityAndFlags (0.00s)
+=== RUN   TestScreenerWindowsSlots
+--- PASS: TestScreenerWindowsSlots (0.00s)
+=== RUN   TestScreenerSettingsValidation
+=== RUN   TestScreenerSettingsValidation/floor_high
+=== RUN   TestScreenerSettingsValidation/vol_mult
+=== RUN   TestScreenerSettingsValidation/interval_here
+=== RUN   TestScreenerSettingsValidation/missing_inner
+=== RUN   TestScreenerSettingsValidation/lookback_low
+=== RUN   TestScreenerSettingsValidation/lookback_frac
+=== RUN   TestScreenerSettingsValidation/spike_mult
+=== RUN   TestScreenerSettingsValidation/gap_pct
+=== RUN   TestScreenerSettingsValidation/over_4_KiB_pad
+=== RUN   TestScreenerSettingsValidation/rsi_level
+=== RUN   TestScreenerSettingsValidation/wrong_type
+=== RUN   TestScreenerSettingsValidation/empty
+=== RUN   TestScreenerSettingsValidation/two_objects
+=== RUN   TestScreenerSettingsValidation/missing_field
+=== RUN   TestScreenerSettingsValidation/missing_setup
+=== RUN   TestScreenerSettingsValidation/unknown_field
+--- PASS: TestScreenerSettingsValidation (0.02s)
+    --- PASS: TestScreenerSettingsValidation/floor_high (0.00s)
+    --- PASS: TestScreenerSettingsValidation/vol_mult (0.00s)
+    --- PASS: TestScreenerSettingsValidation/interval_here (0.00s)
+    --- PASS: TestScreenerSettingsValidation/missing_inner (0.00s)
+    --- PASS: TestScreenerSettingsValidation/lookback_low (0.00s)
+    --- PASS: TestScreenerSettingsValidation/lookback_frac (0.00s)
+    --- PASS: TestScreenerSettingsValidation/spike_mult (0.00s)
+    --- PASS: TestScreenerSettingsValidation/gap_pct (0.00s)
+    --- PASS: TestScreenerSettingsValidation/over_4_KiB_pad (0.00s)
+    --- PASS: TestScreenerSettingsValidation/rsi_level (0.00s)
+    --- PASS: TestScreenerSettingsValidation/wrong_type (0.00s)
+    --- PASS: TestScreenerSettingsValidation/empty (0.00s)
+    --- PASS: TestScreenerSettingsValidation/two_objects (0.00s)
+    --- PASS: TestScreenerSettingsValidation/missing_field (0.00s)
+    --- PASS: TestScreenerSettingsValidation/missing_setup (0.00s)
+    --- PASS: TestScreenerSettingsValidation/unknown_field (0.00s)
+=== RUN   TestComputeIndicatorsPacesVolumeByMarketTime
+--- PASS: TestComputeIndicatorsPacesVolumeByMarketTime (0.00s)
+=== RUN   TestScreenerNoBarsBeforeFirstBarsRun
+--- PASS: TestScreenerNoBarsBeforeFirstBarsRun (0.06s)
+=== RUN   TestScreenerScanJob
+--- PASS: TestScreenerScanJob (0.12s)
+=== RUN   TestScreenerManualScan
+--- PASS: TestScreenerManualScan (0.03s)
+=== RUN   TestScreenerEODAfterBarsJob
+--- PASS: TestScreenerEODAfterBarsJob (0.07s)
+=== RUN   TestScreenerFileUnusable
+--- PASS: TestScreenerFileUnusable (0.01s)
+=== RUN   TestStateRoundTripAndMode
+--- PASS: TestStateRoundTripAndMode (0.00s)
+=== RUN   TestLoadStateRefusesBadFiles
+=== RUN   TestLoadStateRefusesBadFiles/other_version
+=== RUN   TestLoadStateRefusesBadFiles/unknown_field
+=== RUN   TestLoadStateRefusesBadFiles/bad_code
+=== RUN   TestLoadStateRefusesBadFiles/repeated_code
+=== RUN   TestLoadStateRefusesBadFiles/lots_zero
+=== RUN   TestLoadStateRefusesBadFiles/fee_over_limit
+=== RUN   TestLoadStateRefusesBadFiles/corrupt
+--- PASS: TestLoadStateRefusesBadFiles (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/other_version (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/unknown_field (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/bad_code (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/repeated_code (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/lots_zero (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/fee_over_limit (0.00s)
+    --- PASS: TestLoadStateRefusesBadFiles/corrupt (0.00s)
+=== RUN   TestWatchlistLimitIdempotenceAndReorder
+--- PASS: TestWatchlistLimitIdempotenceAndReorder (0.00s)
+=== RUN   TestHoldingsLimitAndReplace
+--- PASS: TestHoldingsLimitAndReplace (0.00s)
+=== RUN   TestScreenerSettingsRefuseNull
+--- PASS: TestScreenerSettingsRefuseNull (0.02s)
+=== RUN   TestScreenerStaleSettingsRecomputed
+--- PASS: TestScreenerStaleSettingsRecomputed (0.03s)
+=== RUN   TestNoTradeTodayKeepsStoredSignals
+--- PASS: TestNoTradeTodayKeepsStoredSignals (0.00s)
+=== RUN   TestScreenerHitsOriginWatchedAndOpenRetry
+--- PASS: TestScreenerHitsOriginWatchedAndOpenRetry (0.12s)
+=== RUN   TestHoldingLevels
+--- PASS: TestHoldingLevels (0.04s)
+=== RUN   TestAlertsLevelsSetupsAutoRun
+--- PASS: TestAlertsLevelsSetupsAutoRun (0.11s)
+=== RUN   TestAlertsFromEODScreen
+--- PASS: TestAlertsFromEODScreen (0.09s)
+=== RUN   TestAutoRunCapRefusalAndFreshVerdict
+--- PASS: TestAutoRunCapRefusalAndFreshVerdict (0.02s)
+=== RUN   TestAlertsQuietHoursCapsAndJobOff
+--- PASS: TestAlertsQuietHoursCapsAndJobOff (0.18s)
+=== RUN   TestAlertsLongPoll
+--- PASS: TestAlertsLongPoll (1.03s)
+=== RUN   TestNewsAlerts
+--- PASS: TestNewsAlerts (0.02s)
+=== RUN   TestBriefAt0830
+--- PASS: TestBriefAt0830 (0.04s)
+=== RUN   TestBriefRetriesWhileHermesDownUntil0900
+--- PASS: TestBriefRetriesWhileHermesDownUntil0900 (0.06s)
+=== RUN   TestBriefCatchUpBefore0900ElseMissed
+--- PASS: TestBriefCatchUpBefore0900ElseMissed (0.06s)
+=== RUN   TestParseBrief
+--- PASS: TestParseBrief (0.00s)
+=== RUN   TestBriefNeverOnWeekendOrHoliday
+--- PASS: TestBriefNeverOnWeekendOrHoliday (0.04s)
+=== RUN   TestPriceLikeTable
+--- PASS: TestPriceLikeTable (0.00s)
+=== RUN   TestRerankHitUpgradedByScan
+--- PASS: TestRerankHitUpgradedByScan (0.06s)
+=== RUN   TestNoAutoRunsWhenAlertsStateUnusable
+--- PASS: TestNoAutoRunsWhenAlertsStateUnusable (0.01s)
+=== RUN   TestBriefRetriesOnlyBeforeSubmit
+--- PASS: TestBriefRetriesOnlyBeforeSubmit (0.05s)
+=== RUN   TestBriefLateWakeKeepsCutoff
+--- PASS: TestBriefLateWakeKeepsCutoff (0.03s)
+=== RUN   TestAutoRunAbortsOnModelMismatch
+--- PASS: TestAutoRunAbortsOnModelMismatch (0.02s)
+=== RUN   TestPriceLikeYearRules
+--- PASS: TestPriceLikeYearRules (0.00s)
+=== RUN   TestBriefPromptStatesYearRule
+--- PASS: TestBriefPromptStatesYearRule (0.00s)
+=== RUN   TestPriceLikeP9
+--- PASS: TestPriceLikeP9 (0.00s)
+=== RUN   TestBriefPromptP9
+--- PASS: TestBriefPromptP9 (0.00s)
+=== RUN   TestRepairReasonsAreCodesOnly
+--- PASS: TestRepairReasonsAreCodesOnly (0.00s)
+=== RUN   TestAutoRunsStopWhenCounterSaveFails
+--- PASS: TestAutoRunsStopWhenCounterSaveFails (0.01s)
+=== RUN   TestUpgradedHitTakesFiringScoreAndMode
+--- PASS: TestUpgradedHitTakesFiringScoreAndMode (0.01s)
+=== RUN   TestNewsCloseKeepsPollerStopped
+--- PASS: TestNewsCloseKeepsPollerStopped (0.01s)
+=== RUN   TestNewsImageURLNeedsHTTP
+--- PASS: TestNewsImageURLNeedsHTTP (0.00s)
+=== RUN   TestMarketBacksOffOnUpstream5xx
+--- PASS: TestMarketBacksOffOnUpstream5xx (0.00s)
+=== RUN   TestMarketChartCacheEvictsLeastRecentlyUsed
+--- PASS: TestMarketChartCacheEvictsLeastRecentlyUsed (0.00s)
+=== RUN   TestNameFallbackKeepsWordCodeRule
+--- PASS: TestNameFallbackKeepsWordCodeRule (0.00s)
+=== RUN   TestEvaluateZeroCostDoesNotPanic
+--- PASS: TestEvaluateZeroCostDoesNotPanic (0.00s)
+=== RUN   TestCreateWithUnusableAnswerLogsHonestly
+--- PASS: TestCreateWithUnusableAnswerLogsHonestly (0.01s)
+=== RUN   TestSweepSkipsTimedOutDelete
+--- PASS: TestSweepSkipsTimedOutDelete (0.06s)
+=== RUN   TestYahooChartPeriodSendsWindow
+--- PASS: TestYahooChartPeriodSendsWindow (0.00s)
+=== RUN   TestHistoryAppendsOnKeep
+--- PASS: TestHistoryAppendsOnKeep (0.02s)
+=== RUN   TestHistorySeededOnce
+--- PASS: TestHistorySeededOnce (0.03s)
+=== RUN   TestHistoryNewerVersionLeftUntouched
+--- PASS: TestHistoryNewerVersionLeftUntouched (0.01s)
+=== RUN   TestHistoryUnusableFileKeptInMemory
+--- PASS: TestHistoryUnusableFileKeptInMemory (0.01s)
+=== RUN   TestTrackJobSkipsWeekendAndHoliday
+--- PASS: TestTrackJobSkipsWeekendAndHoliday (0.02s)
+=== RUN   TestTrackJobCatchUpScoresMissedSessions
+--- PASS: TestTrackJobCatchUpScoresMissedSessions (0.04s)
+=== RUN   TestTrackJobBlockStopsRun
+--- PASS: TestTrackJobBlockStopsRun (0.04s)
+=== RUN   TestTrackJobFallbacks
+--- PASS: TestTrackJobFallbacks (0.04s)
+=== RUN   TestTrackJobFillsInfo3dLater
+--- PASS: TestTrackJobFillsInfo3dLater (0.05s)
+=== RUN   TestTrackRecordEndpoint
+--- PASS: TestTrackRecordEndpoint (0.02s)
+=== RUN   TestTrackRecordEmpty
+--- PASS: TestTrackRecordEmpty (0.01s)
+=== RUN   TestTrackJobFallsBackOnlyWhenTooOld
+--- PASS: TestTrackJobFallsBackOnlyWhenTooOld (0.05s)
+=== RUN   TestTrackJob422RetriesWithoutOldSessions
+--- PASS: TestTrackJob422RetriesWithoutOldSessions (0.02s)
+=== RUN   TestHistoryUnscorableRecordsSkipped
+=== RUN   TestHistoryUnscorableRecordsSkipped/version_1
+=== RUN   TestHistoryUnscorableRecordsSkipped/version_2
+--- PASS: TestHistoryUnscorableRecordsSkipped (0.04s)
+    --- PASS: TestHistoryUnscorableRecordsSkipped/version_1 (0.02s)
+    --- PASS: TestHistoryUnscorableRecordsSkipped/version_2 (0.02s)
+=== RUN   TestTrackJobGivesUpAfterTenTradingDays
+--- PASS: TestTrackJobGivesUpAfterTenTradingDays (0.04s)
+=== RUN   TestTrackJobNoInfoForNoSession
+--- PASS: TestTrackJobNoInfoForNoSession (0.04s)
+=== RUN   TestTrackJobInfo3dSkipsSplit
+--- PASS: TestTrackJobInfo3dSkipsSplit (0.05s)
+=== RUN   TestTrackJobInfo3dCap
+--- PASS: TestTrackJobInfo3dCap (0.03s)
+=== RUN   TestHistoryApplyNeverOverwritesScore
+--- PASS: TestHistoryApplyNeverOverwritesScore (0.02s)
+=== RUN   TestHistoryKeepDedupes
+--- PASS: TestHistoryKeepDedupes (0.02s)
+=== RUN   TestTrackJobStaleStoreNotUsed
+--- PASS: TestTrackJobStaleStoreNotUsed (0.03s)
+=== RUN   TestTrackJobWaitsForBarsCatchUp
+--- PASS: TestTrackJobWaitsForBarsCatchUp (0.03s)
+=== RUN   TestHistorySeedWaitsForUsableAnalyses
+--- PASS: TestHistorySeedWaitsForUsableAnalyses (0.04s)
+=== RUN   TestTrackJobNetworkErrorAfterOfflineGapGivesUpNothing
+--- PASS: TestTrackJobNetworkErrorAfterOfflineGapGivesUpNothing (0.04s)
+=== RUN   TestTrackJobNetworkDownAtBootGivesUpNothing
+--- PASS: TestTrackJobNetworkDownAtBootGivesUpNothing (0.04s)
+=== RUN   TestTrackJobDailyNetworkErrorStopsRun
+--- PASS: TestTrackJobDailyNetworkErrorStopsRun (0.03s)
+=== RUN   TestTrackJobGivesUpOnlyAfterFailingOnTwoDays
+--- PASS: TestTrackJobGivesUpOnlyAfterFailingOnTwoDays (0.04s)
+=== RUN   TestTrackJobSuccessEndsFailStreak
+--- PASS: TestTrackJobSuccessEndsFailStreak (0.04s)
+=== RUN   TestTrackJobRecent422Waits
+--- PASS: TestTrackJobRecent422Waits (0.04s)
+=== RUN   TestTrackJobInfoOnlyStaleStoreAsks
+--- PASS: TestTrackJobInfoOnlyStaleStoreAsks (0.02s)
+=== RUN   TestHistoryNeverAppendsUnscorable
+--- PASS: TestHistoryNeverAppendsUnscorable (0.01s)
+=== RUN   TestTrackJobGiveUpSurvivesRestart
+--- PASS: TestTrackJobGiveUpSurvivesRestart (0.04s)
+=== RUN   TestTrackJobDailyRestartDoesNotResetStreak
+--- PASS: TestTrackJobDailyRestartDoesNotResetStreak (0.05s)
+=== RUN   TestTrackJobIsolatedFailuresNeverGiveUp
+--- PASS: TestTrackJobIsolatedFailuresNeverGiveUp (0.06s)
+=== RUN   TestTrackJobHardLimitThirtyTradingDays
+--- PASS: TestTrackJobHardLimitThirtyTradingDays (0.04s)
+=== RUN   TestTrackJob403OnOldWindowWaits
+--- PASS: TestTrackJob403OnOldWindowWaits (0.02s)
+=== RUN   TestYahooBodyReadErrorIsNetwork
+--- PASS: TestYahooBodyReadErrorIsNetwork (0.00s)
+=== RUN   TestVerdictsFileStaysC74df38Shape
+--- PASS: TestVerdictsFileStaysC74df38Shape (0.03s)
+=== RUN   TestFailuresLeftInVerdictsFileAreMoved
+--- PASS: TestFailuresLeftInVerdictsFileAreMoved (0.04s)
+=== RUN   TestUnusableFailuresFileIsLeftAlone
+--- PASS: TestUnusableFailuresFileIsLeftAlone (0.02s)
+=== RUN   TestNewerFailuresFileReadNeverWritten
+--- PASS: TestNewerFailuresFileReadNeverWritten (0.02s)
+=== RUN   TestSuccessRemovesFailureEntry
+--- PASS: TestSuccessRemovesFailureEntry (0.03s)
+=== RUN   TestGiveUpRemovesFailureEntry
+--- PASS: TestGiveUpRemovesFailureEntry (0.03s)
+=== RUN   TestFailureStreakOfThreeDaysCrossingTheLimit
+--- PASS: TestFailureStreakOfThreeDaysCrossingTheLimit (0.08s)
+=== RUN   TestHardLimitBoundary
+--- PASS: TestHardLimitBoundary (0.08s)
+=== RUN   TestHardLimitNeedsAnEarlierFailure
+--- PASS: TestHardLimitNeedsAnEarlierFailure (0.03s)
+=== RUN   TestUniverseDefaultIsBundled
+--- PASS: TestUniverseDefaultIsBundled (0.00s)
+=== RUN   TestUniversePutValidatesSavesAndSwitches
+--- PASS: TestUniversePutValidatesSavesAndSwitches (0.01s)
+=== RUN   TestUniversePutRefusals
+--- PASS: TestUniversePutRefusals (0.01s)
+=== RUN   TestUniverseFileAtStart
+--- PASS: TestUniverseFileAtStart (0.01s)
+=== RUN   TestBundledUniverse
+--- PASS: TestBundledUniverse (0.00s)
+=== RUN   TestUniverseSearch
+--- PASS: TestUniverseSearch (0.00s)
+=== RUN   TestParseVerdictAcceptsValidAndFenced
+--- PASS: TestParseVerdictAcceptsValidAndFenced (0.00s)
+=== RUN   TestParseVerdictSchemaErrors
+--- PASS: TestParseVerdictSchemaErrors (0.00s)
+=== RUN   TestCheckVerdict
+--- PASS: TestCheckVerdict (0.00s)
+=== RUN   TestNewsOnlyBuyIsFlaggedAndCapped
+--- PASS: TestNewsOnlyBuyIsFlaggedAndCapped (0.00s)
+=== RUN   TestDuplicateKey
+--- PASS: TestDuplicateKey (0.00s)
+=== RUN   TestAnalysisPrompt
+--- PASS: TestAnalysisPrompt (0.00s)
+=== RUN   TestNewsForCodeStrongFirstAndCapped
+--- PASS: TestNewsForCodeStrongFirstAndCapped (0.00s)
+=== RUN   TestDecodeVersionedStrictForItsVersion
+--- PASS: TestDecodeVersionedStrictForItsVersion (0.00s)
+=== RUN   TestYahooQuotesFromSpark
+--- PASS: TestYahooQuotesFromSpark (0.00s)
+=== RUN   TestYahooQuotesBatchesOf20
+--- PASS: TestYahooQuotesBatchesOf20 (0.00s)
+=== RUN   TestYahooChartDropsNullBars
+--- PASS: TestYahooChartDropsNullBars (0.00s)
+=== RUN   TestYahooDailyChartFillsTodaysClose
+--- PASS: TestYahooDailyChartFillsTodaysClose (0.00s)
+=== RUN   TestPrevCloseRule
+--- PASS: TestPrevCloseRule (0.00s)
+=== RUN   TestYahooErrors
+=== RUN   TestYahooErrors/404_unknown
+=== RUN   TestYahooErrors/429_blocked
+=== RUN   TestYahooErrors/500_upstream
+=== RUN   TestYahooErrors/bad_body
+--- PASS: TestYahooErrors (0.00s)
+    --- PASS: TestYahooErrors/404_unknown (0.00s)
+    --- PASS: TestYahooErrors/429_blocked (0.00s)
+    --- PASS: TestYahooErrors/500_upstream (0.00s)
+    --- PASS: TestYahooErrors/bad_body (0.00s)
+=== RUN   TestYahooSearchKeepsIDXOnly
+--- PASS: TestYahooSearchKeepsIDXOnly (0.00s)
+=== RUN   TestYahooOpenRangeAsksDailyFiveDays
+--- PASS: TestYahooOpenRangeAsksDailyFiveDays (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	5.871s
+=== RUN   TestGrantsCRUDPersistsAtomically
+--- PASS: TestGrantsCRUDPersistsAtomically (0.02s)
+=== RUN   TestGrantsSaveFailure
+--- PASS: TestGrantsSaveFailure (0.01s)
+=== RUN   TestGrantsFileRefusedWhenUnsafeOrCorrupt
+--- PASS: TestGrantsFileRefusedWhenUnsafeOrCorrupt (0.00s)
+=== RUN   TestGrantsFailClosed
+=== RUN   TestGrantsFailClosed/group-readable
+=== RUN   TestGrantsFailClosed/world-readable
+=== RUN   TestGrantsFailClosed/not_json_object
+=== RUN   TestGrantsFailClosed/corrupt
+--- PASS: TestGrantsFailClosed (0.02s)
+    --- PASS: TestGrantsFailClosed/group-readable (0.00s)
+    --- PASS: TestGrantsFailClosed/world-readable (0.01s)
+    --- PASS: TestGrantsFailClosed/not_json_object (0.00s)
+    --- PASS: TestGrantsFailClosed/corrupt (0.00s)
+=== RUN   TestShellEnv
+--- PASS: TestShellEnv (0.00s)
+=== RUN   TestShellEnvScrubsTheDesktopSession
+--- PASS: TestShellEnvScrubsTheDesktopSession (0.00s)
+=== RUN   TestShellEnvKeepsWhatTheConfigNames
+--- PASS: TestShellEnvKeepsWhatTheConfigNames (0.00s)
+=== RUN   TestLoginShell
+--- PASS: TestLoginShell (0.00s)
+=== RUN   TestEchoRoundTripBannerExitAndCleanLogs
+--- PASS: TestEchoRoundTripBannerExitAndCleanLogs (0.05s)
+=== RUN   TestRefusedBeforeUpgrade
+--- PASS: TestRefusedBeforeUpgrade (0.02s)
+=== RUN   TestRaceBeforeRegisterStartsNoShell
+=== RUN   TestRaceBeforeRegisterStartsNoShell/revoke
+=== RUN   TestRaceBeforeRegisterStartsNoShell/disable
+=== RUN   TestRaceBeforeRegisterStartsNoShell/ungrant
+--- PASS: TestRaceBeforeRegisterStartsNoShell (0.04s)
+    --- PASS: TestRaceBeforeRegisterStartsNoShell/revoke (0.01s)
+    --- PASS: TestRaceBeforeRegisterStartsNoShell/disable (0.01s)
+    --- PASS: TestRaceBeforeRegisterStartsNoShell/ungrant (0.01s)
+=== RUN   TestDisableUngrantRevokeKillRunningShell
+=== RUN   TestDisableUngrantRevokeKillRunningShell/disable
+=== RUN   TestDisableUngrantRevokeKillRunningShell/ungrant
+=== RUN   TestDisableUngrantRevokeKillRunningShell/revoke
+--- PASS: TestDisableUngrantRevokeKillRunningShell (0.14s)
+    --- PASS: TestDisableUngrantRevokeKillRunningShell/disable (0.04s)
+    --- PASS: TestDisableUngrantRevokeKillRunningShell/ungrant (0.06s)
+    --- PASS: TestDisableUngrantRevokeKillRunningShell/revoke (0.04s)
+=== RUN   TestRacingDisableLeavesNoProcess
+--- PASS: TestRacingDisableLeavesNoProcess (0.64s)
+=== RUN   TestIdleTimeoutCountsInputOnly
+--- PASS: TestIdleTimeoutCountsInputOnly (0.22s)
+=== RUN   TestMaxSessionLength
+--- PASS: TestMaxSessionLength (0.19s)
+=== RUN   TestPerDeviceAndTotalCaps
+--- PASS: TestPerDeviceAndTotalCaps (0.55s)
+=== RUN   TestClampSize
+--- PASS: TestClampSize (0.00s)
+=== RUN   TestResizeIsClampedOnThePTY
+--- PASS: TestResizeIsClampedOnThePTY (0.10s)
+=== RUN   TestFrameCap
+--- PASS: TestFrameCap (0.19s)
+=== RUN   TestByteRateLetsTypingThroughAndSlowsPastes
+--- PASS: TestByteRateLetsTypingThroughAndSlowsPastes (0.00s)
+=== RUN   TestBackpressureBoundsMemory
+--- PASS: TestBackpressureBoundsMemory (1.65s)
+=== RUN   TestCloseKillsTheSession
+--- PASS: TestCloseKillsTheSession (0.34s)
+=== RUN   TestCloseKillsTheCgroup
+    terminal_test.go:419: no delegated cgroup here (the service's cgroup is not delegated (unit without Delegate=yes, or not run by systemd)); run the test binary with ARISTOTLE_TEST_CGROUP_DELEGATED=1 under systemd-run --user --scope -p Delegate=yes
+--- SKIP: TestCloseKillsTheCgroup (0.00s)
+=== RUN   TestInTerminal
+--- PASS: TestInTerminal (0.24s)
+=== RUN   TestShutdownClosesGoingAwayAndKills
+--- PASS: TestShutdownClosesGoingAwayAndKills (0.04s)
+=== RUN   TestKeepaliveClosesWithoutPong
+--- PASS: TestKeepaliveClosesWithoutPong (2.17s)
+=== RUN   TestKeepaliveKeepsReadingPhone
+--- PASS: TestKeepaliveKeepsReadingPhone (0.43s)
+=== RUN   TestKeepaliveDropsVanishedPhoneWhilePTYWriteBlocks
+--- PASS: TestKeepaliveDropsVanishedPhoneWhilePTYWriteBlocks (3.26s)
+=== RUN   TestKeepaliveKeepsLivePhoneWhilePTYWriteBlocks
+--- PASS: TestKeepaliveKeepsLivePhoneWhilePTYWriteBlocks (3.54s)
+=== RUN   TestInputQueueIsBoundedInBytes
+--- PASS: TestInputQueueIsBoundedInBytes (0.05s)
+=== RUN   TestShellDoesNotInheritTheDesktopSession
+--- PASS: TestShellDoesNotInheritTheDesktopSession (0.03s)
+=== RUN   TestMeFlags
+--- PASS: TestMeFlags (0.01s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/terminal	13.924s
+=== RUN   TestRenderGolden
+--- PASS: TestRenderGolden (0.00s)
+=== RUN   TestRenderIsLosslessWithQuietZone
+--- PASS: TestRenderIsLosslessWithQuietZone (0.00s)
+=== RUN   TestEncodeRefusesTooLongText
+--- PASS: TestEncodeRefusesTooLongText (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/termqr	0.002s
+=== RUN   TestCreatedOnceThenReused
+--- PASS: TestCreatedOnceThenReused (0.00s)
+=== RUN   TestFingerprintFormat
+--- PASS: TestFingerprintFormat (0.00s)
+=== RUN   TestHalfPairNamesTheFileToDelete
+--- PASS: TestHalfPairNamesTheFileToDelete (0.02s)
+=== RUN   TestCorruptPairNamesBothFiles
+--- PASS: TestCorruptPairNamesBothFiles (0.00s)
+=== RUN   TestLooseKeyRefused
+--- PASS: TestLooseKeyRefused (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/tlscert	0.036s
+=== RUN   TestDefaults
+--- PASS: TestDefaults (0.00s)
+=== RUN   TestLine
+--- PASS: TestLine (0.00s)
+PASS
+ok  	github.com/justcallmesu/aristotle/server/internal/version	0.002s

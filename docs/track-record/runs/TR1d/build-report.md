@@ -1,0 +1,8 @@
+# TR1d build report
+- Done: failure runs persist in `stocks-verdicts.json` (`failures`: per code `first`/`last` WIB date, additive, omitempty; `verdictHistory.noteFailure/clearFailure`, saved with `apply`; `failStreaks` removed). A run restarts when `last` < previous trading day; give-up at 10 trading days needs `first` < today; hard limit 30 trading days (`hardGiveUpTradingDays`) gives up any failing code's record (logged `hard_limit`).
+- NIT: `fetch` maps a body-read error after 200 to `reasonNetwork` (stops the run, not a code failure).
+- Tests (`track_test.go`): restart keeps streak, daily restart, isolated failures, 30-day limit, 403 on 52-day window (mutant `tooOld` = status >= 400 fails it, checked on a scratch copy), broken body = network. RED on the old code first (scratch copy).
+- Changed existing `TestTrackJobRecent422Waits`: its 2026-09-14 record is past 30 trading days, so it is now unscorable (source none) and the job status is partial.
+- Docs: `docs/protocol.md` §20.5 Unscorable bullet. Files: `server/internal/stocks/{track,verdicts,yahoo,stocks,track_test}.go`, `docs/protocol.md`.
+- Gate: `GATE_ONLY=server gates.sh` exit 0 (763 tests); `go test -race -count=3 ./internal/stocks/...` ok.
+- **P16b (for the spec):** | P16b | (TR1c review) The give-up streak survives restarts: each failing code's first and last failure date live in `stocks-verdicts.json` (`failures`); a streak restarts when its last failure is older than the previous trading day, so failures weeks apart never give up. Hard limit: a record still unscored 30 trading days after its session is `unscorable` in any run where its code fails. A body read error after a 200 is a network error (stops the run). | PM technical: a daily restart must neither reset nor bypass P16a. |
