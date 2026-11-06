@@ -529,26 +529,26 @@ func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began ti
 	}
 	res := resultFrom(in, v, flags, repaired, sess.Model(), an.svc.now(), time.Since(began))
 	an.keep(code, res)
+	an.deleteSession(sess, "stocks: analysis session not deleted; the sweep retries", "code", code)
+	return &res, ""
+}
+
+// deleteSession deletes a finished session and forgets it; when the delete fails it logs msg (plus attrs and the
+// error code) and leaves the session recorded for the sweep.
+func (an *analyzer) deleteSession(sess AnalystSession, msg string, attrs ...any) {
 	dctx, cancel := context.WithTimeout(context.Background(), analysisCleanup)
 	defer cancel()
 	if err := sess.Delete(dctx); err != nil {
-		an.svc.log.Warn("stocks: analysis session not deleted; the sweep retries", "code", code, "err", hermesErrorCode(err))
-		return &res, ""
+		an.svc.log.Warn(msg, append(attrs, "err", hermesErrorCode(err))...)
+		return
 	}
 	an.forgetSession(sess.ID())
-	return &res, ""
 }
 
 // modelMismatch aborts a run whose session does not run the pinned model (Hermes ignored the pin): the session is
 // deleted unsent (kept for the sweep when the delete fails) and only the code is logged, never a model name or text.
 func (an *analyzer) modelMismatch(code string, sess AnalystSession) string {
-	dctx, cancel := context.WithTimeout(context.Background(), analysisCleanup)
-	defer cancel()
-	if err := sess.Delete(dctx); err != nil {
-		an.svc.log.Warn("stocks: analysis session with the wrong model not deleted; the sweep retries", "code", code, "err", hermesErrorCode(err))
-	} else {
-		an.forgetSession(sess.ID())
-	}
+	an.deleteSession(sess, "stocks: analysis session with the wrong model not deleted; the sweep retries", "code", code)
 	an.svc.log.Warn("stocks: analysis aborted: model_mismatch", "code", code)
 	return "model_error"
 }

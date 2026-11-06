@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -648,6 +649,9 @@ func TestBriefAt0830(t *testing.T) {
 	if strings.Contains(h.logText(), "Pasar menunggu") {
 		t.Fatal("the brief text is in the log")
 	}
+	if lg := h.logText(); !strings.Contains(lg, "brief repair") || !strings.Contains(lg, "reasons=price_like") || strings.Contains(lg, "3.250") {
+		t.Fatalf("repair log lacks the reason code or carries the number: %s", lg)
+	}
 	list := h.expect("GET", "/v1/stocks/briefs", "", 200, "")["briefs"].([]any)
 	if len(list) != 1 || list[0].(map[string]any)["headline"] != "Pasar menunggu, ANTM menarik" {
 		t.Fatalf("briefs = %v", list)
@@ -833,10 +837,13 @@ func TestPriceLikeTable(t *testing.T) {
 		"support di 2050": "2050", "harga 3150": "3150", "target Rp4.900": "4.900", "harga 120": "120", "1.250 dan 99": "1.250",
 		"12.345.678": "12.345.678", "1.234,5": "1.234,5",
 		"4,9 ribu": "4,9", "5k": "5", "12 rb": "12", "naik 3 kali": "", "1,5 juta": "",
-		"volume 150%": "", "volume 150 %": "", "naik 120 persen": "", "RSI 55, naik 2,43 % pada tahun 2026": "",
+		"volume 150%": "", "volume 150 %": "", "naik 120 persen": "", "RSI 55, naik 2,43 % tahun 2026": "",
 		"MA200": "", "di atas MA200 dan EMA50": "", "RSI14 jenuh": "",
 		"tahun 2026": "", "year 2025": "", "FY2026": "", "FY 2026": "", "kuartal Q3 2026": "", "Maret 2026": "", "5 November 2026": "",
-		"Dec 2026": "", "2026 tahun ini": "", "2026-11-05": "", "rilis 2026": "2026", "level 2099": "2099", "pada 2050": "2050",
+		"Dec 2026": "", "2026 tahun ini": "", "2026-11-05": "", "rilis 2026": "2026", "level 2099": "2099",
+		"pada 2050": "2050", "hingga 2050": "2050", "in 2050": "2050", "by 2050": "2050", "until 2050": "2050",
+		"tertahan pada 2050": "2050", "naik hingga 2.050": "2.050", "in 2026": "2026", "by 2026": "2026", "until 2026": "2026",
+		"sejak tahun 2020": "", "akhir tahun 2026": "", "sepanjang 2026": "2026", "akhir 2026": "2026", "awal 2026": "2026", "sejak 2020": "2020",
 	} {
 		if got := strings.Join(priceLike(s), ","); got != want {
 			t.Errorf("priceLike(%q) = %q, want %q", s, got, want)
@@ -1024,5 +1031,135 @@ func TestAutoRunAbortsOnModelMismatch(t *testing.T) {
 	}
 	if len(h.svc.analyzer.kept()) != 0 {
 		t.Fatal("a result was kept")
+	}
+}
+
+// --- TBA1c: no-prices rule tuning and the TBA1b review minors ---
+
+// MINOR-1/2: every year form the prompt invites passes; every price form stays refused.
+func TestPriceLikeYearRules(t *testing.T) {
+	passed := []string{"tahun 2026", "Q3 2026", "FY2025", "5 November 2026", "2026-11-05", "150%", "naik 12 persen", "MA200", "RSI 14", "1.5x", "6/11",
+		"akhir tahun 2026", "sejak tahun 2020", "H1 2026", "H2 2026", "semester I 2026", "semester II 2026", "kuartal III 2026", "kuartal IV 2026", "kuartal I 2026",
+		"Q1 2026", "Q4 2026", "FY 2026", "Mei 2026", "2026F", "2026E", "laba 2026F naik", "6/11/2026", "06/11/2026", "dirilis 2026-11-05 lalu",
+		"MA 200", "EMA 50", "SMA 150", "RSI 14", "2026 tahun ini", "Dec 2026"}
+	for _, s := range passed {
+		if got := priceLike(s); len(got) > 0 {
+			t.Errorf("priceLike(%q) = %v, want none", s, got)
+		}
+	}
+	refused := []string{"support 2.050", "di 2050", "Rp4.900", "Rp.2050", "IDR 2050", "4,9 ribu", "5rb", "2050-an", "range 2010-2050", "level2050",
+		"harga 3150", "rilis 2026", "MA 2050", "FY12345", "Q2050", "2010-2050", "support 2050 2060", "6/11/20260", "tahun2050x level 2050", "Rp 2050", "2026-13-45", "RSI2050",
+		"pada 2050", "hingga 2050", "in 2050", "by 2050", "until 2050", "tertahan pada 2050", "naik hingga 2.050", "in 2026", "by 2026", "until 2026",
+		"sepanjang 2026", "akhir 2026", "awal 2026", "sejak 2026", "since 2026", "outlook 2026"}
+	for _, s := range refused {
+		if got := priceLike(s); len(got) == 0 {
+			t.Errorf("priceLike(%q) passed, want refused", s)
+		}
+	}
+	if got := strings.Join(priceLike("range 2010-2050"), ","); got != "2010,2050" {
+		t.Errorf("range 2010-2050 refused %q", got)
+	}
+}
+
+// MINOR-1: the prompt states the year rule the validator applies.
+func TestBriefPromptStatesYearRule(t *testing.T) {
+	p := briefPrompt(briefInput{date: "2026-11-06", lang: analysisLangID})
+	for _, want := range []string{"A year (1990-2099) is allowed only right after", "2026F/2026E", "full date", "MA 200"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("prompt lacks %q", want)
+		}
+	}
+}
+
+// P9 (TBA1c3): only unambiguous year markers; every non-ASCII digit and every split number is refused.
+func TestPriceLikeP9(t *testing.T) {
+	refused := []string{"target awal 2050", "harga akhir 2050", "naik sejak 2050", "outlook 2050", "Rp 2 050", "Rp 10 000", "2'050",
+		"\uff12\uff10\uff15\uff10", "level \u0662\u0660\u0665\u0660", "20\u00a050", "2\u00a0050", "2\u202f050", "2\u2009050", "Rp 1 200 000"}
+	for _, s := range refused {
+		if len(priceLike(s)) == 0 {
+			t.Errorf("priceLike(%q) passed, want refused", s)
+		}
+	}
+	passed := []string{"akhir tahun 2026", "sejak tahun 2020", "tahun 2026", "November 2026", "Q3 2026", "FY2025", "2026F", "6/11/2026", "2026-11-05",
+		"MA 200", "150%", "naik 12 persen", "H1 2026", "naik 5 50 kali"}
+	for _, s := range passed {
+		if got := priceLike(s); len(got) > 0 {
+			t.Errorf("priceLike(%q) = %v, want none", s, got)
+		}
+	}
+}
+
+// P9: the prompt says the accepted forms and how to write a year.
+func TestBriefPromptP9(t *testing.T) {
+	p := briefPrompt(briefInput{date: "2026-11-06", lang: analysisLangEN})
+	for _, want := range []string{"right after tahun/thn/year, a month name", "`tahun 2026`", "`akhir tahun 2026`", "`sejak tahun 2020`", "split by a space"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("prompt lacks %q", want)
+		}
+	}
+	if strings.Contains(p, "tahun/year/since") {
+		t.Error("prompt still lists price-introducing year words")
+	}
+}
+
+// P9 (b): the repair reason is a code only, countable from the log.
+func TestRepairReasonsAreCodesOnly(t *testing.T) {
+	got := repairReasons([]string{"headline holds a price or number above 99 (3.250): cite the level id instead", "stance must be one of x", "focus[0].note holds a price or number above 99 (2 050): cite"})
+	if strings.Join(got, ",") != "price_like,schema" {
+		t.Fatalf("reasons = %v", got)
+	}
+}
+
+// NIT-2: a counter save that fails at run time (the file loaded fine) stops automatic runs, logged once.
+func TestAutoRunsStopWhenCounterSaveFails(t *testing.T) {
+	fa := &fakeAnalyst{replies: []any{antmReply(), antmReply()}}
+	h := newTBA(t, "2026-11-05T10:00:00+07:00", fa)
+	ae := h.svc.alerts
+	if !ae.persist {
+		t.Fatal("the alerts file should have loaded")
+	}
+	// A non-empty directory where the file goes: the atomic rename fails.
+	path := filepath.Join(h.dir, alertsFile)
+	if err := os.RemoveAll(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(path, "x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, code := range []string{"BBCA", "TLKM"} {
+		ae.proc.Lock()
+		ae.maybeAutoRun(h.clock.Now(), code)
+		ae.proc.Unlock()
+	}
+	if v := ae.autoRunsView(); v.Used != 1 {
+		t.Fatalf("runs after the failed save = %+v, want exactly the one that started", v)
+	}
+	if n := strings.Count(h.logText(), "automatic analyses are off"); n != 1 {
+		t.Fatalf("reason logged %d times: %s", n, h.logText())
+	}
+	if ae.persist {
+		t.Fatal("persist stayed true")
+	}
+}
+
+// NIT-4: an upgraded hit takes the firing run's score and mode, not the re-rank's.
+func TestUpgradedHitTakesFiringScoreAndMode(t *testing.T) {
+	h := newTBA(t, "2026-11-05T21:00:00+07:00", nil)
+	sc := h.svc.screen
+	sig := func() []Signal { return []Signal{{ID: SetupBreakout, Dir: DirUp, Date: "2026-11-05"}} }
+	res := func(mode string, score float64) screenResult {
+		return screenResult{Mode: mode, SessionDate: "2026-11-05", ComputedAt: "2026-11-05T21:00:00+07:00",
+			Candidates: []ScreenCandidate{{Code: "ANTM", Score: score, Setups: sig()}}}
+	}
+	sc.mu.Lock()
+	sc.installLocked(res(ModeIntraday, 1.5), nil, HitRerank)
+	sc.installLocked(res(ModeEOD, 7.25), nil, HitEOD)
+	hits := slices.Clone(sc.doc.Hits)
+	sc.mu.Unlock()
+	if len(hits) != 1 {
+		t.Fatalf("hits = %+v, want one entry", hits)
+	}
+	if g := hits[0]; g.Origin != HitEOD || g.Mode != ModeEOD || g.Score != 7.25 {
+		t.Fatalf("upgraded hit = %+v, want origin eod, mode eod, score 7.25", g)
 	}
 }

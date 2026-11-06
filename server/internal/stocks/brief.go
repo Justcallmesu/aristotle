@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/justcallmesu/aristotle/server/internal/hermes"
@@ -293,9 +294,7 @@ func (b *briefer) runJob(ctx context.Context, run JobRun) error {
 			return ctx.Err()
 		}
 		if !briefRetryable(code, submitted) || !b.svc.now().Add(briefRetryEvery).Before(cutoff) {
-			b.finish(date, nil, code)
-			b.svc.log.Warn("stocks: brief failed", "date", date, "error", code, "tries", tries)
-			return &JobError{Code: code}
+			return b.failJob(date, code, tries)
 		}
 		b.svc.log.Info("stocks: brief waits for Hermes; retry in 5 min", "date", date, "error", code)
 		select {
@@ -305,11 +304,16 @@ func (b *briefer) runJob(ctx context.Context, run JobRun) error {
 			return ctx.Err()
 		}
 		if !b.svc.now().Before(cutoff) { // woken late (a suspend): the 09:00 cutoff holds for every try
-			b.finish(date, nil, code)
-			b.svc.log.Warn("stocks: brief failed", "date", date, "error", code, "tries", tries)
-			return &JobError{Code: code}
+			return b.failJob(date, code, tries)
 		}
 	}
+}
+
+// failJob records the brief as failed with code, logs it (code only) and returns the job error.
+func (b *briefer) failJob(date, code string, tries int) error {
+	b.finish(date, nil, code)
+	b.svc.log.Warn("stocks: brief failed", "date", date, "error", code, "tries", tries)
+	return &JobError{Code: code}
 }
 
 // ready posts the "Brief ready" alert (always notified, Q18).
@@ -380,6 +384,7 @@ func (b *briefer) make(ctx context.Context, date string) (out *briefOutcome, cod
 	repaired := false
 	if len(errs) > 0 {
 		repaired = true
+		s.log.Info("stocks: brief repair", "date", date, "reasons", strings.Join(repairReasons(errs), ","))
 		if reply, err = sess.Ask(ctx, repairPrompt(errs)); err != nil {
 			return nil, hermesErrorCode(err), true
 		}
@@ -387,13 +392,7 @@ func (b *briefer) make(ctx context.Context, date string) (out *briefOutcome, cod
 			return nil, "invalid_brief", true // the session stays recorded: kept 7 days for debugging
 		}
 	}
-	dctx, cancel := context.WithTimeout(context.Background(), analysisCleanup)
-	defer cancel()
-	if err := sess.Delete(dctx); err != nil {
-		s.log.Warn("stocks: brief session not deleted; the sweep retries", "date", date, "err", hermesErrorCode(err))
-	} else {
-		an.forgetSession(sess.ID())
-	}
+	an.deleteSession(sess, "stocks: brief session not deleted; the sweep retries", "date", date)
 	s.log.Info("stocks: brief done", "date", date, "codes", len(in.codes), "news", len(in.news), "focus", len(res.Focus),
 		"repaired", repaired, "duration_ms", time.Since(began).Milliseconds())
 	return &briefOutcome{result: res, refs: in.refs, news: in.news, model: sess.Model(), lang: in.lang, repaired: repaired}, "", true
@@ -633,8 +632,12 @@ func briefPrompt(in briefInput) string {
 		"news may only support them.\n")
 	fmt.Fprintf(&b, "TASK: the brief for the IDX session on %s, before the open. DATA.codes are the user's watchlist and holdings; "+
 		"DATA.screen is the end-of-day screen of %s.\n", in.date, cmp.Or(in.screenDate, "none"))
-	fmt.Fprintf(&b, "RULES: write NO prices and no number above 99 (years excepted) anywhere: name a level by its id (e.g. lvl:BBCA:r1) and "+
-		"the app shows the number. focus: at most %d codes from DATA.codes or DATA.screen.items, each once, stance watch_buy|watch|avoid, "+
+	fmt.Fprintf(&b, "RULES: write NO prices and no number above 99 anywhere: name a level by its id (e.g. lvl:BBCA:r1) and "+
+		"the app shows the number. A year (1990-2099) is allowed only right after tahun/thn/year, "+
+		"a month name, Q1-Q4/H1/H2/FY or semester/kuartal I-IV, right before tahun/thn/year, as 2026F/2026E, or in a full date (6/11/2026, 2026-11-05); "+
+		"write a year as `tahun 2026` (e.g. `akhir tahun 2026`, `sejak tahun 2020`), never `akhir 2026`, `sejak 2020`, `in 2026`. "+
+		"An indicator period only as MA200 or MA 200. Digits other than 0-9 and numbers split by a space or ' are refused too. "+
+		"focus: at most %d codes from DATA.codes or DATA.screen.items, each once, stance watch_buy|watch|avoid, "+
 		"note <= %d chars. news: at most %d, risks: at most %d, text <= %d chars. Every focus, news and risk item cites at least one id "+
 		"from DATA (ind:*, lvl:*, hold:*, vd:*, scr:*, news:*). headline <= %d chars, summary <= %d chars. Write all text in %s. "+
 		"Reply with ONLY this JSON object, no prose, no code fence:\n", maxBriefFocus, maxBriefNote, maxBriefNews, maxBriefRisks,
@@ -681,7 +684,7 @@ func parseBrief(reply string, in briefInput) (BriefResult, []string) {
 			add("%s%s must be 1-%d characters", where, k, maxRunes)
 		}
 		if bad := priceLike(s); len(bad) > 0 {
-			add("%s%s holds a price or number above 99 (%s): cite the level id instead", where, k, strings.Join(bad, ", "))
+			add("%s%s "+priceLikeMessage+" (%s): cite the level id instead", where, k, strings.Join(bad, ", "))
 		}
 		return s
 	}
@@ -756,6 +759,23 @@ func parseBrief(reply string, in briefInput) (BriefResult, []string) {
 	return res, errs
 }
 
+// priceLikeMessage marks the parseBrief error for a price-like number; repairReasons keys on it.
+const priceLikeMessage = "holds a price or number above 99"
+
+// repairReasons maps validator errors to error codes for the log (never the text or the number): price_like for a
+// price-like number, schema for every other check. Sorted, each once.
+func repairReasons(errs []string) []string {
+	set := map[string]bool{}
+	for _, e := range errs {
+		if strings.Contains(e, priceLikeMessage) {
+			set["price_like"] = true
+		} else {
+			set["schema"] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(set))
+}
+
 func exactKeys(m map[string]json.RawMessage, keys []string, where string, add func(string, ...any)) bool {
 	ok := true
 	for _, k := range slices.Sorted(maps.Keys(m)) {
@@ -775,19 +795,31 @@ func exactKeys(m map[string]json.RawMessage, keys []string, where string, add fu
 
 // priceLike lists the numbers in s that could be prices: above 99 once separators are read (4.900, 4,900 and
 // 4900 are 4900; 2,43 is 2.43), and any "<n> ribu|rb|k" (4,9 ribu is 4900). Not price-like: a number followed by
-// % or persen, a number glued to an indicator name (MA200, EMA50), and a year 1990-2099 that stands next to a
-// year word, a month name or Q1-Q4 (a bare 2050 is a price on the IDX).
+// % or persen, a number glued to MA|EMA|SMA|RSI|FY|LQ|IDX|Q|H (MA200, FY2025), an indicator period after its
+// name (MA 200), a full date (6/11/2026, 2026-11-05), and a year 1990-2099 that follows a year or period word
+// (yearBefore), is followed by tahun|thn|year, or carries a forecast suffix (2026F). A bare 2050 is a price on the IDX.
 func priceLike(s string) []string {
-	var out []string
+	out := nonASCIIDigits(s)
+	s = blankDates(s)
+	end := 0
 	for _, loc := range numberRe.FindAllStringIndex(s, -1) {
+		if loc[0] < end {
+			continue // part of a spaced number already reported
+		}
 		tok, before, after := s[loc[0]:loc[1]], s[:loc[0]], s[loc[1]:]
+		if joined, size := spacedGroups(tok, before, after); size > 0 {
+			out = append(out, joined)
+			end = loc[1] + size
+			continue
+		}
 		switch {
 		case thousandsWordRe.MatchString(after):
 			out = append(out, tok)
 		case percentRe.MatchString(after):
 		case numberValue(tok) <= 99:
-		case gluedWord(before) != "" && !strings.EqualFold(gluedWord(before), "rp") && !strings.EqualFold(gluedWord(before), "idr"):
-			// MA200, EMA50, RSI14: an indicator name, not a price
+		case gluedOK(gluedWord(before), tok):
+			// MA200, RSI14, FY2025: an indicator or period name, not a price
+		case indicatorPeriodRe.MatchString(before) && periodRe.MatchString(tok):
 		case isYear(tok) && yearContext(before, after):
 		default:
 			out = append(out, tok)
@@ -796,13 +828,117 @@ func priceLike(s string) []string {
 	return out
 }
 
+// groupSeps split one number into groups: a plain space (3-digit groups only), NBSP, narrow NBSP, thin space, '.
+const groupSeps = " \u00a0\u202f\u2009'"
+
+// nonASCIIDigits lists the runs of non-ASCII digits (fullwidth, Arabic-Indic...) in s: always refused, since the
+// number scan reads ASCII only.
+func nonASCIIDigits(s string) []string {
+	var out []string
+	var run []rune
+	flush := func() {
+		if len(run) > 0 {
+			out = append(out, string(run))
+			run = nil
+		}
+	}
+	for _, r := range s {
+		if unicode.IsDigit(r) && r > '9' {
+			run = append(run, r)
+			continue
+		}
+		flush()
+	}
+	flush()
+	return out
+}
+
+// spacedGroups reads "2 050", "10 000", "2'050" and "20<NBSP>50" as one number: tok followed by separator + digit
+// groups (a plain space only before exactly 3 digits and after a 1-3 digit tok, so "2026 300" and "Q3 2026" are
+// not joined). It returns the joined digits and how many bytes of after it used, or size 0 when the joined value
+// is not above 99 or tok is glued to letters (Q3 2026).
+func spacedGroups(tok, before, after string) (string, int) {
+	if !allDigits(tok) || gluedWord(before) != "" {
+		return "", 0
+	}
+	digits, size := tok, 0
+	for {
+		r, w := utf8.DecodeRuneInString(after[size:])
+		if w == 0 || !strings.ContainsRune(groupSeps, r) {
+			break
+		}
+		g := leadingDigits(after[size+w:])
+		if g == "" || r == ' ' && (len(g) != 3 || len(tok) > 3) {
+			break
+		}
+		digits += g
+		size += w + len(g)
+	}
+	if size == 0 || numberValue(digits) <= 99 {
+		return "", 0
+	}
+	return digits, size
+}
+
+func allDigits(s string) bool { return s != "" && leadingDigits(s) == s }
+
+func leadingDigits(s string) string {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	return s[:i]
+}
+
+// gluedOK: letters glued to a number are an indicator or period name, not a price: MA|EMA|SMA|RSI|LQ|IDX|Q|H + a
+// plain 1-3 digit period (MA200), FY + a year (FY2025). Anything else (level2050, RSI2050) is not.
+func gluedOK(prefix, tok string) bool {
+	switch strings.ToLower(prefix) {
+	case "ma", "ema", "sma", "rsi", "lq", "idx", "q", "h":
+		return periodShortRe.MatchString(tok)
+	case "fy":
+		return isYear(tok)
+	}
+	return false
+}
+
+// blankDates overwrites every full date (6/11/2026, 2026-11-05) with spaces so its parts are not read as numbers.
+func blankDates(s string) string {
+	locs := dateRe.FindAllStringIndex(s, -1)
+	if len(locs) == 0 {
+		return s
+	}
+	b := []byte(s)
+	for _, loc := range locs {
+		if loc[0] > 0 && strings.ContainsRune("0123456789.,/-", rune(s[loc[0]-1])) || loc[1] < len(s) && s[loc[1]] >= '0' && s[loc[1]] <= '9' {
+			continue // part of a longer number (1.2026-11-05), not a date
+		}
+		for i := loc[0]; i < loc[1]; i++ {
+			b[i] = ' '
+		}
+	}
+	return string(b)
+}
+
 var (
-	thousandsWordRe = regexp.MustCompile(`(?i)^\s*(?:ribu|rb|k)\b`)
-	percentRe       = regexp.MustCompile(`(?i)^\s*(?:%|persen\b)`)
-	gluedWordRe     = regexp.MustCompile(`[\p{L}]+$`)
-	wordBeforeRe    = regexp.MustCompile(`[\p{L}\d]+[\s,]*$`)
-	wordAfterRe     = regexp.MustCompile(`^[\s,]*[\p{L}\d]+`)
-	yearWords       = map[string]bool{"tahun": true, "thn": true, "year": true, "fy": true, "q1": true, "q2": true, "q3": true, "q4": true,
+	thousandsWordRe   = regexp.MustCompile(`(?i)^\s*(?:ribu|rb|k)\b`)
+	percentRe         = regexp.MustCompile(`(?i)^\s*(?:%|persen\b)`)
+	gluedWordRe       = regexp.MustCompile(`[\p{L}]+$`)
+	wordBeforeRe      = regexp.MustCompile(`([\p{L}\d]+)[\s,]+$`)
+	wordAfterRe       = regexp.MustCompile(`^[\s,]*([\p{L}\d]+)`)
+	romanBeforeRe     = regexp.MustCompile(`(?i)(?:^|[^\p{L}])(?:semester|kuartal|quarter)\s+(?:i{1,3}|iv)\s+$`)
+	indicatorPeriodRe = regexp.MustCompile(`(?i)(?:^|[^\p{L}])(?:ma|ema|sma|rsi)\s+$`)
+	periodRe          = regexp.MustCompile(`^\d{2,3}$`)
+	periodShortRe     = regexp.MustCompile(`^\d{1,3}$`)
+	forecastRe        = regexp.MustCompile(`^[FEfe](?:$|[^\p{L}\d])`)
+	dateRe            = regexp.MustCompile(`(?:0?[1-9]|[12]\d|3[01])/(?:0?[1-9]|1[0-2])/(?:199\d|20\d\d)|(?:199\d|20\d\d)-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])`)
+
+	// yearAfterWords may follow a year ("2026 tahun ini").
+	yearAfterWords = map[string]bool{"tahun": true, "thn": true, "year": true}
+	// yearBeforeWords may precede a year: only unambiguous markers (P9). Never a word that can also introduce a
+	// price (pada, hingga, in, by, until, akhir, awal, sejak, since, sepanjang, outlook, di).
+	yearBeforeWords = map[string]bool{"tahun": true, "thn": true, "year": true,
+		"h1": true, "h2": true, "fy": true, "q1": true, "q2": true, "q3": true, "q4": true,
 		"january": true, "february": true, "march": true, "april": true, "may": true, "june": true, "july": true, "august": true,
 		"september": true, "october": true, "november": true, "december": true, "januari": true, "februari": true, "maret": true,
 		"mei": true, "juni": true, "juli": true, "agustus": true, "oktober": true, "desember": true,
@@ -830,17 +966,17 @@ func isYear(tok string) bool {
 	return err == nil && len(tok) == 4 && y >= 1990 && y <= 2099
 }
 
-// yearContext: the word right before or after the year is a year word, a month or Q1-Q4, or the year is part of
-// a numeric date (2026-11-05).
+// yearContext: a year word, period word or month right before the year (separated by a space), semester/kuartal
+// I-IV before it, tahun|thn|year right after it, or a forecast suffix (2026F, 2026E).
 func yearContext(before, after string) bool {
-	if w := wordBeforeRe.FindString(before); yearWords[strings.ToLower(strings.TrimRight(w, " \t\n,"))] {
+	if m := wordBeforeRe.FindStringSubmatch(before); m != nil && yearBeforeWords[strings.ToLower(m[1])] {
 		return true
 	}
-	if w := wordAfterRe.FindString(after); yearWords[strings.ToLower(strings.TrimLeft(w, " \t\n,"))] {
+	if romanBeforeRe.MatchString(before) || forecastRe.MatchString(after) {
 		return true
 	}
-	return strings.HasSuffix(before, "-") && len(before) > 1 && before[len(before)-2] >= '0' && before[len(before)-2] <= '9' ||
-		len(after) > 1 && after[0] == '-' && after[1] >= '0' && after[1] <= '9'
+	m := wordAfterRe.FindStringSubmatch(after)
+	return m != nil && yearAfterWords[strings.ToLower(m[1])]
 }
 
 // --- HTTP ---

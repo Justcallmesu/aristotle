@@ -1,0 +1,23 @@
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=667 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=667 failed=0
+SKIP android (0)
+== M1 'akhir' back as a year word (brief.go:940)
+--- FAIL: TestPriceLikeTable (0.00s)
+--- FAIL: TestPriceLikeYearRules (0.00s)
+--- FAIL: TestPriceLikeP9 (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M2 non-ASCII digits not refused (brief.go:802)
+--- FAIL: TestPriceLikeP9 (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== race
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	8.769s

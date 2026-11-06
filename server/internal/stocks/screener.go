@@ -399,7 +399,7 @@ func (sc *screener) installLocked(res screenResult, run *screenRun, origin strin
 	for i, h := range sc.doc.Hits {
 		seen[h.Date+"|"+h.Code+"|"+h.Setup+"|"+h.Dir] = i
 	}
-	upgraded := map[int]bool{} // rerank-only hits fired again by a scan or eod run
+	upgraded := map[int]hitFire{} // rerank-only hits fired again by a scan or eod run, with the firing run's score
 	fresh := origin == HitScan || origin == HitEOD
 	mark := func(code string, watch, held bool, score float64, sigs []Signal) {
 		for i := range sigs {
@@ -407,8 +407,8 @@ func (sc *screener) installLocked(res screenResult, run *screenRun, origin strin
 			key := g.Date + "|" + code + "|" + g.ID + "|" + g.Dir
 			if at, ok := seen[key]; ok {
 				h := &sc.doc.Hits[at]
-				if fresh && h.Origin == HitRerank && !upgraded[at] {
-					upgraded[at] = true
+				if _, done := upgraded[at]; fresh && h.Origin == HitRerank && !done {
+					upgraded[at] = hitFire{score: score, mode: res.Mode}
 				}
 				t := h.DataAsOf
 				g.FirstAt = &t
@@ -455,21 +455,29 @@ func (sc *screener) installLocked(res screenResult, run *screenRun, origin strin
 	}
 }
 
+// hitFire is what the firing scan or eod run knows about a hit: its score and mode.
+type hitFire struct {
+	score float64
+	mode  string
+}
+
 // upgradeHitsLocked re-logs the hits at the given indexes under origin with a new seq at the end of the log, so
-// the alerts cursor reads them again; their data time stays the first fire's.
-func (sc *screener) upgradeHitsLocked(at map[int]bool, origin, now string) {
+// the alerts cursor reads them again; their data time stays the first fire's, their score and mode become the
+// firing run's.
+func (sc *screener) upgradeHitsLocked(at map[int]hitFire, origin, now string) {
 	if len(at) == 0 {
 		return
 	}
 	var moved []ScreenHit
 	kept := make([]ScreenHit, 0, len(sc.doc.Hits))
 	for i, h := range sc.doc.Hits {
-		if !at[i] {
+		fire, ok := at[i]
+		if !ok {
 			kept = append(kept, h)
 			continue
 		}
 		sc.doc.Seq++
-		h.Seq, h.Origin, h.At = sc.doc.Seq, origin, now
+		h.Seq, h.Origin, h.At, h.Score, h.Mode = sc.doc.Seq, origin, now, fire.score, fire.mode
 		moved = append(moved, h)
 	}
 	sc.doc.Hits = append(kept, moved...)

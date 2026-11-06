@@ -165,13 +165,16 @@ func loadAlerts(dir string) (alertsDoc, error) {
 	return doc, nil
 }
 
-func (ae *alertEngine) saveLocked() {
+// saveLocked writes the alerts file and reports a failed write (nil when nothing is persisted).
+func (ae *alertEngine) saveLocked() error {
 	if !ae.persist {
-		return
+		return nil
 	}
-	if err := statefile.WriteAtomic(ae.svc.dir, alertsFile, mustJSON(ae.doc)); err != nil {
+	err := statefile.WriteAtomic(ae.svc.dir, alertsFile, mustJSON(ae.doc))
+	if err != nil {
 		ae.svc.log.Error("stocks: saving alerts failed", "err", err)
 	}
+	return err
 }
 
 func (ae *alertEngine) close() {
@@ -521,7 +524,7 @@ func (ae *alertEngine) maybeAutoRun(now time.Time, code string) {
 	if !persist {
 		// The cap (Q87) must survive a restart: money is spent per run. Without a saved counter, no run starts.
 		if !logged {
-			ae.svc.log.Warn("stocks: automatic analyses are off: the alerts state cannot be saved, so the daily cap could not survive a restart")
+			ae.logRunsOff()
 		}
 		return
 	}
@@ -552,10 +555,21 @@ func (ae *alertEngine) maybeAutoRun(now time.Time, code string) {
 	ae.resetAutoLocked(today)
 	ae.doc.AutoRuns.Used++
 	ae.doc.AutoRuns.Codes = append(ae.doc.AutoRuns.Codes, code)
-	ae.saveLocked()
+	saveErr := ae.saveLocked()
 	used = ae.doc.AutoRuns.Used
+	if saveErr != nil { // the counter is not on disk: a restart would allow more runs, so stop them now
+		ae.persist, ae.noRuns = false, true
+	}
 	ae.mu.Unlock()
+	if saveErr != nil {
+		ae.logRunsOff()
+	}
 	ae.svc.log.Info("stocks: automatic analysis started", "code", code, "used", used, "cap", AutoRunCap)
+}
+
+// logRunsOff logs (once per caller decision) why automatic analyses stopped.
+func (ae *alertEngine) logRunsOff() {
+	ae.svc.log.Warn("stocks: automatic analyses are off: the alerts state cannot be saved, so the daily cap could not survive a restart")
 }
 
 // resetAutoLocked starts a new day's counter at 00:00 WIB.

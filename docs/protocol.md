@@ -1505,7 +1505,9 @@ Code: `server/internal/stocks/{alerts,brief,levels}.go`. Same auth, headers and 
   the server starts an analysis as `POST /v1/stocks/analyze` would (same checks, jobs and result, §20.1) with `trigger:"auto"` on the model
   `claude-sonnet-5-5` pinned in `session.create`. At most 5 a day (`auto_runs`, counted when the job starts, reset at 00:00 WIB, persisted); never
   twice per code per day; skipped while a verdict for today is younger than 60 min. A refusal (`busy`, `analysis_running`, Hermes down, not set
-  up) is not counted; Analyze on the phone and the brief never count.
+  up) is not counted; Analyze on the phone and the brief never count. Automatic runs are off (logged once) while `stocks-alerts.json` is unusable
+  (below) or once a save of the counter fails, so the cap can never be lost on a restart. A session whose model is not the pinned one is deleted
+  unsent: the job fails `model_error` and the run counts toward the cap.
 - **Brief (Q18, Q105, Q108, Q110).** Job `brief` at 08:30 WIB on trading days only (no brief on other days). DATA, from the server's own state
   (bars from the store; Yahoo only when a code's stored bars are not fresh): per watchlist/holding code the last close and
   `ind:<CODE>:close|change_pct|dist_ma20_pct|dist_ma50_pct|rsi14|trend`, `lvl:<CODE>:s1|r1|pivot|ara|arb` (ARA/ARB for today),
@@ -1517,8 +1519,17 @@ Code: `server/internal/stocks/{alerts,brief,levels}.go`. Same auth, headers and 
   fence stripped, must be exactly `{"schema":"stock_brief/1","session_date":<today>,"headline" (1-160),"summary" (1-600),
   "focus":[{"code","stance":"watch_buy|watch|avoid","note" (1-200),"sources":[…]}] (≤ 8, codes from DATA, each once),"news":[{"text" (1-200),
   "sources"}] (≤ 5),"risks":[{"text","sources"}] (≤ 3)}` (no other key, none repeated), every source an id of DATA, and **no price in any
-  text**: a number above 99 once `.`/`,` separators are read (4.900, 4,900, 4900; 2,43 is 2.43) is refused, as is any `<n> ribu|rb|k`; a number followed by `%`/`persen`, an indicator name (MA200)
-  and a year 1990-2099 next to a year word (`tahun`, `year`, `FY`), a month name or `Q1`-`Q4` pass (a bare 2050 is a price); the
+  text**: a number above 99 once `.`/`,` separators are read (4.900, 4,900, 4900; 2,43 is 2.43) is refused, as is any `<n> ribu|rb|k`. These pass:
+  a number followed by `%`/`persen`; an indicator period (`MA200`, `MA 200`, `EMA 50`: only the prefixes `MA|EMA|SMA|RSI|LQ|IDX|Q|H`, `FY` + a year, glued
+  or after one space; `level2050` is refused); a full date (`6/11/2026`, `2026-11-05`; `2010-2050` is not a date); and a year 1990-2099 only right
+  after `tahun|thn|year`, `H1|H2|FY|Q1-Q4`, `semester I-II|kuartal I-IV` or a month name (English or Indonesian), right before `tahun|thn|year`
+  (`2026 tahun ini`), or with an `F`/`E` suffix (`2026F`). Every word that can also introduce a price is not a year marker: `pada`, `hingga`, `in`,
+  `by`, `until`, `akhir`, `awal`, `sejak`, `since`, `sepanjang`, `outlook`, `di`, so `akhir 2026`, `sejak 2020`, `in 2026`, `di 2050`, `2050-an` are
+  prices; the prompt tells the model to write `tahun 2026` (`akhir tahun 2026`, `sejak tahun 2020`). Any digit other than `0-9` (fullwidth,
+  Arabic-Indic...) is refused, and a number split by a space, NBSP (U+00A0), narrow NBSP (U+202F), thin space (U+2009) or `'` is read as one
+  number (`Rp 2 050`, `10 000`, `2'050`) and refused when the joined value is above 99 (a plain space joins only a 1-3 digit start and a group of
+  exactly 3 digits, so `Q3 2026` is not joined). A refused reply costs the one repair turn; the log line `stocks: brief repair` carries the
+  reasons as codes only (`price_like`, `schema`), never the text or a number, to count the repair rate per cause. The
   level is cited by id and the phone renders `refs`. A second failure fails the brief `invalid_brief`. Hermes down (or both analysis slots
   busy): retried every 5 min while the next try is before 09:00 (checked again when the wait ends), then `failed`. Only a try that failed
   before `prompt.submit` (slot, Check, Open) is retried; a failure once the prompt went out (`hermes_lost` mid-turn included) has spent an Opus
@@ -1529,8 +1540,9 @@ Code: `server/internal/stocks/{alerts,brief,levels}.go`. Same auth, headers and 
   "link","published_at"}]}`. `pending` = today (a trading day, the job on) before its run. A failed rerun keeps the day's last good `result`.
   `error` ∈ `hermes_unavailable, busy, analyzer_not_set_up, state_error, no_data` (no watched/held code and no eod screen), `invalid_brief`,
   `interrupted` and the §20.1 turn codes. `400 bad_request` for a bad `date`.
-- **POST brief.** Reruns today's brief at once (on-demand AI, not counted in `auto_runs`): `503 analyzer_not_set_up` (no analyzer), `422 not_trading_day`, then
-  `503 analyzer_not_set_up` / `503 hermes_unavailable` (the Hermes check), `409 brief_running`, `400 bad_request` (a body other than `{"lang"}`).
+- **POST brief.** Reruns today's brief at once (on-demand AI, not counted in `auto_runs`). Checks in this order: the body first (`400 bad_request` for a
+  body other than `{"lang":"id"|"en"}`; a good `lang` is kept even when a later check refuses the POST), `503 analyzer_not_set_up` (no analyzer),
+  `422 not_trading_day`, `503 analyzer_not_set_up` / `503 hermes_unavailable` (the Hermes check), `409 brief_running`.
 - **Storage.** `stocks-alerts.json` (0600, atomic): `{"version":1,"seq","items":[≤ 300, 7 days],"fired":{key:day},"hits_cursor",
   "auto_runs":{"date","used","codes"},"lang"}`; `stocks-briefs.json` (0600, atomic): `{"version":1,"briefs":[≤ 7 records]}` (a record still
   `running` after a restart reads as `failed`/`interrupted`). A file that is not valid version 1 is left untouched and logged; the data then

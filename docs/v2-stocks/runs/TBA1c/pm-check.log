@@ -1,0 +1,36 @@
+== changed paths outside android
+ M docs/protocol.md
+ M docs/v2-stocks/tickets.md
+ M server/internal/stocks/alerts.go
+ M server/internal/stocks/analyzer.go
+ M server/internal/stocks/brief.go
+ M server/internal/stocks/screener.go
+ M server/internal/stocks/tba1_test.go
+?? docs/v2-stocks/runs/TBA1c/
+?? docs/v2-stocks/runs/TBA2/
+?? docs/v2-stocks/runs/TBA2b/
+?? docs/v2-stocks/runs/pm-gate-tba2/
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=664 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=664 failed=0
+SKIP android (0)
+== M1 'pada' back in the year words (brief.go:846)
+--- FAIL: TestPriceLikeTable (0.00s)
+--- FAIL: TestPriceLikeYearRules (0.01s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M2 failed counter save keeps auto runs on (alerts.go:561)
+--- FAIL: TestAutoRunsStopWhenCounterSaveFails (0.02s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== race
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	19.254s
+ok  	github.com/justcallmesu/aristotle/server/internal/hermes	2.820s
+?   	github.com/justcallmesu/aristotle/server/internal/hermes/hermestest	[no test files]
