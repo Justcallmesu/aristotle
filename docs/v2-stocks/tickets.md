@@ -100,3 +100,9 @@
 - 2026-11-06 TBA2+TBA2b re-review CHANGES-REQUIRED: MAJOR-1 picked brief day never resets (process-wide VM; old brief opened from card/notification days later), MAJOR-2 setOnlyAlertOnce mutes every later alert while an older one sits in the tray; MINOR page/card 09:00 mismatch, unpair race not closed. TBA2c = fix round 2 of 2 (std); 60 s quiet window = PM value. Snapshot runs/TBA2c/pre.txt.
 - 2026-11-06 TBA2c built (std, 7 tests RED first). Stray worker sed over app/src checked: all changes under android/ vs pre.txt. pm-gate-tba2c GREEN (1358); mutations quiet-always, stale generation written, open keeps pick -> all killed. Final deep re-review dispatched (fix round cap reached: CHANGES-REQUIRED goes to the user).
 - 2026-11-06 TBA2c final review APPROVED (3 deferrable MINORs -> TBA2d row). TBA2+TBA2b+TBA2c committed with the Phone CHANGELOG line (WhatsNewCardTest run before the commit). Slice 3 code-complete; device checks wait for the user.
+### RESUME POINT (2026-11-06 12:10)
+1. HEAD = origin/master 066914f. Tree clean. Nothing running. Slice 3 code-complete: 3dac6ed (TBA1+1b), 8809c74 (TBA1c+c2+c3, spec P9), 066914f (TBA2+2b+2c).
+2. Open board rows: TBA2d (phone minors, deferred); TS1b/TS3b/TA2b rows are superseded by TM3s/TM3a (DONE).
+3. Device checks waiting for the user: install 066914f on the Poco + update the real server; alerts with the screen off on HyperOS (Keep connected on/off); first real 08:30 brief (time, Opus cost, `repaired`); first automatic Sonnet run; holding stop/target sheet; earlier list (pairing, live Analyze cost, chart edge strips, 1.3x text, Edit list sheet, screener after 16:20). After ~2 weeks of briefs: repair rate per reason from the server log (spec P9 (b)).
+4. Open user confirmation: Q115 (brief card says "Comes at <time>" on a trading day before the slot).
+- 2026-11-06 Resume point written.
