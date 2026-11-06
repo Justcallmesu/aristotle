@@ -1,0 +1,33 @@
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=757 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=757 failed=0
+SKIP android (0)
+== M1 network error does not stop the run (track.go:130)
+--- FAIL: TestTrackJobNetworkErrorAfterOfflineGapGivesUpNothing (0.02s)
+--- FAIL: TestTrackJobNetworkDownAtBootGivesUpNothing (0.02s)
+--- FAIL: TestTrackJobDailyNetworkErrorStopsRun (0.02s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M2 give up on the first failing run (track.go:276)
+NOT APPLIED: marker not found after sed
+rc=2
+== M3 recent-window 422 falls back to daily (track.go:162)
+--- FAIL: TestTrackJob422RetriesWithoutOldSessions (0.03s)
+--- FAIL: TestTrackJobRecent422Waits (0.03s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== race
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	6.907s
+ok  	github.com/justcallmesu/aristotle/server/internal/httpapi	1.467s
+--- FAIL: TestTrackJobGivesUpOnlyAfterFailingOnTwoDays (0.02s)
+--- FAIL: TestTrackJobSuccessEndsFailStreak (0.03s)
+--- FAIL: TestTrackJobRecent422Waits (0.03s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0

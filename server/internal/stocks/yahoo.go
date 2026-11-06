@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -62,7 +63,7 @@ func fetch(ctx context.Context, c *http.Client, u, accept string) ([]byte, error
 	req.Header.Set("Accept", accept)
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, &UpstreamError{Reason: "network"}
+		return nil, &UpstreamError{Reason: reasonNetwork}
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
@@ -261,10 +262,24 @@ func (y *Yahoo) Chart(ctx context.Context, code, rng string) (Chart, error) {
 	if err != nil {
 		return Chart{}, err
 	}
-	return parseChart(body, code, rng)
+	return parseChart(body, code, rng, interval)
 }
 
-func parseChart(body []byte, code, rng string) (Chart, error) {
+// ChartPeriod calls v8/finance/chart for a past window (period1/period2, unix seconds) through the same client and
+// headers as Chart. A day without trading answers 200 with no bars; a 5-minute window older than ~60 days answers 422.
+func (y *Yahoo) ChartPeriod(ctx context.Context, code string, from, to time.Time, interval string) (Chart, error) {
+	if interval != Interval5m && interval != Interval1d {
+		return Chart{}, &UpstreamError{Reason: "bad interval"}
+	}
+	q := url.Values{"interval": {interval}, "period1": {strconv.FormatInt(from.Unix(), 10)}, "period2": {strconv.FormatInt(to.Unix(), 10)}}
+	body, err := y.get(ctx, "/v8/finance/chart/"+url.PathEscape(symbol(code)), q)
+	if err != nil {
+		return Chart{}, err
+	}
+	return parseChart(body, code, PeriodRange, interval)
+}
+
+func parseChart(body []byte, code, rng, interval string) (Chart, error) {
 	var doc yChart
 	if err := json.Unmarshal(body, &doc); err != nil {
 		return Chart{}, &UpstreamError{Reason: "bad chart body"}
@@ -273,7 +288,6 @@ func parseChart(body []byte, code, rng string) (Chart, error) {
 		return Chart{}, ErrUnknownSymbol
 	}
 	r := doc.Chart.Result[0]
-	_, interval, _ := chartParams(rng)
 	ch := Chart{Code: code, Range: rng, Interval: interval, TZ: "Asia/Jakarta", PrevClose: prevClose(r.Meta, rng),
 		Bars: bars(r, interval == "1d"), Name: metaName(r.Meta)}
 	return ch, nil

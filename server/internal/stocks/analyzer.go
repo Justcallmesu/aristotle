@@ -1,15 +1,14 @@
 package stocks
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
+	"maps"
 	"net/http"
 	"slices"
 	"sync"
@@ -190,7 +189,8 @@ type analyzer struct {
 	running int
 	closing bool // close has begun: no new job (and no wg.Add racing its Wait)
 	st      analysesState
-	persist bool // false when the file was unusable or newer: it is left alone and results stay in memory
+	persist bool            // false when the file was unusable or newer: it is left alone and results stay in memory
+	history *verdictHistory // every kept verdict, for the track record (P10)
 }
 
 func newAnalyzer(s *Service, a Analyst, after func(time.Duration) <-chan time.Time) *analyzer {
@@ -200,7 +200,7 @@ func newAnalyzer(s *Service, a Analyst, after func(time.Duration) <-chan time.Ti
 		an.after = time.After
 	}
 	st, err := loadAnalyses(s.dir)
-	var newer *newerAnalysesError
+	var newer *newerFileError
 	switch {
 	case errors.As(err, &newer):
 		an.persist = false
@@ -212,6 +212,8 @@ func newAnalyzer(s *Service, a Analyst, after func(time.Duration) <-chan time.Ti
 		st = emptyAnalyses()
 	}
 	an.st = st
+	// An unusable analyses file is no seed: the history is not created until it is fixed (the seed waits).
+	an.history = loadVerdictHistory(s.dir, s.log, slices.Collect(maps.Values(st.Analyses)), err == nil || newer != nil)
 	if a != nil {
 		an.wg.Go(an.sweepLoop)
 	}
@@ -222,6 +224,8 @@ func emptyAnalyses() analysesState {
 	return analysesState{Version: analysesVersion, Analyses: map[string]AnalysisResult{}, Failed: []failedSession{}}
 }
 
+// loadAnalyses reads stocks-analyses.json. A newer version is returned with a *newerFileError: the analyzer then
+// uses it read-only (after a downgrade: what this version knows, never written back).
 func loadAnalyses(dir string) (analysesState, error) {
 	data, err := statefile.Read(dir, analysesFile)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -230,28 +234,11 @@ func loadAnalyses(dir string) (analysesState, error) {
 	if err != nil {
 		return analysesState{}, err
 	}
-	var head struct {
-		Version int `json:"version"`
-	}
-	if err := json.Unmarshal(data, &head); err != nil {
-		return analysesState{}, fmt.Errorf("%s: %w", analysesFile, err)
-	}
 	var st analysesState
-	switch {
-	case head.Version > analysesVersion:
-		// After a downgrade: read what this version knows (unknown fields ignored), never write it back.
-		if err := json.Unmarshal(data, &st); err != nil {
-			return analysesState{}, fmt.Errorf("%s: %w", analysesFile, err)
-		}
-		err = &newerAnalysesError{version: head.Version}
-	case head.Version != analysesVersion:
-		return analysesState{}, fmt.Errorf("%s: version %d, want %d", analysesFile, head.Version, analysesVersion)
-	default:
-		dec := json.NewDecoder(bytes.NewReader(data))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&st); err != nil {
-			return analysesState{}, fmt.Errorf("%s: %w", analysesFile, err)
-		}
+	err = decodeVersioned(analysesFile, data, analysesVersion, &st)
+	var newer *newerFileError
+	if err != nil && !errors.As(err, &newer) {
+		return analysesState{}, err
 	}
 	if st.Analyses == nil {
 		st.Analyses = map[string]AnalysisResult{}
@@ -266,14 +253,6 @@ func loadAnalyses(dir string) (analysesState, error) {
 		}
 	}
 	return st, err
-}
-
-// newerAnalysesError: the file has a newer version than this server writes. loadAnalyses still returns
-// what it could read; the analyzer then uses it read-only.
-type newerAnalysesError struct{ version int }
-
-func (e *newerAnalysesError) Error() string {
-	return fmt.Sprintf("%s: version %d is newer than %d", analysesFile, e.version, analysesVersion)
 }
 
 // saveLocked writes the file; the caller holds mu.
@@ -709,10 +688,12 @@ func (an *analyzer) keptOne(code string) (AnalysisResult, bool) {
 	return r, ok
 }
 
-// keep stores a result (newest wins; at most maxAnalyses codes, the oldest dropped).
+// keep stores a result (newest wins; at most maxAnalyses codes, the oldest dropped) and appends it to the
+// verdict history (P10).
 func (an *analyzer) keep(code string, res AnalysisResult) {
 	an.mu.Lock()
 	defer an.mu.Unlock()
+	an.history.add(res)
 	an.st.Analyses[code] = res
 	for len(an.st.Analyses) > maxAnalyses {
 		oldest := ""

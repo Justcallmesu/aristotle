@@ -89,8 +89,9 @@ type Service struct {
 	barsPace func(ctx context.Context) error
 	mux      *http.ServeMux
 
-	alerts *alertEngine
-	briefs *briefer
+	alerts     *alertEngine
+	briefs     *briefer
+	trackFails failStreaks // track.score: codes failing since an earlier day (P16a)
 
 	mu        sync.Mutex // guards st and levels; held across a save so writes stay ordered
 	st        State
@@ -158,6 +159,8 @@ func New(o Options) *Service {
 		Editable: []string{EditOn}, Run: s.runAlertsJob})
 	s.sched.register(JobSpec{ID: BriefJobID, At: briefJobAt, TradingDays: true, CatchUp: CatchUpBeforeClose, LateUntil: briefLateUntil,
 		Editable: []string{EditOn, EditAt}, MaxAt: briefMaxAt, Missed: s.briefs.missed, Run: s.briefs.runJob})
+	s.sched.register(JobSpec{ID: TrackJobID, At: trackJobAt, TradingDays: true, CatchUp: CatchUpAlways,
+		Editable: []string{EditOn}, After: BarsJobID, Run: s.runTrackScore}) // scores from the store bars.daily refreshes
 	s.mux = s.routes()
 	return s
 }
@@ -221,6 +224,7 @@ func (s *Service) routes() *http.ServeMux {
 	handle("GET /v1/stocks/brief", s.getBrief)
 	handle("POST /v1/stocks/brief", s.postBrief)
 	handle("GET /v1/stocks/briefs", s.getBriefs)
+	handle("GET /v1/stocks/track-record", s.getTrackRecord)
 	handle("/v1/stocks/", func(*http.Request) (int, any, error) { return 0, nil, errNotFound })
 	return mux
 }

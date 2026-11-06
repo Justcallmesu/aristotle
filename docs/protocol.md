@@ -1336,11 +1336,12 @@ Code: `server/internal/stocks/{scheduler,bars,universe_override}.go`. Same auth,
   "last_error","late","next_run","editable":["on","at"|"every_min"]}`. An "at" job runs once per trading day at `at` (WIB); an interval job
   every `every_min` minutes inside its windows of a trading day. `last_due` = the slot the last run (or miss) was for; `last_run` = when that
   run started; `late` = it was a catch-up; `next_run` = the next slot after now, `null` while `on` is false. `last_error` is a short code
-  (`upstream_blocked`, `codes_failed`, `interrupted`, `state_error`, `internal_error`, …), `null` after `ok` or `missed`.
+  (`upstream_blocked`, `network_error` (§20.5), `codes_failed`, `interrupted`, `state_error`, `internal_error`, …), `null` after `ok` or `missed`.
 - **Jobs now** (in this order). `bars.daily` (default `16:20`, on, editable `on` and `at`; its `at` is 16:15-23:00, the session closes at 16:00),
   `screener.scan` (TSC2, §20.3: 10-min slots in the delay-shifted session windows; the end-of-day screen runs at the end of `bars.daily`), and
   (TBA1, §20.4) `news` (every 10 min 06:00-16:30, editable `on`), `alerts` (every 5 min 08:00-16:30, editable `on`; off = no alert and no
-  automatic run at all) and `brief` (default `08:30`, editable `on` and `at` 05:00-08:45; a late slot runs only before 09:00, else `missed`).
+  automatic run at all) and `brief` (default `08:30`, editable `on` and `at` 05:00-08:45; a late slot runs only before 09:00, else `missed`),
+  and (TR1, §20.5) `track.score` (default `17:00`, editable `on`; catch-up always; never while `bars.daily` runs).
   All on trading days only. `GET /v1/stocks/jobs` also carries `"auto_runs":{"date","used","cap":5,"codes"}` (§20.4).
 - **PUT errors.** `404 unknown_job`; `400 bad_request`: empty body or unknown field, a field not in the job's `editable`, `at` not `HH:MM`
   or outside 05:00-23:00 (`bars.daily`: 16:15-23:00; `brief`: 05:00-08:45), `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
@@ -1548,3 +1549,79 @@ Code: `server/internal/stocks/{alerts,brief,levels}.go`. Same auth, headers and 
   `running` after a restart reads as `failed`/`interrupted`). A file that is not valid version 1 is left untouched and logged; the data then
   lives in memory only. On a first start the hits cursor begins at the newest hit (history is not news).
 - **Logs** carry kinds, codes, counts, states and error codes: never an alert's or the brief's text, the prompt, a verdict or a holding value.
+
+### 20.5 Track record (`/v1/stocks/track-record`, TR1, TR1b, TR1c; spec `docs/track-record/spec.md` Q116-Q120b, Q122, Q125, P10-P16a, research `docs/track-record/runs/TR0/report.md`)
+
+Code: `server/internal/stocks/{verdicts,score,track}.go`, `ChartPeriod` in `{provider,yahoo}.go`. Same auth, headers and error shape as §20.
+New route: no `ProtocolVersion` bump. The phone shows the PC-offline state when the server is down (P14: no cached copy).
+
+| Method, path | Query | Answer |
+|---|---|---|
+| `GET /v1/stocks/track-record` | `?code=BBCA` (optional; `400 bad_code` as §20) | `200 {"summary":[group…],"calls":[record…],"scored_through":"YYYY-MM-DD"\|null,"pending":N}` |
+
+- **History (P10).** `stocks-verdicts.json` (0600, atomic, compact): `{"version":1,"records":[record…]}`, oldest first. The analyzer appends one
+  record each time it keeps a result (§20.1, Analyze and automatic runs alike; `stocks-analyses.json` still keeps only the last per code, Q99).
+  Record: `{"id":"vr_<12 hex>","code","held","analyzed_at","session_date","market_state","model","trigger","verdict","confidence","entry_low",
+  "entry_high","target","stop","price","flags":[…],"score":score|null}`: no summary, reasons, news or indicators. On the first start without
+  the file it is seeded from the results `stocks-analyses.json` holds (deduplicated by code + `analyzed_at`; a result that cannot be scored is
+  skipped and logged); never again. While `stocks-analyses.json` is unusable no history file is created (the seed waits; new records in
+  memory, logged). Records are never rewritten except to attach their score (and later its `info_3d_pct`). A newer-version file is read but
+  never written (new records in memory, logged); any other unusable file (bad JSON or version, a record without `id` or a valid `code`, over
+  8 MiB) is left untouched and the history lives in memory (logged). Every record read (any file version) is checked for scoring: an RFC 3339
+  `analyzed_at`, a valid `session_date`, a `price` > 0 and the levels its verdict needs (§20.1: `buy_today`/`add` entry, target, stop with
+  stop < entry_low ≤ entry_high < target; `hold` a stop). One that fails is kept as it is, logged once at start (code only) and never scored.
+- **Score.** `{"rule":1,"source":"5m"|"daily"|"none","outcome","result_pct"|null,"close"|null,"info_3d_pct"|null,"scored_at"}`, never recomputed
+  (P13; a new `rule` would score only new records). Window = the record's `session_date` (Q117; a call after 16:00, on a weekend or holiday
+  is for the next trading day, Q120b). **No look-ahead (P12):** only 5-minute bars of that day that START after `analyzed_at` count (a 14:00 call
+  ignores the morning; a bar starting exactly at `analyzed_at` does not count). `close` = the session's daily close (it includes the 16:00-16:10 closing auction), else the last 5-minute close.
+  Base = `entry_high` for `buy_today`/`add` and a `wait` with an entry, else `price` (the price at the call); `result_pct` = (exit − base) / base
+  × 100, 2 decimals.
+  - `buy_today`/`add`: the fill is a limit buy at `entry_high` (Q125): the first bar with low ≤ `entry_high` (a gap below the zone fills too);
+    none → `not_triggered` (Q118, no result). In the fill bar a stop touch is a `loss` (a gap below the stop is a loss) and a target touch does
+    NOT count (it may have come before the fill); after it the first level touched decides, `win` at `target` or `loss` at `stop`, and a bar
+    touching both is a `loss`. Neither by the close → `closed`, exit = close. Result % is still from `entry_high`.
+  - `hold`: stop first → `loss` (exit `stop`); its target (when given) first → `win` (exit `target`); a bar touching both → `loss`; neither →
+    `right`, exit = close (Q120a).
+  - `avoid`/`sell`: `right` when close ≤ `price`, else `wrong`; exit = close (Q120).
+  - `wait`: `would_have`, no right/wrong; exit = close (what a buy at the base made, Q120a).
+  - **Daily fallback (Q119, P15, P15a, P16a).** Only when Yahoo has no 5-minute bars of the session: older than ~58 days (not asked), a
+    `422` for a window starting with a session older than ~50 days ("too old"), or a `200` without bars for it. A `404` (unknown symbol)
+    counts only when Yahoo has no daily bars of the code either (→ `no_session`). Every other failure (400, 401, 403, a `422` for a window of
+    sessions all younger than ~50 days, a 404 for a code with daily bars, a bad body; a network error, 429 and 5xx stop the run) leaves the
+    record unscored for the next run. The session's daily bar then decides with **stop first**; the whole day is the fill bar,
+    so a buy filled that day (low ≤ `entry_high`) is a `loss` when the day touched the stop, else `closed` (a target in the fill day never
+    counts); a hold: stop → `loss`, else target → `win`, else `right`; `source:"daily"`. The daily bar cannot exclude the hours before a call:
+    a fallback may count a touch from before `analyzed_at`. No daily bar either (no trade that day, an unlisted holiday, an unknown code) →
+    `no_session`, never a loss.
+  - **Unscorable (P16, P16a).** A record still unscored 10 trading days (IDX calendar) after its session is scored
+    `{"outcome":"unscorable","source":"none"}` (no result, close or info; logged with its code) when its code fails in a run AND already
+    failed in a run on an earlier date (WIB) with no run scoring the code in between; one failing run after an offline gap gives up nothing,
+    and a network error or a block never counts as a failure of the code. The earlier failure is kept in memory: a restart only delays a
+    give-up. It is excluded from every rate.
+  - `info_3d_pct` (Q117, information only): the close of the 3rd trading session after `session_date` (counted from the daily bars, not the
+    calendar) vs the same base; `null` until that bar exists, filled by a later run (asked for up to 30 days after the session; never for a
+    `no_session` or `unscorable` record). A later run first compares the refetched session close with the stored `close`: more than 1 % apart
+    (a split: Yahoo adjusts its history) leaves `info_3d_pct` `null` (logged with the code).
+- **Job `track.score`** (§20.2): 17:00 WIB on trading days, catch-up always (one late run does every missed session); it never starts while
+  `bars.daily` runs (a boot catch-up of both runs `bars.daily` first, `track.score` on a later tick from the refreshed store). It scores every
+  record without a score whose session ended (from 16:30 of `session_date`), then fills missing `info_3d_pct`. Per code with work: ONE
+  5-minute request (`v8/finance/chart` with `period1`/`period2`, one window over its unscored sessions within ~58 days; after a `422` on a
+  window holding sessions older than ~50 days, once more without them, so only those fall back), and daily bars from
+  the bar store (§20.2) when it was fetched after the latest session's 16:15, else one
+  `1d` window from Yahoo (for `info_3d` only, the store is used when it is current: fetched after the last completed session's 16:15); calls
+  1.5 s apart through the shared backoff. A block (429, 5xx, backoff) or a network error (no HTTP answer: DNS, connect, timeout, reset; P16a)
+  stops the run: what was scored is kept, `last_error:"upstream_blocked"` or `"network_error"` (`partial` when something was scored); the rest
+  waits for the next run and nothing is given up for it. Any other failure of a code's 5-minute or daily request leaves its records for the
+  next run (`codes_failed`, never `ok`); an unknown code scores `no_session`.
+- **Answer.** `summary`: one group per `verdict` × `model` × `trigger` × `confidence` over every scored record (not filtered by `code`), sorted
+  by those keys: `{"verdict","model","trigger","confidence","n","win","loss","closed","not_triggered","right","wrong","would_have","no_session",
+  "unscorable","result_n","result_sum","result_avg","info_3d_n","info_3d_sum","info_3d_avg"}` (`*_n` = records with that value; sums and averages to 2
+  decimals, an average `null` when its `n` is 0). **Raw counts only: no rate and no minimum count**; the phone computes them. `n` counts
+  EVERY scored record of the group (`not_triggered`, `no_session`, `unscorable` and `would_have` included): it is never a rate's
+  denominator nor Q122's counter. **Decided** (P16a, for Q122's "n of 10 decided calls" per verdict type) = every outcome except
+  `not_triggered`, `no_session`, `unscorable` and `would_have`, i.e. `win`+`loss`+`closed` for `buy_today`/`add`, `win`+`loss`+`right` for
+  `hold`, `right`+`wrong` for `avoid`/`sell`; a `wait` is never decided (Q120: no right/wrong). `calls`: the
+  records (score included, `null` while unscored), newest `analyzed_at` first, at most 50, only `code`'s when given. `scored_through`: the
+  latest `session_date` among scored records. `pending`: records without a score.
+- **Logs** carry codes, counts, states and error codes only (`stocks: track-record run codes scored info_filled failed left requests
+  unscorable skipped`).

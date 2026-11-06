@@ -119,7 +119,10 @@ type JobSpec struct {
 	// the slot is then recorded handled without a run. It runs under the scheduler lock: it must be quick and
 	// must not call back into the scheduler.
 	Wanted func(slot, now time.Time, late bool, prev RunInfo) bool
-	Run    JobFunc
+	// After (at-jobs), when set, names a job registered before this one: while it runs, a due slot of this job
+	// waits for a later tick (not recorded handled), so a boot catch-up of both runs them one after the other.
+	After string
+	Run   JobFunc
 }
 
 // RunInfo is the last run of a job, for JobSpec.Wanted.
@@ -396,7 +399,7 @@ func (sc *scheduler) tick(now time.Time) {
 			continue
 		}
 		slot, ok := j.latestAtSlot(now)
-		if !ok || slot.Format(time.DateOnly) <= j.rec.Handled {
+		if !ok || slot.Format(time.DateOnly) <= j.rec.Handled || sc.waitsLocked(j) {
 			continue
 		}
 		dirty = true
@@ -425,6 +428,12 @@ func (sc *scheduler) tick(now time.Time) {
 		}
 		sc.saveQuiet()
 	}
+}
+
+// waitsLocked: j's After job is running (it was launched earlier in this tick or before); the caller holds mu.
+func (sc *scheduler) waitsLocked(j *job) bool {
+	dep, ok := sc.jobs[j.spec.After]
+	return ok && dep.running
 }
 
 // runInfo is the last run of j; the caller holds mu.

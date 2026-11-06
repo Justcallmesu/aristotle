@@ -52,6 +52,46 @@ type fakeProvider struct {
 	quoteCalls  int
 	chartCalls  int
 	searchCalls int
+	periods     map[string][]Bar // ChartPeriod: "CODE|interval" → bars, served filtered to [from, to)
+	periodErrs  map[string]error // ChartPeriod: "CODE|interval" → its error
+	periodCalls []string         // ChartPeriod: "CODE|interval|from|to" (WIB dates)
+	// period5mFloor, when set: a 5-minute window starting before it answers 422, like Yahoo past its ~60-day range.
+	period5mFloor time.Time
+}
+
+func (f *fakeProvider) ChartPeriod(_ context.Context, code string, from, to time.Time, interval string) (Chart, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := code + "|" + interval
+	f.periodCalls = append(f.periodCalls, key+"|"+from.In(WIB).Format(time.DateOnly)+"|"+to.In(WIB).Format(time.DateOnly))
+	if f.err != nil {
+		return Chart{}, f.err
+	}
+	if err := f.periodErrs[key]; err != nil {
+		return Chart{}, err
+	}
+	if interval == Interval5m && from.Before(f.period5mFloor) {
+		return Chart{}, &UpstreamError{Reason: "http 422", Status: 422}
+	}
+	bars, ok := f.periods[key]
+	if !ok {
+		return Chart{}, ErrUnknownSymbol
+	}
+	out := []Bar{}
+	for _, b := range bars {
+		if b.T >= from.Unix() && b.T < to.Unix() {
+			out = append(out, b)
+		}
+	}
+	return Chart{Code: code, Range: PeriodRange, Interval: interval, TZ: "Asia/Jakarta", Bars: out}, nil
+}
+
+func (f *fakeProvider) takePeriodCalls() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := f.periodCalls
+	f.periodCalls = nil
+	return out
 }
 
 func (f *fakeProvider) setErr(err error) {

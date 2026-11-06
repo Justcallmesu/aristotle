@@ -20,7 +20,19 @@ type Provider interface {
 	Chart(ctx context.Context, code, rng string) (Chart, error)
 	// Search returns IDX stocks for a free-text query.
 	Search(ctx context.Context, q string) ([]SearchResult, error)
+	// ChartPeriod returns code's bars of interval (Interval5m or Interval1d) for the past window [from, to): the
+	// scorer's 5-minute session bars (Yahoo keeps them ~60 days, TR0 §1) and its daily fallback. ErrUnknownSymbol as Chart.
+	ChartPeriod(ctx context.Context, code string, from, to time.Time, interval string) (Chart, error)
 }
+
+// Intervals ChartPeriod accepts.
+const (
+	Interval5m = "5m"
+	Interval1d = "1d"
+)
+
+// PeriodRange is Chart.Range of a ChartPeriod answer.
+const PeriodRange = "period"
 
 // ErrUnknownSymbol: the source has no such stock (Yahoo chart 404).
 var ErrUnknownSymbol = errors.New("unknown symbol")
@@ -39,6 +51,15 @@ type UpstreamError struct {
 }
 
 func (e *UpstreamError) Error() string { return "upstream error: " + e.Reason }
+
+// reasonNetwork is the UpstreamError reason of a request that got no HTTP answer (DNS, connect, timeout, reset).
+const reasonNetwork = "network"
+
+// isNetwork reports a request that got no HTTP answer.
+func isNetwork(err error) bool {
+	var ue *UpstreamError
+	return errors.As(err, &ue) && ue.Status == 0 && ue.Reason == reasonNetwork
+}
 
 // Quote is one row of GET /v1/stocks/quotes. Prices are integer IDR.
 type Quote struct {
@@ -292,6 +313,20 @@ func (m *Market) ChartDirect(ctx context.Context, code, rng string) (Chart, erro
 		return Chart{}, err
 	}
 	ch, err := m.Src.Chart(ctx, code, rng)
+	if err = m.note(err); err != nil {
+		return Chart{}, err
+	}
+	return ch, nil
+}
+
+// ChartPeriodDirect asks the source for a past window, uncached, through the shared backoff (a *BlockedError while
+// blocked or when the source refuses), like ChartDirect: for the track-record job, which must tell a block (stop the
+// run) from any other failure.
+func (m *Market) ChartPeriodDirect(ctx context.Context, code string, from, to time.Time, interval string) (Chart, error) {
+	if err := m.blockedErr(); err != nil {
+		return Chart{}, err
+	}
+	ch, err := m.Src.ChartPeriod(ctx, code, from, to, interval)
 	if err = m.note(err); err != nil {
 		return Chart{}, err
 	}

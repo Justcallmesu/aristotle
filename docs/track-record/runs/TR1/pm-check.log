@@ -1,0 +1,61 @@
+== changed paths
+ M docs/protocol.md
+ M docs/track-record/decisions.md
+ M docs/track-record/spec.md
+ M docs/track-record/tickets.md
+ M server/internal/httpapi/stocks_test.go
+ M server/internal/stocks/analyzer.go
+ M server/internal/stocks/helpers_test.go
+ M server/internal/stocks/provider.go
+ M server/internal/stocks/scheduler_test.go
+ M server/internal/stocks/stocks.go
+ M server/internal/stocks/yahoo.go
+?? docs/track-record/runs/TR1/build-report.md
+?? docs/track-record/runs/TR1/gate-server-gofmt.log
+?? docs/track-record/runs/TR1/gate-server-test.log
+?? docs/track-record/runs/TR1/gate-server-vet.log
+?? docs/track-record/runs/TR1/gate-summary.txt
+?? docs/track-record/runs/TR1/pm-check.log
+?? server/internal/stocks/score.go
+?? server/internal/stocks/score_test.go
+?? server/internal/stocks/track.go
+?? server/internal/stocks/track_test.go
+?? server/internal/stocks/verdicts.go
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=711 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=711 failed=0
+SKIP android (0)
+== M1 look-ahead: morning bars counted (score.go:66)
+--- FAIL: TestScoreRecordTable (0.00s)
+    --- FAIL: TestScoreRecordTable/look-ahead:_a_14:00_call_ignores_a_10:00_touch (0.00s)
+    --- FAIL: TestScoreRecordTable/look-ahead:_no_bar_after_the_call_fills_it (0.00s)
+    --- FAIL: TestScoreRecordTable/Friday_short_session (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M2 target before stop in one bar (score.go:134)
+--- FAIL: TestScoreRecordTable (0.00s)
+    --- FAIL: TestScoreRecordTable/buy_loss_after_the_fill (0.00s)
+    --- FAIL: TestScoreRecordTable/a_bar_touching_both_counts_the_stop (0.00s)
+    --- FAIL: TestScoreRecordTable/hold:_stop_first_is_a_loss (0.00s)
+    --- FAIL: TestScoreRecordTable/hold:_both_in_one_bar_is_a_loss (0.00s)
+    --- FAIL: TestScoreRecordTable/hold_daily_fallback:_stop_first (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M3 stop in the fill bar ignored (score.go:112)
+--- FAIL: TestScoreRecordTable (0.00s)
+    --- FAIL: TestScoreRecordTable/a_stop_in_the_fill_bar_is_a_loss (0.00s)
+    --- FAIL: TestScoreRecordTable/daily_fallback:_stop_first (0.00s)
+--- FAIL: TestTrackJobCatchUpScoresMissedSessions (0.05s)
+--- FAIL: TestTrackJobFallbacks (0.03s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== race
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	21.364s
+ok  	github.com/justcallmesu/aristotle/server/internal/httpapi	5.880s

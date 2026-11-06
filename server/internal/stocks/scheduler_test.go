@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -412,7 +413,7 @@ func TestJobsHTTP(t *testing.T) {
 	h := newHarness(t)
 	got := h.expect("GET", "/v1/stocks/jobs", "", 200, "")
 	jobs := got["jobs"].([]any)
-	if len(jobs) != 5 {
+	if len(jobs) != 6 {
 		t.Fatalf("jobs = %v", jobs)
 	}
 	// Slice 3 (TBA1): news every 10 min from 06:00, alerts every 5 min from 08:00, the brief at 08:30 (next: Fri, Thu's
@@ -421,8 +422,17 @@ func TestJobsHTTP(t *testing.T) {
 	for _, j := range jobs {
 		ids = append(ids, j.(map[string]any)["id"].(string))
 	}
-	if strings.Join(ids, ",") != "bars.daily,screener.scan,news,alerts,brief" {
+	if strings.Join(ids, ",") != "bars.daily,screener.scan,news,alerts,brief,track.score" {
 		t.Fatalf("ids = %v", ids)
+	}
+	// TR1: track.score at 17:00 on trading days, only on/off editable (like news).
+	if tr := jobs[5].(map[string]any); tr["at"] != "17:00" || tr["next_run"] != "2026-11-05T17:00:00+07:00" ||
+		fmt.Sprint(tr["editable"]) != "[on]" || tr["on"] != true {
+		t.Fatalf("track job = %v", tr)
+	}
+	h.expect("PUT", "/v1/stocks/jobs/"+TrackJobID, `{"at":"18:00"}`, 400, "bad_request")
+	if got := h.expect("PUT", "/v1/stocks/jobs/"+TrackJobID, `{"on":false}`, 200, ""); got["on"] != false || got["next_run"] != nil {
+		t.Fatalf("track off = %v", got)
 	}
 	if n, a, br := jobs[2].(map[string]any), jobs[3].(map[string]any), jobs[4].(map[string]any); n["every_min"] != 10.0 ||
 		n["next_run"] != "2026-11-05T10:10:00+07:00" || a["every_min"] != 5.0 || a["next_run"] != "2026-11-05T10:05:00+07:00" ||
