@@ -1,0 +1,43 @@
+=== SERVER TR1e
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=772 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=772 failed=0
+SKIP android (0)
+== S1 hard limit ignores failure history (track.go:298)
+--- FAIL: TestTrackJobRecent422Waits (0.04s)
+--- FAIL: TestHardLimitNeedsAnEarlierFailure (0.02s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	7.764s
+=== ANDROID TR2b
+== A1 connecting shows offline (TrackRecordViewModel.kt:71)
+TrackRecordViewModelTest > loading, then offline without a cached copy (P14), then the failure FAILED
+    java.lang.AssertionError at TrackRecordViewModelTest.kt:79
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 42s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.ui.stocks.TrackRecordViewModelTest.xml
+testcase name="loading, then offline without a cached copy (P14), then the failure"
+== A2 model filter by raw id (TrackRecord.kt:204)
+TrackRecordTest > the model filter has one entry per family and sums every model id of it FAILED
+    java.lang.AssertionError at TrackRecordTest.kt:236
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 1m 9s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.TrackRecordTest.xml
+testcase name="the model filter has one entry per family and sums every model id of it"
+SKIP server (0)
+PASS android (0)
+gate exit=0
+SKIP server (0)
+PASS android (0)
+unit tests: 1414

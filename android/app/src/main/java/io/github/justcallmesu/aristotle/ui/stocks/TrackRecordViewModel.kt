@@ -54,6 +54,9 @@ sealed interface TrackPageView {
     ) : TrackPageView
 }
 
+/** Where the page was opened from: a verdict card's record line, or Stocks ⋮. */
+enum class TrackEntry { CardLine, Menu }
+
 data class TrackUiState(
     val link: LinkState = LinkState.Connecting,
     val body: TrackRecordBody? = null,
@@ -64,6 +67,8 @@ data class TrackUiState(
     val reachable: Boolean get() = link.serverEndpoint != null
 
     fun view(): TrackPageView {
+        // Connecting is not "out of reach": nothing has failed yet (cold start, network switch). The other stock pages do the same.
+        if (link == LinkState.Connecting) return TrackPageView.Loading
         if (!reachable) return TrackPageView.Offline
         val body = body ?: return problem?.let(TrackPageView::Failed) ?: TrackPageView.Loading
         if (body.summary.isEmpty()) return if (body.pending > 0) TrackPageView.OnlyPending(body.pending) else TrackPageView.NoHistory
@@ -114,6 +119,11 @@ class TrackRecordViewModel(
     fun setTrigger(trigger: String?) = state.update { it.copy(filters = it.filters.copy(trigger = trigger)) }
 
     fun setConfidence(confidence: String?) = state.update { it.copy(filters = it.filters.copy(confidence = confidence)) }
+
+    /** From a card line the numbers must match the line it was tapped on (all models, triggers, confidences); from the menu the last filters stay. */
+    fun opened(entry: TrackEntry) {
+        if (entry == TrackEntry.CardLine) clearFilters()
+    }
 
     fun clearFilters() = state.update { it.copy(filters = TrackFilters()) }
 

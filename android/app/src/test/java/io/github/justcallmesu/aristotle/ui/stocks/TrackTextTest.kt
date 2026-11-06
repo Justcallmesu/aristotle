@@ -13,6 +13,7 @@ import io.github.justcallmesu.aristotle.data.stocks.Verdict
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,9 +79,24 @@ class TrackTextTest {
 
     @Test
     fun `the 3-day line needs 10 decided calls and a value`() {
-        assertTrue(TrackDisplay.showsInfo(record(group("avoid", n = 10, right = 6, wrong = 4, info3dN = 5, info3dSum = 3.0))))
-        assertFalse(TrackDisplay.showsInfo(record(group("avoid", n = 10, right = 6, wrong = 4))))
-        assertFalse(TrackDisplay.showsInfo(record(group("avoid", n = 9, right = 6, wrong = 3, info3dN = 5, info3dSum = 3.0))))
+        assertEquals(0.6, record(group("avoid", n = 10, right = 6, wrong = 4, info3dN = 5, info3dSum = 3.0)).info3dAvg!!, 1e-9)
+        assertNull(record(group("avoid", n = 10, right = 6, wrong = 4)).info3dAvg)
+        assertNull(record(group("avoid", n = 9, right = 6, wrong = 3, info3dN = 5, info3dSum = 3.0)).info3dAvg)
+    }
+
+    @Test
+    fun `the card's rate words are the card line's rule, one copy`() {
+        assertEquals(Words(R.string.stocks_record_hits_target, listOf("8", "24")), TrackText.rate(record(group("buy_today", n = 30, win = 8, loss = 12, closed = 4, notTriggered = 6))))
+        assertEquals(Words(R.string.stocks_record_hits_right, listOf("9", "12")), TrackText.rate(record(group("avoid", n = 12, right = 9, wrong = 3))))
+        assertEquals(Words(R.string.stocks_record_few_n, listOf("4", "10")), TrackText.rate(record(group("sell", n = 4, right = 3, wrong = 1))))
+        val wait = TrackGroup(verdict = "wait", n = 12, wouldHave = 12, resultN = 12, resultSum = 2.4)
+        assertEquals(TrackText.waitAverage(0.2), TrackText.rate(record(wait)))
+        assertEquals(Words(R.string.stocks_record_few_n, listOf("6", "10")), TrackText.rate(record(TrackGroup(verdict = "wait", n = 6, wouldHave = 6))))
+        for (g in listOf(group("hold", n = 22, win = 1, loss = 3, right = 18), group("add", n = 5, win = 2, loss = 3), wait)) {
+            val r = record(g)
+            val body = (TrackText.line(TrackRecords.line(r)) as LineWords.Sentence).body
+            assertEquals(body ?: TrackText.few(r.sample, TrackRecords.MIN_DECIDED), TrackText.rate(r))
+        }
     }
 
     @Test

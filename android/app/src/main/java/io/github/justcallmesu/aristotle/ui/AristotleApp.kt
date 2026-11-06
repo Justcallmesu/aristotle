@@ -46,6 +46,7 @@ import io.github.justcallmesu.aristotle.data.stocks.StockOpen
 import io.github.justcallmesu.aristotle.ui.stocks.AlertsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.BriefScreen
 import io.github.justcallmesu.aristotle.ui.stocks.BriefViewModel
+import io.github.justcallmesu.aristotle.ui.stocks.TrackEntry
 import io.github.justcallmesu.aristotle.ui.stocks.TrackRecordScreen
 import io.github.justcallmesu.aristotle.ui.stocks.TrackRecordViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.HoldingsScreen
@@ -454,6 +455,7 @@ private fun PairedPages(
             PairedPage.StockDetail -> {
                 val code = stockCode
                 if (code != null) {
+                    val trackRecord = trackRecordViewModel(container, stocksRoutes, pc)
                     StockRoute(
                         container,
                         stockRoutes,
@@ -462,7 +464,7 @@ private fun PairedPages(
                         stocks = stocksViewModel(container, stocksRoutes, pc),
                         onBack = goBack,
                         onOpenNews = { show(stocksStack().openNews()) },
-                        onOpenTrackRecord = { show(stocksStack().openTrackRecord()) },
+                        onOpenTrackRecord = { trackRecord.opened(TrackEntry.CardLine); show(stocksStack().openTrackRecord()) },
                     )
                 } else {
                     LaunchedEffect(Unit) { page = PairedPage.Sessions }

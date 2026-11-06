@@ -94,7 +94,7 @@ fun TrackRecordScreen(viewModel: TrackRecordViewModel, onBack: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             StocksTopBar(
                 title = stringResource(R.string.stocks_record_title),
-                subline = trackSubline(view, locale),
+                subline = null,
                 onBack = onBack,
                 actions = {
                     IconButton(onClick = { viewModel.showSheet(true) }) {
@@ -103,6 +103,7 @@ fun TrackRecordScreen(viewModel: TrackRecordViewModel, onBack: () -> Unit) {
                 },
             )
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = Spacing.xxl)) {
+                if (view is TrackPageView.Content) item(key = "subline") { TrackSubline(trackSubline(view, locale)) }
                 when (view) {
                     TrackPageView.Loading -> item { QuietLine(stringResource(R.string.stocks_loading)) }
                     TrackPageView.Offline -> item { ProblemBlock(stringResource(R.string.stocks_record_offline), onRetry = viewModel::retry) }
@@ -153,10 +154,20 @@ private fun androidx.compose.foundation.lazy.LazyListScope.content(view: TrackPa
     }
 }
 
+/** The count line under the filters, in the body so a long date or a big text size wraps instead of being cut (it was a one-line top bar subline). */
+@Composable
+private fun TrackSubline(text: String) {
+    Text(
+        text,
+        style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.listGutter, vertical = Spacing.xs),
+    )
+}
+
 /** "117 verdicts scored · through Thu 5 Nov", or "15 of 117 scored verdicts" while filtered. */
 @Composable
-private fun trackSubline(view: TrackPageView, locale: Locale): String? {
-    if (view !is TrackPageView.Content) return null
+private fun trackSubline(view: TrackPageView.Content, locale: Locale): String {
     if (view.filters.any) return stringResource(R.string.stocks_record_subline_filtered, view.shown, view.total)
     val through = view.scoredThrough?.let { runCatching { LocalDate.parse(it) }.getOrNull() }?.let { StockTimes.day(it, locale) }
     return if (through != null) pluralStringResource(R.plurals.stocks_record_subline, view.total, view.total, through) else stringResource(R.string.stocks_record_subline_no_date, view.total)
@@ -218,9 +229,9 @@ private fun FilterRow(view: TrackPageView.Content, viewModel: TrackRecordViewMod
         item(key = "model") {
             FilterMenu(
                 name = stringResource(R.string.stocks_record_filter_model),
-                active = filters.model?.let { TrackRecords.modelName(it) },
+                active = filters.model?.let { familyText(it) },
                 allLabel = stringResource(R.string.stocks_record_all_models),
-                options = view.options.models.map { it to TrackRecords.modelName(it) },
+                options = view.options.models.map { it to familyText(it) },
                 selected = filters.model,
                 onPick = viewModel::setModel,
             )
@@ -246,6 +257,13 @@ private fun FilterRow(view: TrackPageView.Content, viewModel: TrackRecordViewMod
             )
         }
     }
+}
+
+@Composable
+private fun familyText(key: String): String = when (key) {
+    "opus" -> stringResource(R.string.stocks_record_family_opus)
+    "sonnet" -> stringResource(R.string.stocks_record_family_sonnet)
+    else -> stringResource(R.string.stocks_record_family_other)
 }
 
 @Composable
@@ -305,7 +323,7 @@ private fun VerdictRecordCard(record: VerdictRecord, locale: Locale) {
             Text(pluralStringResource(R.plurals.stocks_record_n_verdicts, record.scored, record.scored), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = Spacing.s))
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.Top) {
-            Text(rateWords(record, ink), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(wordsText(TrackText.rate(record), ink), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             val avg = record.resultAvg
             if (avg != null && record.verdict != Verdict.Wait) Average(avg, record.verdict, modifier = Modifier.padding(start = Spacing.s))
         }
@@ -321,16 +339,6 @@ private fun VerdictRecordCard(record: VerdictRecord, locale: Locale) {
         }
     }
 }
-
-/** The rate sentence: Wait its average, under 10 the "not enough calls" line, else "8 of 24 hit target · 33 %". */
-@Composable
-private fun rateWords(record: VerdictRecord, ink: Color) = when {
-    !record.enough -> wordsText(TrackText.few(record.sample, TrackRecords.MIN_DECIDED), ink)
-    record.verdict == Verdict.Wait -> record.resultAvg?.let { wordsText(TrackText.waitAverage(it), ink) } ?: wordsText(TrackText.few(record.sample, TrackRecords.MIN_DECIDED), ink)
-    else -> wordsText(TrackText.hits(record.verdict, record.hits, record.decided), ink, suffix = record.ratePct?.let { "$it${PERCENT}" })
-}
-
-private const val PERCENT = "\u00A0%"
 
 /** "Avg result" over a signed change; Avoid / Sell in ink, not green / red, since a fall is the right answer there. */
 @Composable

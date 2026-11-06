@@ -1363,6 +1363,9 @@
     <string name="stocks_record_subline_filtered">%1$d of %2$d scored verdicts</string>
     <string name="stocks_record_how">How scoring works</string>
     <string name="stocks_record_filter_model">Model</string>
+    <string name="stocks_record_family_opus">Opus</string>
+    <string name="stocks_record_family_sonnet">Sonnet</string>
+    <string name="stocks_record_family_other">Other</string>
     <string name="stocks_record_filter_trigger">Trigger</string>
     <string name="stocks_record_filter_confidence">Confidence</string>
     <string name="stocks_record_all_models">All models</string>

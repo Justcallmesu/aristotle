@@ -225,6 +225,32 @@ class TrackRecordTest {
     }
 
     @Test
+    fun `the model filter has one entry per family and sums every model id of it`() {
+        val groups = listOf(
+            group("buy_today", model = "claude-opus-4-7", n = 6, win = 3, loss = 3),
+            group("buy_today", model = "claude-opus-4-8", n = 4, win = 2, loss = 2),
+            group("avoid", model = "claude-sonnet-5", n = 3, right = 3),
+            group("avoid", model = "claude-haiku-4", n = 2, right = 1, wrong = 1),
+            group("wait", model = "gpt-x", n = 1),
+        )
+        assertEquals(listOf("opus", "sonnet", "other"), TrackRecords.options(groups).models)
+        assertEquals(10, TrackRecords.scored(TrackRecords.filter(groups, TrackFilters(model = "opus"))))
+        assertEquals(3, TrackRecords.scored(TrackRecords.filter(groups, TrackFilters(model = "other"))))
+        assertEquals(listOf("opus", "sonnet"), TrackRecords.options(groups.take(3)).models)
+        assertEquals("opus", TrackRecords.family("claude-opus-4-8"))
+        assertEquals("sonnet", TrackRecords.family("Sonnet"))
+        assertEquals("other", TrackRecords.family(""))
+    }
+
+    @Test
+    fun `the page's record line is the card line over one record`() {
+        val groups = listOf(group("buy_today", n = 24, win = 8, loss = 12, closed = 4), group("wait", n = 3, wouldHave = 3), group("avoid", n = 12, right = 9, wrong = 3))
+        for (verdict in listOf(Verdict.BuyToday, Verdict.Wait, Verdict.Avoid)) {
+            assertEquals(TrackRecords.line(groups, verdict), TrackRecords.line(TrackRecords.byVerdict(groups).first { it.verdict == verdict }))
+        }
+    }
+
+    @Test
     fun `model names are shown as the family`() {
         assertEquals("Opus", TrackRecords.modelName("claude-opus-4-8"))
         assertEquals("Sonnet", TrackRecords.modelName("Sonnet"))

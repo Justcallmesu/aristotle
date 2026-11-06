@@ -54,13 +54,10 @@ import java.util.Locale
 // the verdict card's record line (Q124) and the Past calls list. No fixed heights and no maxLines on text: at 1.3x text and
 // 393 dp everything wraps; the only sized parts are minimum heights.
 
-/** [words] as one string with its numbers SemiBold in [emphasis]; [suffix] is joined after it ("· 33 %"). */
+/** [words] as one string with its numbers SemiBold in [emphasis]. */
 @Composable
-internal fun wordsText(words: Words, emphasis: androidx.compose.ui.graphics.Color, suffix: String? = null): AnnotatedString {
-    val body = stringResource(words.res, *words.args.toTypedArray())
-    val text = suffix?.let { stringResource(R.string.stocks_record_with_pct, body, it) } ?: body
-    return emphasised(text, words.args, emphasis)
-}
+internal fun wordsText(words: Words, emphasis: androidx.compose.ui.graphics.Color): AnnotatedString =
+    emphasised(stringResource(words.res, *words.args.toTypedArray()), words.args, emphasis)
 
 internal fun emphasised(text: String, args: List<String>, color: androidx.compose.ui.graphics.Color): AnnotatedString = buildAnnotatedString {
     append(text)

@@ -45,7 +45,6 @@ object TrackDisplay {
     fun inkAverage(verdict: Verdict): Boolean = verdict == Verdict.Avoid || verdict == Verdict.Sell
 
     /** The "3 days later" line (Q117, for information) shows only when there is an average of it: from 10 decided calls, over records that have the value. */
-    fun showsInfo(record: VerdictRecord): Boolean = record.info3dAvg != null
 
     /** A past-call row's chip is at most this share of the row's width (board `ResultChip`: max 52 %, then it wraps). */
     fun chipMaxWidth(rowWidth: Float): Float = rowWidth * CHIP_SHARE

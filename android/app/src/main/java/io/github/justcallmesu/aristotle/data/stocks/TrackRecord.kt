@@ -92,11 +92,12 @@ data class TrackRecordBody(
 )
 
 /** The page's filters (Q121: model, trigger, confidence); null = all. Applied to the groups, so the sums stay exact. */
+/** [model] is a family key of [TrackRecords.family], not a raw model id. */
 data class TrackFilters(val model: String? = null, val trigger: String? = null, val confidence: String? = null) {
     val any: Boolean get() = model != null || trigger != null || confidence != null
 
     fun matches(group: TrackGroup): Boolean =
-        (model == null || group.model == model) && (trigger == null || group.trigger == trigger) && (confidence == null || group.confidence == confidence)
+        (model == null || TrackRecords.family(group.model) == model) && (trigger == null || group.trigger == trigger) && (confidence == null || group.confidence == confidence)
 }
 
 /** What the three filter menus offer, from the groups the server sent. */
@@ -181,18 +182,27 @@ object TrackRecords {
     /** One record per verdict type that has scored calls in [groups], in the verdict order; a verdict this app does not know is left out. */
     fun byVerdict(groups: List<TrackGroup>): List<VerdictRecord> = Verdict.entries.mapNotNull { sum(groups, it) }
 
-    fun line(groups: List<TrackGroup>, verdict: Verdict): RecordLine {
-        val record = sum(groups, verdict) ?: return RecordLine.None
+    fun line(groups: List<TrackGroup>, verdict: Verdict): RecordLine = sum(groups, verdict)?.let(::line) ?: RecordLine.None
+
+    /** The one rule for how a verdict type's record reads: the verdict card's line and the page's card both use it. */
+    fun line(record: VerdictRecord): RecordLine {
+        val verdict = record.verdict
         if (!record.enough) return RecordLine.Few(verdict, record.sample)
         if (verdict == Verdict.Wait) return record.resultAvg?.let(RecordLine::WaitAverage) ?: RecordLine.Few(verdict, record.sample)
         return RecordLine.Hits(verdict, record.hits, record.decided)
     }
 
     fun options(groups: List<TrackGroup>): TrackOptions = TrackOptions(
-        models = groups.map { it.model }.distinct().sorted(),
+        models = FAMILY_ORDER.filter { f -> groups.any { family(it.model) == f } },
         triggers = TRIGGER_ORDER.filter { t -> groups.any { it.trigger == t } } + groups.map { it.trigger }.distinct().filter { it !in TRIGGER_ORDER }.sorted(),
         confidences = CONFIDENCE_ORDER.filter { c -> groups.any { it.confidence == c } } + groups.map { it.confidence }.distinct().filter { it !in CONFIDENCE_ORDER }.sorted(),
     )
+
+    /** The filter key of a model id: `opus`, `sonnet` or `other` (every other model, and none). */
+    fun family(raw: String): String {
+        val lower = raw.lowercase()
+        return FAMILY_ORDER.firstOrNull { it != OTHER && it in lower } ?: OTHER
+    }
 
     /** "Opus" for any Opus model string, likewise Sonnet and Haiku; else the string as sent; a dash for none. */
     fun modelName(raw: String): String {
@@ -221,6 +231,8 @@ object TrackRecords {
         )
     }
 
+    private const val OTHER = "other"
+    private val FAMILY_ORDER = listOf("opus", "sonnet", OTHER)
     private val TRIGGER_ORDER = listOf("manual", "auto")
     private val CONFIDENCE_ORDER = listOf("low", "med", "high")
     private val FAMILIES = listOf("Opus", "Sonnet", "Haiku")

@@ -10,7 +10,6 @@ import io.github.justcallmesu.aristotle.data.stocks.StocksError
 import io.github.justcallmesu.aristotle.data.stocks.StocksReply
 import io.github.justcallmesu.aristotle.data.stocks.StocksRequest
 import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
-import io.github.justcallmesu.aristotle.data.stocks.StocksParser
 import io.github.justcallmesu.aristotle.data.stocks.TrackFilters
 import io.github.justcallmesu.aristotle.data.stocks.TrackGroup
 import io.github.justcallmesu.aristotle.data.stocks.TrackRecordBody
@@ -24,10 +23,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -76,6 +75,10 @@ class TrackRecordViewModelTest {
     fun `loading, then offline without a cached copy (P14), then the failure`() {
         assertEquals(TrackPageView.Loading, state(null).view())
         assertEquals(TrackPageView.Offline, state(body, online = false).view())
+        // Still connecting (cold start, network switch): not "out of reach" yet, nor a body from an earlier read.
+        assertEquals(TrackPageView.Loading, TrackUiState(link = LinkState.Connecting).view())
+        assertEquals(TrackPageView.Loading, TrackUiState(link = LinkState.Connecting, body = body).view())
+        assertTrue(state(body).view() is TrackPageView.Content)
         assertEquals(TrackPageView.Offline, state(null, online = false).view())
         val error = StocksError.Server(500, "state_error")
         assertEquals(TrackPageView.Failed(error), state(null, problem = error).view())
@@ -128,7 +131,6 @@ class TrackRecordViewModelTest {
         link.value = LinkState.Online(lan, 1)
         waitFor("the record is read") { vm.uiState.value.body != null }
         assertEquals(listOf(StocksRequest("GET", "track-record")), sent.toList())
-        assertEquals(2, StocksParser.decode("""{"summary":[{"n":2}]}""", TrackRecordBody.serializer())!!.summary[0].n)
     }
 
     @Test
@@ -150,6 +152,23 @@ class TrackRecordViewModelTest {
     }
 
     @Test
+    fun `opened from a verdict card the page starts unfiltered, from the Stocks menu the last filters stay`() {
+        vm.setModel("opus")
+        vm.setConfidence("high")
+        vm.opened(TrackEntry.Menu)
+        assertEquals(TrackFilters("opus", null, "high"), vm.uiState.value.filters)
+        vm.opened(TrackEntry.CardLine)
+        assertFalse(vm.uiState.value.filters.any)
+    }
+
+    @Test
+    fun `the app wires the card line to the reset and the menu to none`() {
+        val app = listOf(File("src/main/java"), File("app/src/main/java")).first { it.exists() }.resolve("io/github/justcallmesu/aristotle/ui/AristotleApp.kt").readText()
+        assertEquals(1, Regex("opened\\(TrackEntry\\.CardLine\\)").findAll(app).count())
+        assertEquals(1, Regex("openTrackRecord = \\{ show\\(stocksStack\\(\\)\\.openTrackRecord\\(\\)\\) \\}").findAll(app).count())
+    }
+
+    @Test
     fun `filters set and clear, and the sheet opens and closes`() {
         vm.setModel("opus")
         vm.setTrigger("auto")
@@ -164,7 +183,6 @@ class TrackRecordViewModelTest {
         vm.showSheet(true)
         assertTrue(vm.uiState.value.sheet)
         vm.showSheet(false)
-        assertNotNull(vm.uiState.value)
         assertFalse(vm.uiState.value.sheet)
     }
 }

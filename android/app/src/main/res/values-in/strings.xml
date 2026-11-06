@@ -1335,6 +1335,9 @@
     <string name="stocks_record_subline_filtered">%1$d dari %2$d verdict dinilai</string>
     <string name="stocks_record_how">Cara penilaian</string>
     <string name="stocks_record_filter_model">Model</string>
+    <string name="stocks_record_family_opus">Opus</string>
+    <string name="stocks_record_family_sonnet">Sonnet</string>
+    <string name="stocks_record_family_other">Lainnya</string>
     <string name="stocks_record_filter_trigger">Pemicu</string>
     <string name="stocks_record_filter_confidence">Keyakinan</string>
     <string name="stocks_record_all_models">Semua model</string>

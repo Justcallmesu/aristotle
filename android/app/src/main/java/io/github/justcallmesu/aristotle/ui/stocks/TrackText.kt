@@ -4,6 +4,8 @@ import androidx.annotation.StringRes
 import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.stocks.RecordLine
 import io.github.justcallmesu.aristotle.data.stocks.StockFormat
+import io.github.justcallmesu.aristotle.data.stocks.TrackRecords
+import io.github.justcallmesu.aristotle.data.stocks.VerdictRecord
 import io.github.justcallmesu.aristotle.data.stocks.Verdict
 
 /** A sentence as a string resource and its arguments (numbers already formatted), so what it says is testable without Android. */
@@ -34,6 +36,14 @@ object TrackText {
 
     /** "Not enough calls yet · 8 of 10". */
     fun few(sample: Int, needed: Int): Words = Words(R.string.stocks_record_few_n, listOf(sample.toString(), needed.toString()))
+
+    /** The card's rate sentence: the card line's rule (Q124) over one record; below the threshold "Not enough calls yet · n of 10". */
+    fun rate(record: VerdictRecord): Words = when (val line = TrackRecords.line(record)) {
+        is RecordLine.Hits -> hits(line.verdict, line.hit, line.decided)
+        is RecordLine.WaitAverage -> waitAverage(line.avgPct)
+        is RecordLine.Few -> few(line.decided, TrackRecords.MIN_DECIDED)
+        RecordLine.None -> few(0, TrackRecords.MIN_DECIDED)
+    }
 
     fun line(line: RecordLine): LineWords = when (line) {
         RecordLine.None -> LineWords.None
