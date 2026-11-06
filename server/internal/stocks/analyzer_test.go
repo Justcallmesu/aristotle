@@ -21,19 +21,21 @@ import (
 // entry fails that Ask; "AUTO" is a valid buy_today for the prompt's code); gate, when set, makes Ask
 // wait for a value (or the job's ctx).
 type fakeAnalyst struct {
-	mu        sync.Mutex
-	checkErr  error
-	openErr   error // Open fails before a session exists
-	createErr error // Open fails after the session was created (its id reached the analyzer)
-	replies   []any // string or error, consumed across sessions
-	gate      chan struct{}
-	prompts   []string
-	opened    int
-	deleted   []string // sessions deleted after a good verdict
-	swept     []string // DeleteSession calls
-	sweepErrs map[string]error
-	slowSweep string // DeleteSession for this id waits for its ctx to end
-	deleteErr error
+	mu         sync.Mutex
+	checkErr   error
+	openErr    error // Open fails before a session exists
+	createErr  error // Open fails after the session was created (its id reached the analyzer)
+	replies    []any // string or error, consumed across sessions
+	gate       chan struct{}
+	prompts    []string
+	opened     int
+	deleted    []string // sessions deleted after a good verdict
+	swept      []string // DeleteSession calls
+	sweepErrs  map[string]error
+	slowSweep  string // DeleteSession for this id waits for its ctx to end
+	deleteErr  error
+	opts       []SessionOptions // per Open, in order
+	forceModel string           // the model every session reports, whatever was pinned (Hermes ignoring the pin)
 }
 
 func (f *fakeAnalyst) Check(context.Context) error {
@@ -42,14 +44,15 @@ func (f *fakeAnalyst) Check(context.Context) error {
 	return f.checkErr
 }
 
-func (f *fakeAnalyst) Open(_ context.Context, created func(string)) (AnalystSession, error) {
+func (f *fakeAnalyst) Open(_ context.Context, o SessionOptions, created func(string)) (AnalystSession, error) {
 	f.mu.Lock()
 	if f.openErr != nil {
 		defer f.mu.Unlock()
 		return nil, f.openErr
 	}
 	f.opened++
-	s := &fakeSession{f: f, id: fmt.Sprintf("local-%d", f.opened)}
+	f.opts = append(f.opts, o)
+	s := &fakeSession{f: f, id: fmt.Sprintf("local-%d", f.opened), model: cmpOrStr(f.forceModel, cmpOrStr(o.Model, "claude-opus-5-5"))}
 	createErr := f.createErr
 	f.mu.Unlock()
 	created(s.id)
@@ -79,12 +82,20 @@ func (f *fakeAnalyst) snapshot() (prompts, deleted, swept []string, opened int) 
 }
 
 type fakeSession struct {
-	f  *fakeAnalyst
-	id string
+	f     *fakeAnalyst
+	id    string
+	model string
+}
+
+func cmpOrStr(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func (s *fakeSession) ID() string    { return s.id }
-func (s *fakeSession) Model() string { return "claude-opus-5-5" }
+func (s *fakeSession) Model() string { return s.model }
 func (s *fakeSession) Close()        {}
 
 func (s *fakeSession) Ask(ctx context.Context, prompt string) (string, error) {

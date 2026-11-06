@@ -251,11 +251,13 @@ func TestRankOrderLiquidityAndFlags(t *testing.T) {
 		{Code: "GGGG", NoBars: true},
 		{Code: "HHHH", Val20: 30, Signals: []Signal{down(SetupGap)}}, // bearish, not watched: nothing
 		{Code: "IIII", Mismatch: true, Signals: []Signal{up(SetupBreakout)}},
+		{Code: "JJJJ", Val20: 0.3, Signals: []Signal{up(SetupVolumeSpike)}, VolRatio: f64(2)}, // watched, illiquid: a watched hit
+		{Code: "KKKK", Val20: 40, Signals: []Signal{up(SetupGap)}},                            // held, outside the universe
 	}
 	roles := map[string]codeRole{"AAAA": {Screened: true}, "BBBB": {Screened: true}, "CCCC": {Screened: true}, "DDDD": {Screened: true},
 		"EEEE": {Screened: true, Watch: true}, "FFFF": {Screened: true, Held: true}, "GGGG": {Screened: true}, "HHHH": {Screened: true},
-		"IIII": {Screened: true}}
-	cands, flags, sk := rank(evals, roles, DefaultScreenerSettings())
+		"IIII": {Screened: true}, "JJJJ": {Screened: true, Watch: true}, "KKKK": {Held: true}}
+	cands, flags, watched, sk := rank(evals, roles, DefaultScreenerSettings())
 	var order []string
 	for _, c := range cands {
 		order = append(order, fmt.Sprintf("%s:%v", c.Code, c.Score))
@@ -264,8 +266,13 @@ func TestRankOrderLiquidityAndFlags(t *testing.T) {
 	if got := strings.Join(order, " "); got != "BBBB:4.1 AAAA:4.1 FFFF:2.5 CCCC:5" {
 		t.Fatalf("order = %s", got)
 	}
-	if sk != (screenSkipped{Illiquid: 2, NoBars: 1}) { // DDDD and EEEE under Rp 5 bn
+	if sk != (screenSkipped{Illiquid: 3, NoBars: 1}) { // DDDD, EEEE and JJJJ under Rp 5 bn
 		t.Fatalf("skipped = %+v", sk)
+	}
+	// TSC2 review MINOR-3: bullish setups of watched/held codes that are no candidate still reach the hits log.
+	if len(watched) != 2 || watched[0].Code != "JJJJ" || !watched[0].Watch || watched[0].Score != 2.2 ||
+		watched[1].Code != "KKKK" || !watched[1].Held || sigIDs(watched[1].Setups) != "gap:up" {
+		t.Fatalf("watched = %+v", watched)
 	}
 	if len(flags) != 2 || flags[0].Code != "EEEE" || !flags[0].InWatchlist || flags[1].Code != "FFFF" || !flags[1].Held ||
 		sigIDs(flags[1].Setups) != "ma_cross:down" || sigIDs(cands[2].Setups) != "rsi_rebound:up" {
@@ -274,7 +281,7 @@ func TestRankOrderLiquidityAndFlags(t *testing.T) {
 	// Floor 0 = off: DDDD joins (EEEE has no bullish setup).
 	off := DefaultScreenerSettings()
 	off.MinValueBn = 0
-	if cands, _, sk := rank(evals, roles, off); len(cands) != 5 || sk.Illiquid != 0 {
+	if cands, _, watched, sk := rank(evals, roles, off); len(cands) != 6 || sk.Illiquid != 0 || len(watched) != 1 {
 		t.Fatalf("floor off: %d %+v", len(cands), sk)
 	}
 }

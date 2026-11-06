@@ -1156,7 +1156,7 @@ errors are `{"error":"<code>"}`. New routes only: no `ProtocolVersion` bump (§0
 | `DELETE /v1/stocks/watchlist/{code}` | — | the list; `404 not_in_watchlist` |
 | `PUT /v1/stocks/watchlist` | `{"codes":[…]}` | the list in that order; `400 bad_request` unless the same set (no repeats) |
 | `GET /v1/stocks/holdings` | — | holdings object (below) |
-| `PUT /v1/stocks/holdings/{code}` | `{"lots":10,"avg_price":4800}` | holdings object; adds or replaces (idempotent) |
+| `PUT /v1/stocks/holdings/{code}` | `{"lots":10,"avg_price":4800,"stop":4600,"target":5100}` (`stop`/`target` optional, TBA1) | holdings object; adds or replaces (idempotent) |
 | `DELETE /v1/stocks/holdings/{code}` | — | holdings object; `404 not_held` |
 | `GET` / `PUT /v1/stocks/settings` | `{"buy_fee_pct":0.15,"sell_fee_pct":0.25}` (both required, each 0..5) | the settings |
 | `GET /v1/stocks/quotes` | `?codes=BBCA,BBRI` (≤ 50, repeats dropped; default: watchlist then the other holdings) | quotes object (below) |
@@ -1171,8 +1171,13 @@ errors are `{"error":"<code>"}`. New routes only: no `ProtocolVersion` bump (§0
 `503 upstream_blocked` + `"retry_after_s":N` and a `Retry-After` header: Yahoo refused us (429) or is failing (5xx) and nothing cached can answer.
 `502 upstream_error`: any other Yahoo failure with nothing cached. `500 state_error`: `stocks.json` is unusable (below) or could not be saved.
 
-**Holdings object.** `{"at","holdings":[{"code","name","lots","avg_price","price","cost","value","pl","pl_pct","today","stale"}],
+**Holdings object.** `{"at","holdings":[{"code","name","lots","avg_price","price","cost","value","pl","pl_pct","today","stale","stop","target"}],
 "total":{"cost","value","pl","pl_pct","today"}}`. `lots` 1..10 000 000 (integer); `avg_price` > 0 and ≤ 10 000 000, kept to 0.01 IDR.
+`stop`/`target` (spec Q104, TBA1): the hand-set levels for the price alerts (§20.4), integer IDR on the tick grid (bands below), `stop` below
+`avg_price` and below `target`, `null` when unset; a PUT without them (or with `null`) clears them, else `400 bad_request`. They live in
+`stocks-levels.json` (0600, atomic, `{"version":1,"levels":{"BBCA":{"stop","target","set_at"}}}`), not in `stocks.json`, which stays
+version 1 byte for byte (an older binary reads it); a level of a code no longer held is ignored; an unusable levels file is left alone and a
+PUT that sets levels answers `500 state_error`.
 P/L after fees (spec Q88): shares = lots × 100; `cost` = avg × shares × (1 + buy %/100); `value` = price × shares × (1 − sell %/100);
 `pl` = value − cost; `pl_pct` = pl / cost × 100 to 2 decimals; each amount rounded half up once from the exact product.
 `today` = (price − prev_close) × shares, no fees. Without a price (Yahoo down, nothing cached) `price`, `value`, `pl`, `pl_pct`, `today`
@@ -1208,8 +1213,9 @@ replace; missing = empty lists and fees 0.15/0.25; a file that is not valid vers
 `500 state_error` (quotes with `?codes`, charts, news, search still work). Yahoo (`query1`, browser User-Agent, TS0 §0): quotes from
 `v7/finance/spark` in batches of 20, bars from `v8/finance/chart`, search from `v1/finance/search` kept to `.JK`/`JKT`. Caches: quotes
 60 s, intraday bars 60 s, daily bars 15 min, search 24 h. A 429 or a 5xx starts a backoff (1, 2, 4, 8, then 15 min) in which no Yahoo call
-goes out; cached data is served with `stale:true`. Yahoo is called when a phone asks and by the daily bars job (§20.2). News: polled every 10 min only while some
-device asked in the last 30 min (the first ask after a quiet spell fetches at once); ring of 300 by publish time, deduplicated by link.
+goes out; cached data is served with `stale:true`. Yahoo is called when a phone asks and by the daily bars job (§20.2). News: polled every 10 min while some
+device asked in the last 30 min (the first ask after a quiet spell fetches at once), and by the `news` job (§20.2/§20.4: every 10 min
+06:00-16:30 on trading days; it does not count as a device ask); ring of 300 by publish time, deduplicated by link.
 Search lists the bundled universe first (LQ45 + IDX80 of the current index period, `in_universe:true`, plus a few search-only
 names), then Yahoo's IDX hits; an exact bundled code skips Yahoo. Logs carry no holdings values.
 
@@ -1236,12 +1242,13 @@ shape as above. New routes: no `ProtocolVersion` bump.
   (schema failed after the repair turn), `verdict_rejected` (checks failed after the repair turn), `tools_present`, `unexpected_prompt`,
   `interrupted` (turn interrupted, or the server stopped), `hermes_refused` (Hermes answered a request with an error, e.g. create or submit
   refused, or with an answer the server cannot use), `hermes_lost` (socket, dial or ticket failed), `data_unavailable`, `analyzer_not_set_up`.
-- **Result.** `{"code","name","held","lang","analyzed_at","data_as_of","session_date","market_state","model","duration_ms","verdict",
+- **Result.** `{"code","name","held","lang","analyzed_at","data_as_of","session_date","market_state","model","trigger","duration_ms","verdict",
   "confidence":"low|med|high","entry_low","entry_high","target","stop","summary","reasons":[{"text","sources":["ind:rsi14","news:2",…]}],
   "flags":[…],"repaired","price","ara","arb","indicators":{"ind:*":…},"levels":{"lvl:*":…},"news":[{"id":"news:N","source","title","link",
   "published_at"}]}`. `verdict` ∈ `buy_today|wait|avoid` (not held) or `add|hold|sell` (held, Q98). Prices are integer IDR or `null`
   (buy/add: all four set; hold: stop below the price, target above the price or null, entry null; sell/avoid: all null; wait: entry zone
-  or null). `reasons[].sources` are ids from
+  or null). `trigger` = `manual` (the Analyze button; the profile default model, Opus, Q103) or `auto` (§20.4, Sonnet, Q110; results kept
+  before TBA1 read as `manual`). `reasons[].sources` are ids from
   `indicators`, `levels`, `news` or `hold:lots|avg_price|pl_pct` (the holding itself is not stored in the result). `repaired` = the
   answer came from the repair turn. `flags` ⊆ `low_reward_risk` ((target − entry_high)/(entry_low − stop) < 1.5), `wide_stop` (stop more
   than 2×ATR14 below entry_low), `entry_far` (zone more than 3 % from the price), `target_above_r1` (more than 1 tick above `lvl:r1`),
@@ -1277,7 +1284,7 @@ shape as above. New routes: no `ProtocolVersion` bump.
   "failed_sessions":[{"session_id","failed_at"}]}`, at most 50 codes (the oldest `analyzed_at` dropped). A file with a **newer** version
   (after a downgrade) is read (unknown fields ignored) but never written: read-only, new results in memory only (logged as such). Any other
   file that is not valid version 1 is left untouched and ignored; results are then kept in memory only (logged).
-- **Limits and logs.** One job per code, at most 2 at once. Logs carry the job id, code, state, error code, duration and counts only (a
+- **Limits and logs.** One job per code, at most 2 at once (automatic runs included; the brief, §20.4, takes one of the two while it runs). Logs carry the job id, code, state, error code, duration and counts only (a
   cleanup warning adds the Hermes session id): never the prompt, the holding or the verdict text.
 
 **Hermes frames used** (from source, Hermes v0.22.5 @717447e, checked against TA0's citations; not exercised against the real gateway):
@@ -1285,7 +1292,10 @@ shape as above. New routes: no `ProtocolVersion` bump.
 2. `session-ticket {profile_id:<aristotle-stocks home>, instance_id, purpose:"interactive", scope:"profile"}` → `/api/ws` upgrade and
    `client.capabilities` as §1. The socket is bound to that profile only (§3): it cannot reach the user's chats.
 3. `session.create {request_id, source:"tool", hidden:true, toolsets:["no_mcp"], ignore_rules:true, reasoning:"low", max_turns:3,
-   run_budget:90}` (no `title`, no `model`: the profile's default, Q103) → snapshot `{session_id, revision, execution_generation,
+   run_budget:90}` (no `title`; no `model` for Analyze and the brief: the profile's default, Opus, Q103/Q110; the automatic runs add
+   `model:"claude-sonnet-5-5"`, pinned at create time: `CanonicalCreateParams.model` (`tui_gateway/contracts/canonical_sessions.py:28`),
+   frozen into the session policy (`gateway/session_policy.py:436-438`, `:485`), never re-read from the profile without
+   `follow_profile_config` (`:242-250`); no `provider`: the profile's anthropic route stays; the brief sends `run_budget:120`) → snapshot `{session_id, revision, execution_generation,
    info:{tool_count, model}}` (`tui_gateway/contracts/canonical_sessions.py:21-55`, `gateway/session_controls.py:480-532`). `tool_count`
    missing or ≠ 0 → `session.mutate delete` at once, job `tools_present`, nothing submitted (`gateway/session_local_inventory.py:200-202`).
    The session id goes into `failed_sessions` the moment this answer arrives, before any later step can fail; it leaves the list only
@@ -1327,11 +1337,13 @@ Code: `server/internal/stocks/{scheduler,bars,universe_override}.go`. Same auth,
   every `every_min` minutes inside its windows of a trading day. `last_due` = the slot the last run (or miss) was for; `last_run` = when that
   run started; `late` = it was a catch-up; `next_run` = the next slot after now, `null` while `on` is false. `last_error` is a short code
   (`upstream_blocked`, `codes_failed`, `interrupted`, `state_error`, `internal_error`, …), `null` after `ok` or `missed`.
-- **Jobs now.** `bars.daily` (default `16:20`, on, editable `on` and `at`; its `at` is 16:15-23:00, the session closes at 16:00) and `screener.scan`
-  (TSC2, §20.3: 10-min slots in the delay-shifted session windows; the end-of-day screen runs at the end of `bars.daily`). Later tickets register
-  theirs (`brief`, `alerts`, `news`; Q20: on/off for each, time for `brief`/`bars.daily`, interval for `scan`).
+- **Jobs now** (in this order). `bars.daily` (default `16:20`, on, editable `on` and `at`; its `at` is 16:15-23:00, the session closes at 16:00),
+  `screener.scan` (TSC2, §20.3: 10-min slots in the delay-shifted session windows; the end-of-day screen runs at the end of `bars.daily`), and
+  (TBA1, §20.4) `news` (every 10 min 06:00-16:30, editable `on`), `alerts` (every 5 min 08:00-16:30, editable `on`; off = no alert and no
+  automatic run at all) and `brief` (default `08:30`, editable `on` and `at` 05:00-08:45; a late slot runs only before 09:00, else `missed`).
+  All on trading days only. `GET /v1/stocks/jobs` also carries `"auto_runs":{"date","used","cap":5,"codes"}` (§20.4).
 - **PUT errors.** `404 unknown_job`; `400 bad_request`: empty body or unknown field, a field not in the job's `editable`, `at` not `HH:MM`
-  or outside 05:00-23:00 (`bars.daily`: 16:15-23:00), `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
+  or outside 05:00-23:00 (`bars.daily`: 16:15-23:00; `brief`: 05:00-08:45), `every_min` outside 5..30; `500 state_error`: `stocks-jobs.json` unusable or not saved (nothing changes).
 - **Scheduler.** One loop reads the wall clock every 30 s (a Go timer stops while a laptop sleeps; the tick notices the jump within 30 s);
   holidays from the bundled IDX calendar. A job never overlaps itself; slots it is still busy for are skipped. **Catch-up (Q31)**, at boot and
   after a sleep: only an "at" job's latest slot counts. Run within 2 min of the slot = on time; later = `late`: `bars.daily` runs late
@@ -1382,6 +1394,8 @@ Code: `server/internal/stocks/{screener,screener_setups,screener_settings}.go`. 
   "skipped":{"illiquid","no_bars"},"candidates":[candidate…],"flags":[flag…]}`. `session_date`: intraday = the day scanned, eod = the completed
   session screened; `data_as_of`: intraday = the newest quote `market_time` of the scan (~10 min behind), eod = that session's 16:00 close.
   `stale`: the last run of this mode did not replace the result shown (Yahoo blocked, every quote failed, no bars): it is older.
+  A run computes with the settings in force when it installs: a settings PUT that lands during a scan or eod screen makes it compute again
+  first, and a re-rank never replaces a result a newer run installed (TBA1, TSC2 review MINOR-1).
   `scan` describes the last run of this mode; `next_run` = the `screener.scan` slot (intraday) or `bars.daily` (eod). No result yet:
   `session_date`/`data_as_of` null, `candidates:[]`, and in eod mode `scan.error:"no_bars"` (before the first `bars.daily`). `400 bad_request`
   for another `mode`.
@@ -1391,7 +1405,8 @@ Code: `server/internal/stocks/{screener,screener_setups,screener_settings}.go`. 
   (`breakout` 3, `volume_spike` 2, `ma_cross` up 2, `rsi_rebound` 2, `gap` up 1) + 0.1 × min(vol_ratio, 5), 1 decimal. Order: score desc,
   `val20` desc, code; `at_ara` (price ≥ the ARA limit, nothing to buy) last; at most 50. **Flag** (Q106: bearish signals are never candidates)
   `{"code","name","in_watchlist","held","price","change_pct","setups"}` = `gap` down or `ma_cross` down on a watchlist/holding code, no
-  liquidity filter, code order. `in_watchlist`/`held`/`name` follow the lists at the time of the GET; flags of codes no longer watched or held are left out.
+  liquidity filter, code order. Bullish setups of a watchlist/holding code that is no candidate (illiquid, or held outside the universe and
+  watchlist) are not shown; they still reach the hits log (Q107). `in_watchlist`/`held`/`name` follow the lists at the time of the GET; flags of codes no longer watched or held are left out.
 - **Setup.** `{"id":"breakout|volume_spike|ma_cross|rsi_rebound|gap","dir":"up|down","date","first_at","values":{…}}`. `date` = the session
   the signal is about (an intraday `ma_cross` shows the last completed session's cross with its date); `first_at` = the data time of the
   first result it appeared in that day (from the hits log). `values` (only those used): `high` + `lookback` (breakout), `vol_ratio`, `rsi`,
@@ -1411,15 +1426,18 @@ Code: `server/internal/stocks/{screener,screener_setups,screener_settings}.go`. 
   Each setup has `on`. **Liquidity**: `min_value_bn` (default 5, 0-100, 0 = off): a screened code with `val20` below it is `skipped.illiquid`.
   **No signal**: fewer than 51 completed bars or none fresh (bars must cover the session before the day: fetched ≥ 16:15 of it) →
   `skipped.no_bars`. Intraday, a quote that is stale, has no `market_time`, a `market_time` not on the day or older than now − 25 min fires
-  nothing intraday (only the stored `ma_cross`) and counts in `codes_stale`; `|previousClose − B|` > 1 tick (split or data mismatch) → the
-  code is left out (`codes_stale`). eod: a code whose last stored bar is not that session's is `no_bars`. Screened codes = LQ45 ∪ IDX80 (§20.2)
+  nothing intraday (only the stored `ma_cross`) and counts in `codes_stale`; this is checked first, so a code with no trade today keeps
+  its stored signals and flags; only a usable quote with `|previousClose − B|` > 1 tick (split or data mismatch) leaves the code out
+  (`codes_stale`). eod: a code whose last stored bar is not that session's is `no_bars`. Screened codes = LQ45 ∪ IDX80 (§20.2)
   ∪ watchlist; holdings are evaluated for flags; the quoted set is capped at 180 codes like `bars.daily`.
 - **Scan job `screener.scan`** (§20.2 job: interval, `every_min` 10, editable `on` and `every_min` 5-30 via `PUT /v1/stocks/jobs/screener.scan`;
   the interval is not a screener setting). Windows (wall clock, trading days) = the sessions shifted by Yahoo's 10-min delay: Mon-Thu
   [09:15,12:15) and [13:40,16:15) = 34 slots, Fri [09:15,11:45) and [14:10,16:15) = 28. Per scan: the codes with usable bars only (none →
   no Yahoo call, `failed`/`no_bars`), quotes from spark in batches of 20 through the 60 s quote cache (it warms the phone's), 1.5 s apart; the
   first scan whose data time is ≥ 09:00 fetches, once per code per day (in memory: a restart fetches again), a `5d` daily chart for each liquid
-  screened or watched/held code: the day's bar's **open** is O (the 5-minute series and spark do not carry the IDX open). Gap off → no chart call.
+  screened or watched/held code: the day's bar's **open** is O (the 5-minute series and spark do not carry the IDX open). A read that failed or
+  had no bar for today yet is retried by the next scans (at most 3 reads per code per day; a code Yahoo does not know is not retried). These
+  charts are kept in the screener's own map, never in the chart cache the phone's charts use. Gap off → no chart call.
   A block (429, 5xx or the shared backoff) during the quotes stops the scan, keeps the last result (`stale:true`), `failed`/`upstream_blocked`;
   during the opens it keeps what was read and installs the result, `partial`/`upstream_blocked`; codes without a quote → `partial`/`codes_failed`.
   No retry: the next slot runs as usual. Each scan logs its budget (codes, spark and chart calls, duration). A slot that comes while a manual
@@ -1428,17 +1446,93 @@ Code: `server/internal/stocks/{screener,screener_setups,screener_settings}.go`. 
   session; also on a `GET` when that session has no result yet and the store covers it. The last 5 sessions are kept.
 - **Settings.** `{"min_value_bn":5,"setups":{"breakout":{"on":true,"lookback":20,"vol_mult":1.5},"volume_spike":{"on":true,"mult":2.0},
   "ma_cross":{"on":true},"rsi_rebound":{"on":true,"level":30},"gap":{"on":true,"min_pct":2.0,"up":true,"down":true}}}` (defaults, Q111). PUT
-  replaces the whole object: one object ≤ 4 KiB, every field present, no unknown field, ranges as above → else `400 bad_request`;
+  replaces the whole object: one object ≤ 4 KiB, every field present and not `null`, no unknown field, ranges as above → else `400 bad_request`;
   `500 state_error` when `stocks-screener.json` is unusable or cannot be saved (nothing changes). A PUT re-ranks at once, without a Yahoo
   call: the kept intraday result from its stored quotes and the latest eod result from the store.
 - **POST scan.** Inside a scan window: an intraday scan as above; otherwise (break, closed) the eod screen of the last completed session from the
   store. `202` at once, the scan runs after the answer (poll `GET`: `scan.running`). `409 scan_running` while any scan runs; `429 too_soon` +
   `retry_after_s` and `Retry-After` less than 2 min after the last scan started (scheduled or manual).
 - **Hits log (slice 3 hook).** The first time a (`date`, code, setup id, dir) appears in any result (scan, eod screen or re-rank) it is appended
-  `{"seq","date","code","setup","dir","mode","at","data_as_of","watch","held","score"}` (`seq` monotonic, persisted; ring of 500; `score` 0 for
-  flags). Slice 3's alerts read `seq > cursor` for watch/held codes; there is no alert or AI run here.
+  `{"seq","date","code","setup","dir","mode","origin","at","data_as_of","watch","held","score"}` (`seq` monotonic, persisted; ring of 500; `score` 0
+  for flags). `origin` (TBA1) = `scan` (an intraday scan), `eod` (an end-of-day screen, also one a `GET` started) or `rerank` (a settings PUT over
+  kept inputs: no new market data); hits logged before TBA1 have `""`. §20.4's alerts read `seq > cursor`, scan and eod hits only.
 - **Storage.** `stocks-screener.json` in the state dir (0600, atomic, compact): `{"version":1,"settings" (only once a PUT set it),
-  "last_intraday":{result + "inputs":{"CODE":{"p","pc","v","tm","o","ok"}}},"eod":[≤ 5 results],"runs":{"intraday","eod"},"hits":[…],"seq"}`,
+  "last_intraday":{result + "inputs":{"CODE":{"p","pc","v","tm","o","ok"}}},"eod":[≤ 5 results],"runs":{"intraday","eod"},"hits":[…],"seq"}`
+  (a result may hold `"watched":[{"code","watch","held","score","setups"}]`, the hits-only list above),
   ≤ 4 MiB, rewritten after each scan. Not `stocks.json` (it accepts version 1 only). A file that is not valid version 1 is left untouched and
   logged: defaults are used, results live in memory only and the settings PUT answers `500 state_error`. Stored settings out of range →
   defaults (logged). Logs carry counts and codes only, never holdings values.
+
+### 20.4 Alerts and the 08:30 brief (`/v1/stocks/alerts`, `/v1/stocks/brief`, TBA1; design `docs/v2-stocks/runs/TSC0/design.md` §2, spec Q18, Q31, Q87, Q104-Q110)
+
+Code: `server/internal/stocks/{alerts,brief,levels}.go`. Same auth, headers and error shape as §20. New routes: no `ProtocolVersion` bump.
+
+| Method, path | Body / query | Answer |
+|---|---|---|
+| `GET /v1/stocks/alerts` | `?after=<seq>` (≥ 0, optional) `&wait=0..50` (s, default 0) `&lang=id\|en` (optional) | `200` alerts object |
+| `GET /v1/stocks/alerts/status` | — | `200 {"seq","alerts_on","lang","auto_runs":{"date","used","cap":5,"codes"}}` |
+| `GET /v1/stocks/brief` | `?date=YYYY-MM-DD` (default: the latest) | `200` brief object; `404 no_brief` |
+| `GET /v1/stocks/briefs` | — | `200 {"briefs":[{"date","state","late","headline"}]}`, newest first (≤ 7) |
+| `POST /v1/stocks/brief` | none, or `{"lang":"id"\|"en"}` | `202 {"date","state":"running"}` (reruns today's brief) |
+
+- **Delivery (TSC0 §2: long-poll, Q109).** The phone asks `GET /v1/stocks/alerts?after=<its cursor>&wait=50`; the server answers at once when
+  items with `seq > after` exist, else holds the request up to `wait` seconds (an alert landing wakes it; a server stop ends it). Nothing is
+  pushed: while no phone is connected, alerts wait in the ring and the app reads what it missed when it comes back. Alerts object:
+  `{"seq","items":[alert…],"auto_runs":{…},"reset"}`, items oldest first; without `after` the newest 50; `after` above the latest `seq` (the
+  file was lost) → `reset:true` with the newest 50. `400 bad_request` for a bad `after`, `wait` or `lang`. `lang` records the phone's language
+  (also taken from the analyze body and the brief POST): alert and brief texts use the last one, Indonesian before any (Q105).
+- **Alert.** `{"seq","id":"al_<12 hex>","kind","code"|null,"title","text","at","data_as_of"|null,"silent","detail":{…}}`. `silent:true` = kept
+  for the list, not to be notified (quiet hours or over a cap). Kinds:
+  - `level` (after each scan, from its usable quotes only: nothing while a quote is stale, old or not today's): a holding's `stop`/`target`
+    (§20, Q104; `detail.source:"holding"`) or a kept verdict whose `session_date` is today (Q18; `"analysis"`): `buy_today`/`add` entry zone
+    (the price inside `[entry_low, entry_high]`), `target`/`stop`; `hold` target/stop. A level set (or a verdict made) before today's 09:00 open
+    counts the day's high/low, a later one only the scan's price (~10 min behind). `detail {level:"stop|target|entry","source","price","value"
+    [,"value_high"]}`.
+  - `setup`: bullish hits (§20.3 hits log, origin `scan` or `eod`, never `rerank`) on a code that is on the watchlist or held now; one alert per
+    code per day listing the setups (`detail.setups[{id,dir,date,origin}]`, `score`).
+  - `analysis`: the result of an automatic run (below): title `"BBCA: Buy today, med"`, `detail {verdict, confidence, trigger:"auto", model,
+    analyzed_at, session_date}`. A failed run posts none (logged).
+  - `news` (after each `news` job poll): an article published 08:00-16:30 today and at most 60 min before the poll with a **strong** match
+    (§20 news matching) on a watched or held code; weak matches never alert; outside 08:00-16:30 news waits for the brief (Q108).
+    `detail {article_id, source, link, published_at}`.
+  - `brief`: the 08:30 brief is ready (`detail {date, late}`); never silent.
+  - `summary`: the day's notified alerts reached 30; later ones are silent.
+- **Dedupe and caps.** A key (WIB day, kind, code, subject) fires once per day; subject = the level (`stop`, `target`, `entry`; `hold_*` for a
+  holding's), the article id for news, none for setup (one per code per day). At most 3 notified alerts per code and 30 per day (then one
+  `summary`); the rest are kept silent. Outside 08:00-16:30 of a trading day every alert but the brief is silent. The `alerts` job off (§20.2,
+  Q20) = no alert at all (the hits cursor still moves: turning it on never replays old hits).
+- **Automatic analyses (Q87, Q107, Q110).** When a watched or held code has **≥ 2 distinct bullish setups** (scan/eod hits) on one session date,
+  the server starts an analysis as `POST /v1/stocks/analyze` would (same checks, jobs and result, §20.1) with `trigger:"auto"` on the model
+  `claude-sonnet-5-5` pinned in `session.create`. At most 5 a day (`auto_runs`, counted when the job starts, reset at 00:00 WIB, persisted); never
+  twice per code per day; skipped while a verdict for today is younger than 60 min. A refusal (`busy`, `analysis_running`, Hermes down, not set
+  up) is not counted; Analyze on the phone and the brief never count.
+- **Brief (Q18, Q105, Q108, Q110).** Job `brief` at 08:30 WIB on trading days only (no brief on other days). DATA, from the server's own state
+  (bars from the store; Yahoo only when a code's stored bars are not fresh): per watchlist/holding code the last close and
+  `ind:<CODE>:close|change_pct|dist_ma20_pct|dist_ma50_pct|rsi14|trend`, `lvl:<CODE>:s1|r1|pivot|ara|arb` (ARA/ARB for today),
+  `hold:<CODE>:pl_pct` (P/L % after fees at the last close; no lots or average), `vd:<CODE>` (the kept verdict: verdict, confidence, session
+  date, time, trigger); `scr:<CODE>` for yesterday's end-of-day screen (top 10 candidates with score and setups, plus the flags of watched/held
+  codes); `news:N` (≤ 10) published since the previous session's 16:00 close and matching a watched/held code, strong first then newest.
+  One session as §20.1 (tool-less, `aristotle-stocks`, the profile default model: Opus; `run_budget:120`; 120 s per turn; one repair turn;
+  deleted after a good brief, kept 7 days after a failed one) with the same untrusted-data SYSTEM block. The reply, one surrounding code
+  fence stripped, must be exactly `{"schema":"stock_brief/1","session_date":<today>,"headline" (1-160),"summary" (1-600),
+  "focus":[{"code","stance":"watch_buy|watch|avoid","note" (1-200),"sources":[…]}] (≤ 8, codes from DATA, each once),"news":[{"text" (1-200),
+  "sources"}] (≤ 5),"risks":[{"text","sources"}] (≤ 3)}` (no other key, none repeated), every source an id of DATA, and **no price in any
+  text**: a number above 99 once `.`/`,` separators are read (4.900, 4,900, 4900; 2,43 is 2.43) is refused, as is any `<n> ribu|rb|k`; a number followed by `%`/`persen`, an indicator name (MA200)
+  and a year 1990-2099 next to a year word (`tahun`, `year`, `FY`), a month name or `Q1`-`Q4` pass (a bare 2050 is a price); the
+  level is cited by id and the phone renders `refs`. A second failure fails the brief `invalid_brief`. Hermes down (or both analysis slots
+  busy): retried every 5 min while the next try is before 09:00 (checked again when the wait ends), then `failed`. Only a try that failed
+  before `prompt.submit` (slot, Check, Open) is retried; a failure once the prompt went out (`hermes_lost` mid-turn included) has spent an Opus
+  turn and is final: `failed` with that code. Catch-up (Q31): a slot missed while the PC was off runs late
+  before 09:00 (`late:true`), else it is recorded `missed`.
+- **Brief object.** `{"date","state":"pending|running|done|failed|missed","late","trigger":"scheduled|manual","error","started_at","finished_at",
+  "model","lang","repaired","result":{"headline","summary","focus","news","risks"}|null,"refs":{"<id>":value…},"news":[{"id","source","title",
+  "link","published_at"}]}`. `pending` = today (a trading day, the job on) before its run. A failed rerun keeps the day's last good `result`.
+  `error` ∈ `hermes_unavailable, busy, analyzer_not_set_up, state_error, no_data` (no watched/held code and no eod screen), `invalid_brief`,
+  `interrupted` and the §20.1 turn codes. `400 bad_request` for a bad `date`.
+- **POST brief.** Reruns today's brief at once (on-demand AI, not counted in `auto_runs`): `503 analyzer_not_set_up` (no analyzer), `422 not_trading_day`, then
+  `503 analyzer_not_set_up` / `503 hermes_unavailable` (the Hermes check), `409 brief_running`, `400 bad_request` (a body other than `{"lang"}`).
+- **Storage.** `stocks-alerts.json` (0600, atomic): `{"version":1,"seq","items":[≤ 300, 7 days],"fired":{key:day},"hits_cursor",
+  "auto_runs":{"date","used","codes"},"lang"}`; `stocks-briefs.json` (0600, atomic): `{"version":1,"briefs":[≤ 7 records]}` (a record still
+  `running` after a restart reads as `failed`/`interrupted`). A file that is not valid version 1 is left untouched and logged; the data then
+  lives in memory only. On a first start the hits cursor begins at the newest hit (history is not news).
+- **Logs** carry kinds, codes, counts, states and error codes: never an alert's or the brief's text, the prompt, a verdict or a holding value.

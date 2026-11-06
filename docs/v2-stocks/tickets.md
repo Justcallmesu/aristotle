@@ -22,15 +22,16 @@
 | TSC1 | Server: scheduler (wall-clock 30 s, catch-up Q31), bar store `stocks-bars.json` (P8), universe override, jobs API | TSC0 | server | DONE (fixed in TSC1b/c) |
 | TSC1b | Fix round for TSC1: jobs PUT data race (MAJOR), persist interval slot, catch-up once, freshness rule, bars time 16:15+, 180-code cap | TSC1 | server | DONE |
 | TSC1c | TSC1b's race test passes on the old code (PM check): make it RED on d2e1255, GREEN now | TSC1b | server | DONE |
-| TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | REVIEW |
-| TSC3 | Phone: screener section/page/settings (+ TM3a2 review MINOR-A: source check that chartHeight uses the Canvas style/density; MINOR-B: any deep link into a stock page goes through show(...)) | TSC2 | android | WAITING |
-| TBA1 | Server: alerts + long-poll + auto-run counter | TSC2, Q104/Q107-Q110 | server | BUILDING (+ TSC2 review minors 1-5) |
+| TSC2 | Server: five setups + scan + `/v1/stocks/screener` | TSC1, Q106/Q111 | server | DONE (8fdba61) |
+| TSC3 | Phone: screener section/page/settings (+ TM3a2 review MINOR-A: source check that chartHeight uses the Canvas style/density; MINOR-B: any deep link into a stock page goes through show(...)) | TSC2 | android | DONE (with TSC3b, b96e305) |
+| TBA1 | Server: alerts + long-poll + auto runs + 08:30 brief (+ TSC2 review minors 1-5) | TSC2, Q104/Q107-Q110 | server | DONE (with TBA1b) |
+| TBA1b | TBA1 fix round: weekend/holiday brief test (MAJOR-1), priceLike holes, rerank->scan upgrade, no auto runs without a persisted cap, brief retries only before submit, nits 1-4 | TBA1 | server | DONE (re-review PASS-WITH-FINDINGS) |
+| TBA1c | Brief no-prices rule: year words the prompt invites ("sepanjang 2026", "H1 2026", "kuartal III", dates) refused -> extra Opus repair turns; year ranges / glued letters pass; prompt states the real rule; §20.4 nits; runtime save failure turns auto runs off; 2 duplicated blocks; upgraded hit keeps rerank score (TBA1b review MINOR-1/2 + NITs) | TBA1b | server | TODO (next) |
 | TSC3b | TSC3 fix round: bearish flags hidden on own rows (MAJOR-1, Q106) + refresh after 16:00, cooldown, mode switch, error follow | TSC3 | android | DONE |
-| TBA2 | Server: 08:30 brief | TBA1, Q105/Q108/Q110 | server | WAITING |
-| TBA3a | Phone: alert watcher + notifications | TBA1 | android | WAITING |
-| TBA3b | Phone: brief page + jobs/alerts settings | TBA2 | android | WAITING |
-| TM3 | Run B delta: news_only counts ind/lvl citations only (hold:* no longer lifts the cap) | TM3s | server | REVIEW |
-| TM4 | Run B delta: back-gesture exclusion = 48 dp edge strips (was whole chart); readout height measured from styles | TM3a2 | android | REVIEW |
+| TBA2 | Phone: alerts watcher + notifications, brief card/page, holding stop/target, auto-run status (absorbed the planned TBA3a/TBA3b; the brief server part went into TBA1) | TBA1 | android | REVIEWED: CHANGES-REQUIRED (MAJOR-1 brief day chips) -> TBA2b; held uncommitted |
+| TBA2b | TBA2 fix round: brief chips by date (MAJOR-1), Q115 card states (MINOR-2), unpair race, pure Q109 target + tests, one heads-up per code, job time on page, nits | TBA2 | android | BUILDING (2026-11-06) |
+| TM3 | Run B delta: news_only counts ind/lvl citations only (hold:* no longer lifts the cap) | TM3s | server | DONE (8fdba61) |
+| TM4 | Run B delta: back-gesture exclusion = 48 dp edge strips (was whole chart); readout height measured from styles | TM3a2 | android | DONE (8fdba61) |
 | TS4 | Screener research refining TSC0 (live Yahoo probe: daily-bar open for gaps, no gap prefilter, pace volume by market time, spark summary only, separate stocks-screener.json, Rp 5 bn liquidity floor) | TSC0 | docs | DONE |
 | TD5 | Design board: screener section, page, candidate row, settings, states | TS4 | design | DONE (Q112 PM reading) |
 
@@ -82,3 +83,8 @@
 5. Open user confirmations: none (Q101-Q112 decided).
 - 2026-11-05 (paused) TBA1 review CHANGES-REQUIRED: MAJOR-1 = missing test only (scheduled brief must not run on weekends/holidays; shape: Fri 17:00 -> next_run Mon 08:30; ticks Sat/Sun/2026-12-25 08:30 -> no session, 404 no_brief, no alert; bounded waitFor). MINORs for TBA1b: no-prices rule (1990-2099 and "4,9 ribu" pass; "150%"/"MA200" refused), re-rank-first hits never alert, auto-run cap only in memory after a bad alerts file, brief retries on hermes_lost re-spend Opus up to ~6x (cap retries). Nit: Hermes cite canonical_sessions.py:28 not :29.
 - 2026-11-05 (paused) TBA2 BUILT (unreviewed): builder reports gate PASS (1338), BUT a second gate process it never read ended `FAIL android (1)` -> on "go" run the PM gate first and read the failure. Builder decisions to confirm: target > avg not required (server does not require it); alerts > 30 min old listed without a notification; brief card wording for an older brief.
+- 2026-11-06 Resumed on "A". Board statuses fixed (TSC2/TSC3/TM3/TM4 DONE; TBA2 row = phone ticket that absorbed TBA3a/b). Q113/Q114 kept, Q115 PM reading - confirm. TBA1b dispatched (std, deleg_4106bf5c); TBA2 PM gate running in parallel (android only). Snapshot runs/TBA1b/pre.txt.
+- 2026-11-06 TBA2: pm-gate-tba2 GREEN (android, 1338); the builder-reported stray FAIL did not reproduce. Mutations: first read notifies history (first try did not compile, not counted; redo) -> AlertsTest x2 + AlertWatcherTest x1 fail; stale >30 min notified -> AlertsTest 1 fail. Alerts.kt sha matches pre.txt. Deep review dispatched (deleg_7db70ba8), parallel with TBA1b.
+- 2026-11-06 TBA1b built (std). Files within whitelist. pm-gate-tba1b GREEN (660 Go), -race ok. Mutations: brief TradingDays false -> TestBriefNeverOnWeekendOrHoliday; retry after submit -> TestBriefRetriesOnlyBeforeSubmit; auto run without saved cap -> TestNoAutoRunsWhenAlertsStateUnusable (all killed, restored). Deep re-review of TBA1+TBA1b dispatched (deleg_37ab170d).
+- 2026-11-06 TBA2 review CHANGES-REQUIRED (MAJOR-1 brief day chips pick by index, newest kept brief unreachable before 08:30). Reviewer confirms Q115 reading except MINOR-2 (a) jobs unknown, (b) pending after 09:00. TBA2b dispatched (std, deleg_c7df94e5) with MAJOR-1 + MINOR-2..6 + nits (MINOR-3/5 touch notifications = user impact). Snapshot runs/TBA2b/pre.txt.
+- 2026-11-06 TBA1+TBA1b re-review PASS-WITH-FINDINGS (7 reviewer mutants killed; retry cannot re-spend Opus; model mismatch counts to the cap, no tokens). Committed with CHANGELOG (TBA1 Server lines + TSC3 Phone line). MINOR-1 (priceLike refuses year text the prompt invites -> extra Opus repair turns daily) = money impact -> TBA1c next, after TBA2b (server side free).

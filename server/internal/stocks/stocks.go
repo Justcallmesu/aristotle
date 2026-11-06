@@ -68,6 +68,8 @@ type Options struct {
 	JobsAfter func(time.Duration) <-chan time.Time
 	// BarsPace waits between two Yahoo calls of the bars job (tests); nil: 1.5 s.
 	BarsPace func(ctx context.Context) error
+	// BriefRetryAfter drives the brief's 5-minute retry while Hermes is down (tests); nil: time.After.
+	BriefRetryAfter func(time.Duration) <-chan time.Time
 }
 
 // Service owns the stocks state and serves /v1/stocks/*.
@@ -87,9 +89,14 @@ type Service struct {
 	barsPace func(ctx context.Context) error
 	mux      *http.ServeMux
 
-	mu       sync.Mutex // guards st; held across a save so writes stay ordered
-	st       State
-	stateErr error
+	alerts *alertEngine
+	briefs *briefer
+
+	mu        sync.Mutex // guards st and levels; held across a save so writes stay ordered
+	st        State
+	stateErr  error
+	levels    map[string]HoldingLevels // holding stop/target (stocks-levels.json, Q104)
+	levelsErr error
 }
 
 // New loads stocks.json. A file that cannot be used is reported and left alone: the state
@@ -121,6 +128,11 @@ func New(o Options) *Service {
 		s.log.Error("stocks: state unusable; watchlist and holdings are off until it is fixed or removed",
 			"file", stateFile, "err", s.stateErr)
 	}
+	s.levels, s.levelsErr = loadLevels(s.dir)
+	if s.levelsErr != nil {
+		s.log.Error("stocks: holding levels file unusable; stops/targets are off until it is fixed or removed",
+			"file", levelsFile, "err", s.levelsErr)
+	}
 	if s.barsPace == nil {
 		s.barsPace = sleepPace
 	}
@@ -136,8 +148,16 @@ func New(o Options) *Service {
 	s.sched.register(JobSpec{ID: BarsJobID, At: barsJobAt, TradingDays: true, CatchUp: CatchUpAlways,
 		Editable: []string{EditOn, EditAt}, MinAt: barsJobMinAt, Wanted: s.barsWanted, Run: s.runBarsDaily})
 	s.screen = newScreener(s)
+	s.alerts = newAlertEngine(s)
+	s.briefs = newBriefer(s, o.BriefRetryAfter)
 	s.sched.register(JobSpec{ID: ScanJobID, EveryMin: scanEveryMin, Windows: screenerWindows, TradingDays: true,
 		Editable: []string{EditOn, EditEveryMin}, Run: s.runScanJob})
+	s.sched.register(JobSpec{ID: NewsJobID, EveryMin: newsEveryMin, Windows: newsWindows, TradingDays: true,
+		Editable: []string{EditOn}, Run: s.runNewsJob})
+	s.sched.register(JobSpec{ID: AlertsJobID, EveryMin: alertsEveryMin, Windows: alertWindows, TradingDays: true,
+		Editable: []string{EditOn}, Run: s.runAlertsJob})
+	s.sched.register(JobSpec{ID: BriefJobID, At: briefJobAt, TradingDays: true, CatchUp: CatchUpBeforeClose, LateUntil: briefLateUntil,
+		Editable: []string{EditOn, EditAt}, MaxAt: briefMaxAt, Missed: s.briefs.missed, Run: s.briefs.runJob})
 	s.mux = s.routes()
 	return s
 }
@@ -149,10 +169,13 @@ func (s *Service) Start() { s.sched.start() }
 // ServeHTTP serves /v1/stocks/*; the caller has checked the device token.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
-// Close stops the scheduler, the news poller and the analysis jobs (running jobs and turns are interrupted).
+// Close stops the scheduler, the news poller, the alert waits and the analysis jobs (running jobs and turns
+// are interrupted).
 func (s *Service) Close() {
+	s.alerts.close()
 	s.sched.close()
 	s.screen.close()
+	s.briefs.close()
 	s.news.Close()
 	s.analyzer.close()
 }
@@ -193,6 +216,11 @@ func (s *Service) routes() *http.ServeMux {
 	handle("GET /v1/stocks/screener/settings", s.getScreenerSettings)
 	handle("PUT /v1/stocks/screener/settings", s.putScreenerSettings)
 	handle("POST /v1/stocks/screener/scan", s.postScreenerScan)
+	handle("GET /v1/stocks/alerts", s.getAlerts)
+	handle("GET /v1/stocks/alerts/status", s.getAlertsStatus)
+	handle("GET /v1/stocks/brief", s.getBrief)
+	handle("POST /v1/stocks/brief", s.postBrief)
+	handle("GET /v1/stocks/briefs", s.getBriefs)
 	handle("/v1/stocks/", func(*http.Request) (int, any, error) { return 0, nil, errNotFound })
 	return mux
 }

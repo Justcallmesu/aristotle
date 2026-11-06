@@ -285,6 +285,19 @@ func (m *Market) ChartFresh(ctx context.Context, code, rng string) (Chart, error
 	return ch, nil
 }
 
+// ChartDirect is ChartFresh without caching the answer: the screener's once-a-day opens (80-180 `5d` charts)
+// must not push the phone's charts out of the cache (TSC2 review MINOR-4); the screener keeps the opens itself.
+func (m *Market) ChartDirect(ctx context.Context, code, rng string) (Chart, error) {
+	if err := m.blockedErr(); err != nil {
+		return Chart{}, err
+	}
+	ch, err := m.Src.Chart(ctx, code, rng)
+	if err = m.note(err); err != nil {
+		return Chart{}, err
+	}
+	return ch, nil
+}
+
 // keepChartLocked caches ch under key, dropping the least recently used chart past the cap. Callers hold m.mu.
 func (m *Market) keepChartLocked(key string, ch Chart) {
 	if m.charts == nil {

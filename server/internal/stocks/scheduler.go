@@ -109,6 +109,12 @@ type JobSpec struct {
 	DefaultOff  bool
 	Editable    []string // subset of EditOn, EditAt, EditEveryMin
 	MinAt       string   // at-jobs: the earliest time a PUT may set (default 05:00)
+	MaxAt       string   // at-jobs: the latest time a PUT may set (default 23:00)
+	// LateUntil (at-jobs, CatchUpBeforeClose): a late slot runs only before this time of its day, not until
+	// 16:00 (the brief: before 09:00, then missed). "" = 16:00.
+	LateUntil string
+	// Missed, when set, hears an at-slot recorded missed. It runs under the scheduler lock: quick, no call back.
+	Missed func(slot time.Time)
 	// Wanted, when set, is asked before an at-slot starts (late: a catch-up) and may say the run is not needed;
 	// the slot is then recorded handled without a run. It runs under the scheduler lock: it must be quick and
 	// must not call back into the scheduler.
@@ -150,6 +156,8 @@ type job struct {
 	at       clock // at-jobs
 	every    int   // interval jobs, minutes
 	minAt    int   // earliest allowed "at", minutes after midnight
+	maxAt    int   // latest allowed "at"
+	lateBy   clock // CatchUpBeforeClose: a late slot runs before this time of its day
 	running  bool
 	lastSlot time.Time // interval jobs: the last slot run or skipped (also in rec.LastSlot)
 }
@@ -258,13 +266,27 @@ func (sc *scheduler) register(spec JobSpec) {
 	if spec.ID == "" || spec.Run == nil || (spec.At == "") == (spec.EveryMin <= 0) || (spec.EveryMin > 0 && spec.Windows == nil) {
 		panic("stocks: bad job spec " + spec.ID)
 	}
-	j := &job{spec: spec, on: !spec.DefaultOff, every: spec.EveryMin, minAt: minJobAt}
+	j := &job{spec: spec, on: !spec.DefaultOff, every: spec.EveryMin, minAt: minJobAt, maxAt: maxJobAt, lateBy: clock{lateCutoffHour, 0}}
 	if spec.MinAt != "" {
 		c, ok := parseHHMM(spec.MinAt)
 		if !ok || spec.At == "" {
 			panic("stocks: bad job min time " + spec.MinAt)
 		}
 		j.minAt = c.h*60 + c.m
+	}
+	if spec.MaxAt != "" {
+		c, ok := parseHHMM(spec.MaxAt)
+		if !ok || spec.At == "" {
+			panic("stocks: bad job max time " + spec.MaxAt)
+		}
+		j.maxAt = c.h*60 + c.m
+	}
+	if spec.LateUntil != "" {
+		c, ok := parseHHMM(spec.LateUntil)
+		if !ok || spec.At == "" {
+			panic("stocks: bad job late cutoff " + spec.LateUntil)
+		}
+		j.lateBy = c
 	}
 	if spec.At != "" {
 		c, ok := parseHHMM(spec.At)
@@ -387,9 +409,12 @@ func (sc *scheduler) tick(now time.Time) {
 			sc.log.Info("stocks: scheduled job not needed", "job", id, "due", *rfc(slot), "late", late)
 			continue
 		}
-		if late && j.spec.CatchUp == CatchUpBeforeClose && !now.Before(at(slot, clock{lateCutoffHour, 0})) {
+		if late && j.spec.CatchUp == CatchUpBeforeClose && !now.Before(at(slot, j.lateBy)) {
 			j.rec.LastDue, j.rec.LastStatus, j.rec.LastError, j.rec.Late = *rfc(slot), JobStatusMissed, "", false
 			sc.log.Warn("stocks: scheduled job missed (the PC was off or asleep)", "job", id, "due", *rfc(slot))
+			if j.spec.Missed != nil {
+				j.spec.Missed(slot)
+			}
 			continue
 		}
 		sc.launchLocked(j, slot, now, late)
@@ -541,7 +566,15 @@ func parseHHMM(s string) (clock, bool) {
 
 func (j *job) atInBounds(c clock) bool {
 	m := c.h*60 + c.m
-	return m >= j.minAt && m <= maxJobAt
+	return m >= j.minAt && m <= j.maxAt
+}
+
+// isOn reports whether job id is registered and switched on.
+func (sc *scheduler) isOn(id string) bool {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	j, ok := sc.jobs[id]
+	return ok && j.on
 }
 
 func (c clock) String() string { return fmt.Sprintf("%02d:%02d", c.h, c.m) }
@@ -565,7 +598,8 @@ type JobView struct {
 }
 
 type jobsBody struct {
-	Jobs []JobView `json:"jobs"`
+	Jobs     []JobView    `json:"jobs"`
+	AutoRuns AutoRunsView `json:"auto_runs"` // automatic analyses today (spec Q87, protocol §20.4)
 }
 
 func nonEmpty(s string) *string {
@@ -671,7 +705,7 @@ func (sc *scheduler) update(id string, p jobPatch) (JobView, error) {
 }
 
 func (s *Service) getJobs(*http.Request) (int, any, error) {
-	return http.StatusOK, jobsBody{Jobs: s.sched.views()}, nil
+	return http.StatusOK, jobsBody{Jobs: s.sched.views(), AutoRuns: s.alerts.autoRunsView()}, nil
 }
 
 func (s *Service) putJob(r *http.Request) (int, any, error) {

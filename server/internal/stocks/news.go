@@ -269,6 +269,24 @@ func (n *News) poll(stop chan struct{}) {
 	}
 }
 
+// Poll is the news job's fetch (slice 3, 06:00-16:30 on trading days): every feed once, joined with a refresh
+// already running. It does not count as a device request, so it never keeps the on-demand poller alive.
+func (n *News) Poll(ctx context.Context) {
+	n.mu.Lock()
+	closed := n.closed
+	n.mu.Unlock()
+	if !closed {
+		n.refresh(ctx)
+	}
+}
+
+// Snapshot is the ring as it is (newest first), with no fetch and no request recorded.
+func (n *News) Snapshot() []Article {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.items)
+}
+
 // Close stops the poller; a request that is still in flight cannot start it again.
 func (n *News) Close() {
 	n.mu.Lock()

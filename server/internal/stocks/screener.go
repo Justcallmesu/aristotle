@@ -35,6 +35,16 @@ const (
 	maxScreenerBytes  = 4 << 20
 	screenerStopWait  = 5 * time.Second
 	openFetchDataTime = 9 * 60 // data time (minutes after midnight) from which the day's open exists
+	maxOpenTries      = 3      // per code per day: a failed read or one with no bar for today yet is retried by later scans
+)
+
+// Hit origins (ScreenHit.Origin). Only scan and eod hits are new market data; a rerank hit comes from a settings
+// change over kept inputs, so slice 3 never alerts on it. A later scan or eod fire of the same (date, code,
+// setup, dir) upgrades a rerank-only hit to that origin (installLocked), so it alerts then.
+const (
+	HitScan   = "scan"
+	HitEOD    = "eod"
+	HitRerank = "rerank"
 )
 
 var (
@@ -51,6 +61,7 @@ type ScreenHit struct {
 	Setup    string  `json:"setup"`
 	Dir      string  `json:"dir"`
 	Mode     string  `json:"mode"`
+	Origin   string  `json:"origin"` // scan | eod | rerank ("" in hits logged before TBA1)
 	At       string  `json:"at"`
 	DataAsOf string  `json:"data_as_of"`
 	Watch    bool    `json:"watch"`
@@ -78,7 +89,8 @@ type screenResult struct {
 	Skipped     screenSkipped        `json:"skipped"`
 	Candidates  []ScreenCandidate    `json:"candidates"`
 	Flags       []ScreenFlag         `json:"flags"`
-	Inputs      map[string]liveQuote `json:"inputs,omitempty"` // intraday: what a re-rank needs
+	Watched     []screenWatched      `json:"watched,omitempty"` // bullish setups of watched/held non-candidates (hits only)
+	Inputs      map[string]liveQuote `json:"inputs,omitempty"`  // intraday: what a re-rank needs
 }
 
 // screenerDoc is stocks-screener.json. Settings are stored only once a PUT set them.
@@ -105,9 +117,11 @@ type screener struct {
 	running     bool
 	runningMode string
 	lastStart   time.Time
-	opensDay    string           // the WIB date opens/opensTried are for
-	opens       map[string]int64 // code → the day's open
-	opensTried  map[string]bool  // fetched (or failed) today: not asked again until a restart
+	setRev      int64            // bumped by every settings PUT: a run that read older settings recomputes before it installs
+	opensDay    string           // the WIB date opens/opensDone/opensTries are for
+	opens       map[string]int64 // code → the day's open (own map: never the phone's chart cache)
+	opensDone   map[string]bool  // the open is known (or Yahoo does not know the code): not asked again today
+	opensTries  map[string]int   // failed reads today (an error, or no bar for today yet); retried up to maxOpenTries
 }
 
 func newScreener(s *Service) *screener {
@@ -178,12 +192,46 @@ func (sc *screener) saveLocked() error {
 }
 
 func (sc *screener) settings() ScreenerSettings {
+	set, _ := sc.settingsRev()
+	return set
+}
+
+// settingsRev is the settings in force and their revision.
+func (sc *screener) settingsRev() (ScreenerSettings, int64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
+	return sc.settingsLocked(), sc.setRev
+}
+
+func (sc *screener) settingsLocked() ScreenerSettings {
 	if sc.doc.Settings != nil {
 		return *sc.doc.Settings
 	}
 	return DefaultScreenerSettings()
+}
+
+// installComputed computes a result with set and installs it, unless a settings PUT landed meanwhile: then it
+// computes again with the new settings first, so a run that read older settings never replaces the re-rank of
+// a newer PUT (TSC2 review MINOR-1). still, when set, is checked under the lock before installing; false drops
+// the result (a re-rank whose base was replaced by a newer run). It saves and reports whether it installed.
+func (sc *screener) installComputed(set ScreenerSettings, rev int64, compute func(ScreenerSettings) screenResult, run *screenRun,
+	origin string, still func() bool) bool {
+	for {
+		res := compute(set)
+		sc.mu.Lock()
+		if still != nil && !still() {
+			sc.mu.Unlock()
+			return false
+		}
+		if sc.setRev == rev {
+			sc.installLocked(res, run, origin)
+			_ = sc.saveLocked()
+			sc.mu.Unlock()
+			return true
+		}
+		set, rev = sc.settingsLocked(), sc.setRev
+		sc.mu.Unlock()
+	}
 }
 
 func (sc *screener) close() {
@@ -313,7 +361,7 @@ func (s *Service) compute(mode string, day, ref time.Time, inputs map[string]liv
 		ev.Code = c
 		evals = append(evals, ev)
 	}
-	cands, flags, sk := rank(evals, roles, set)
+	cands, flags, watched, sk := rank(evals, roles, set)
 	names := s.knownNames()
 	for i := range cands {
 		cands[i].Name = s.screenName(cands[i].Code, names)
@@ -322,7 +370,7 @@ func (s *Service) compute(mode string, day, ref time.Time, inputs map[string]liv
 		flags[i].Name = s.screenName(flags[i].Code, names)
 	}
 	res := screenResult{Mode: mode, SessionDate: dayString(day), ComputedAt: *rfc(ref), DataAsOf: dataAsOf, Skipped: sk,
-		Candidates: cands, Flags: flags}
+		Candidates: cands, Flags: flags, Watched: watched}
 	if mode == ModeIntraday {
 		res.Inputs = inputs
 	}
@@ -344,26 +392,33 @@ func signalDataTime(g Signal, res *screenResult) string {
 }
 
 // installLocked keeps res as the result of its mode (and run as the mode's last run when given), fills
-// first_at from the hits log and logs each first fire. The caller holds mu and saves.
-func (sc *screener) installLocked(res screenResult, run *screenRun) {
+// first_at from the hits log and logs each first fire with its origin. The caller holds mu and saves.
+func (sc *screener) installLocked(res screenResult, run *screenRun, origin string) {
 	now := *rfc(sc.svc.now())
-	seen := make(map[string]string, len(sc.doc.Hits)) // key → the first fire's data time
-	for _, h := range sc.doc.Hits {
-		seen[h.Date+"|"+h.Code+"|"+h.Setup+"|"+h.Dir] = h.DataAsOf
+	seen := make(map[string]int, len(sc.doc.Hits)) // key → the hit's index in the log
+	for i, h := range sc.doc.Hits {
+		seen[h.Date+"|"+h.Code+"|"+h.Setup+"|"+h.Dir] = i
 	}
+	upgraded := map[int]bool{} // rerank-only hits fired again by a scan or eod run
+	fresh := origin == HitScan || origin == HitEOD
 	mark := func(code string, watch, held bool, score float64, sigs []Signal) {
 		for i := range sigs {
 			g := &sigs[i]
 			key := g.Date + "|" + code + "|" + g.ID + "|" + g.Dir
-			if t, ok := seen[key]; ok {
+			if at, ok := seen[key]; ok {
+				h := &sc.doc.Hits[at]
+				if fresh && h.Origin == HitRerank && !upgraded[at] {
+					upgraded[at] = true
+				}
+				t := h.DataAsOf
 				g.FirstAt = &t
 				continue
 			}
 			sc.doc.Seq++
-			h := ScreenHit{Seq: sc.doc.Seq, Date: g.Date, Code: code, Setup: g.ID, Dir: g.Dir, Mode: res.Mode, At: now,
+			h := ScreenHit{Seq: sc.doc.Seq, Date: g.Date, Code: code, Setup: g.ID, Dir: g.Dir, Mode: res.Mode, Origin: origin, At: now,
 				DataAsOf: signalDataTime(*g, &res), Watch: watch, Held: held, Score: score}
 			sc.doc.Hits = append(sc.doc.Hits, h)
-			seen[key] = h.DataAsOf
+			seen[key] = len(sc.doc.Hits) - 1
 			t := h.DataAsOf
 			g.FirstAt = &t
 		}
@@ -376,6 +431,11 @@ func (sc *screener) installLocked(res screenResult, run *screenRun) {
 		f := &res.Flags[i]
 		mark(f.Code, f.InWatchlist, f.Held, 0, f.Setups)
 	}
+	for i := range res.Watched {
+		w := &res.Watched[i]
+		mark(w.Code, w.Watch, w.Held, w.Score, w.Setups)
+	}
+	sc.upgradeHitsLocked(upgraded, origin, now)
 	if n := len(sc.doc.Hits); n > maxScreenHits {
 		sc.doc.Hits = slices.Clone(sc.doc.Hits[n-maxScreenHits:])
 	}
@@ -393,6 +453,26 @@ func (sc *screener) installLocked(res screenResult, run *screenRun) {
 	if run != nil {
 		sc.doc.Runs[res.Mode] = *run
 	}
+}
+
+// upgradeHitsLocked re-logs the hits at the given indexes under origin with a new seq at the end of the log, so
+// the alerts cursor reads them again; their data time stays the first fire's.
+func (sc *screener) upgradeHitsLocked(at map[int]bool, origin, now string) {
+	if len(at) == 0 {
+		return
+	}
+	var moved []ScreenHit
+	kept := make([]ScreenHit, 0, len(sc.doc.Hits))
+	for i, h := range sc.doc.Hits {
+		if !at[i] {
+			kept = append(kept, h)
+			continue
+		}
+		sc.doc.Seq++
+		h.Seq, h.Origin, h.At = sc.doc.Seq, origin, now
+		moved = append(moved, h)
+	}
+	sc.doc.Hits = append(kept, moved...)
 }
 
 // failRunLocked records a run that did not replace the result.
@@ -441,13 +521,19 @@ func (sc *screener) screenEOD(now time.Time, force bool) {
 		}
 		return
 	}
-	res, _ := sc.svc.compute(ModeEOD, day, now, nil, closeTime(date), sc.settings())
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
+	set, rev := sc.settingsRev()
+	var res screenResult
 	run := screenRun{LastRun: *rfc(now), Status: JobStatusOK, CodesOK: ok}
-	sc.installLocked(res, &run)
-	_ = sc.saveLocked()
+	sc.installComputed(set, rev, func(set ScreenerSettings) screenResult {
+		res, _ = sc.svc.compute(ModeEOD, day, now, nil, closeTime(date), set)
+		return res
+	}, &run, HitEOD, nil)
 	sc.svc.log.Info("stocks: screener eod", "session", date, "codes", ok, "candidates", len(res.Candidates), "flags", len(res.Flags))
+	if force {
+		// After bars.daily or a manual scan: its hits may alert at once. A GET's screen leaves them to the
+		// alerts job (5 min), so a phone's request never waits on an automatic analysis' Hermes check.
+		sc.svc.alerts.afterHits()
+	}
 }
 
 // --- intraday scan ---
@@ -498,7 +584,7 @@ func (sc *screener) scanIntraday(ctx context.Context) error {
 	began := time.Now()
 	now := s.now().In(WIB)
 	day := at(now, clock{0, 0})
-	set := sc.settings()
+	set, rev := sc.settingsRev()
 	codes, roles := s.screenCodes()
 	barsOf := map[string][]Bar{}
 	var want []string
@@ -591,7 +677,7 @@ func (sc *screener) scanIntraday(ctx context.Context) error {
 				openStop = err
 				break
 			}
-			ch, err := s.market.ChartFresh(ctx, c, openRange)
+			ch, err := s.market.ChartDirect(ctx, c, openRange)
 			charts++
 			asked = true
 			var be *BlockedError
@@ -611,8 +697,7 @@ func (sc *screener) scanIntraday(ctx context.Context) error {
 		}
 		inputs[c] = lq
 	}
-	res, stale := s.compute(ModeIntraday, day, now, inputs, dataAsOf, set)
-	run := screenRun{LastRun: *rfc(now), Status: JobStatusOK, CodesOK: len(quotes) - stale, CodesFailed: failed, CodesStale: stale}
+	run := screenRun{LastRun: *rfc(now), Status: JobStatusOK, CodesFailed: failed}
 	var out error
 	switch {
 	case openStop != nil:
@@ -623,36 +708,44 @@ func (sc *screener) scanIntraday(ctx context.Context) error {
 		run.Status, run.Error = JobStatusPartial, "codes_failed"
 		out = &JobError{Code: "codes_failed", Partial: true}
 	}
-	sc.mu.Lock()
-	sc.installLocked(res, &run)
-	_ = sc.saveLocked()
-	sc.mu.Unlock()
+	var res screenResult
+	sc.installComputed(set, rev, func(set ScreenerSettings) screenResult {
+		var stale int
+		res, stale = s.compute(ModeIntraday, day, now, inputs, dataAsOf, set)
+		run.CodesOK, run.CodesStale = len(quotes)-stale, stale
+		return res
+	}, &run, HitScan, nil)
 	logScan(run.Status, run.Error, len(res.Candidates), len(res.Flags))
+	s.alerts.afterScan(now, quotes)
 	return out
 }
 
 func (sc *screener) resetOpensLocked(day time.Time) {
 	if d := dayString(day); sc.opensDay != d {
-		sc.opensDay, sc.opens, sc.opensTried = d, map[string]int64{}, map[string]bool{}
+		sc.opensDay, sc.opens, sc.opensDone, sc.opensTries = d, map[string]int64{}, map[string]bool{}, map[string]int{}
 	}
 }
 
+// needOpen: code's open is still unknown today and its reads have not all failed (TSC2 review MINOR-4: a read at
+// 09:05 may come before Yahoo has today's daily bar; a later scan asks again).
 func (sc *screener) needOpen(day time.Time, code string) bool {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	sc.resetOpensLocked(day)
-	return !sc.opensTried[code]
+	return !sc.opensDone[code] && sc.opensTries[code] < maxOpenTries
 }
 
 func (sc *screener) setOpen(day time.Time, code string, bars []Bar, err error) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	sc.resetOpensLocked(day)
-	sc.opensTried[code] = true
-	if err == nil {
-		if o := dayOpen(bars, day); o > 0 {
-			sc.opens[code] = o
-		}
+	switch o := dayOpen(bars, day); {
+	case err == nil && o > 0:
+		sc.opens[code], sc.opensDone[code] = o, true
+	case errors.Is(err, ErrUnknownSymbol):
+		sc.opensDone[code] = true // never answers: no retry
+	default:
+		sc.opensTries[code]++
 	}
 }
 
@@ -677,34 +770,34 @@ func (s *Service) runScanJob(ctx context.Context, _ JobRun) error {
 
 // rerank recomputes the kept intraday result (from its stored quotes) and the latest EOD result (from the
 // store) with set. No Yahoo call.
-func (sc *screener) rerank(set ScreenerSettings) {
+// rev is the revision set was saved at: a later PUT's re-rank wins (installComputed), and a result a scan or
+// eod screen installed meanwhile is never replaced by the re-rank of the older one.
+func (sc *screener) rerank(set ScreenerSettings, rev int64) {
 	s := sc.svc
 	sc.mu.Lock()
 	li, eod := sc.doc.LastIntraday, sc.latestEODLocked()
 	sc.mu.Unlock()
-	var out []screenResult
 	if li != nil {
 		day, err1 := time.ParseInLocation(time.DateOnly, li.SessionDate, WIB)
 		ref, err2 := time.Parse(time.RFC3339, li.ComputedAt)
 		if err1 == nil && err2 == nil {
-			r, _ := s.compute(ModeIntraday, day, ref, li.Inputs, li.DataAsOf, set)
-			out = append(out, r)
+			sc.installComputed(set, rev, func(set ScreenerSettings) screenResult {
+				r, _ := s.compute(ModeIntraday, day, ref, li.Inputs, li.DataAsOf, set)
+				return r
+			}, nil, HitRerank, func() bool { return sc.doc.LastIntraday != nil && sc.doc.LastIntraday.ComputedAt == li.ComputedAt })
 		}
 	}
 	if eod != nil {
 		if day, err := time.ParseInLocation(time.DateOnly, eod.SessionDate, WIB); err == nil {
-			r, _ := s.compute(ModeEOD, day, s.now(), nil, eod.DataAsOf, set)
-			r.ComputedAt = eod.ComputedAt
-			out = append(out, r)
+			sc.installComputed(set, rev, func(set ScreenerSettings) screenResult {
+				r, _ := s.compute(ModeEOD, day, s.now(), nil, eod.DataAsOf, set)
+				r.ComputedAt = eod.ComputedAt
+				return r
+			}, nil, HitRerank, func() bool {
+				cur := sc.latestEODLocked()
+				return cur != nil && cur.SessionDate == eod.SessionDate && cur.ComputedAt == eod.ComputedAt
+			})
 		}
-	}
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	for _, r := range out {
-		sc.installLocked(r, nil)
-	}
-	if len(out) > 0 {
-		_ = sc.saveLocked()
 	}
 }
 
@@ -832,8 +925,10 @@ func (s *Service) putScreenerSettings(r *http.Request) (int, any, error) {
 		sc.mu.Unlock()
 		return 0, nil, err
 	}
+	sc.setRev++
+	rev := sc.setRev
 	sc.mu.Unlock()
-	sc.rerank(set)
+	sc.rerank(set, rev)
 	return http.StatusOK, set, nil
 }
 

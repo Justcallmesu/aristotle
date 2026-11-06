@@ -119,12 +119,13 @@ func decodeStrict(data []byte, v any) error {
 	return nil
 }
 
-// sameKeys reports whether got has every object key of want, recursively (got's extra keys are refused by
-// decodeStrict already).
+// sameKeys reports whether got has every object key of want, recursively, none of them null (got's extra keys
+// are refused by decodeStrict already). A null would decode as the zero value: "min_value_bn":null would turn
+// the liquidity floor off and "on":null a setup off, while the PUT promises every field present.
 func sameKeys(want, got any) bool {
 	w, ok := want.(map[string]any)
 	if !ok {
-		return true
+		return got != nil
 	}
 	g, ok := got.(map[string]any)
 	if !ok {
@@ -132,7 +133,7 @@ func sameKeys(want, got any) bool {
 	}
 	for k, wv := range w {
 		gv, ok := g[k]
-		if !ok || !sameKeys(wv, gv) {
+		if !ok || gv == nil || !sameKeys(wv, gv) {
 			return false
 		}
 	}

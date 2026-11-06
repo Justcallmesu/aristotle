@@ -1,0 +1,49 @@
+== files changed since pre.txt (sha differs or new)
+  docs/protocol.md
+  docs/v2-stocks/tickets.md
+  server/internal/hermes/analysis.go
+  server/internal/stocks/analyzer.go
+  server/internal/stocks/analyzer_test.go
+  server/internal/stocks/screener.go
+  docs/v2-stocks/runs/TBA1b/gate-server-test.log
+  docs/v2-stocks/runs/TBA1b/gate-summary.txt
+  docs/v2-stocks/runs/TBA1b/gate-server-vet.log
+  docs/v2-stocks/runs/TBA1b/pm-check.log
+  docs/v2-stocks/runs/TBA1b/gate-server-gofmt.log
+  docs/v2-stocks/runs/TBA1b/pre.txt
+  docs/v2-stocks/runs/TBA1b/build-report.md
+  docs/v2-stocks/runs/TBA2/review-brief.md
+  docs/v2-stocks/runs/pm-gate-tba2/gate-summary.txt
+  docs/v2-stocks/runs/pm-gate-tba2/gate-android.log
+  docs/v2-stocks/runs/pm-gate-tba2/mutation.log
+  server/internal/stocks/alerts.go
+  server/internal/stocks/brief.go
+  server/internal/stocks/tba1_test.go
+== gate
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=660 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=660 failed=0
+SKIP android (0)
+== M1 brief job TradingDays false (stocks.go:159)
+--- FAIL: TestBriefNeverOnWeekendOrHoliday (0.02s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M2 retry after submit (brief.go:271)
+--- FAIL: TestBriefRetriesOnlyBeforeSubmit (5.06s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M3 auto runs without a saved cap (alerts.go:521)
+--- FAIL: TestNoAutoRunsWhenAlertsStateUnusable (0.01s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== race
+ok  	github.com/justcallmesu/aristotle/server/internal/stocks	6.164s
+ok  	github.com/justcallmesu/aristotle/server/internal/hermes	2.527s
+?   	github.com/justcallmesu/aristotle/server/internal/hermes/hermestest	[no test files]

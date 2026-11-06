@@ -163,6 +163,8 @@ type holdingRow struct {
 	PLPct    *float64 `json:"pl_pct"`
 	Today    *int64   `json:"today"` // (price − prev_close) × shares, no fees
 	Stale    bool     `json:"stale"`
+	Stop     *int64   `json:"stop"`   // hand-set stop for the price alerts (Q104), null when unset
+	Target   *int64   `json:"target"` // hand-set target, null when unset
 }
 
 type holdingsTotal struct {
@@ -194,12 +196,16 @@ func (s *Service) holdings(r *http.Request, st State) holdingsBody {
 		codes[i] = h.Code
 	}
 	quotes := s.market.Quotes(r.Context(), codes).Quotes
+	levels := s.holdingLevels()
 	body := holdingsBody{At: s.now().In(WIB).Format(time.RFC3339), Holdings: []holdingRow{}}
 	positions := make([]Position, 0, len(st.Holdings))
 	var today int64
 	todayKnown := true
 	for _, h := range st.Holdings {
 		row := holdingRow{Code: h.Code, Name: h.Name, Lots: h.Lots, AvgPrice: h.AvgPrice}
+		if l, ok := levels[h.Code]; ok {
+			row.Stop, row.Target = l.Stop, l.Target
+		}
 		if q, ok := quotes[h.Code]; ok {
 			row.Price, row.Stale = &q.Price, q.Stale
 			if q.Change != nil {
@@ -233,6 +239,8 @@ func (s *Service) putHolding(r *http.Request) (int, any, error) {
 	var body struct {
 		Lots     *int64   `json:"lots"`
 		AvgPrice *float64 `json:"avg_price"`
+		Stop     *int64   `json:"stop"`   // optional (Q104); absent or null = none
+		Target   *int64   `json:"target"` // optional
 	}
 	if err := decodeBody(r, &body); err != nil || body.Lots == nil || body.AvgPrice == nil {
 		return 0, nil, errBadRequest
@@ -240,6 +248,9 @@ func (s *Service) putHolding(r *http.Request) (int, any, error) {
 	avg := math.Round(*body.AvgPrice*100) / 100
 	if err := checkPosition(*body.Lots, avg); err != nil {
 		return 0, nil, errBadRequest
+	}
+	if err := checkLevels(body.Stop, body.Target, avg); err != nil {
+		return 0, nil, err
 	}
 	st, err := s.snapshot()
 	if err != nil {
@@ -252,9 +263,7 @@ func (s *Service) putHolding(r *http.Request) (int, any, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	st, err = s.update(func(st State) (State, error) {
-		return st.putHolding(Holding{Code: code, Name: name, Lots: *body.Lots, AvgPrice: avg})
-	})
+	st, err = s.putHoldingLevels(Holding{Code: code, Name: name, Lots: *body.Lots, AvgPrice: avg}, body.Stop, body.Target)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -270,6 +279,7 @@ func (s *Service) deleteHolding(r *http.Request) (int, any, error) {
 	if err != nil {
 		return 0, nil, err
 	}
+	s.dropLevels(code)
 	return http.StatusOK, s.holdings(r, st), nil
 }
 

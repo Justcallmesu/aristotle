@@ -60,13 +60,27 @@ var (
 	errShuttingDown    = &apiError{status: http.StatusServiceUnavailable, code: "shutting_down"}
 )
 
+// Analysis triggers (AnalysisResult.Trigger) and the model of the automatic runs (spec Q87, Q107, Q110).
+const (
+	TriggerManual = "manual" // the phone's Analyze button (profile default model: Opus, Q103)
+	TriggerAuto   = "auto"   // started by a setup alert (Sonnet, Q110)
+	// AutoModel is pinned per session at create time for the automatic runs (hermes.AnalysisOptions.Model).
+	AutoModel = "claude-sonnet-5-5"
+)
+
+// SessionOptions pick the model and run budget of one analysis session ("" / 0: the profile default, 90 s).
+type SessionOptions struct {
+	Model     string
+	RunBudget int
+}
+
 // Analyst is the Hermes seam of the analyzer (HermesAnalyst in production, a fake in tests).
 type Analyst interface {
 	// Check reports whether Hermes runs and serves AnalystProfile (hermes.ErrUnknownProfile when not).
 	Check(ctx context.Context) error
 	// Open creates one tool-less analysis session. created hears the session id as soon as Hermes has
 	// made it, before any later step can fail (also when Open then fails).
-	Open(ctx context.Context, created func(id string)) (AnalystSession, error)
+	Open(ctx context.Context, o SessionOptions, created func(id string)) (AnalystSession, error)
 	// DeleteSession removes a session left by an earlier failed job.
 	DeleteSession(ctx context.Context, id string) error
 }
@@ -89,8 +103,8 @@ func (h hermesAnalyst) Check(ctx context.Context) error {
 	return h.c.ServesProfile(ctx, AnalystProfile)
 }
 
-func (h hermesAnalyst) Open(ctx context.Context, created func(id string)) (AnalystSession, error) {
-	s, err := h.c.OpenAnalysis(ctx, hermes.AnalysisOptions{Profile: AnalystProfile, Created: created})
+func (h hermesAnalyst) Open(ctx context.Context, o SessionOptions, created func(id string)) (AnalystSession, error) {
+	s, err := h.c.OpenAnalysis(ctx, hermes.AnalysisOptions{Profile: AnalystProfile, Created: created, Model: o.Model, RunBudget: o.RunBudget})
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +126,7 @@ type AnalysisResult struct {
 	SessionDate string         `json:"session_date"`
 	MarketState string         `json:"market_state"`
 	Model       string         `json:"model"`
+	Trigger     string         `json:"trigger"` // manual | auto (results kept before TBA1 read as manual)
 	DurationMS  int64          `json:"duration_ms"`
 	Verdict     string         `json:"verdict"`
 	Confidence  string         `json:"confidence"`
@@ -151,6 +166,14 @@ type analysisJob struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Error      string
+}
+
+// runOptions are a job's trigger, model and completion hook (the automatic runs' analysis alert).
+type runOptions struct {
+	Trigger string // TriggerManual when ""
+	Model   string // "" = the profile default
+	// Done, when set, hears the outcome after the job finished: the kept result, or nil and the error code.
+	Done func(res *AnalysisResult, errCode string)
 }
 
 // analyzer owns the jobs and the kept results.
@@ -236,6 +259,12 @@ func loadAnalyses(dir string) (analysesState, error) {
 	if st.Failed == nil {
 		st.Failed = []failedSession{}
 	}
+	for c, r := range st.Analyses {
+		if r.Trigger == "" {
+			r.Trigger = TriggerManual
+			st.Analyses[c] = r
+		}
+	}
 	return st, err
 }
 
@@ -305,7 +334,8 @@ func (s *Service) postAnalyze(r *http.Request) (int, any, error) {
 	if err := decodeBody(r, &body); err != nil || (body.Lang != analysisLangID && body.Lang != analysisLangEN) {
 		return 0, nil, errBadRequest
 	}
-	return s.analyzer.start(r.Context(), code, body.Lang)
+	s.alerts.setLang(body.Lang)
+	return s.analyzer.start(r.Context(), code, body.Lang, runOptions{})
 }
 
 func (s *Service) getAnalysis(r *http.Request) (int, any, error) {
@@ -338,7 +368,7 @@ func (an *analyzer) status(code string) analysisBody {
 
 // start reserves a slot, runs the checks a phone must hear about at once (state, Hermes, bars) and
 // launches the job.
-func (an *analyzer) start(ctx context.Context, code, lang string) (int, any, error) {
+func (an *analyzer) start(ctx context.Context, code, lang string, o runOptions) (int, any, error) {
 	if an.analyst == nil {
 		return 0, nil, errNotSetUp
 	}
@@ -351,9 +381,10 @@ func (an *analyzer) start(ctx context.Context, code, lang string) (int, any, err
 		an.release(code, prev)
 		return 0, nil, err
 	}
+	in.Trigger, in.Model = cmp.Or(o.Trigger, TriggerManual), o.Model
 	go func() {
 		defer an.wg.Done() // added by reserve
-		an.run(job, code, in, daily)
+		an.run(job, code, in, daily, o.Done)
 	}()
 	return http.StatusAccepted, analyzeBody{JobID: job.ID, State: JobRunning, StartedAt: *rfc(job.StartedAt)}, nil
 }
@@ -376,6 +407,26 @@ func (an *analyzer) reserve(code string) (job, prev *analysisJob, err error) {
 	an.running++
 	an.wg.Add(1) // under mu: close sets closing under mu before it waits, so no Add can race that Wait
 	return job, prev, nil
+}
+
+// reserveSlot takes one of the maxRunningJobs Hermes slots for a job that is not a code's analysis (the
+// 08:30 brief); false when they are all taken or the analyzer is closing. releaseSlot gives it back.
+func (an *analyzer) reserveSlot() bool {
+	an.mu.Lock()
+	defer an.mu.Unlock()
+	if an.closing || an.running >= maxRunningJobs {
+		return false
+	}
+	an.running++
+	an.wg.Add(1)
+	return true
+}
+
+func (an *analyzer) releaseSlot() {
+	an.mu.Lock()
+	defer an.mu.Unlock()
+	an.running--
+	an.wg.Done()
 }
 
 func (an *analyzer) release(code string, prev *analysisJob) {
@@ -435,12 +486,15 @@ func (an *analyzer) name(st State, code, fromChart string) string {
 }
 
 // run is one job: gather, compute, ask, check, keep.
-func (an *analyzer) run(job *analysisJob, code string, in analysisInput, daily []Bar) {
+func (an *analyzer) run(job *analysisJob, code string, in analysisInput, daily []Bar, done func(*AnalysisResult, string)) {
 	began := time.Now()
-	errCode := an.analyze(code, in, daily, began)
-	an.svc.log.Info("stocks: analysis finished", "job", job.ID, "code", code, "state", jobState(errCode),
+	res, errCode := an.analyze(code, in, daily, began)
+	an.svc.log.Info("stocks: analysis finished", "job", job.ID, "code", code, "trigger", in.Trigger, "state", jobState(errCode),
 		"error", errCode, "duration_ms", time.Since(began).Milliseconds())
 	an.finish(job, errCode)
+	if done != nil {
+		done(res, errCode)
+	}
 }
 
 func jobState(errCode string) string {
@@ -452,23 +506,26 @@ func jobState(errCode string) string {
 
 // analyze keeps the result or returns the error code. The Hermes session is recorded for the sweep the
 // moment it exists and forgotten only once it is deleted, so no failure path can orphan it (P7).
-func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began time.Time) (errCode string) {
+func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began time.Time) (*AnalysisResult, string) {
 	in, err := an.gather(code, in, daily)
 	if err != nil {
-		return "data_unavailable"
+		return nil, "data_unavailable"
 	}
 	created := ""
-	sess, err := an.analyst.Open(an.ctx, func(id string) {
+	sess, err := an.analyst.Open(an.ctx, SessionOptions{Model: in.Model}, func(id string) {
 		created = id
 		an.recordSession(id)
 	})
 	if err != nil {
-		return an.openFailed(code, created, err)
+		return nil, an.openFailed(code, created, err)
 	}
 	defer sess.Close()
+	if in.Model != "" && sess.Model() != in.Model {
+		return nil, an.modelMismatch(code, sess) // the create snapshot is read before any prompt.submit: nothing was spent
+	}
 	v, flags, repaired, errCode := an.converse(sess, in)
 	if errCode != "" {
-		return errCode // the session stays recorded: kept 7 days for debugging
+		return nil, errCode // the session stays recorded: kept 7 days for debugging
 	}
 	res := resultFrom(in, v, flags, repaired, sess.Model(), an.svc.now(), time.Since(began))
 	an.keep(code, res)
@@ -476,10 +533,24 @@ func (an *analyzer) analyze(code string, in analysisInput, daily []Bar, began ti
 	defer cancel()
 	if err := sess.Delete(dctx); err != nil {
 		an.svc.log.Warn("stocks: analysis session not deleted; the sweep retries", "code", code, "err", hermesErrorCode(err))
-		return ""
+		return &res, ""
 	}
 	an.forgetSession(sess.ID())
-	return ""
+	return &res, ""
+}
+
+// modelMismatch aborts a run whose session does not run the pinned model (Hermes ignored the pin): the session is
+// deleted unsent (kept for the sweep when the delete fails) and only the code is logged, never a model name or text.
+func (an *analyzer) modelMismatch(code string, sess AnalystSession) string {
+	dctx, cancel := context.WithTimeout(context.Background(), analysisCleanup)
+	defer cancel()
+	if err := sess.Delete(dctx); err != nil {
+		an.svc.log.Warn("stocks: analysis session with the wrong model not deleted; the sweep retries", "code", code, "err", hermesErrorCode(err))
+	} else {
+		an.forgetSession(sess.ID())
+	}
+	an.svc.log.Warn("stocks: analysis aborted: model_mismatch", "code", code)
+	return "model_error"
 }
 
 // openFailed maps a failed Open. A session deleted unused (tools present) is forgotten; one Open could not
@@ -589,6 +660,7 @@ func resultFrom(in analysisInput, v Verdict, flags []string, repaired bool, mode
 	}
 	return AnalysisResult{Code: in.Code, Name: in.Name, Held: in.held(), Lang: in.Lang, AnalyzedAt: *rfc(now), DataAsOf: in.AsOf,
 		SessionDate: in.Ind.SessionDate, MarketState: in.Ind.MarketState, Model: model, DurationMS: took.Milliseconds(),
+		Trigger: cmp.Or(in.Trigger, TriggerManual),
 		Verdict: v.Verdict, Confidence: v.Confidence, EntryLow: v.EntryLow, EntryHigh: v.EntryHigh, Target: v.Target, Stop: v.Stop,
 		Summary: v.Summary, Reasons: v.Reasons, Flags: flags, Repaired: repaired, Price: in.Ind.Price, ARA: in.Ind.ARA, ARB: in.Ind.ARB,
 		Indicators: in.indicatorIDs(), Levels: in.levelIDs(), News: news}
@@ -616,6 +688,25 @@ func hermesErrorCode(err error) string {
 	default:
 		return "hermes_lost" // socket, dial or ticket failure
 	}
+}
+
+// kept is every kept result (a copy, code order).
+func (an *analyzer) kept() []AnalysisResult {
+	an.mu.Lock()
+	defer an.mu.Unlock()
+	out := make([]AnalysisResult, 0, len(an.st.Analyses))
+	for _, c := range sortedKeys(an.st.Analyses) {
+		out = append(out, an.st.Analyses[c])
+	}
+	return out
+}
+
+// keptOne is code's kept result.
+func (an *analyzer) keptOne(code string) (AnalysisResult, bool) {
+	an.mu.Lock()
+	defer an.mu.Unlock()
+	r, ok := an.st.Analyses[code]
+	return r, ok
 }
 
 // keep stores a result (newest wins; at most maxAnalyses codes, the oldest dropped).

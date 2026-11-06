@@ -77,3 +77,6 @@ Each slice is usable on its own and gets its own ticket set after the previous o
 | Q109 | With 'keep connected' off, alerts arrive only while the app is open; Settings says so. | User 2026-11-05 "All recommendations". |
 | Q110 | Models: Sonnet for automatic runs, Opus for the 08:30 brief (on-demand Analyze stays Opus, Q103). | User 2026-11-05 "All recommendations". |
 | Q111 | Default setup thresholds (TSC0 §1 as corrected by TS4) to start, tunable in the settings sheet. | User 2026-11-05 "All recommendations". |
+| Q113 | A holding's target is not checked against the average price (only tick grid, stop < avg, stop < target), same as the server's `checkLevels`. | User 2026-11-06 "A" (kept the TBA2 builder choice). |
+| Q114 | Alerts read more than 30 min after they fired (phone was away) go to the alerts list without a notification. | User 2026-11-06 "A" (kept the TBA2 builder choice). |
+| Q115 | Brief card when the newest stored brief is from an earlier day: TBA2 shows "not a trading day" unless `/jobs` says the brief job is off. **PM reading — confirm**: the PM's 2026-11-06 summary described it wrongly as "shows its date"; the TBA2 review checks the trading-day-before-08:30 case (should read "pending"). | PM 2026-11-06; user to confirm. |

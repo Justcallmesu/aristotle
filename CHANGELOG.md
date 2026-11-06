@@ -10,6 +10,11 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- Server: Stock alerts for the phone (`/v1/stocks/alerts`, read by long-poll; missed alerts wait on the PC): your own stop and target on a holding, the entry zone, target and stop of today's analysis, setups firing on your watchlist and holdings, and strong news about them from 08:00 to 16:30; at most 3 a stock and 30 a day are notified, quieter outside market hours.
+- Server: Automatic analyses: when a stock on your watchlist or in your holdings shows two setups on one day, the PC analyzes it on Sonnet (at most 5 a day, once per stock), keeps the result like Analyze and sends an alert.
+- Server: The 08:30 brief (`/v1/stocks/brief`) on trading days: overnight news, yesterday's screen, your holdings and kept verdicts summed up by the AI (Opus) in your app's language, with levels shown from the PC's own numbers; it runs late until 09:00 if the PC was asleep, and can be rerun on request.
+- Server: Holdings take an optional stop and target (`stocks-levels.json`; `stocks.json` is unchanged).
+- Phone: Stock screener — Stocks home has a Screener section under your watchlist with the top setups. "See all" opens the list for Today or the last close. You can filter it by setup, see each stock's labels (Breakout 20d, Vol ×2,3, MA cross, RSI, Gap) and its score, and bearish flags on your own stocks, and you can Scan now. Your watchlist and holdings show the setup that fired. Settings › Stocks › Screener lets you turn each setup on or off, set its thresholds, the liquidity floor and the scan interval, and edit the LQ45/IDX80 list.
 - Server: Stock screener on your PC (`/v1/stocks/screener`): every 10 minutes during the sessions it checks the LQ45/IDX80 list and your watchlist for a breakout above the 20-day high with volume, a volume spike, an MA20/50 cross, an RSI rebound and an opening gap, ranks the liquid ones (at least Rp 5 bn a day), marks gap-down and MA cross-down on your watchlist and holdings, screens each close after the 16:20 price download, and keeps the thresholds you set (`stocks-screener.json`); "scan now" on request.
 - Server: Stocks jobs on your PC (`/v1/stocks/jobs`): a scheduler that keeps working across sleep and catches up missed jobs at start, a daily 16:20 download of a year of daily prices for the LQ45/IDX80 list, your watchlist and holdings (`stocks-bars.json`), and an editable LQ45/IDX80 list (`/v1/stocks/universe`, `stocks-universe.json`).
 - Phone: Analyze on a stock's page runs the AI analyzer on your PC (shows progress, you can leave the page) and shows a verdict card — Buy today / Wait / Avoid or Add / Hold / Sell, confidence, entry zone, target and stop with % from the price, reasons with their news sources, data time, and "Analysis only, not financial advice".
@@ -30,6 +35,7 @@ file at build time and shows the `Phone:` entries only.
 
 ### Fixed
 
+- Server: Screener: a scan no longer undoes a settings change made while it ran; empty (`null`) settings are refused; a stock without a trade yet today keeps its signals; the opening gap is read again when the first try came too early, and no longer pushes your charts out of the cache.
 - Server: The service no longer refuses every control command from your PC terminal (`pair.start` and others); the unit has no `PrivateTmp` any more, so run `aristotle-server install --force` and restart the service.
 
 ## [1.0.0] - 2026-11-04

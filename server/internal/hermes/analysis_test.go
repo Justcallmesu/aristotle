@@ -232,6 +232,23 @@ func TestAnalysisToolCountAbortsBeforeSubmit(t *testing.T) {
 	}
 }
 
+// Spec Q110: the automatic runs pin Sonnet at create time (session.create "model"; the profile's route is kept,
+// no provider sent); the brief raises Hermes' run budget to 120 s.
+func TestAnalysisCreatePinsModelAndBudget(t *testing.T) {
+	c, fa, _ := newFakeAnalyst(t, map[string]func(*hermestest.Peer, rpc) []string{})
+	s, err := c.OpenAnalysis(testCtx(t), AnalysisOptions{Profile: stocksProfile, Model: "claude-sonnet-5-5", RunBudget: 120})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	create := fa.find("session.create")[0].Params
+	delete(create, "request_id")
+	if got, _ := json.Marshal(create); string(got) != `{"hidden":true,"ignore_rules":true,"max_turns":3,"model":"claude-sonnet-5-5",`+
+		`"reasoning":"low","run_budget":120,"source":"tool","toolsets":["no_mcp"]}` {
+		t.Fatalf("create params = %s", got)
+	}
+}
+
 func TestAnalysisCreateUnusableAnswer(t *testing.T) {
 	c, _, _ := newFakeAnalyst(t, map[string]func(*hermestest.Peer, rpc) []string{
 		"session.create": func(_ *hermestest.Peer, r rpc) []string { return []string{result(r, `{"revision":1}`)} },

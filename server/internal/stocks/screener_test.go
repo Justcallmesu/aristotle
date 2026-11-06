@@ -195,7 +195,7 @@ func TestScreenerScanJob(t *testing.T) {
 	}
 	doc := h.screenerDoc()
 	if len(doc.Hits) != 4 || doc.Seq != 4 || doc.Hits[0] != (ScreenHit{Seq: 1, Date: "2026-11-05", Code: "BBCA", Setup: SetupBreakout, Dir: DirUp,
-		Mode: ModeIntraday, At: "2026-11-05T09:55:10+07:00", DataAsOf: "2026-11-05T09:45:00+07:00", Score: 6.2}) ||
+		Mode: ModeIntraday, Origin: HitScan, At: "2026-11-05T09:55:10+07:00", DataAsOf: "2026-11-05T09:45:00+07:00", Score: 6.2}) ||
 		doc.Hits[3].Code != "ANTM" || doc.Hits[3].Dir != DirDown || !doc.Hits[3].Watch {
 		t.Fatalf("hits = %+v", doc.Hits)
 	}
@@ -345,7 +345,7 @@ func TestScreenerEODAfterBarsJob(t *testing.T) {
 	}
 	doc := h.screenerDoc()
 	if len(doc.EOD) != 1 || doc.Runs[ModeEOD].Status != JobStatusOK || doc.Runs[ModeEOD].CodesOK != 3 || len(doc.Hits) != 4 ||
-		doc.Hits[0].Mode != ModeEOD || doc.Hits[0].DataAsOf != "2026-11-05T16:00:00+07:00" {
+		doc.Hits[0].Mode != ModeEOD || doc.Hits[0].Origin != HitEOD || doc.Hits[0].DataAsOf != "2026-11-05T16:00:00+07:00" {
 		t.Fatalf("doc = %+v", doc)
 	}
 	// Friday morning: the default view is Thursday's close until Friday's first scan; the ma_cross shows intraday with its date.

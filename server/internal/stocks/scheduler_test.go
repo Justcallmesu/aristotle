@@ -412,8 +412,32 @@ func TestJobsHTTP(t *testing.T) {
 	h := newHarness(t)
 	got := h.expect("GET", "/v1/stocks/jobs", "", 200, "")
 	jobs := got["jobs"].([]any)
-	if len(jobs) != 2 {
+	if len(jobs) != 5 {
 		t.Fatalf("jobs = %v", jobs)
+	}
+	// Slice 3 (TBA1): news every 10 min from 06:00, alerts every 5 min from 08:00, the brief at 08:30 (next: Fri, Thu's
+	// slot has passed); on/off for each, a time for the brief (Q20). auto_runs: today's automatic analyses (Q87).
+	ids := []string{}
+	for _, j := range jobs {
+		ids = append(ids, j.(map[string]any)["id"].(string))
+	}
+	if strings.Join(ids, ",") != "bars.daily,screener.scan,news,alerts,brief" {
+		t.Fatalf("ids = %v", ids)
+	}
+	if n, a, br := jobs[2].(map[string]any), jobs[3].(map[string]any), jobs[4].(map[string]any); n["every_min"] != 10.0 ||
+		n["next_run"] != "2026-11-05T10:10:00+07:00" || a["every_min"] != 5.0 || a["next_run"] != "2026-11-05T10:05:00+07:00" ||
+		br["at"] != "08:30" || br["next_run"] != "2026-11-06T08:30:00+07:00" || len(br["editable"].([]any)) != 2 || len(n["editable"].([]any)) != 1 {
+		t.Fatalf("slice 3 jobs = %v %v %v", n, a, br)
+	}
+	if ar := got["auto_runs"].(map[string]any); ar["used"] != 0.0 || ar["cap"] != 5.0 || ar["date"] != "2026-11-05" {
+		t.Fatalf("auto_runs = %v", ar)
+	}
+	for _, body := range []string{`{"at":"08:46"}`, `{"at":"04:59"}`, `{"every_min":10}`} {
+		h.expect("PUT", "/v1/stocks/jobs/"+BriefJobID, body, 400, "bad_request")
+	}
+	h.expect("PUT", "/v1/stocks/jobs/"+NewsJobID, `{"every_min":10}`, 400, "bad_request")
+	if got := h.expect("PUT", "/v1/stocks/jobs/"+BriefJobID, `{"at":"08:45"}`, 200, ""); got["at"] != "08:45" {
+		t.Fatalf("brief at = %v", got)
 	}
 	// The screener scan (TSC2): every 10 min in the delay-shifted windows; Thu 10:00 → the 10:05 slot (09:15 + 5×10).
 	if s := jobs[1].(map[string]any); s["id"] != ScanJobID || s["every_min"] != 10.0 || s["at"] != nil ||

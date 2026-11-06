@@ -164,20 +164,22 @@ func evalIntraday(day time.Time, bars []Bar, q *liveQuote, set ScreenerSettings)
 	if set.Setups.MACross.On {
 		cross = maCross(closes, dayString(barDay(bars[n])))
 	}
-	if q != nil && q.PrevClose != nil {
-		if d := *q.PrevClose - base; d > TickSize(base) || -d > TickSize(base) {
-			return codeEval{Mismatch: true, Price: q.Price, Val20: ev.Val20}
-		}
-	}
 	if cross != nil {
 		ev.Signals = append(ev.Signals, *cross)
 	}
+	// The usable check comes first: a quote with no trade today (suspended, not traded yet) carries a
+	// previousClose one session older, which is no data mismatch; the code keeps its stored signals.
 	if q == nil || !q.Usable {
 		ev.Stale = true
 		if q != nil {
 			ev.Price = q.Price
 		}
 		return ev
+	}
+	if q.PrevClose != nil {
+		if d := *q.PrevClose - base; d > TickSize(base) || -d > TickSize(base) {
+			return codeEval{Mismatch: true, Price: q.Price, Val20: ev.Val20}
+		}
 	}
 	p := q.Price
 	ev.Price, ev.ChangePct = p, pct(float64(p), float64(base))
@@ -309,6 +311,17 @@ type ScreenCandidate struct {
 	Setups      []Signal `json:"setups"`
 }
 
+// screenWatched is a watchlist or holding code whose bullish setups did not make it a candidate (illiquid, or a
+// held code outside the screened set). It is not shown; it feeds the hits log, so slice 3 alerts cover every
+// watched and held code (Q107).
+type screenWatched struct {
+	Code   string   `json:"code"`
+	Watch  bool     `json:"watch"`
+	Held   bool     `json:"held"`
+	Score  float64  `json:"score"`
+	Setups []Signal `json:"setups"`
+}
+
 // ScreenFlag is a bearish signal on a watchlist or holding code (Q106: flags only, no liquidity filter).
 type ScreenFlag struct {
 	Code        string   `json:"code"`
@@ -326,7 +339,8 @@ type screenSkipped struct {
 }
 
 // rank turns evaluations into candidates (score desc, val20 desc, code; at_ara last; ≤ 50) and flags (code order).
-func rank(evals []codeEval, roles map[string]codeRole, set ScreenerSettings) (cands []ScreenCandidate, flags []ScreenFlag, sk screenSkipped) {
+// watched are the bullish setups of watched/held codes that are not candidates (code order).
+func rank(evals []codeEval, roles map[string]codeRole, set ScreenerSettings) (cands []ScreenCandidate, flags []ScreenFlag, watched []screenWatched, sk screenSkipped) {
 	cands, flags = []ScreenCandidate{}, []ScreenFlag{}
 	for _, ev := range evals {
 		r := roles[ev.Code]
@@ -347,13 +361,18 @@ func rank(evals []codeEval, roles map[string]codeRole, set ScreenerSettings) (ca
 				bear = append(bear, g)
 			}
 		}
+		candidate := false
 		if r.Screened {
 			if set.MinValueBn > 0 && ev.Val20 < set.MinValueBn {
 				sk.Illiquid++
 			} else if len(bull) > 0 {
+				candidate = true
 				cands = append(cands, ScreenCandidate{Code: ev.Code, InWatchlist: r.Watch, Held: r.Held, Price: ev.Price,
 					ChangePct: ev.ChangePct, Val20: *round2(ev.Val20), Score: score(ev), AtARA: ev.AtARA, Setups: bull})
 			}
+		}
+		if !candidate && (r.Watch || r.Held) && len(bull) > 0 {
+			watched = append(watched, screenWatched{Code: ev.Code, Watch: r.Watch, Held: r.Held, Score: score(ev), Setups: bull})
 		}
 		if (r.Watch || r.Held) && len(bear) > 0 {
 			flags = append(flags, ScreenFlag{Code: ev.Code, InWatchlist: r.Watch, Held: r.Held, Price: ev.Price,
@@ -373,5 +392,6 @@ func rank(evals []codeEval, roles map[string]codeRole, set ScreenerSettings) (ca
 		cands = cands[:maxCandidates]
 	}
 	slices.SortStableFunc(flags, func(a, b ScreenFlag) int { return cmp.Compare(a.Code, b.Code) })
-	return cands, flags, sk
+	slices.SortStableFunc(watched, func(a, b screenWatched) int { return cmp.Compare(a.Code, b.Code) })
+	return cands, flags, watched, sk
 }

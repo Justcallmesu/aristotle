@@ -66,13 +66,27 @@ const (
 	frameQueue         = 64
 )
 
+// defaultRunBudget is Hermes' own wall-clock budget per run in seconds (spec P5).
+const defaultRunBudget = 90
+
 // analysisCreateParams are the session.create params of every analysis session (spec P5, TA0 §2-§4):
 // internal source "tool" and hidden keep it off every list; ["no_mcp"] means no tools at all (an empty
 // list would still load every MCP server); ignore_rules drops SOUL, memory and context files. No title
-// (a titled create returns an existing session).
-func analysisCreateParams(requestID string) map[string]any {
-	return map[string]any{"request_id": requestID, "source": "tool", "hidden": true, "toolsets": []string{"no_mcp"},
-		"ignore_rules": true, "reasoning": "low", "max_turns": 3, "run_budget": 90}
+// (a titled create returns an existing session). model, when set, pins the session's model at create time
+// (CanonicalCreateParams.model, tui_gateway/contracts/canonical_sessions.py:28; frozen into the session's
+// policy by gateway/session_policy.py:436-438 and LocalSessionPolicy.model, :485; a session without
+// follow_profile_config never re-reads the profile's model, :242-250): spec Q110 runs the automatic analyses
+// on Sonnet while the profile default stays Opus. No provider is sent: the profile's route (anthropic) stays.
+func analysisCreateParams(requestID string, o AnalysisOptions) map[string]any {
+	p := map[string]any{"request_id": requestID, "source": "tool", "hidden": true, "toolsets": []string{"no_mcp"},
+		"ignore_rules": true, "reasoning": "low", "max_turns": 3, "run_budget": defaultRunBudget}
+	if o.Model != "" {
+		p["model"] = o.Model
+	}
+	if o.RunBudget > 0 {
+		p["run_budget"] = o.RunBudget
+	}
+	return p
 }
 
 // AnalysisOptions configure OpenAnalysis.
@@ -83,6 +97,10 @@ type AnalysisOptions struct {
 	Created     func(sessionID string)
 	TurnTimeout time.Duration // default DefaultTurnTimeout
 	PingEvery   time.Duration // gateway.ping period while waiting; default 15 s
+	// Model pins the session's model (e.g. "claude-sonnet-5-5"); "" = the profile's default.
+	Model string
+	// RunBudget is Hermes' wall-clock budget per run in seconds; 0 = 90.
+	RunBudget int
 }
 
 // ServesProfile checks that Hermes runs and serves profile: nil, an Identify error
@@ -128,7 +146,7 @@ func (c *Connector) OpenAnalysis(ctx context.Context, o AnalysisOptions) (*Analy
 		return nil, err
 	}
 	s := newAnalysisSession(conn, o)
-	snap, err := s.call(ctx, "session.create", analysisCreateParams(newID()))
+	snap, err := s.call(ctx, "session.create", analysisCreateParams(newID(), o))
 	if err != nil {
 		s.Close()
 		return nil, err

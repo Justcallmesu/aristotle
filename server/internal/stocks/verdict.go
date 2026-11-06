@@ -72,6 +72,8 @@ type HoldingInput struct {
 type analysisInput struct {
 	Code, Name string
 	Lang       string
+	Trigger    string // TriggerManual | TriggerAuto
+	Model      string // pinned session model ("" = the profile default)
 	AsOf       string // RFC 3339 WIB: the time of the newest price used
 	Ind        Indicators
 	Holding    *HoldingInput
