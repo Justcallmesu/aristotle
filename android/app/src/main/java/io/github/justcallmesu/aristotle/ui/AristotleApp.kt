@@ -41,7 +41,13 @@ import io.github.justcallmesu.aristotle.ui.pair.PairScreen
 import io.github.justcallmesu.aristotle.ui.pair.PairViewModel
 import io.github.justcallmesu.aristotle.ui.sessions.HomeStocks
 import io.github.justcallmesu.aristotle.ui.sessions.ScheduledRequest
+import io.github.justcallmesu.aristotle.data.HomeMode
+import io.github.justcallmesu.aristotle.data.stocks.StockOpen
+import io.github.justcallmesu.aristotle.ui.stocks.AlertsScreen
+import io.github.justcallmesu.aristotle.ui.stocks.BriefScreen
+import io.github.justcallmesu.aristotle.ui.stocks.BriefViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.HoldingsScreen
+import io.github.justcallmesu.aristotle.ui.stocks.StockAlertsViewModel
 import io.github.justcallmesu.aristotle.ui.stocks.NewsScreen
 import io.github.justcallmesu.aristotle.ui.stocks.ScreenerScreen
 import io.github.justcallmesu.aristotle.ui.stocks.ScreenerSettingsScreen
@@ -203,6 +209,8 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
     StocksHoldings, StocksNews, StockDetail,
     /** TSC3: the Screener page and Settings › Stocks › Screener (both on the stocks back stack). */
     StocksScreener, StocksScreenerSettings,
+    /** TBA2: the 08:30 brief and the stock alerts list (both on the stocks back stack). */
+    StocksBrief, StocksAlerts,
     SettingsConnection(SettingsPage.Connection),
     SettingsNotifications(SettingsPage.Notifications),
     SettingsAppearance(SettingsPage.Appearance),
@@ -288,6 +296,22 @@ private fun PairedPages(
         page = nav.page
     }
     val openStock: (String) -> Unit = { code -> show(stocksStack().openStock(code)) }
+    // TBA2: a stock notification's tap: Stocks mode, then the stock's page, the brief or the alerts list. From a stocks
+    // page it is one more step on its stack; from anywhere else a new stack over Home.
+    val stockRequest by container.stockOpen.collectAsStateWithLifecycle()
+    val briefOpened = briefViewModel(container, stocksRoutes, pc)::opened
+    LaunchedEffect(stockRequest) {
+        val request = stockRequest ?: return@LaunchedEffect
+        settings.setHomeMode(HomeMode.Stocks)
+        if (request == StockOpen.Brief) briefOpened()
+        val from = if (page in StocksBackStack.PAGES) stocksStack() else StocksBackStack(PairedPage.Sessions)
+        show(from.open(request))
+        container.stockOpen.compareAndSet(request, null)
+    }
+    val openStockTarget: (StockOpen) -> Unit = { target ->
+        if (target == StockOpen.Brief) briefOpened()
+        show(stocksStack().open(target))
+    }
     // Each "Pair again" starts from an empty form.
     var repairCount by rememberSaveable(pc.pcId) { mutableIntStateOf(0) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
@@ -351,6 +375,8 @@ private fun PairedPages(
                     stocks = run {
                         val stocksViewModel = stocksViewModel(container, stocksRoutes, pc)
                         val screenerViewModel = screenerViewModel(container, stocksRoutes, pc)
+                        val briefViewModel = briefViewModel(container, stocksRoutes, pc)
+                        val alertsViewModel = alertsViewModel(container, stocksRoutes, pc)
                         val nav = StocksNav(
                             openStock = openStock,
                             openHoldings = { show(stocksStack().openHoldings()) },
@@ -358,8 +384,12 @@ private fun PairedPages(
                             openFees = { page = PairedPage.SettingsStocks },
                             openSettings = { page = PairedPage.Settings },
                             openScreener = { show(stocksStack().openScreener()) },
+                            openBrief = { openStockTarget(StockOpen.Brief) },
+                            openAlerts = { openStockTarget(StockOpen.Alerts) },
                         )
-                        HomeStocks(homeMode, settings::setHomeMode) { StocksHomeBody(stocksViewModel, nav, sessionsViewModel::timeText, screenerViewModel) }
+                        HomeStocks(homeMode, settings::setHomeMode) {
+                            StocksHomeBody(stocksViewModel, nav, sessionsViewModel::timeText, screenerViewModel, briefViewModel, alertsViewModel)
+                        }
                     },
                     // With the app lock on, a fresh check first (Q61); a failed or cancelled one opens nothing.
                     onTerminal = {
@@ -390,7 +420,11 @@ private fun PairedPages(
                 },
                 onHistory = { page = PairedPage.SettingsHistory },
                 stocksSection = {
-                    StocksSettingsSection(stocksViewModel(container, stocksRoutes, pc), onOpenScreener = { show(stocksStack().openScreenerSettings()) })
+                    StocksSettingsSection(
+                        stocksViewModel(container, stocksRoutes, pc),
+                        onOpenScreener = { show(stocksStack().openScreenerSettings()) },
+                        alerts = alertsViewModel(container, stocksRoutes, pc),
+                    )
                 },
             )
             PairedPage.SettingsHistory -> ConnectionHistoryScreen(settingsViewModel(container), onBack = { page = page.back })
@@ -409,6 +443,8 @@ private fun PairedPages(
             )
             PairedPage.StocksScreenerSettings -> ScreenerSettingsScreen(screenerViewModel(container, stocksRoutes, pc), onBack = goBack)
             PairedPage.StocksNews -> NewsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack, onOpenStock = openStock)
+            PairedPage.StocksBrief -> BriefScreen(briefViewModel(container, stocksRoutes, pc), onBack = goBack, onOpenStock = openStock)
+            PairedPage.StocksAlerts -> AlertsScreen(alertsViewModel(container, stocksRoutes, pc), onBack = goBack, onOpen = openStockTarget)
             PairedPage.StockDetail -> {
                 val code = stockCode
                 if (code != null) {
@@ -526,6 +562,20 @@ private fun screenerViewModel(container: AppContainer, stocksRoutes: RouteStores
     return viewModel(viewModelStoreOwner = owner) {
         ScreenerViewModel(pc, container.link.state, container.stocksTransport, retryLink = container.link::retryNow)
     }
+}
+
+/** TBA2: the brief's card and page share this one, in the stocks pages' store. */
+@Composable
+private fun briefViewModel(container: AppContainer, stocksRoutes: RouteStores, pc: PcCredentials): BriefViewModel {
+    val owner = remember(pc.pcId) { stocksRoutes.ownerFor("stocks-${pc.pcId}") }
+    return viewModel(viewModelStoreOwner = owner) { BriefViewModel(pc, container.link.state, container.stocksTransport) }
+}
+
+/** TBA2: Stocks home's alerts row, the alerts page and Settings › Stocks › Alerts, over the process-wide alert list. */
+@Composable
+private fun alertsViewModel(container: AppContainer, stocksRoutes: RouteStores, pc: PcCredentials): StockAlertsViewModel {
+    val owner = remember(pc.pcId) { stocksRoutes.ownerFor("stocks-${pc.pcId}") }
+    return viewModel(viewModelStoreOwner = owner) { StockAlertsViewModel(pc, container.link.state, container.stocksTransport, container.stockAlerts) }
 }
 
 /** The one Settings ViewModel, in the activity's store, shared by the Settings pages and the connection history (Q73). */

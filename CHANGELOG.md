@@ -10,6 +10,7 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- Phone: Stock alerts arrive as notifications, one per stock, with nothing readable on the lock screen. With Keep connected off they arrive only while the app is open; missed ones are listed under Stocks › Alerts. The 08:30 brief has a card on Stocks home and its own page with the last 7 days. Holdings take an optional stop and target. Settings › Stocks shows the alerts switch and today's automatic analyses (at most 5).
 - Server: Stock alerts for the phone (`/v1/stocks/alerts`, read by long-poll; missed alerts wait on the PC): your own stop and target on a holding, the entry zone, target and stop of today's analysis, setups firing on your watchlist and holdings, and strong news about them from 08:00 to 16:30; at most 3 a stock and 30 a day are notified, quieter outside market hours.
 - Server: Automatic analyses: when a stock on your watchlist or in your holdings shows two setups on one day, the PC analyzes it on Sonnet (at most 5 a day, once per stock), keeps the result like Analyze and sends an alert.
 - Server: The 08:30 brief (`/v1/stocks/brief`) on trading days: overnight news, yesterday's screen, your holdings and kept verdicts summed up by the AI (Opus) in your app's language, with levels shown from the PC's own numbers; it runs late until 09:00 if the PC was asleep, and can be rerun on request.

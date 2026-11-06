@@ -55,7 +55,20 @@ import io.github.justcallmesu.aristotle.data.SessionPins
 import io.github.justcallmesu.aristotle.data.CredentialState
 import io.github.justcallmesu.aristotle.data.SharedPreferencesStore
 import io.github.justcallmesu.aristotle.data.chat.ChatDrafts
+import io.github.justcallmesu.aristotle.background.AppLocales
+import io.github.justcallmesu.aristotle.data.AppLanguage
+import io.github.justcallmesu.aristotle.data.PcCredentials
+import io.github.justcallmesu.aristotle.data.serverEndpoint
+import io.github.justcallmesu.aristotle.data.stocks.AlertPolicy
+import io.github.justcallmesu.aristotle.data.stocks.AnalysisLang
+import io.github.justcallmesu.aristotle.data.stocks.StockAlert
+import io.github.justcallmesu.aristotle.data.stocks.StockAlertStore
+import io.github.justcallmesu.aristotle.data.stocks.StockAlertWatcher
+import io.github.justcallmesu.aristotle.data.stocks.StockNotices
+import io.github.justcallmesu.aristotle.data.stocks.StockOpen
+import io.github.justcallmesu.aristotle.data.stocks.StocksApi
 import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
+import java.util.Locale
 import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
 import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -65,6 +78,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filterNotNull
@@ -92,6 +106,8 @@ data class OpenChat(val sessionId: String, val title: String?, val showPrompt: B
  * (Q80b, TL2), started by the application before this.
  */
 class AppContainer(context: Context, val diagnostics: Diagnostics) {
+    private val appContext: Context = context.applicationContext
+
     /** Process-lifetime work (credential reads and wipes); the store moves it off the main thread. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -223,6 +239,15 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
     /** Set by a notification tap, taken (set back to null) by the screen that shows the chat. */
     val openChat = MutableStateFlow<OpenChat?>(null)
 
+    /**
+     * TBA2: the stock alerts this phone read from the PC (protocol §20.4): the long-poll cursor per PC (a restart neither
+     * floods nor loses alerts), the list Stocks home and the alerts page show. Unpair clears it.
+     */
+    val stockAlerts = StockAlertStore(ApplyingPreferencesStore(context.getSharedPreferences(STOCK_ALERTS_FILE, Context.MODE_PRIVATE)))
+
+    /** Set by a stock notification's tap ([OpenStock]), taken (set back to null) by the pages once shown. */
+    val stockOpen = MutableStateFlow<StockOpen?>(null)
+
     /** Sessions the current relay socket has resumed: the watcher and the chat screen share it (one resume each). */
     val resumedSessions = ResumedSessions()
     private val alerts = AlertRouter()
@@ -246,6 +271,37 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         scope.launch { credentials.state.collect { profileSelection.follow((it as? CredentialState.Paired)?.credentials?.pcId) } }
         notifier.createChannels()
         watchSessions()
+        watchStockAlerts()
+    }
+
+    /**
+     * The stock alerts long-poll (TBA2, TSC0 §2): process-wide, so the "keep connected" service (which keeps the process)
+     * keeps it with the app closed; with that off it runs only while the app is on screen (Q109, [AlertPolicy]). It
+     * needs only aristotle-server, not Hermes ([serverEndpoint]). New alerts become notifications on the stock channel.
+     */
+    private fun watchStockAlerts() {
+        val target = combine(credentials.state, link.state, background.appVisible, background.keepRunning, AlertPolicy::target)
+        StockAlertWatcher(
+            scope = linkScope,
+            target = target,
+            pcIdOf = { it.pc.pcId },
+            poll = { t, after, wait -> StocksApi { request -> stocksTransport.send(t.pc, t.endpoint, request) }.alerts(after, wait, alertLang()) },
+            store = stockAlerts,
+            notify = ::postStockAlerts,
+        ).start()
+    }
+
+    private fun postStockAlerts(alerts: List<StockAlert>) {
+        val words = notifier.stockWords()
+        val recent = stockAlerts.feed.value.items
+        StockNotices.toPost(alerts, recent, words).forEach(notifier::postStock)
+    }
+
+    /** The language the alert and brief texts are written in (Q105): the app's, sent with every long-poll. */
+    private fun alertLang(): String = when (AppLocales.current(appContext, settings)) {
+        AppLanguage.English -> AnalysisLang.EN
+        AppLanguage.Indonesian -> AnalysisLang.ID
+        AppLanguage.System -> AnalysisLang.of(Locale.getDefault())
     }
 
     /** Notifications from the watched sessions (T10); router and notifier run on the main thread. */
@@ -271,6 +327,7 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         notice.value = reason
         epoch.value += 1
         clearAlerts()
+        clearStockState()
         scope.launch {
             // A pairing that ended (Revoked, lost key) leaves no log of it behind, like Unpair.
             connectionLog.clear()
@@ -278,6 +335,7 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
             credentials.wipeActive()
             ServerVersions.clearAll()
             clearAlerts()
+            clearStockState()
         }
     }
 
@@ -289,9 +347,11 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         notice.value = null
         epoch.value += 1
         clearAlerts()
+        clearStockState()
         scope.launch {
             records.unpair(pcId)
             clearAlerts()
+            clearStockState()
         }
     }
 
@@ -308,6 +368,15 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
     private fun clearAlerts() {
         alerts.reset().forEach(notifier::apply)
         notifier.cancelAlerts()
+    }
+
+    /**
+     * The old PC's stock alerts (cursor, list, tray) and a pending notification tap go. Run again once the pairing is
+     * gone: a long-poll answer that landed in between would write the old PC's cursor and feed back (TBA2 MINOR-3).
+     */
+    private fun clearStockState() {
+        stockAlerts.clear()
+        stockOpen.value = null
     }
 
     fun clearPairNotice() {
@@ -327,6 +396,7 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         const val DRAFTS_FILE = "drafts"
         const val PINS_FILE = "pins"
         const val HISTORY_FILE = "connection_history"
+        const val STOCK_ALERTS_FILE = "stock_alerts"
     }
 }
 

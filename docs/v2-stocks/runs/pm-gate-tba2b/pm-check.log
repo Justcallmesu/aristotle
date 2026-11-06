@@ -1,0 +1,30 @@
+== M1 day chip picks by first-in-list (old index logic)
+BriefDayChipsTest > no latest read yet but kept briefs listed - they can all be opened FAILED
+    java.lang.AssertionError at BriefDayChipsTest.kt:51
+BriefDayChipsTest > before the brief runs, yesterday's chip opens yesterday - not the made-up pending today FAILED
+    java.lang.AssertionError at BriefDayChipsTest.kt:21
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 51s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.ui.stocks.BriefDayChipsTest.xml
+testcase name="no latest read yet but kept briefs listed - they can all be opened"
+testcase name="before the brief runs, yesterday's chip opens yesterday - not the made-up pending today"
+TEST-io.github.justcallmesu.aristotle.ui.stocks.BriefDayChipsTest.xml
+== M2 every alert in a burst posted (no per-code grouping)
+AlertsTest > a burst for one code is one heads-up with the others in its lines FAILED
+    java.lang.AssertionError at AlertsTest.kt:165
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 42s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+testcase name="a burst for one code is one heads-up with the others in its lines"
+TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+== gate
+SKIP server (0)
+PASS android (0)
+gate exit=0
+SKIP server (0)
+PASS android (0)
+unit tests: 1348

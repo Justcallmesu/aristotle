@@ -101,6 +101,9 @@ class StocksNav(
     val openFees: () -> Unit,
     val openSettings: () -> Unit,
     val openScreener: () -> Unit = {},
+    /** TBA2: the brief's page and the alerts list. */
+    val openBrief: () -> Unit = {},
+    val openAlerts: () -> Unit = {},
 )
 
 /**
@@ -110,23 +113,34 @@ class StocksNav(
  * ([StocksViewModel.homeVisible], [ScreenerViewModel.homeVisible]).
  */
 @Composable
-fun ColumnScope.StocksHomeBody(viewModel: StocksViewModel, nav: StocksNav, timeText: (Long) -> String, screener: ScreenerViewModel? = null) {
+fun ColumnScope.StocksHomeBody(
+    viewModel: StocksViewModel,
+    nav: StocksNav,
+    timeText: (Long) -> String,
+    screener: ScreenerViewModel? = null,
+    brief: BriefViewModel? = null,
+    alerts: StockAlertsViewModel? = null,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LifecycleResumeEffect(viewModel, screener) {
+    LifecycleResumeEffect(viewModel, screener, brief) {
         viewModel.homeVisible(true)
         screener?.homeVisible(true)
+        brief?.homeVisible(true)
         onPauseOrDispose {
             viewModel.homeVisible(false)
             screener?.homeVisible(false)
+            brief?.homeVisible(false)
         }
     }
     val screen = screener?.uiState?.collectAsStateWithLifecycle()?.value
+    val briefState = brief?.uiState?.collectAsStateWithLifecycle()?.value
+    val alertsState = alerts?.uiState?.collectAsStateWithLifecycle()?.value
     val snackbar = remember { SnackbarHostState() }
     StocksMessages(state.message, snackbar, viewModel::messageShown)
     val locale = currentLocale()
     MarketStatusLine(state.link, state.quotes, state.problem, timeText, viewModel::retry, locale)
     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-        StocksHomeList(state, screen, viewModel, nav, locale)
+        StocksHomeList(state, screen, viewModel, nav, locale, briefState, alertsState)
         SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
     StocksBottomBar(online = state.reachable, nav = nav, onAdd = viewModel::openWatchSearch)
@@ -135,10 +149,27 @@ fun ColumnScope.StocksHomeBody(viewModel: StocksViewModel, nav: StocksNav, timeT
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StocksHomeList(state: StocksUiState, screen: ScreenerUiState?, viewModel: StocksViewModel, nav: StocksNav, locale: Locale) {
+private fun StocksHomeList(
+    state: StocksUiState,
+    screen: ScreenerUiState?,
+    viewModel: StocksViewModel,
+    nav: StocksNav,
+    locale: Locale,
+    brief: BriefUiState?,
+    alerts: AlertsUiState?,
+) {
     val muted = !state.reachable
+    val nowMillis by rememberMinuteClock()
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.l)) {
+            // TBA2: today's brief and the alerts this phone missed, above the watchlist.
+            brief?.let { b ->
+                item(key = "brief") {
+                    val card = b.card(StockTimes.today(nowMillis), StockTimes.timeOfDay(nowMillis))
+                    BriefHomeCard(card, b.briefAt, locale, onOpen = nav.openBrief)
+                }
+            }
+            alerts?.let { a -> item(key = "alerts") { AlertsHomeRow(a.feed, locale, onOpen = nav.openAlerts) } }
             val watch = state.watchlist
             item(key = "watch-header") {
                 SectionHeader(if (watch.isNullOrEmpty()) stringResource(R.string.stocks_watchlist) else stringResource(R.string.stocks_watchlist_count, watch.size))
@@ -449,6 +480,11 @@ private fun StocksBottomBar(online: Boolean, nav: StocksNav, onAdd: () -> Unit) 
                     border = BorderStroke(Sizes.divider, MaterialTheme.colorScheme.outlineVariant),
                 ) {
                     DropdownMenuItem(
+                        text = { Text(stringResource(R.string.stocks_alerts)) },
+                        leadingIcon = { Icon(painter = painterResource(R.drawable.ic_notifications), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        onClick = { menu = false; nav.openAlerts() },
+                    )
+                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.stocks_broker_fees)) },
                         leadingIcon = { Icon(painter = painterResource(R.drawable.ic_account_balance_wallet), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         onClick = { menu = false; nav.openFees() },
@@ -507,3 +543,4 @@ private val NEWS_GAP = 6.dp
 private const val NEWS_STRIP_SIZE = 8
 private const val MAX_CHIPS = 3
 private val RETRY_PADDING = PaddingValues(horizontal = Spacing.s, vertical = ButtonDefaults.TextButtonContentPadding.calculateTopPadding())
+

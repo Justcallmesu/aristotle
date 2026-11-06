@@ -59,6 +59,9 @@ data class HoldingSheet(
     val editing: Boolean,
     val lots: String = "",
     val avgPrice: String = "",
+    /** The optional alert levels (Q104), as typed; empty = none. */
+    val stop: String = "",
+    val target: String = "",
     /** The last price, for the P/L preview; null until known. */
     val price: Long? = null,
     val saving: Boolean = false,
@@ -317,6 +320,8 @@ class StocksViewModel(
                     editing = true,
                     lots = row.lots.toString(),
                     avgPrice = HoldingInput.avgPriceText(row.avgPrice),
+                    stop = HoldingInput.levelText(row.stop),
+                    target = HoldingInput.levelText(row.target),
                     price = row.price ?: it.quoteOf(code)?.price,
                 ),
             )
@@ -327,15 +332,22 @@ class StocksViewModel(
 
     fun editAvgPrice(text: String) = state.update { s -> s.copy(holdingSheet = s.holdingSheet?.copy(avgPrice = text.take(MAX_FIELD))) }
 
+    fun editStop(text: String) = state.update { s -> s.copy(holdingSheet = s.holdingSheet?.copy(stop = text.take(MAX_FIELD))) }
+
+    fun editTarget(text: String) = state.update { s -> s.copy(holdingSheet = s.holdingSheet?.copy(target = text.take(MAX_FIELD))) }
+
     fun closeHoldingSheet() = state.update { it.copy(holdingSheet = null) }
 
+    /** Saves lots, average and both levels (an edit sends the levels again: the server clears one a PUT leaves out). */
     fun saveHolding() {
         val sheet = state.value.holdingSheet ?: return
         val lots = HoldingInput.lots(sheet.lots).value ?: return
         val avg = HoldingInput.avgPrice(sheet.avgPrice).value ?: return
+        val levels = HoldingInput.levels(sheet.stop, sheet.target, avg)
+        if (!levels.valid) return
         state.update { it.copy(holdingSheet = sheet.copy(saving = true)) }
         work.launch {
-            when (val result = api()?.putHolding(sheet.code, lots, avg) ?: offline()) {
+            when (val result = api()?.putHolding(sheet.code, lots, avg, levels.stop.value, levels.target.value) ?: offline()) {
                 is StocksResult.Ok -> state.update { it.copy(holdings = result.value, holdingSheet = null) }
                 is StocksResult.Failed -> state.update { s ->
                     s.copy(holdingSheet = s.holdingSheet?.copy(saving = false), message = StocksMessage(StocksAction.SaveHolding, result.error, sheet.code))

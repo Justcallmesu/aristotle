@@ -72,6 +72,8 @@ data class AnalysisResult(
     @SerialName("session_date") val sessionDate: String = "",
     @SerialName("market_state") val marketState: String = "",
     val model: String = "",
+    /** `manual` (the Analyze button) or `auto` (a run the server started when ≥ 2 setups fired, Q87/Q107; Sonnet, Q110). */
+    val trigger: String = TRIGGER_MANUAL,
     @SerialName("duration_ms") val durationMs: Long = 0,
     val verdict: String = "",
     val confidence: String = "",
@@ -87,7 +89,14 @@ data class AnalysisResult(
     val ara: Long? = null,
     val arb: Long? = null,
     val news: List<AnalysisNews> = emptyList(),
-)
+) {
+    val auto: Boolean get() = trigger == TRIGGER_AUTO
+
+    companion object {
+        const val TRIGGER_MANUAL = "manual"
+        const val TRIGGER_AUTO = "auto"
+    }
+}
 
 /** Which way a verdict leans, for its colour: buy/add the stock-up tone, avoid/sell the stock-down tone, wait/hold ink. */
 enum class VerdictTone { Up, Down, Neutral }

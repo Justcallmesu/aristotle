@@ -1,5 +1,6 @@
 package io.github.justcallmesu.aristotle.ui
 
+import io.github.justcallmesu.aristotle.data.stocks.StockOpen
 import io.github.justcallmesu.aristotle.ui.settings.SettingsPage
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -111,7 +112,7 @@ class PairedPageTest {
             val line = text.lines().single { it.contains("-> $screen") }
             assertTrue(line, line.contains("onBack = goBack"))
         }
-        assertEquals("StockRoute, Running and the two Screener pages use it too", 6, Regex("onBack = goBack\\b").findAll(text).count())
+        assertEquals("StockRoute, Running, the two Screener pages, the brief and the alerts list use it too", 8, Regex("onBack = goBack\\b").findAll(text).count())
         assertFalse("no remembered origins left to loop", text.contains("stockFrom") || text.contains("newsFrom"))
     }
 
@@ -155,12 +156,50 @@ class PairedPageTest {
         val text = listOf(File(path), File("app/$path")).first { it.exists() }.readText()
         assertFalse("no direct jump to a stock page", Regex("page\\s*=\\s*PairedPage\\.StockDetail").containsMatchIn(text))
         assertTrue(text.contains("val openStock: (String) -> Unit = { code -> show(stocksStack().openStock(code)) }"))
-        // The screens that open stocks get that one lambda: News, Home's stocks nav, and the Screener's candidates.
+        // The screens that open stocks get that one lambda: News, Home's stocks nav, the Screener's candidates and the
+        // brief's focus rows (TBA2); the alerts list and a notification's tap go through the stack too (openStockTarget).
         assertTrue(text.contains("onOpenStock = openStock"))
-        assertEquals(2, Regex("onOpenStock = openStock\\b").findAll(text).count())
+        assertEquals(3, Regex("onOpenStock = openStock\\b").findAll(text).count())
+        assertTrue(text.contains("show(from.open(request))"))
+        assertTrue(text.contains("show(stocksStack().open(target))"))
+        assertFalse(Regex("page\\s*=\\s*PairedPage\\.Stocks(Brief|Alerts)").containsMatchIn(text))
         assertTrue(text.contains("openStock = openStock,"))
         // The screener pages are entered through the stack too.
         assertFalse(Regex("page\\s*=\\s*PairedPage\\.StocksScreener").containsMatchIn(text))
+    }
+
+    /** TBA2: Home → brief → a focus stock unwinds one each; a notification's tap from elsewhere starts a stack over Home. */
+    @Test
+    fun `the brief and the alerts list are stocks pages`() {
+        val brief = StocksBackStack(PairedPage.Sessions).openBrief()
+        assertEquals(StocksBackStack(PairedPage.StocksBrief), brief)
+        val stock = brief.openStock("BBCA")
+        assertEquals(StocksBackStack(PairedPage.StockDetail, "BBCA", listOf(StockPlace(PairedPage.StocksBrief))), stock)
+        assertEquals(brief, stock.back())
+        assertEquals(PairedPage.Sessions, brief.back().page)
+        val alerts = StocksBackStack(PairedPage.StockDetail, "TLKM").openAlerts()
+        assertEquals(StocksBackStack(PairedPage.StocksAlerts, below = listOf(StockPlace(PairedPage.StockDetail, "TLKM"))), alerts)
+        assertEquals(StocksBackStack(PairedPage.StockDetail, "TLKM"), alerts.back())
+        // From a chat (not a stocks page) a tap starts fresh: Back is Home.
+        assertEquals(StocksBackStack(PairedPage.StockDetail, "BBCA"), StocksBackStack(PairedPage.Chat).openStock("BBCA"))
+        val saved = listOf(StockPlace(PairedPage.StocksBrief), StockPlace(PairedPage.StocksAlerts))
+        assertEquals(saved, saved.map(StockPlace::encode).mapNotNull(StockPlace::decode))
+    }
+
+    /** TBA2b NIT: one mapping from a target to the stack, and a repeat tap pushes nothing. */
+    @Test
+    fun `open maps a target to its page and a repeat tap changes nothing`() {
+        val home = StocksBackStack(PairedPage.Sessions)
+        assertEquals(home.openStock("BBCA"), home.open(StockOpen.Stock("BBCA")))
+        assertEquals(home.openBrief(), home.open(StockOpen.Brief))
+        assertEquals(home.openAlerts(), home.open(StockOpen.Alerts))
+        val brief = home.open(StockOpen.Brief)
+        assertEquals(brief, brief.open(StockOpen.Brief))
+        val alerts = brief.open(StockOpen.Alerts)
+        assertEquals(alerts, alerts.open(StockOpen.Alerts))
+        assertEquals(brief, alerts.back())
+        val stock = home.open(StockOpen.Stock("BBCA"))
+        assertEquals(StocksBackStack(PairedPage.StockDetail, "TLKM"), stock.open(StockOpen.Stock("TLKM")))
     }
 
     @Test

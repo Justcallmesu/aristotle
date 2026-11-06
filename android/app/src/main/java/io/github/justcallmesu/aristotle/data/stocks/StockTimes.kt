@@ -50,6 +50,9 @@ object StockTimes {
 
     fun today(nowMillis: Long): LocalDate = java.time.Instant.ofEpochMilli(nowMillis).atZone(WIB).toLocalDate()
 
+    /** The WIB time of day. */
+    fun timeOfDay(nowMillis: Long): java.time.LocalTime = java.time.Instant.ofEpochMilli(nowMillis).atZone(WIB).toLocalTime()
+
     /** The market line for [market], with times read against [today]. */
     fun marketLine(market: MarketStatus?, today: LocalDate, locale: Locale): MarketLine = when (market?.state) {
         MarketStatus.OPEN -> MarketLine.Open(market.session, clock(market.closesAt))

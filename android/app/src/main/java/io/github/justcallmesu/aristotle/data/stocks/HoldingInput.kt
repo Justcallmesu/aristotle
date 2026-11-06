@@ -77,6 +77,46 @@ object HoldingInput {
         }
     }
 
+    /**
+     * An optional stop or target (Q104): empty is none; else a whole price above 0 and at most 10 000 000 IDR on the IDX
+     * tick grid of its own band ([IdxTick], as the server checks it). Typed like the average ("4.600" is 4600).
+     */
+    fun level(text: String): LevelField {
+        val raw = text.filterNot { it.isWhitespace() }.removePrefix("Rp").removePrefix("rp")
+        if (raw.isEmpty()) return LevelField(null, null)
+        val number = normalise(raw) ?: return LevelField(null, LevelProblem.NotANumber)
+        if (number.stripTrailingZeros().scale() > 0) return LevelField(null, LevelProblem.NotWhole)
+        if (number.signum() <= 0) return LevelField(null, LevelProblem.TooSmall)
+        if (number > BigDecimal.valueOf(MAX_AVG_PRICE)) return LevelField(null, LevelProblem.TooLarge)
+        val price = number.toLong()
+        val tick = IdxTick.of(price)
+        if (price % tick != 0L) {
+            val below = price - price % tick
+            return LevelField(null, LevelProblem.OffTick, tick = tick, near = below to below + tick)
+        }
+        return LevelField(price, null)
+    }
+
+    /**
+     * Both levels against the average, as the server checks them (§20 `checkLevels`): each on the grid, the stop below the
+     * average and below the target. The server sets no rule between the target and the average.
+     */
+    fun levels(stopText: String, targetText: String, avgPrice: Double?): HoldingLevels {
+        var stop = level(stopText)
+        val target = level(targetText)
+        val s = stop.value
+        if (s != null) {
+            when {
+                avgPrice != null && s >= avgPrice -> stop = stop.copy(value = null, problem = LevelProblem.NotBelowAverage)
+                target.value != null && s >= target.value -> stop = stop.copy(value = null, problem = LevelProblem.NotBelowTarget)
+            }
+        }
+        return HoldingLevels(stop, target)
+    }
+
+    /** The field text for a stored level: 4600 -> "4600" (no grouping while editing). */
+    fun levelText(value: Long?): String = value?.toString().orEmpty()
+
     /** The text for a stored average price in the field: 4800.0 -> "4800", 4812.51 -> "4812,51" (no grouping while editing). */
     fun avgPriceText(value: Double): String =
         BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString().replace('.', ',')
@@ -100,6 +140,17 @@ object HoldingInput {
         if (parts.size > 2 || parts.any { !DIGITS.matches(it) }) return null
         return runCatching { BigDecimal(plain) }.getOrNull()
     }
+}
+
+/** What is wrong with a typed stop or target (Q104, protocol §20). */
+enum class LevelProblem { NotANumber, NotWhole, TooSmall, TooLarge, OffTick, NotBelowAverage, NotBelowTarget }
+
+/** A typed level: the price (null = none or invalid), why it is invalid, and for an off-tick price its [tick] and the two [near] prices. */
+data class LevelField(val value: Long?, val problem: LevelProblem?, val tick: Long? = null, val near: Pair<Long, Long>? = null)
+
+/** The holding sheet's two levels; [valid] when neither has a problem (both may be empty). */
+data class HoldingLevels(val stop: LevelField, val target: LevelField) {
+    val valid: Boolean get() = stop.problem == null && target.problem == null
 }
 
 /** Broker fee fields in Settings › Stocks (Q88): 0..5 %, at most four decimals ("0,15" or "0.15"). */

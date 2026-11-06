@@ -251,11 +251,20 @@ private fun VerdictCard(
             Text(flags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.m))
         }
         val asOf = StockTimes.dayClock(result.dataAsOf, today, locale) ?: StockFormat.missing
+        // TBA2: a run the PC started on its own (≥ 2 setups fired, Q87/Q107) says so; it counts in today's automatic runs.
+        if (model.auto) {
+            Text(
+                stringResource(R.string.stocks_verdict_auto),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.m),
+            )
+        }
         Text(
             stringResource(R.string.stocks_verdict_meta, asOf, result.model.ifEmpty { StockFormat.missing }, AnalysisStates.durationSeconds(result.durationMs)),
             style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.m),
+            modifier = Modifier.padding(top = if (model.auto) Spacing.xxs else Spacing.m),
         )
         Text(stringResource(R.string.stocks_verdict_disclaimer), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         onAnalyzeAgain?.let {
@@ -338,7 +347,7 @@ private fun Reason(reason: ReasonLine, today: LocalDate, locale: Locale, first: 
 
 /** "Medium confidence": a quiet tag (not a control), Soft small corners on a 28 dp height (no pill). */
 @Composable
-private fun ConfidenceChip(confidence: Confidence) {
+internal fun ConfidenceChip(confidence: Confidence) {
     Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface) {
         Text(
             stringResource(
@@ -363,7 +372,7 @@ private fun SectionSurface(modifier: Modifier = Modifier, content: @Composable (
 }
 
 @Composable
-private fun verdictWord(verdict: Verdict?, wire: String): String = when (verdict) {
+internal fun verdictWord(verdict: Verdict?, wire: String): String = when (verdict) {
     Verdict.BuyToday -> stringResource(R.string.stocks_verdict_buy_today)
     Verdict.Wait -> stringResource(R.string.stocks_verdict_wait)
     Verdict.Avoid -> stringResource(R.string.stocks_verdict_avoid)
@@ -395,14 +404,14 @@ private fun flagText(flag: String): String = when (VerdictFlag.of(flag)) {
 }
 
 @Composable
-private fun sourceLabel(source: VerdictSource): String = when (source) {
+internal fun sourceLabel(source: VerdictSource): String = when (source) {
     is VerdictSource.Known -> source.label.fixed ?: knownLabel(source.label)
     is VerdictSource.Other -> source.text
     is VerdictSource.News -> source.item?.title ?: source.id
 }
 
 @Composable
-private fun knownLabel(label: SourceLabel): String = when (label) {
+internal fun knownLabel(label: SourceLabel): String = when (label) {
     SourceLabel.Price -> stringResource(R.string.stocks_source_price)
     SourceLabel.Trend -> stringResource(R.string.stocks_source_trend)
     SourceLabel.ChangeToday -> stringResource(R.string.stocks_source_change_today)

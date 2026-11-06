@@ -236,7 +236,9 @@ internal suspend fun OkHttpClient.sendStocks(baseUrl: String, token: DeviceToken
     val body = request.body?.toRequestBody(STOCKS_JSON)
         ?: if (request.method == StocksApi.PUT || request.method == StocksApi.POST) EMPTY_BODY.toRequestBody(STOCKS_JSON) else null
     val built = Request.Builder().url(url).header("Authorization", "Bearer ${token.value}").method(request.method, body).build()
-    return await(built, StocksReply::Failed) { response ->
+    // The alerts long-poll is held up to 50 s by the server: this call alone reads longer (same pool, pin and sockets).
+    val client = request.readTimeoutSeconds?.let { newBuilder().readTimeout(it.toLong(), TimeUnit.SECONDS).build() } ?: this
+    return client.await(built, StocksReply::Failed) { response ->
         StocksReply.Http(response.code, response.body.string(), response.header("Retry-After")?.trim()?.toIntOrNull())
     }
 }

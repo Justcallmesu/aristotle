@@ -59,6 +59,8 @@ import io.github.justcallmesu.aristotle.R
 import io.github.justcallmesu.aristotle.data.stocks.FieldProblem
 import io.github.justcallmesu.aristotle.data.stocks.HoldingInput
 import io.github.justcallmesu.aristotle.data.stocks.HoldingMath
+import io.github.justcallmesu.aristotle.data.stocks.LevelField
+import io.github.justcallmesu.aristotle.data.stocks.LevelProblem
 import io.github.justcallmesu.aristotle.data.stocks.SearchResult
 import io.github.justcallmesu.aristotle.data.stocks.StockChanges
 import io.github.justcallmesu.aristotle.data.stocks.StockFees
@@ -261,7 +263,8 @@ private fun WatchActionsSheet(code: String, state: StocksUiState, viewModel: Sto
 private fun HoldingFormSheet(sheet: HoldingSheet, fees: StockFees, viewModel: StocksViewModel) {
     val lots = HoldingInput.lots(sheet.lots)
     val avg = HoldingInput.avgPrice(sheet.avgPrice)
-    val valid = lots.value != null && avg.value != null
+    val levels = HoldingInput.levels(sheet.stop, sheet.target, avg.value)
+    val valid = lots.value != null && avg.value != null && levels.valid
     ModalBottomSheet(
         onDismissRequest = viewModel::closeHoldingSheet,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -302,7 +305,29 @@ private fun HoldingFormSheet(sheet: HoldingSheet, fees: StockFees, viewModel: St
                 decimal = true,
                 prefix = "Rp",
             )
-            if (valid) PreviewBlock(HoldingMath.preview(lots.value!!, avg.value!!, sheet.price, fees), sheet.price, fees)
+            // Q104 (TBA1/TBA2): optional levels for the price alerts, checked as the server does (tick grid, stop below the
+            // average and the target).
+            NumberField(
+                value = sheet.stop,
+                onValue = viewModel::editStop,
+                label = stringResource(R.string.stocks_stop_optional),
+                support = levels.stop.problem?.takeIf { sheet.stop.isNotBlank() }?.let { levelProblem(levels.stop, avg.value) }
+                    ?: stringResource(R.string.stocks_stop_support),
+                error = levels.stop.problem != null && sheet.stop.isNotBlank(),
+                decimal = false,
+                prefix = "Rp",
+            )
+            NumberField(
+                value = sheet.target,
+                onValue = viewModel::editTarget,
+                label = stringResource(R.string.stocks_target_optional),
+                support = levels.target.problem?.takeIf { sheet.target.isNotBlank() }?.let { levelProblem(levels.target, avg.value) }
+                    ?: stringResource(R.string.stocks_target_support),
+                error = levels.target.problem != null && sheet.target.isNotBlank(),
+                decimal = false,
+                prefix = "Rp",
+            )
+            if (lots.value != null && avg.value != null) PreviewBlock(HoldingMath.preview(lots.value!!, avg.value!!, sheet.price, fees), sheet.price, fees)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (sheet.editing) {
                     TextButton(onClick = { viewModel.askRemoveHolding(sheet.code) }, shape = ButtonShape) {
@@ -346,6 +371,21 @@ private fun lotsProblem(problem: FieldProblem): String = stringResource(
         FieldProblem.TooLarge -> R.string.stocks_lots_max
     },
 )
+
+/** Why a typed stop or target is refused; an off-tick price gets the two nearest prices it could be. */
+@Composable
+private fun levelProblem(field: LevelField, avg: Double?): String = when (field.problem) {
+    LevelProblem.OffTick -> {
+        val (below, above) = field.near ?: (0L to 0L)
+        stringResource(R.string.stocks_level_tick, StockFormat.number(field.tick ?: 1), StockFormat.number(below), StockFormat.number(above))
+    }
+    LevelProblem.NotBelowAverage -> stringResource(R.string.stocks_level_stop_avg, avg?.let(StockFormat::price) ?: StockFormat.missing)
+    LevelProblem.NotBelowTarget -> stringResource(R.string.stocks_level_stop_target)
+    LevelProblem.NotANumber, LevelProblem.NotWhole -> stringResource(R.string.stocks_level_whole)
+    LevelProblem.TooSmall -> stringResource(R.string.stocks_price_min)
+    LevelProblem.TooLarge -> stringResource(R.string.stocks_price_max)
+    null -> ""
+}
 
 @Composable
 private fun priceProblem(problem: FieldProblem): String = stringResource(

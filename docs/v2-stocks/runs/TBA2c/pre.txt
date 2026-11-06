@@ -1,0 +1,115 @@
+8809c74c80ef444ee66d49c945917b0df99e6894
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/AppContainer.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/MainActivity.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/background/Notifier.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/background/NotifyChannels.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/data/ServerClient.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/Analysis.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/HoldingInput.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StockTimes.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StocksApi.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StocksModels.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/AristotleApp.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/StocksBackStack.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/AnalysisSection.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/ScreenerScreen.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StockDetailScreen.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksHome.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksSettings.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksSheets.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksViewModel.kt
+ M android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/VerdictCard.kt
+ M android/app/src/main/res/values-in/strings.xml
+ M android/app/src/main/res/values/strings.xml
+ M android/app/src/test/java/io/github/justcallmesu/aristotle/background/NotifyChannelsTest.kt
+ M android/app/src/test/java/io/github/justcallmesu/aristotle/data/StocksTransportTest.kt
+ M android/app/src/test/java/io/github/justcallmesu/aristotle/ui/PairedPageTest.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/OpenStock.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/AlertWatcher.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/Alerts.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/Brief.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StockNotices.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StockOpen.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/AlertsScreen.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/BriefScreen.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/BriefViewModel.kt
+?? android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StockAlertsViewModel.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/OpenStockTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/background/StockNoticeSourceTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/AlertWatcherTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/AlertsTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/BriefTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/HoldingLevelsTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/ui/stocks/BriefDayChipsTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/ui/stocks/StaleNoticeSourceTest.kt
+?? android/app/src/test/java/io/github/justcallmesu/aristotle/ui/stocks/Tba2ViewModelsTest.kt
+?? docs/v2-stocks/runs/TBA2/
+?? docs/v2-stocks/runs/TBA2b/
+?? docs/v2-stocks/runs/TBA2c/
+?? docs/v2-stocks/runs/pm-gate-tba2/
+?? docs/v2-stocks/runs/pm-gate-tba2b/
+2bf7c9ad33bc8adf22e8b8f97e48126f31f0e42f00f37f88242dd7d5f104b801  android/app/src/main/java/io/github/justcallmesu/aristotle/AppContainer.kt
+e596892fc16b29fa9c3fa2914db699eca070c12f7e76aad0eaa547f462a51941  android/app/src/main/java/io/github/justcallmesu/aristotle/MainActivity.kt
+24335acc1be22c0a5da5a17f5253f1125916f264492bce02b3b4af830e2faa7c  android/app/src/main/java/io/github/justcallmesu/aristotle/background/Notifier.kt
+e934b993b85c7ffced66ace30d2a75b3bd2cd1d12792b51a8ea5f5d481506a32  android/app/src/main/java/io/github/justcallmesu/aristotle/background/NotifyChannels.kt
+0c4298f21766ea7654ac051f5c5249ca587f499d3c54e22ec135a8bcfc9f5752  android/app/src/main/java/io/github/justcallmesu/aristotle/data/ServerClient.kt
+512a33d3c7cde903c8a170e07b07ab859ba3daeb2dfe948a7d42259ebb597f54  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/Analysis.kt
+a45f50daab4bdd66f8274ed114cfdbde97166957d4e679f55929dc0774b15308  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/HoldingInput.kt
+b6f0d0d1ea1c51379e75fe1182d23cd462f919f38d5ed44eaab006d519640074  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StockTimes.kt
+2d43b47452495d327d0e3c0ae906023b0f18c8dce205a2d1eac483a5a8e87c1d  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StocksApi.kt
+699be49b6c5287f41ba6cdd0cda55ab2f67817d56d64640010bb661f711a0bac  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StocksModels.kt
+0105cd7496cef6d8263fb58e44fd3962a2270122ff09f30a81fda71f8124f993  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/AristotleApp.kt
+d31294b0402a9f92fa8f48f7f0406df10b9afef1e0e51cd8151f83f7d8f710a9  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/StocksBackStack.kt
+8d6dc5171f09a550039032069179384a45e1ccb54c228215bec29d597060f4f4  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/AnalysisSection.kt
+9c7838325f4e381d9a45488d2e9719b625a477db0d625106265c60c23e9a3657  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/ScreenerScreen.kt
+72d86f7564ed9ee27b9349ecf2d20d0dbde240bbebdfa7e4f45d2ecc2f42af8f  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StockDetailScreen.kt
+a54e1c87ac7a1a4214acff23267554b22d4f37fc7d95d24b4c2783df82a25ff7  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksHome.kt
+e6611329b656df7554a06f3ab982591d2dbff19194c273e641af0c016d14f3ac  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksSettings.kt
+ce41e02502700c59347a10482f7098b432df30f44593f04bb8616005ee478163  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksSheets.kt
+d3574b5d0e0dfcadfb95c72c19c6ec8fbdf1f6b7000095dbaba9043660526670  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StocksViewModel.kt
+a04d1b2f556c752b8c9b78fef8050bccab949ea69359a24cbc09839589c19454  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/VerdictCard.kt
+b043b9145e8694dea51ed57196d4324aba650d3a834f8bdc53fdf78a21f97b74  android/app/src/main/res/values-in/strings.xml
+37ddce0545322f2252151161d4330565bc861afd987e9a8ffcbe062a86b30ebe  android/app/src/main/res/values/strings.xml
+5f899badb5582b5401b8723f76e526c1b35c3075a01d420ddf0740493de99385  android/app/src/test/java/io/github/justcallmesu/aristotle/background/NotifyChannelsTest.kt
+08da649be140be5fe73238a8eb07f5dcefe4ca1953d7d0772b3601ee63c66856  android/app/src/test/java/io/github/justcallmesu/aristotle/data/StocksTransportTest.kt
+9d9a54c3c431cc1ef1960d25b45fc733a7a861ec804739972da0039ae0d943b6  android/app/src/test/java/io/github/justcallmesu/aristotle/ui/PairedPageTest.kt
+fa054ef08d075d8a4cb2c61af628af02ff29b1a04a87787e7125c33064ec17a5  android/app/src/main/java/io/github/justcallmesu/aristotle/OpenStock.kt
+19812424ddb8d449b8c78ef8622e8640f9b4f657153015e2cb2a6dd9fd19de48  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/AlertWatcher.kt
+937b6a9d4d806895ef450aaa0ac10848e34a6df59a640ade99eb6d8bad3284bc  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/Alerts.kt
+06041480f64c2e34058c1d71cfb32fdb8bda3fc45ecc9ee9ed567464601246ac  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/Brief.kt
+9990a36035f7c41d8800b583121f2daa1cb9abb79675b84869c6072d7b57a38a  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StockNotices.kt
+9f5a53230b712b72713d4472fa4c0f9667d30bcb74f7563462b91bc1b1b19a43  android/app/src/main/java/io/github/justcallmesu/aristotle/data/stocks/StockOpen.kt
+240bdf61d88e7cb209ec1c1b1fb90423b6c6e0f568b2969c89e6ed3f02939973  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/AlertsScreen.kt
+8f7e3e12d647c9267137da88c7ac946141087fd237c1088aef8cbf0f920518fc  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/BriefScreen.kt
+fe8ed3fa930069a416a03bfbee033479b331595a95714049c96a69cbaa4d3076  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/BriefViewModel.kt
+a6da59b5141a0d574cd6204bc4dca0dbda500ac462aa80f26d3086773b5fc982  android/app/src/main/java/io/github/justcallmesu/aristotle/ui/stocks/StockAlertsViewModel.kt
+b7188dffa317e036da2c641050f40366bc9f2e6862dc357f59b6f657b20e430d  android/app/src/test/java/io/github/justcallmesu/aristotle/OpenStockTest.kt
+563814ef42e91bf8b5a5c31a8a17593ccb0fd3de85aad172a1ffb1294b8581fb  android/app/src/test/java/io/github/justcallmesu/aristotle/background/StockNoticeSourceTest.kt
+6e964e20e73811a4cb64c2a88b87ffa31577cab32f4bd2901d6d34c3c6b086fe  android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/AlertWatcherTest.kt
+82e5118fe1d1ed9fc84cd36cd1efd69ecbb5f2bc29c4b4c0a3ee1bd209181adb  android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/AlertsTest.kt
+c16548124ff7f0d19735ff2f81e5cc42646dfedde9627a756e23c3aec3f271b6  android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/BriefTest.kt
+2cf1b7460e7f532af5f9b745a327f0ca9f0a6e06792b631ddd291a588d3aaaa5  android/app/src/test/java/io/github/justcallmesu/aristotle/data/stocks/HoldingLevelsTest.kt
+c3e6348015219d7fb8cfa95425b4d54099138c8a80536412c7ea87da788381aa  android/app/src/test/java/io/github/justcallmesu/aristotle/ui/stocks/BriefDayChipsTest.kt
+f96639edc8b0bf97985ebf9ce5458eea9860259773d6531f7270e1fffa5eb66c  android/app/src/test/java/io/github/justcallmesu/aristotle/ui/stocks/StaleNoticeSourceTest.kt
+f3b4984793cdce8156f5d79db3b88b4e5ed66afa06419a7e384b123285f017ab  android/app/src/test/java/io/github/justcallmesu/aristotle/ui/stocks/Tba2ViewModelsTest.kt
+35d3ce641e34ab4f644b4c281fc5cf92ec218420a80a1ff4fd8c5c8bfd705942  docs/v2-stocks/runs/TBA2/review-brief.md
+3260277eeb2b1273483f8ee2eb0cdb1b02f365326ce2d655e23cec39d1731d44  docs/v2-stocks/runs/TBA2/review-report.md
+039b60bcbfda32ec5c04dbca37dde81c93faa9a2a461b9545f7886f7513a0df0  docs/v2-stocks/runs/TBA2/gate-summary.txt
+5e24764eb9ac270cb89f8000c18b5ec4490ef35fb924c892e9afab0e1b16c01f  docs/v2-stocks/runs/TBA2/gate-android.log
+22ac9e1b276291eacaa1a2adad297ce167dfe64e4efb33e5350b92e621c21168  docs/v2-stocks/runs/TBA2/build-brief.md
+571f3bf57549124329fec43392d7ce202a5103ef89c2f3e6299e9fcd4a1a5a67  docs/v2-stocks/runs/TBA2/build-report.md
+2b9ea008cd05e6c253bda2592307943f1150dd15900d5707bb2c3c4b4c9892c0  docs/v2-stocks/runs/TBA2b/review-brief.md
+d7b8fb9f35ac633b6cc2d84700e87c58b4b3f02ddda2d0255daaed1a6aa09575  docs/v2-stocks/runs/TBA2b/review-report.md
+039b60bcbfda32ec5c04dbca37dde81c93faa9a2a461b9545f7886f7513a0df0  docs/v2-stocks/runs/TBA2b/gate-summary.txt
+802742a456be094b11c96939843d60a01f48927c6a0884d28b4b19fc9db43a46  docs/v2-stocks/runs/TBA2b/gate-android.log
+4e8f2e2aa86df1de8244eb09e217e2c1e8f5861967dd41cdf50548ec9b696b34  docs/v2-stocks/runs/TBA2b/build-brief.md
+3ed23653148d4d5f2ade92f0da79451767d488146ba3cbc692c2599e82f6985e  docs/v2-stocks/runs/TBA2b/pre.txt
+9de5b98847314e69626441d3620f2b8cd6a1984a9a43fdfcb77e13ca80755d6a  docs/v2-stocks/runs/TBA2b/build-report.md
+2508492c70d1d6d9543c121eb47f9826bd50fe81025049d537726e646a4e4faf  docs/v2-stocks/runs/TBA2c/build-brief.md
+eb5b4403d55433c0401e3ff56ce8a11641a1fce275c96b8635e349bf5fe99cc9  docs/v2-stocks/runs/TBA2c/pre.txt
+039b60bcbfda32ec5c04dbca37dde81c93faa9a2a461b9545f7886f7513a0df0  docs/v2-stocks/runs/pm-gate-tba2/gate-summary.txt
+0eb75478aa5f260417485b939a36e82a8a45711af50ea502f2ec669838bf2aa7  docs/v2-stocks/runs/pm-gate-tba2/gate-android.log
+45a08b423a373034c62c008d1b3a8127d4564033d429a89a1f52d174bbdee3c5  docs/v2-stocks/runs/pm-gate-tba2/mutation.log
+039b60bcbfda32ec5c04dbca37dde81c93faa9a2a461b9545f7886f7513a0df0  docs/v2-stocks/runs/pm-gate-tba2b/gate-summary.txt
+ce8ebcb9b48b81654b1d3b5bb32d3f393df4fde48ddb3f037be5f119d6e19cfd  docs/v2-stocks/runs/pm-gate-tba2b/gate-android.log
+91f83e0ddc843361fbcf208fcf92a9a58fb15c0dc2a79fd7c9308b05b3b2193d  docs/v2-stocks/runs/pm-gate-tba2b/pm-check.log

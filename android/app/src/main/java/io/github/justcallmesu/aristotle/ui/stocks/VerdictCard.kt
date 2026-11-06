@@ -43,6 +43,8 @@ data class VerdictCardModel(
     val reasons: List<ReasonLine>,
     val flags: List<String>,
     val repaired: Boolean,
+    /** An automatic run (§20.4: the server started it when setups fired), not the Analyze button. */
+    val auto: Boolean = false,
 ) {
     val hasLevels: Boolean get() = entry != null || target != null || stop != null
 
@@ -63,6 +65,7 @@ data class VerdictCardModel(
                 reasons = result.reasons.map { reason -> reasonLine(reason.text, reason.sources, result.news) },
                 flags = result.flags,
                 repaired = result.repaired,
+                auto = result.auto,
             )
         }
 

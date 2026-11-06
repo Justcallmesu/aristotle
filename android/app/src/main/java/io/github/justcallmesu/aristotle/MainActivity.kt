@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.justcallmesu.aristotle.background.AppLocales
 import io.github.justcallmesu.aristotle.data.DeviceName
 import io.github.justcallmesu.aristotle.data.ThemeChoice
+import io.github.justcallmesu.aristotle.data.stocks.StockOpen
 import io.github.justcallmesu.aristotle.ui.AristotleApp
 import io.github.justcallmesu.aristotle.ui.lock.BiometricHost
 import io.github.justcallmesu.aristotle.ui.lock.WindowSecure
@@ -112,6 +113,11 @@ class MainActivity : FragmentActivity() {
      */
     private fun openFrom(intent: Intent?) {
         intent ?: return
+        // TBA2: a stock notification opens its stock's page, the brief or the alerts list.
+        OpenStock.read(intent.action, intent.component?.className, intent.getStringExtra(OpenStock.EXTRA_TARGET), intent.getStringExtra(OpenStock.EXTRA_CODE), intent.flags)?.let {
+            (application as AristotleApplication).container.stockOpen.value = it
+            return
+        }
         val request = OpenSession.read(
             action = intent.action,
             component = intent.component?.className,
@@ -138,5 +144,16 @@ class MainActivity : FragmentActivity() {
                 .putExtra(OpenSession.EXTRA_PROMPT, showPrompt)
                 .apply { if (profile != null) putExtra(OpenSession.EXTRA_PROFILE, profile) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        /** A stock notification's tap ([OpenStock]): the same alias and flags as [openIntent]. */
+        fun openStockIntent(context: Context, open: StockOpen): Intent {
+            val (target, code) = OpenStock.extras(open)
+            return Intent()
+                .setClassName(context, OpenSession.ALIAS)
+                .setAction(OpenStock.ACTION)
+                .putExtra(OpenStock.EXTRA_TARGET, target)
+                .apply { if (code != null) putExtra(OpenStock.EXTRA_CODE, code) }
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
     }
 }

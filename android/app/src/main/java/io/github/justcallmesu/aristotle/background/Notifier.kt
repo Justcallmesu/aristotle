@@ -20,6 +20,9 @@ import io.github.justcallmesu.aristotle.data.AlertNotice
 import io.github.justcallmesu.aristotle.data.ConnectionNotice
 import io.github.justcallmesu.aristotle.data.Network
 import io.github.justcallmesu.aristotle.data.NotifyAction
+import io.github.justcallmesu.aristotle.data.stocks.StockNotice
+import io.github.justcallmesu.aristotle.data.stocks.StockNoticeWords
+import io.github.justcallmesu.aristotle.data.stocks.StockNotices
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -76,8 +79,60 @@ class Notifier(private val context: Context) {
      */
     fun cancelAlerts() {
         val system = context.getSystemService(NotificationManager::class.java) ?: return
-        AlertSweep.tags(system.activeNotifications.map { it.tag to it.id }, ID_ALERT).forEach { manager.cancel(it, ID_ALERT) }
+        val active = system.activeNotifications.map { it.tag to it.id }
+        AlertSweep.tags(active, ID_ALERT).forEach { manager.cancel(it, ID_ALERT) }
+        // TBA2: the old PC's stock alerts go with it.
+        AlertSweep.tags(active, ID_STOCK).forEach { manager.cancel(it, ID_STOCK) }
     }
+
+    /** The words the lock screen shows for a stock alert (no code, no number: holdings are private). */
+    fun stockWords(): StockNoticeWords = StockNoticeWords(
+        appName = context.getString(R.string.app_name),
+        publicAlert = context.getString(R.string.notify_stock_public),
+        publicBrief = context.getString(R.string.notify_brief_public),
+    )
+
+    /** One stock alert ([StockNotices]): one notification per stock (its tag), the newest replacing the older one. */
+    @SuppressLint("MissingPermission") // canPost() checks POST_NOTIFICATIONS
+    fun postStock(notice: StockNotice) {
+        if (!canPost()) return
+        val channel = AppChannel.StockAlerts.id
+        val public = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_stat_aristotle)
+            .setContentTitle(notice.publicTitle)
+            .setContentText(notice.publicText)
+            .build()
+        val builder = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_stat_aristotle)
+            .setContentTitle(notice.title)
+            .setContentText(notice.text.ifBlank { null })
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(StockNotices.shouldStayQuiet(stockPostedAt(notice.tag), System.currentTimeMillis()))
+            .setContentIntent(openStock(notice))
+        notice.atMillis?.let { builder.setWhen(it).setShowWhen(true) }
+        if (notice.lines.isNotEmpty()) {
+            builder.setStyle(NotificationCompat.InboxStyle().also { style -> notice.lines.forEach(style::addLine) })
+        } else if (notice.text.isNotBlank()) {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(notice.text))
+        }
+        manager.notify(notice.tag, ID_STOCK, builder.build())
+    }
+
+    /** When the notification with this [tag] now in the tray was posted (`StatusBarNotification.postTime`); null: none. */
+    private fun stockPostedAt(tag: String): Long? =
+        context.getSystemService(NotificationManager::class.java)?.activeNotifications?.firstOrNull { it.tag == tag && it.id == ID_STOCK }?.postTime
+
+    /** Opens the stock's page, the brief or the alerts list ([MainActivity.openStockIntent]); one PendingIntent per tag. */
+    private fun openStock(notice: StockNotice): PendingIntent = PendingIntent.getActivity(
+        context,
+        notice.tag.hashCode(),
+        MainActivity.openStockIntent(context, notice.open),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     private fun alert(notice: AlertNotice): Notification {
         val needsYou = notice.channel == AlertChannel.NeedsYou
@@ -175,6 +230,7 @@ class Notifier(private val context: Context) {
     companion object {
         const val ID_LINK = 1
         private const val ID_ALERT = 2
+        private const val ID_STOCK = 3
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val TIME = "HH:mm"

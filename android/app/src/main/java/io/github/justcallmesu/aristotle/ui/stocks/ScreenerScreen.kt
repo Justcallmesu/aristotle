@@ -319,11 +319,18 @@ private fun StaleNotice(text: String, state: ScreenerUiState, onScan: () -> Unit
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.listGutter, vertical = Spacing.xs).semantics { liveRegion = LiveRegionMode.Polite },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.listGutter, vertical = Spacing.xs),
     ) {
         Row(modifier = Modifier.padding(start = Spacing.m, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
             Icon(painter = painterResource(R.drawable.ic_info), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(NOTICE_ICON))
-            Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f).padding(vertical = Spacing.s))
+            // TSC3b MINOR-6: only the notice's words are a live region; the countdown beside it changes every second and
+            // stays out of it, so TalkBack announces the notice once, not each tick.
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f).padding(vertical = Spacing.s).semantics { liveRegion = LiveRegionMode.Polite },
+            )
             left?.let {
                 Text(
                     stringResource(R.string.screener_scan_in, ScanCooldown.clock(it)),

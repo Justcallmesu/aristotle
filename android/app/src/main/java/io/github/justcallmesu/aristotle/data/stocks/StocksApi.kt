@@ -10,8 +10,17 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-/** One `/v1/stocks/…` exchange: [path] under `/v1/stocks/`, [query] parameters, an optional JSON [body]. */
-data class StocksRequest(val method: String, val path: String, val query: Map<String, String> = emptyMap(), val body: String? = null)
+/**
+ * One `/v1/stocks/…` exchange: [path] under `/v1/stocks/`, [query] parameters, an optional JSON [body]. [readTimeoutSeconds]:
+ * a longer read timeout for this call only (the alerts long-poll, TBA2); null keeps the client's 10 s.
+ */
+data class StocksRequest(
+    val method: String,
+    val path: String,
+    val query: Map<String, String> = emptyMap(),
+    val body: String? = null,
+    val readTimeoutSeconds: Int? = null,
+)
 
 /** What came back: an HTTP answer ([retryAfterSeconds] from a `Retry-After` header), or no answer at all. */
 sealed interface StocksReply {
@@ -43,6 +52,9 @@ sealed interface StocksError {
         const val STATE_ERROR = "state_error"
         const val TOO_SOON = "too_soon"
         const val SCAN_RUNNING = "scan_running"
+        const val NO_BRIEF = "no_brief"
+        const val BRIEF_RUNNING = "brief_running"
+        const val NOT_TRADING_DAY = "not_trading_day"
     }
 }
 
@@ -74,11 +86,16 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
 
     suspend fun holdings(): StocksResult<HoldingsBody> = call(StocksRequest(GET, "holdings"), HoldingsBody.serializer()) { it }
 
-    /** Adds or replaces a holding (idempotent). [avgPrice] is sent as the server keeps it, to 0.01 IDR. */
-    suspend fun putHolding(code: String, lots: Long, avgPrice: Double): StocksResult<HoldingsBody> {
+    /**
+     * Adds or replaces a holding (idempotent). [avgPrice] is sent as the server keeps it, to 0.01 IDR. [stop] / [target]
+     * (Q104, TBA1): the hand-set alert levels; the server clears a level the PUT leaves out, so an edit sends both again.
+     */
+    suspend fun putHolding(code: String, lots: Long, avgPrice: Double, stop: Long? = null, target: Long? = null): StocksResult<HoldingsBody> {
         val body = buildJsonObject {
             put("lots", lots)
             put("avg_price", avgPrice)
+            stop?.let { put("stop", it) }
+            target?.let { put("target", it) }
         }
         return call(StocksRequest(PUT, "holdings/$code", body = body.toString()), HoldingsBody.serializer()) { it }
     }
@@ -148,6 +165,44 @@ class StocksApi(private val send: suspend (StocksRequest) -> StocksReply) {
     suspend fun putJobEvery(id: String, everyMin: Int): StocksResult<JobView> {
         val body = buildJsonObject { put("every_min", everyMin) }
         return call(StocksRequest(PUT, "jobs/$id", body = body.toString()), JobView.serializer()) { it }
+    }
+
+    /** The jobs and today's automatic analyses (§20.2, §20.4 `auto_runs`). */
+    suspend fun jobsWithRuns(): StocksResult<JobsWithRuns> = call(StocksRequest(GET, "jobs"), JobsWithRuns.serializer()) { it }
+
+    /** A job on or off (`alerts`: off = no alert and no automatic analysis at all, §20.2). */
+    suspend fun putJobOn(id: String, on: Boolean): StocksResult<JobView> {
+        val body = buildJsonObject { put("on", on) }
+        return call(StocksRequest(PUT, "jobs/$id", body = body.toString()), JobView.serializer()) { it }
+    }
+
+    /**
+     * The alerts after [after] (§20.4), held up to [waitSeconds] when none is there yet; without [after] the newest 50.
+     * [lang] records the phone's language for the alert and brief texts (Q105).
+     */
+    suspend fun alerts(after: Long?, waitSeconds: Int = 0, lang: String? = null): StocksResult<AlertsBody> {
+        val query = buildMap {
+            after?.let { put("after", it.toString()) }
+            if (waitSeconds > 0) put("wait", waitSeconds.toString())
+            lang?.let { put("lang", it) }
+        }
+        val timeout = if (waitSeconds > 0) StockAlertWatcher.READ_TIMEOUT_SECONDS else null
+        return call(StocksRequest(GET, "alerts", query, readTimeoutSeconds = timeout), AlertsBody.serializer()) { it }
+    }
+
+    /** A day's brief (§20.4); without [date] the latest (today's `pending` before its run). `404 no_brief` when none. */
+    suspend fun brief(date: String? = null): StocksResult<BriefBody> {
+        val query = date?.let { mapOf("date" to it) } ?: emptyMap()
+        return call(StocksRequest(GET, "brief", query), BriefBody.serializer()) { it }
+    }
+
+    /** The kept briefs, newest first (≤ 7). */
+    suspend fun briefs(): StocksResult<List<BriefSummary>> = call(StocksRequest(GET, "briefs"), BriefsBody.serializer()) { it.briefs }
+
+    /** Runs today's brief again (on-demand AI, not counted in the automatic runs); [lang] `id` or `en`. */
+    suspend fun rerunBrief(lang: String): StocksResult<BriefStarted> {
+        val body = buildJsonObject { put("lang", lang) }
+        return call(StocksRequest(POST, "brief", body = body.toString()), BriefStarted.serializer()) { it }
     }
 
     suspend fun universe(): StocksResult<UniverseBody> = call(StocksRequest(GET, "universe"), UniverseBody.serializer()) { it }

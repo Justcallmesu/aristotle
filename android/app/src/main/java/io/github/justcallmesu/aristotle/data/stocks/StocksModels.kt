@@ -88,6 +88,9 @@ data class HoldingRow(
     @SerialName("pl_pct") val plPct: Double? = null,
     val today: Long? = null,
     val stale: Boolean = false,
+    /** The hand-set alert levels (Q104, TBA1): integer IDR on the tick grid, null when unset. */
+    val stop: Long? = null,
+    val target: Long? = null,
 )
 
 @Serializable

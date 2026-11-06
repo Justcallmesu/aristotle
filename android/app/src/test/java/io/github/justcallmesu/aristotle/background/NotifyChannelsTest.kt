@@ -11,16 +11,23 @@ class NotifyChannelsTest {
     @Test
     fun channelsKeepTheirIdsImportanceAndNames() {
         // The ids are permanent on installed phones: a new id would leave the user's choices on the old channel.
-        assertEquals(listOf("link", "turn_finished", "needs_you"), AppChannel.entries.map { it.id })
+        assertEquals(listOf("link", "turn_finished", "needs_you", "stock_alerts"), AppChannel.entries.map { it.id })
         assertEquals(
-            listOf(NotificationManagerCompat.IMPORTANCE_LOW, NotificationManagerCompat.IMPORTANCE_DEFAULT, NotificationManagerCompat.IMPORTANCE_HIGH),
+            listOf(
+                NotificationManagerCompat.IMPORTANCE_LOW,
+                NotificationManagerCompat.IMPORTANCE_DEFAULT,
+                NotificationManagerCompat.IMPORTANCE_HIGH,
+                NotificationManagerCompat.IMPORTANCE_HIGH,
+            ),
             AppChannel.entries.map { it.importance },
         )
+        assertEquals(R.string.channel_stock_alerts, AppChannel.StockAlerts.title)
+        assertEquals(R.string.channel_stock_alerts_description, AppChannel.StockAlerts.description)
         assertEquals(R.string.channel_turns, AppChannel.Turns.title)
         assertEquals(R.string.channel_turns_description, AppChannel.Turns.description)
         assertEquals(R.string.channel_needs, AppChannel.NeedsYou.title)
         assertEquals(R.string.channel_needs_description, AppChannel.NeedsYou.description)
-        assertEquals(listOf(false, true, true), AppChannel.entries.map { it.showBadge })
+        assertEquals(listOf(false, true, true, true), AppChannel.entries.map { it.showBadge })
     }
 
     @Test

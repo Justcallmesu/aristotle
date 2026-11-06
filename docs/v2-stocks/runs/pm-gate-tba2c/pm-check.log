@@ -1,0 +1,38 @@
+== M1 quiet whenever a tray copy exists (StockNotices.kt:34)
+AlertsTest > MAJOR-2 - a later alert of a code is quiet only when the tray copy is under a minute old FAILED
+    java.lang.AssertionError at AlertsTest.kt:178
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 1m
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+testcase name="MAJOR-2 - a later alert of a code is quiet only when the tray copy is under a minute old"
+== M2 stale-generation answer written (Alerts.kt:181)
+AlertsTest > an answer read before Unpair and taken after it is dropped - no cursor, no feed, no notice FAILED
+    java.lang.AssertionError at AlertsTest.kt:163
+AlertWatcherTest > an answer that is held while Unpair clears is dropped - nothing written, nothing notified FAILED
+    java.lang.AssertionError at AlertWatcherTest.kt:163
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 1m 19s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+testcase name="an answer read before Unpair and taken after it is dropped - no cursor, no feed, no notice"
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertWatcherTest.xml
+testcase name="an answer that is held while Unpair clears is dropped - nothing written, nothing notified"
+== M3 opening the page keeps the old pick (BriefViewModel.kt:131)
+BriefPickTest > a repeat tap on the brief page (a notification while it is shown) resets the pick FAILED
+    java.lang.AssertionError at BriefPickTest.kt:64
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 1m 21s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.ui.stocks.BriefPickTest.xml
+testcase name="a repeat tap on the brief page (a notification while it is shown) resets the pick"
+== gate
+SKIP server (0)
+PASS android (0)
+gate exit=0
+SKIP server (0)
+PASS android (0)
+unit tests: 1358

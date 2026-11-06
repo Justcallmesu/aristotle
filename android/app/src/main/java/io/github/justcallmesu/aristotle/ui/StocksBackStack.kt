@@ -1,5 +1,7 @@
 package io.github.justcallmesu.aristotle.ui
 
+import io.github.justcallmesu.aristotle.data.stocks.StockOpen
+
 /**
  * A page on the stocks back stack: Holdings, News, the Screener, its settings, a stock's page with its [code], or
  * Settings › Stocks (a root the Screener settings can be opened from, TSC3).
@@ -47,6 +49,22 @@ internal data class StocksBackStack(val page: PairedPage, val code: String? = nu
     /** Settings › Stocks › Screener (the page's gear, its "Change in settings", or Settings › Stocks). */
     fun openScreenerSettings(): StocksBackStack = go(PairedPage.StocksScreenerSettings, null)
 
+    /** TBA2: the 08:30 brief's page (Stocks home's card, a brief notification). */
+    fun openBrief(): StocksBackStack = go(PairedPage.StocksBrief, null)
+
+    /** TBA2: the stock alerts list (Stocks home's row and ⋮, a summary notification). */
+    fun openAlerts(): StocksBackStack = go(PairedPage.StocksAlerts, null)
+
+    /**
+     * A notification's or a row's target: the stock, the brief or the alerts list. A target already shown (the same
+     * Brief or Alerts page, the same stock) changes nothing, so a repeat tap pushes no second copy.
+     */
+    fun open(target: StockOpen): StocksBackStack = when (target) {
+        is StockOpen.Stock -> openStock(target.code)
+        StockOpen.Brief -> if (page == PairedPage.StocksBrief) this else openBrief()
+        StockOpen.Alerts -> if (page == PairedPage.StocksAlerts) this else openAlerts()
+    }
+
     /** One step back: the stocks page under this one, or Home when there is none. */
     fun back(): StocksBackStack {
         val under = below.lastOrNull() ?: return StocksBackStack(PairedPage.Sessions)
@@ -65,7 +83,10 @@ internal data class StocksBackStack(val page: PairedPage, val code: String? = nu
 
     companion object {
         /** The pages this stack covers. */
-        val PAGES = setOf(PairedPage.StocksHoldings, PairedPage.StocksNews, PairedPage.StockDetail, PairedPage.StocksScreener, PairedPage.StocksScreenerSettings)
+        val PAGES = setOf(
+            PairedPage.StocksHoldings, PairedPage.StocksNews, PairedPage.StockDetail, PairedPage.StocksScreener, PairedPage.StocksScreenerSettings,
+            PairedPage.StocksBrief, PairedPage.StocksAlerts,
+        )
 
         /** Pages outside the stack that a stocks page can be opened from and goes back to (they keep their own back). */
         val ROOTS = setOf(PairedPage.SettingsStocks)

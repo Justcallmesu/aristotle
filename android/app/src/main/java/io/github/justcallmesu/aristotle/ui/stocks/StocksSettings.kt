@@ -1,6 +1,11 @@
 package io.github.justcallmesu.aristotle.ui.stocks
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.ui.Alignment
+import io.github.justcallmesu.aristotle.data.stocks.AutoRuns
+import io.github.justcallmesu.aristotle.ui.theme.AristotleTextStyles
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,12 +54,13 @@ import io.github.justcallmesu.aristotle.ui.theme.Spacing
  * (TSC3, [onOpenScreener]) and the broker app (Q94: Ajaib; its Open action shows only when Ajaib is installed).
  */
 @Composable
-fun StocksSettingsSection(viewModel: StocksViewModel, onOpenScreener: (() -> Unit)? = null) {
+fun StocksSettingsSection(viewModel: StocksViewModel, onOpenScreener: (() -> Unit)? = null, alerts: StockAlertsViewModel? = null) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel, state.reachable) { if (state.reachable) viewModel.showFees() }
     val snackbar = remember { SnackbarHostState() }
     StocksMessages(state.message, snackbar, viewModel::messageShown)
     FeesBlock(state.fees, state.reachable, state.feesSaving, state.feesProblem?.let { stocksErrorText(it) }, viewModel::saveFees)
+    alerts?.let { AlertsBlock(it, snackbar) }
     onOpenScreener?.let { ScreenerBlock(it) }
     BrokerBlock()
     SnackbarHost(hostState = snackbar)
@@ -117,6 +123,64 @@ private fun FeeField(value: String, onValue: (String) -> Unit, label: String, pr
         shape = MaterialTheme.shapes.small,
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/**
+ * TBA2 "Alerts": the PC's `alerts` job switch (off = no alert and no automatic analysis, §20.2), today's automatic
+ * analyses ("2 of 5", Q87), and the Q109 line: with Keep connected off, alerts arrive only while the app is open.
+ */
+@Composable
+private fun AlertsBlock(viewModel: StockAlertsViewModel, snackbar: SnackbarHostState) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(viewModel) {
+        viewModel.settingsVisible(true)
+        onPauseOrDispose { viewModel.settingsVisible(false) }
+    }
+    val failed = state.saveProblem?.let { stringResource(R.string.stocks_alerts_save_failed, stocksErrorText(it)) }
+    LaunchedEffect(state.saveProblem) {
+        if (failed != null) {
+            snackbar.showSnackbar(failed)
+            viewModel.saveProblemShown()
+        }
+    }
+    val runs = state.autoRuns
+    val on = state.alertsOn
+    GroupedRows(1) {
+        Column(modifier = Modifier.fillMaxWidth().padding(start = Spacing.l, end = Spacing.l, top = Spacing.s, bottom = Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().toggleable(
+                    value = on == true,
+                    enabled = on != null && state.reachable && !state.saving,
+                    role = Role.Switch,
+                    onValueChange = viewModel::setAlertsOn,
+                ).padding(vertical = Spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.stocks_alerts_switch), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Switch(checked = on == true, onCheckedChange = null, enabled = on != null && state.reachable && !state.saving)
+            }
+            Text(
+                stringResource(R.string.stocks_alerts_switch_body, runs?.cap ?: AutoRuns.DEFAULT_CAP),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val status = when {
+                state.jobsProblem != null && state.jobs == null -> stocksErrorText(state.jobsProblem!!)
+                state.jobs == null && state.reachable -> stringResource(R.string.stocks_loading)
+                state.jobs == null -> stringResource(R.string.stocks_not_loaded)
+                else -> null
+            }
+            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            runs?.let {
+                Text(
+                    stringResource(R.string.stocks_auto_runs_today, it.used, it.cap),
+                    style = AristotleTextStyles.tabular(MaterialTheme.typography.bodyMedium),
+                    modifier = Modifier.padding(top = Spacing.s),
+                )
+            }
+            Text(stringResource(R.string.stocks_alerts_q109), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.s))
+        }
+    }
 }
 
 /** "Screener": setups, liquidity floor, scan interval and the stock list, on its own page. */

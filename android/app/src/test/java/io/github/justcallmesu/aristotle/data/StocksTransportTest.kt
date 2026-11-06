@@ -74,4 +74,15 @@ class StocksTransportTest {
         val reply = client.sendStocks(endpoint.baseUrl, token, StocksRequest("GET", "quotes"))
         assertEquals(StocksReply.Failed(ConnectionProblem.Unreachable), reply)
     }
+
+    /** TBA2: the alerts long-poll sets its own read timeout for that call only; here 1 s against a 2 s answer. */
+    @Test
+    fun aCallsOwnReadTimeoutAppliesToThatCallOnly() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(200).headersDelay(2, java.util.concurrent.TimeUnit.SECONDS).body("{}").build())
+        val timedOut = client.sendStocks(endpoint.baseUrl, token, StocksRequest("GET", "alerts", readTimeoutSeconds = 1))
+        assertEquals(StocksReply.Failed(ConnectionProblem.Unreachable), timedOut)
+        server.enqueue(MockResponse.Builder().code(200).headersDelay(2, java.util.concurrent.TimeUnit.SECONDS).body("{}").build())
+        val waited = client.sendStocks(endpoint.baseUrl, token, StocksRequest("GET", "alerts"))
+        assertEquals(StocksReply.Http(200, "{}"), waited)
+    }
 }

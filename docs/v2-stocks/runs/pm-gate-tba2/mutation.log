@@ -1,0 +1,39 @@
+== M1: first read (after == null) notifies history
+> Task :app:compileDebugKotlin FAILED
+BUILD FAILED in 1m 14s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+-- failing cases:
+-- classes run:
+TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+TEST-io.github.justcallmesu.aristotle.data.stocks.AlertWatcherTest.xml
+== M2: stale alerts (> 30 min, Q114) notified
+AlertsTest > only new, loud and fresh alerts are notified - the first read and a reset notify nothing FAILED
+    java.lang.AssertionError at AlertsTest.kt:53
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 5m 37s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+-- failing cases:
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+testcase name="only new, loud and fresh alerts are notified - the first read and a reset notify nothing"
+-- classes run:
+TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+TEST-io.github.justcallmesu.aristotle.data.stocks.AlertWatcherTest.xml
+AlertsTest > the store keeps a cursor per PC, counts what is new since the last look, and Unpair clears it FAILED
+    java.lang.AssertionError at AlertsTest.kt:69
+AlertsTest > only new, loud and fresh alerts are notified - the first read and a reset notify nothing FAILED
+    java.lang.AssertionError at AlertsTest.kt:54
+AlertWatcherTest > the first read takes the newest seq without notifying, then each read is held with the cursor FAILED
+    java.lang.AssertionError at AlertWatcherTest.kt:82
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 2m 2s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml
+testcase name="the store keeps a cursor per PC, counts what is new since the last look, and Unpair clears it"
+testcase name="only new, loud and fresh alerts are notified - the first read and a reset notify nothing"
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertWatcherTest.xml
+testcase name="the first read takes the newest seq without notifying, then each read is held with the cursor"
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertsTest.xml:tests="6" skipped="0" failures="2"
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.stocks.AlertWatcherTest.xml:tests="7" skipped="0" failures="1"

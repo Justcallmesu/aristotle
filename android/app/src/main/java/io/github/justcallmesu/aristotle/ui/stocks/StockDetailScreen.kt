@@ -572,6 +572,19 @@ private fun HoldingCard(row: HoldingRow, quote: StockQuote?, fees: StockFees?, o
                 )
                 TextButton(onClick = onEdit, shape = ButtonShape) { Text(stringResource(R.string.stocks_edit)) }
             }
+            // Q104: the hand-set alert levels, when set (the PC alerts when the price reaches them).
+            val levels = listOfNotNull(
+                row.stop?.let { stringResource(R.string.stocks_holding_stop, StockFormat.number(it)) },
+                row.target?.let { stringResource(R.string.stocks_holding_target, StockFormat.number(it)) },
+            )
+            if (levels.isNotEmpty()) {
+                Text(
+                    levels.joinToString(" · "),
+                    style = AristotleTextStyles.tabular(MaterialTheme.typography.bodySmall),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = Spacing.m, bottom = Spacing.s),
+                )
+            }
             Row(modifier = Modifier.padding(end = Spacing.m), horizontalArrangement = Arrangement.spacedBy(Spacing.l)) {
                 KeyValue(stringResource(R.string.stocks_value), StockFormat.orDash(view.value, StockFormat::rupiah), muted, Modifier.weight(1f))
                 LabelledChange(stringResource(R.string.stocks_today), StockChanges.today(view.today), muted, Modifier.weight(1f))
