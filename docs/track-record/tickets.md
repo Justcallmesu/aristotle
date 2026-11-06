@@ -35,3 +35,8 @@ Spec: `docs/track-record/spec.md` (Q116-Q120, readings Q120a/b). Kit, gates and 
 - 2026-11-06 Committed 256b80e (TR2). P16b amended (failures in their own file; hard limit keeps P16a). TR1e (server, std) and TR2b (phone, std) dispatched in parallel.
 - 2026-11-06 TR1e built (std, 772 Go) + TR2b built (std, 1414). pm-gate-tr1e + pm-gate-tr2b GREEN; mutations hard limit w/o history, connecting->offline, raw-id filter -> killed. P16b notes `since`. Two deep reviews dispatched in parallel.
 - 2026-11-06 TR1e review APPROVE (rollback probed: c74df38 serves the history written by the new code). TR2b review APPROVE. PM fixed §20.5 Code line. Both committed (two commits). Minors -> TR3 (deferred).
+### RESUME POINT (2026-11-06 15:50)
+1. HEAD = origin/master (after this commit). Tree clean. Nothing running. AI track record code-complete: c74df38 (server TR1+b+c), 256b80e (phone TR2), e6953eb (server TR1d+e), dc654a5 (phone TR2b).
+2. Open board rows: TR3 (polish minors, deferred). v2: TBA2d (deferred).
+3. Device checks waiting for the user: install dc654a5 on the Poco + update the real server (the track.score job and stocks-verdicts.json start then); 1.3x text on the track-record page; first 17:00 scoring run after a real Analyze (check the server log + the page next day); the v2 slice 3 list in docs/v2-stocks/tickets.md.
+4. Open user confirmation: Q115 (v2).
