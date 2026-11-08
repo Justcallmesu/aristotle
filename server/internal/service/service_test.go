@@ -279,3 +279,86 @@ func TestInstalledUnitDelegates(t *testing.T) {
 		t.Fatal("the current unit does not count as delegating")
 	}
 }
+
+func TestInstallForceRestartsRunningService(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.output = map[string]string{"--user is-active aristotle-server.service": "active\n"}
+	if err := m.Install(true, false); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(f.list(), "|")
+	if !strings.HasSuffix(got, "systemctl --user restart aristotle-server.service") || !m.Restarted {
+		t.Fatalf("calls %s restarted %v", got, m.Restarted)
+	}
+	for _, c := range f.calls {
+		if c.args == "--user start aristotle-server.service" {
+			t.Fatal("start after restart")
+		}
+	}
+}
+
+func TestInstallForceInactiveDoesNotRestart(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.output = map[string]string{"--user is-active aristotle-server.service": "inactive\n"}
+	if err := m.Install(true, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range f.calls {
+		if strings.Contains(c.args, "restart") || strings.Contains(c.args, "start") {
+			t.Fatalf("unexpected %v", c)
+		}
+	}
+	if m.Restarted {
+		t.Fatal("Restarted set")
+	}
+}
+
+func TestInstallWithoutForceNeverRestarts(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.output = map[string]string{"--user is-active aristotle-server.service": "active\n"}
+	if err := m.Install(false, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(f.list(), "|"); got != "systemctl --user daemon-reload|systemctl --user enable aristotle-server.service" {
+		t.Fatal(got)
+	}
+}
+
+func TestInstallKeepsSymlinkedUnit(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	os.MkdirAll(m.Dir, 0o755)
+	target := filepath.Join(t.TempDir(), "managed.service")
+	os.WriteFile(target, []byte("old\n"), 0o644)
+	if err := os.Symlink(target, m.UnitPath()); err != nil {
+		t.Fatal(err)
+	}
+	for _, force := range []bool{false, true} {
+		err := m.Install(force, false)
+		if !errors.Is(err, ErrUnitSymlink) || !strings.Contains(err.Error(), target) {
+			t.Fatalf("force=%v err %v", force, err)
+		}
+	}
+	if fi, _ := os.Lstat(m.UnitPath()); fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("symlink replaced by a file")
+	}
+	if b, _ := os.ReadFile(target); string(b) != "old\n" || len(f.calls) != 0 {
+		t.Fatal("refused install changed something")
+	}
+	want, _ := UnitText(m.Bin)
+	os.WriteFile(target, []byte(want), 0o644)
+	if err := m.Install(true, false); err != nil {
+		t.Fatalf("matching symlinked unit: %v", err)
+	}
+	if fi, _ := os.Lstat(m.UnitPath()); fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("symlink replaced by a file")
+	}
+}
+
+func TestInstallRefusesDanglingSymlink(t *testing.T) {
+	m, _ := newMgr(t, "/opt/aristotle-server")
+	os.MkdirAll(m.Dir, 0o755)
+	os.Symlink(filepath.Join(t.TempDir(), "missing"), m.UnitPath())
+	if err := m.Install(true, false); !errors.Is(err, ErrUnitSymlink) {
+		t.Fatal(err)
+	}
+}

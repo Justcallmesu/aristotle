@@ -57,11 +57,16 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 	if err == nil {
 		err = m.Install(*force, *start)
 	}
+	if err == nil && *force && !*start && !m.Restarted {
+		fmt.Fprintln(stdout, "The service was not running, so nothing was restarted.")
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
-	if *start {
+	if m.Restarted {
+		fmt.Fprintln(stdout, "Installed, enabled and restarted the running service: the new binary and unit are live.")
+	} else if *start {
 		fmt.Fprintln(stdout, "Installed, enabled and started.")
 	} else {
 		fmt.Fprintln(stdout, "Installed and enabled (starts at next login). Start it now with: systemctl --user start aristotle-server")
@@ -136,10 +141,12 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "Service:  %s\n", m.State("is-active"))
+	active := m.State("is-active")
+	fmt.Fprintf(stdout, "Service:  %s\n", active)
 	fmt.Fprintf(stdout, "Enabled:  %s\n", m.State("is-enabled"))
 	var res statusResult
-	err = callServer(cmdStatus, nil, &res)
+	err = queryStatus(&res)
+	answering := err == nil
 	switch {
 	case errors.Is(err, control.ErrNotRunning):
 		fmt.Fprintln(stdout, "Server:   not running (no control socket)")
@@ -150,8 +157,14 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "Addresses:")
 		printAddrs(stdout, toPairAddrs(res.Addresses))
 	}
+	if active != "active" || !answering {
+		return 1
+	}
 	return 0
 }
+
+// queryStatus asks the running server for its status (a seam for tests).
+var queryStatus = func(res *statusResult) error { return callServer(cmdStatus, nil, res) }
 
 func toPairAddrs(in []httpapi.Address) []pairAddr {
 	out := make([]pairAddr, len(in))

@@ -26,6 +26,9 @@ type Runner interface {
 // ErrUnitDiffers means a different unit file already exists and force is off.
 var ErrUnitDiffers = errors.New("a different unit file already exists")
 
+// ErrUnitSymlink means the unit file is a symlink install will not rewrite.
+var ErrUnitSymlink = errors.New("unit file is a symlink")
+
 // UnitDir returns $XDG_CONFIG_HOME/systemd/user (default ~/.config/systemd/user).
 func UnitDir() (string, error) {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
@@ -113,6 +116,9 @@ type Manager struct {
 	Runner Runner
 	Out    io.Writer
 	Err    io.Writer
+
+	// Restarted is set by Install when it restarted a running service (--force).
+	Restarted bool
 }
 
 // UnitPath is the full path of the unit file.
@@ -129,27 +135,48 @@ func (m *Manager) Install(force, start bool) error {
 		return err
 	}
 	path := m.UnitPath()
+	m.Restarted = false
+	linked := false
+	if fi, lerr := os.Lstat(path); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+		linked = true
+	}
 	have, err := os.ReadFile(path)
 	switch {
 	case err == nil:
-		if string(have) != want && !force {
+		if string(have) != want && !linked && !force {
 			return fmt.Errorf("%w at %s (it points at another binary or was edited); rerun with --force to replace it", ErrUnitDiffers, path)
+		}
+		if linked && string(have) != want {
+			return symlinkRefusal(path)
 		}
 	case !errors.Is(err, fs.ErrNotExist):
 		return err
+	case linked:
+		return symlinkRefusal(path)
 	}
-	if err := os.MkdirAll(m.Dir, 0o755); err != nil {
-		return err
+	if linked {
+		fmt.Fprintf(m.Out, "%s is a symlink with the right content; left as is\n", path)
+	} else {
+		if err := os.MkdirAll(m.Dir, 0o755); err != nil {
+			return err
+		}
+		if err := writeAtomic(path, []byte(want)); err != nil {
+			return err
+		}
+		fmt.Fprintf(m.Out, "wrote %s\n", path)
 	}
-	if err := writeAtomic(path, []byte(want)); err != nil {
-		return err
-	}
-	fmt.Fprintf(m.Out, "wrote %s\n", path)
 	if err := m.ctl("daemon-reload"); err != nil {
 		return fmt.Errorf("systemctl daemon-reload: %w", err)
 	}
 	if err := m.ctl("enable", UnitName); err != nil {
 		return fmt.Errorf("systemctl enable: %w", err)
+	}
+	if force && m.State("is-active") == "active" {
+		if err := m.ctl("restart", UnitName); err != nil {
+			return fmt.Errorf("systemctl restart: %w", err)
+		}
+		m.Restarted = true
+		return nil
 	}
 	if start {
 		if err := m.ctl("start", UnitName); err != nil {
@@ -157,6 +184,17 @@ func (m *Manager) Install(force, start bool) error {
 		}
 	}
 	return nil
+}
+
+// symlinkRefusal is the error for a unit file that is a symlink whose content is not what install
+// would write. Refusing is safer than writing through: the target is usually managed elsewhere
+// (dotfiles repo, read-only store) and replacing the link with a file would silently detach it.
+func symlinkRefusal(path string) error {
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		target, _ = os.Readlink(path)
+	}
+	return fmt.Errorf("%w: %s is a symlink to %s; not touching it. Edit the target (ExecStart=... serve) or remove the link, then rerun install", ErrUnitSymlink, path, target)
 }
 
 // Uninstall disables and stops the unit, removes the file and reloads. A

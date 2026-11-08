@@ -589,6 +589,15 @@ All listeners use the same port (config `port`, default 8760). The server never 
 - `aristotle-server pair` prints the pairing QR code (§11.4; `--no-qr` leaves it out), then the code, every listener
   URL (all `https://`) with its interface: the default-route LAN interface first, other LAN interfaces next, Tailscale
   last; then the one certificate fingerprint, valid for every address. Interfaces are re-scanned every 10 s.
+- Service commands (systemd user unit `aristotle-server.service`, RS3/D31):
+  - `install [--start] [--force]` writes the unit, `daemon-reload`, `enable`. A different existing unit is refused without `--force`.
+    With `--force` on a running service it also runs `systemctl --user restart`, so the new binary and unit are live, and prints
+    that; if the service is not running it says nothing was restarted (`--start` starts it as before). Without `--force` it never restarts.
+  - A unit file that is a symlink is never replaced or written through: if its content already matches, it is left as is;
+    otherwise (or when dangling) `install` exits 1 naming the target, with or without `--force`. Edit the target or remove the
+    link. Reason: the target is managed elsewhere (dotfiles, read-only store) and replacing the link would detach it.
+  - `status` prints `Service:`, `Enabled:`, `Server:` (and addresses) as before; it exits 0 only when the unit is `active` and the
+    server answers on its control socket, and 1 otherwise (inactive, failed, unknown, or no answer).
 
 ### 11.2 Endpoints (LAN and Tailscale listeners)
 | Method, path | Auth | Success | Errors |

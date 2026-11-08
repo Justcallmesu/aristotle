@@ -151,7 +151,7 @@ func TestStatusServerDown(t *testing.T) {
 		"systemctl --user is-enabled aristotle-server.service": "enabled\n",
 	}
 	var out, errOut bytes.Buffer
-	if code := Run([]string{"status"}, "v", &out, &errOut); code != 0 {
+	if code := Run([]string{"status"}, "v", &out, &errOut); code != 1 {
 		t.Fatalf("code %d", code)
 	}
 	for _, w := range []string{"inactive", "enabled", "not running"} {
@@ -238,3 +238,55 @@ type syncBuf struct {
 
 func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.b.Write(p) }
 func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
+
+func TestInstallForceRestartsRunningServiceMessage(t *testing.T) {
+	f, _, _ := useFakes(t)
+	f.out = map[string]string{"systemctl --user is-active aristotle-server.service": "active\n"}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"install", "--force"}, "v", &out, &errOut); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(strings.Join(f.calls, "|"), "systemctl --user restart aristotle-server.service") {
+		t.Fatal(f.calls)
+	}
+	if !strings.Contains(out.String(), "restarted") || strings.Contains(out.String(), "starts at next login") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestInstallSymlinkedUnitRefused(t *testing.T) {
+	_, unit, _ := useFakes(t)
+	os.MkdirAll(filepath.Dir(unit), 0o755)
+	target := filepath.Join(t.TempDir(), "t.service")
+	os.WriteFile(target, []byte("x\n"), 0o644)
+	os.Symlink(target, unit)
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"install", "--force"}, "v", &out, &errOut); code != 1 || !strings.Contains(errOut.String(), target) {
+		t.Fatalf("code %d err %q", code, errOut.String())
+	}
+}
+
+func TestStatusExitCode(t *testing.T) {
+	cases := []struct {
+		active  string
+		answers bool
+		code    int
+	}{{"active", true, 0}, {"active", false, 1}, {"failed", true, 1}, {"inactive", false, 1}}
+	for _, c := range cases {
+		f, _, _ := useFakes(t)
+		f.out = map[string]string{"systemctl --user is-active aristotle-server.service": c.active + "\n"}
+		old := queryStatus
+		queryStatus = func(*statusResult) error {
+			if c.answers {
+				return nil
+			}
+			return errors.New("down")
+		}
+		var out, errOut bytes.Buffer
+		code := Run([]string{"status"}, "v", &out, &errOut)
+		queryStatus = old
+		if code != c.code || !strings.Contains(out.String(), c.active) {
+			t.Errorf("%+v: code %d out %q", c, code, out.String())
+		}
+	}
+}
