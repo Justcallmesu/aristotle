@@ -27,6 +27,7 @@ data class LicenceComponent(
 val licenceKinds: Map<String, String> = mapOf(
     "apache-2.0" to "Apache License 2.0",
     "ofl-1.1" to "SIL Open Font License 1.1",
+    "mpl-2.0" to "Mozilla Public License 2.0",
     // Google terms, not open source: no full text is reproduced, the file points at the terms (see the RS2 report).
     "android-sdk-terms" to "Android Software Development Kit License (Google terms, not open source)",
     "mlkit-terms" to "ML Kit Terms of Service (Google terms, not open source)",
@@ -34,7 +35,7 @@ val licenceKinds: Map<String, String> = mapOf(
 
 /** POM licence name -> id. */
 fun licenceIdOf(pomName: String): String? = when {
-    pomName.contains("apache", ignoreCase = true) -> "apache-2.0"
+    pomName.contains("apache", ignoreCase = true) && pomName.contains("2") -> "apache-2.0"
     pomName.equals("Android Software Development Kit License", ignoreCase = true) -> "android-sdk-terms"
     pomName.equals("ML Kit Terms of Service", ignoreCase = true) -> "mlkit-terms"
     else -> null
@@ -76,6 +77,34 @@ val bundledFonts: List<LicenceComponent> = listOf(
         "Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors (https://github.com/googlefonts/atkinson-hyperlegible-next)", null,
     ),
 )
+
+/**
+ * Third-party data embedded in a dependency's artifact: invisible to the classpath inventory, so listed here by hand.
+ * [artifact] is the "group:artifact" that carries the file, [entry] its path inside the jar/aar. The task fails when the
+ * entry is gone (the notice would be stale), and when an artifact carries an `assets/` file that is not listed here.
+ * Scan of the 110 releaseRuntimeClasspath artifacts (RS2b): this is the only third-party data. Not third-party:
+ * `third_party_licenses.*` (Google's own index in the GMS/ML Kit/Firebase AARs), `inspector.jar` (AndroidX), `DebugProbesKt.bin`
+ * (kotlinx-coroutines), `libtermux.so` (Termux code, Apache-2.0), `libandroidx.graphics.path.so` (AndroidX), res/ files (each library's own).
+ */
+class BundledData(val component: LicenceComponent, val artifact: String, val entry: String)
+
+val bundledData: List<BundledData> = listOf(
+    BundledData(
+        LicenceComponent(
+            "Public Suffix List (bundled by OkHttp)", "", "mpl-2.0",
+            "Copyright Mozilla Foundation and Public Suffix List contributors. Source form: https://publicsuffix.org/list/", null,
+        ),
+        "com.squareup.okhttp3:okhttp-android", "assets/PublicSuffixDatabase.list",
+    ),
+)
+
+/** Entries of [artifact] (a jar or an aar's outer zip) that live under assets/. */
+fun assetEntriesOf(artifact: File): List<String> {
+    if (!artifact.isFile || !(artifact.name.endsWith(".jar") || artifact.name.endsWith(".aar"))) return emptyList()
+    ZipFile(artifact).use { zip ->
+        return zip.entries().asSequence().filter { !it.isDirectory && it.name.startsWith("assets/") }.map { it.name }.toList()
+    }
+}
 
 fun jsonString(s: String): String = buildString {
     append('"')
@@ -133,6 +162,7 @@ fun buildLicenceFiles(): Map<String, String> {
     }
     val files = sortedMapOf<String, String>()
     val components = sortedMapOf<String, LicenceComponent>()
+    val seenData = mutableSetOf<Pair<String, String>>()
     for (artifact in artifacts) {
         val id = artifact.id.componentIdentifier as ModuleComponentIdentifier
         val coordinate = "${id.group}:${id.module}"
@@ -148,6 +178,18 @@ fun buildLicenceFiles(): Map<String, String> {
             noticeKey
         }
         components[key] = LicenceComponent(coordinate, id.version, licence, "Copyright " + holderOf(id.group), notice)
+        val known = bundledData.filter { it.artifact == coordinate }.map { it.entry }
+        val unlisted = assetEntriesOf(artifact.file).filter { it !in known }
+        if (unlisted.isNotEmpty()) {
+            throw GradleException("$key bundles assets/ files with no licence entry: $unlisted (add them to bundledData in licences/licences.gradle.kts, or say why they are not third-party)")
+        }
+        seenData += known.filter { it in assetEntriesOf(artifact.file) }.map { coordinate to it }
+    }
+    for (data in bundledData) {
+        if ((data.artifact to data.entry) !in seenData) {
+            throw GradleException("${data.component.name}: ${data.artifact} no longer ships ${data.entry} (drop or fix its bundledData entry in licences/licences.gradle.kts)")
+        }
+        components["${data.component.name}:${data.component.version}"] = data.component
     }
     for (font in bundledFonts) components["${font.name}:${font.version}"] = font
     val list = components.values.sortedWith(compareBy({ it.name.lowercase() }, { it.version }))

@@ -82,6 +82,25 @@ class LicencesTest {
             "com.mikepenz:multiplatform-markdown-renderer-m3-android",
             "com.google.android.gms:play-services-code-scanner",
             "Atkinson Hyperlegible Next (font)",
+            "Public Suffix List (bundled by OkHttp)",
         ).forEach { assertTrue("$it listed", it in names) }
+    }
+
+    @Test
+    fun loadReadsTheCatalogueAssetThroughTheReaderAndIsNullWhenItIsMissingOrBroken() {
+        val read = mapOf(Licences.CATALOG_ASSET to sample)
+        assertEquals(3, Licences.load(read::get)!!.components.size)
+        assertNull(Licences.load { null })
+        assertNull(Licences.load { "not json" })
+    }
+
+    @Test
+    fun thePublicSuffixListIsCreditedUnderMpl2WithItsSourceAndFullText() {
+        val catalog = Licences.parse(File(assets, Licences.CATALOG_ASSET).readText())!!
+        val psl = catalog.components.single { it.name.startsWith("Public Suffix List") }
+        assertEquals("mpl-2.0", psl.licence)
+        assertTrue(psl.copyright, "https://publicsuffix.org/list/" in psl.copyright)
+        assertEquals("Mozilla Public License 2.0", catalog.kindName("mpl-2.0"))
+        assertTrue(File(assets, psl.text).readText().startsWith("Mozilla Public License Version 2.0"))
     }
 }

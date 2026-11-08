@@ -62,6 +62,9 @@ elif [[ -f "$ROOT/android/gradlew" ]]; then
   cd "$ROOT/android"
   # Not executable -> the run fails (FAIL), never a silent skip.
   run_step android "$RUN_DIR/gate-android.log" ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug
+  # D45: the licence notices must match the dependency set (a bump leaves them stale otherwise).
+  cd "$ROOT"
+  run_step licences "$RUN_DIR/gate-licences.log" bash scripts/licences.sh --check
 else
   record SKIP android 0
 fi

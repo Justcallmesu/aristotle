@@ -1,0 +1,12 @@
+== M1 PSL bundled entry points at a wrong path (so the real asset is unlisted)
+BUILD FAILED in 38s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+SKIP server (0)
+PASS android (0)
+PASS licences (0)
+gate exit=0
+SKIP server (0)
+PASS android (0)
+PASS licences (0)
+unit tests: 1422

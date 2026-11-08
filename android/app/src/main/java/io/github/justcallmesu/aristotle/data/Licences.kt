@@ -57,6 +57,9 @@ object Licences {
         return LicenceCatalog(file.licences, components)
     }
 
+    /** Reads and parses the catalogue through [load] (an asset reader, null when missing). */
+    fun load(load: (String) -> String?): LicenceCatalog? = load(CATALOG_ASSET)?.let(::parse)
+
     /** Reads [component]'s licence and NOTICE texts through [load] (an asset reader, null when missing). */
     fun detail(catalog: LicenceCatalog, component: LicenceComponent, load: (String) -> String?): LicenceDetail =
         LicenceDetail(

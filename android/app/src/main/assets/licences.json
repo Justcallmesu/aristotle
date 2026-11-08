@@ -4,6 +4,7 @@
     {"id": "android-sdk-terms", "name": "Android Software Development Kit License (Google terms, not open source)", "text": "licences/android-sdk-terms.txt"},
     {"id": "apache-2.0", "name": "Apache License 2.0", "text": "licences/apache-2.0.txt"},
     {"id": "mlkit-terms", "name": "ML Kit Terms of Service (Google terms, not open source)", "text": "licences/mlkit-terms.txt"},
+    {"id": "mpl-2.0", "name": "Mozilla Public License 2.0", "text": "licences/mpl-2.0.txt"},
     {"id": "ofl-1.1", "name": "SIL Open Font License 1.1", "text": "licences/ofl-1.1.txt"}
   ],
   "components": [
@@ -118,6 +119,7 @@
     {"name": "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm", "version": "1.12.0", "licence": "apache-2.0", "text": "licences/apache-2.0.txt", "copyright": "Copyright JetBrains s.r.o. and Kotlin Programming Language contributors"},
     {"name": "org.jetbrains:annotations", "version": "23.0.0", "licence": "apache-2.0", "text": "licences/apache-2.0.txt", "copyright": "Copyright JetBrains s.r.o. and Kotlin Programming Language contributors"},
     {"name": "org.jetbrains:markdown-jvm", "version": "0.7.3", "licence": "apache-2.0", "text": "licences/apache-2.0.txt", "copyright": "Copyright JetBrains s.r.o. and Kotlin Programming Language contributors"},
-    {"name": "org.jspecify:jspecify", "version": "1.0.0", "licence": "apache-2.0", "text": "licences/apache-2.0.txt", "copyright": "Copyright The JSpecify Authors"}
+    {"name": "org.jspecify:jspecify", "version": "1.0.0", "licence": "apache-2.0", "text": "licences/apache-2.0.txt", "copyright": "Copyright The JSpecify Authors"},
+    {"name": "Public Suffix List (bundled by OkHttp)", "version": "", "licence": "mpl-2.0", "text": "licences/mpl-2.0.txt", "copyright": "Copyright Mozilla Foundation and Public Suffix List contributors. Source form: https://publicsuffix.org/list/"}
   ]
 }

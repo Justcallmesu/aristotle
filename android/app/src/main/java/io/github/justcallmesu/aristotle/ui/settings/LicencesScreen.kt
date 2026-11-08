@@ -54,13 +54,20 @@ fun LicencesScreen(onBack: () -> Unit) {
             val read: (String) -> String? = { path ->
                 runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.getOrNull()
             }
-            LoadedLicences(read(Licences.CATALOG_ASSET)?.let(Licences::parse), read)
+            LoadedLicences(Licences.load(read), read)
         }
     }
     var openKey by rememberSaveable { mutableStateOf("") }
     val source = loaded
     val catalog = source?.catalog
     val open = catalog?.components?.firstOrNull { componentKey(it) == openKey }
+    // The open component's texts are read once per open component, off the main thread, never during recomposition.
+    val detail by produceState<LicenceDetail?>(null, open, source) {
+        value = null
+        if (open != null && catalog != null && source != null) {
+            value = withContext(Dispatchers.IO) { Licences.detail(catalog, open, source.read) }
+        }
+    }
     BackHandler(enabled = open != null) { openKey = "" }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -68,7 +75,7 @@ fun LicencesScreen(onBack: () -> Unit) {
             when {
                 source == null -> Unit
                 catalog == null || catalog.components.isEmpty() -> Message(stringResource(R.string.licences_empty))
-                open != null -> LicenceText(Licences.detail(catalog, open, source.read))
+                open != null -> detail?.takeIf { it.component == open }?.let { LicenceText(it) }
                 else -> LicenceList(catalog, onOpen = { openKey = componentKey(it) })
             }
         }
