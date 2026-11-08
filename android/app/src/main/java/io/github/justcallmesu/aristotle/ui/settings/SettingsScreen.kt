@@ -72,6 +72,8 @@ class SettingsActions(
     val onWhatsNew: () -> Unit = {},
     /** Connection & PCs › Connection history (Q73). */
     val onHistory: () -> Unit = {},
+    /** About › Open-source licences (D45). */
+    val onLicences: () -> Unit = {},
     val onUnpair: () -> Unit,
     val canPostNotifications: () -> Boolean,
     val channelOn: (AppChannel) -> Boolean,
@@ -148,7 +150,7 @@ fun SettingsScreen(
                     SettingsPage.Appearance -> AppearanceSection(theme, textSize, onOpen = viewModel::show)
                     SettingsPage.Language -> LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
                     SettingsPage.Security -> SecuritySection(viewModel, actions.screenLockSet)
-                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew, actions.onSendDebugLog)
+                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew, actions.onLicences, actions.onSendDebugLog)
                     SettingsPage.Stocks -> stocksSection()
                 }
                 Spacer(Modifier.height(Spacing.xxl))
@@ -393,11 +395,11 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
 )
 
 /**
- * The licence notices are D45's and say so until they exist. "Send debug log" (Q80b) says what the log holds and
+ * "Open-source licences" opens the third-party notices (D45). "Send debug log" (Q80b) says what the log holds and
  * what it never holds; it only opens the share sheet.
  */
 @Composable
-private fun AboutSection(pcId: String, onWhatsNew: () -> Unit, onSendDebugLog: () -> Unit) {
+private fun AboutSection(pcId: String, onWhatsNew: () -> Unit, onLicences: () -> Unit, onSendDebugLog: () -> Unit) {
     val servers by ServerVersions.all.collectAsStateWithLifecycle()
     val server = servers[pcId]
     RowGroup(
@@ -420,7 +422,7 @@ private fun AboutSection(pcId: String, onWhatsNew: () -> Unit, onSendDebugLog: (
             },
             { SettingRow(title = stringResource(R.string.settings_whats_new), body = stringResource(R.string.settings_whats_new_body), modifier = Modifier.clickable(onClick = onWhatsNew)) },
             { SettingRow(title = stringResource(R.string.settings_debug_log), body = stringResource(R.string.settings_debug_log_body), modifier = Modifier.clickable(onClick = onSendDebugLog)) },
-            { SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_coming_soon), quiet = true) },
+            { SettingRow(title = stringResource(R.string.settings_licences), body = stringResource(R.string.settings_licences_body), modifier = Modifier.clickable(onClick = onLicences)) },
             { SettingRow(title = stringResource(R.string.settings_source), body = stringResource(R.string.settings_source_body)) },
         ),
     )

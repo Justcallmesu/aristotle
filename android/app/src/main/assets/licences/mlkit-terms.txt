@@ -1,0 +1,5 @@
+ML Kit Terms of Service (Google code scanner components)
+
+These components are distributed by Google under the "ML Kit Terms of Service".
+They are Google terms of service, not an open-source licence, and their full text is not reproduced here.
+Terms: https://developers.google.com/ml-kit/terms

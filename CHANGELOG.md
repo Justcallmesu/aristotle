@@ -10,6 +10,7 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- Phone: Settings › About › Open-source licences lists every library and font in the app with its licence text.
 - Phone: AI track record: Stocks ⋮ → AI track record shows, per verdict type, how often the AI's calls hit (Buy today / Add: target, Hold: stop held, Avoid / Sell: right) with filters by model, trigger and confidence, and a "How scoring works" sheet; the verdict card says how that verdict type has done; a stock's page lists its past calls with result chips.
 - Server: AI track record: every kept stock verdict is logged and scored after the close (17:00 job `track.score`, using that session's 5-minute prices) — Buy today/Add as win, loss, closed flat or not triggered, Hold by its own stop and target, Avoid/Sell right or wrong, Wait as "would have made", plus a 3-day result for information; `GET /v1/stocks/track-record` gives the counts per verdict, model, trigger and confidence.
 - Phone: Stock alerts arrive as notifications, one per stock, with nothing readable on the lock screen. With Keep connected off they arrive only while the app is open; missed ones are listed under Stocks › Alerts. The 08:30 brief has a card on Stocks home and its own page with the last 7 days. Holdings take an optional stop and target. Settings › Stocks shows the alerts switch and today's automatic analyses (at most 5).
@@ -38,6 +39,7 @@ file at build time and shows the `Phone:` entries only.
 
 ### Fixed
 
+- Server: `install --force` now restarts a running service so the new binary is live; a symlinked unit file is never replaced (install refuses and names its target); `status` exits non-zero unless the service is active and answering.
 - Server: Screener: a scan no longer undoes a settings change made while it ran; empty (`null`) settings are refused; a stock without a trade yet today keeps its signals; the opening gap is read again when the first try came too early, and no longer pushes your charts out of the cache.
 - Server: The service no longer refuses every control command from your PC terminal (`pair.start` and others); the unit has no `PrivateTmp` any more, so run `aristotle-server install --force` and restart the service.
 

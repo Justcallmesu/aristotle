@@ -187,11 +187,15 @@
     <string name="settings_language_body">Hanya kata-kata Aristotle sendiri. Balasan Hermes dan pesan Anda tidak pernah diterjemahkan.</string>
     <string name="settings_language_system">Sama dengan ponsel</string>
     <string name="settings_app_lock">Kunci aplikasi</string>
-    <string name="settings_coming_soon">Segera hadir</string>
     <string name="settings_about_tagline">Sesi Hermes Agent di PC Anda, dari ponsel ini.</string>
     <string name="settings_version">Versi</string>
     <string name="settings_whats_new">Yang baru</string>
     <string name="settings_licences">Lisensi sumber terbuka</string>
+    <string name="settings_licences_body">Pustaka dan font di dalam Aristotle, beserta lisensinya</string>
+    <string name="licences_empty">Daftar lisensi tidak ada di build ini.</string>
+    <string name="licences_licence_label">Lisensi: %1$s</string>
+    <string name="licences_notice_heading">Pemberitahuan</string>
+    <string name="licences_text_missing">Teks lisensi tidak ada di build ini.</string>
     <string name="settings_source">Sumber</string>
     <string name="settings_source_body">Proyek pribadi oleh Justcallmesu. github.com/Justcallmesu/aristotle (privat)</string>
     <string name="repair_title">Pasangkan lagi</string>

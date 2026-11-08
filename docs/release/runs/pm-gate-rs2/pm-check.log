@@ -1,0 +1,47 @@
+=== SERVER RS3
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=780 failed=0
+SKIP android (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=780 failed=0
+SKIP android (0)
+== S1 --force never restarts (service.go:174)
+--- FAIL: TestInstallForceRestartsRunningService (0.00s)
+--- FAIL: TestInstallForceRestartsRunningServiceMessage (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== S2 status 0 when only one of active/answering (servicecmds.go:160)
+--- FAIL: TestStatusExitCode (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== S3 symlink with other content not refused (service.go:149)
+--- FAIL: TestInstallKeepsSymlinkedUnit (0.00s)
+--- FAIL: TestInstallSymlinkedUnitRefused (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+=== ANDROID RS2
+server notices: up to date
+licences: assets up to date (5 files)
+licences: OK (check)
+licences check exit=0
+== A1 licence kind lookup broken (Licences.kt:38)
+LicencesTest > detailCarriesTheLicenceNameTextAndNotice FAILED
+    java.lang.AssertionError at LicencesTest.kt:41
+LicencesTest > theCommittedAssetIsAWellFormedCatalogueWithEveryTextPresent FAILED
+    java.lang.AssertionError at LicencesTest.kt:68
+LicencesTest > aMissingTextOrUnknownLicenceIsShownAsMissingNotThrown FAILED
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 59s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+app/build/test-results/testDebugUnitTest/TEST-io.github.justcallmesu.aristotle.data.LicencesTest.xml
+SKIP server (0)
+PASS android (0)
+gate exit=0
+SKIP server (0)
+PASS android (0)

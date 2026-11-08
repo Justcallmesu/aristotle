@@ -1,0 +1,5 @@
+Android Software Development Kit License (Google Play services components)
+
+These components are distributed by Google under the "Android Software Development Kit License".
+It is a Google licence agreement, not an open-source licence, and its full text is not reproduced here.
+Terms: https://developer.android.com/studio/terms.html

@@ -71,6 +71,7 @@ import io.github.justcallmesu.aristotle.ui.settings.SettingsActions
 import io.github.justcallmesu.aristotle.ui.settings.SettingsPage
 import io.github.justcallmesu.aristotle.ui.settings.SettingsScreen
 import io.github.justcallmesu.aristotle.ui.settings.SettingsViewModel
+import io.github.justcallmesu.aristotle.ui.settings.LicencesScreen
 import io.github.justcallmesu.aristotle.ui.settings.WhatsNewScreen
 import io.github.justcallmesu.aristotle.ui.sessions.WhatsNewCard
 import io.github.justcallmesu.aristotle.BuildConfig
@@ -206,7 +207,7 @@ private fun quoteGateVisible(container: AppContainer, credentials: CredentialSta
  * category is its own page ([settingsPage] names it), so a restored page keeps the sub-page open (Q72).
  */
 internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
-    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew,
+    Sessions, Settings, FirstRunGuide, SettingsGuide, Chat, Scheduled, Terminal, Repair, WhatsNew, SettingsWhatsNew, SettingsLicences,
     SettingsHistory, Running,
     /** TS2: Holdings, News and a stock's page (route `stock/{code}`, the code kept beside the page). */
     StocksHoldings, StocksNews, StockDetail,
@@ -230,7 +231,7 @@ internal enum class PairedPage(val settingsPage: SettingsPage? = null) {
             SettingsConnection, SettingsNotifications, SettingsAppearance, SettingsLanguage, SettingsSecurity, SettingsStocks, SettingsAbout -> Settings
             SettingsGuide -> SettingsNotifications
             Repair, SettingsHistory -> SettingsConnection
-            SettingsWhatsNew -> SettingsAbout
+            SettingsWhatsNew, SettingsLicences -> SettingsAbout
             else -> Sessions
         }
 
@@ -425,6 +426,7 @@ private fun PairedPages(
                     page = PairedPage.Repair
                 },
                 onHistory = { page = PairedPage.SettingsHistory },
+                onLicences = { page = PairedPage.SettingsLicences },
                 stocksSection = {
                     StocksSettingsSection(
                         stocksViewModel(container, stocksRoutes, pc),
@@ -438,6 +440,7 @@ private fun PairedPages(
             PairedPage.FirstRunGuide, PairedPage.SettingsGuide ->
                 BatteryGuideScreen(settings = settings, xiaomi = container.isXiaomiFamily, onBack = { page = page.back })
             PairedPage.WhatsNew, PairedPage.SettingsWhatsNew -> WhatsNewScreen(onBack = { page = page.back })
+            PairedPage.SettingsLicences -> LicencesScreen(onBack = { page = page.back })
             PairedPage.Scheduled -> CronRoute(container, cronRoutes, cronProfile, cronLabel, onBack = { page = page.back })
             PairedPage.StocksHoldings -> HoldingsScreen(stocksViewModel(container, stocksRoutes, pc), onBack = goBack, screener = screenerViewModel(container, stocksRoutes, pc))
             // TSC3: a candidate opens its stock through [openStock] (show(...)), never a plain page change (MINOR-B).
@@ -514,6 +517,7 @@ private fun SettingsRoute(
     onWhatsNew: () -> Unit,
     onRepair: () -> Unit,
     onHistory: () -> Unit,
+    onLicences: () -> Unit,
     stocksSection: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -533,6 +537,7 @@ private fun SettingsRoute(
             onWhatsNew = onWhatsNew,
             onRepair = onRepair,
             onHistory = onHistory,
+            onLicences = onLicences,
             onUnpair = { container.unpair(pc.pcId) },
             // About › Send debug log (Q80b): the log as one file through the share sheet; nothing is uploaded.
             onSendDebugLog = {

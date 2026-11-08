@@ -19,6 +19,7 @@ Status: **decided Q126-Q129 (2026-11-06); step 1 (personal release bundle) plann
 | Q128 | Public installer: Linux only at first (what exists); Windows/macOS later. | User 2026-11-06 "A". |
 | Q129 | Open source on a public GitHub repo with releases (licence MIT or Apache-2.0: open, Q130 at step 2). **Before the repo goes public:** audit the whole git history for secrets and personal data (run logs hold LAN/Tailscale addresses, paths, device names). | User 2026-11-06 "B". |
 | Q11 | Superseded for step 2 by Q126-Q129; still true for step 1. | |
+| Q131 | **Open for step 2:** the QR scanner (`play-services-code-scanner`) pulls 8 Google artifacts under Google terms (Android SDK licence, ML Kit ToS), not open source. Fine for step 1 (listed in the notices, RS2). For the public open-source release (Q129): keep it (F-Droid and some users refuse proprietary deps), or replace it with an open scanner (e.g. ZXing, Apache-2.0; adds a camera permission flow). PM recommendation for step 2: replace. | RS2 stop condition, 2026-11-08. |
 
 ## Step 1 — personal release bundle (what gets built now)
 One bundle per version, `dist/aristotle-<version>/`: signed release APK, server binary (linux-amd64), `install.sh` (installs or updates the

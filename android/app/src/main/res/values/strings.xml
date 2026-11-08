@@ -194,11 +194,15 @@
     <string name="settings_language_english" translatable="false">English</string>
     <string name="settings_language_indonesian" translatable="false">Bahasa Indonesia</string>
     <string name="settings_app_lock">App lock</string>
-    <string name="settings_coming_soon">Coming soon</string>
     <string name="settings_about_tagline">Your Hermes Agent sessions on your PC, from this phone.</string>
     <string name="settings_version">Version</string>
     <string name="settings_whats_new">What\'s new</string>
     <string name="settings_licences">Open-source licences</string>
+    <string name="settings_licences_body">Libraries and fonts inside Aristotle, with their licences</string>
+    <string name="licences_empty">The licence list is missing from this build.</string>
+    <string name="licences_licence_label">Licence: %1$s</string>
+    <string name="licences_notice_heading">Notice</string>
+    <string name="licences_text_missing">The licence text is missing from this build.</string>
     <string name="settings_source">Source</string>
     <string name="settings_source_body">A personal project by Justcallmesu. github.com/Justcallmesu/aristotle (private)</string>
     <string name="repair_title">Pair again</string>
