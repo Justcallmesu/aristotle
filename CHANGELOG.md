@@ -8,6 +8,8 @@ file at build time and shows the `Phone:` entries only.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-08
+
 ### Added
 
 - PC: Releases come as one folder per version: the signed phone app, the server, an `install.sh` that checks the files, installs or updates the server (keeping the previous one for a rollback), waits until it is up and can show the pairing QR, plus the licence notices and release notes.
