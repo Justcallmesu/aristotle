@@ -1,7 +1,27 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+// RS1: one version source (gradle.properties `aristotle.version`); versionCode = major*10000 + minor*100 + patch.
+val appVersion = providers.gradleProperty("aristotle.version").get()
+val appVersionCode = appVersion.split(".").map { it.toInt() }.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+
+// RS1: release signing comes from a file outside the repo (keys storeFile, storePassword, keyAlias, keyPassword);
+// override its path with the Gradle property or env var ARISTOTLE_SIGNING. Nothing from it is logged.
+val signingFile = File(
+    providers.gradleProperty("ARISTOTLE_SIGNING").orElse(providers.environmentVariable("ARISTOTLE_SIGNING"))
+        .orElse(System.getProperty("user.home") + "/.config/aristotle/signing.properties").get()
+)
+val signingProps = Properties().apply { if (signingFile.isFile) signingFile.inputStream().use { load(it) } }
+gradle.taskGraph.whenReady {
+    val packaging = setOf("assembleRelease", "packageRelease", "bundleRelease")
+    if (!signingFile.isFile && allTasks.any { it.project == project && it.name in packaging }) {
+        throw GradleException("Release signing file not found: ${signingFile.path}. Create it (storeFile, storePassword, keyAlias, keyPassword) or set ARISTOTLE_SIGNING.")
+    }
 }
 
 val quoteAssets = layout.buildDirectory.dir("generated/quote-assets")
@@ -59,9 +79,27 @@ android {
         applicationId = "io.github.justcallmesu.aristotle"
         minSdk = 29
         targetSdk = 36
-        // versionCode = major*10000 + minor*100 + patch (1.0.0 -> 10000); the PC server bumps its own semver.
-        versionCode = 10000
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersion
+    }
+
+    if (signingFile.isFile) {
+        signingConfigs.create("release") {
+            storeFile = file(signingProps.getProperty("storeFile"))
+            storePassword = signingProps.getProperty("storePassword")
+            keyAlias = signingProps.getProperty("keyAlias")
+            keyPassword = signingProps.getProperty("keyPassword")
+        }
+    }
+
+    buildTypes {
+        release {
+            // R8 stays off for this personal sideloaded build: the app leans on reflection-heavy libraries (serialization,
+            // markdown renderer, termux) and a shrunk APK cannot be start-tested without a device. Revisit with keep rules.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+        }
     }
 
     // quotes.json has one source, docs/quotes.json: copied into a generated assets dir at build time (TQ1).
