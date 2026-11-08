@@ -1,0 +1,29 @@
+== M1 release.sh accepts any signer (line 94)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== M2 install.sh skips the checksum check (line 34)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=782 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=782 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+ M .gitignore
+ M docs/protocol.md
+ M docs/v1-tickets/gates.sh
+ M scripts/build-server.sh
+ M server/internal/app/servicecmds_test.go
+ M server/internal/service/service.go
+ M server/internal/service/service_test.go
+no v-tags

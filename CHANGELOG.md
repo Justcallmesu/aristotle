@@ -10,6 +10,7 @@ file at build time and shows the `Phone:` entries only.
 
 ### Added
 
+- PC: Releases come as one folder per version: the signed phone app, the server, an `install.sh` that checks the files, installs or updates the server (keeping the previous one for a rollback), waits until it is up and can show the pairing QR, plus the licence notices and release notes.
 - Phone: Settings › About › Open-source licences lists every library and font in the app with its licence text.
 - Phone: AI track record: Stocks ⋮ → AI track record shows, per verdict type, how often the AI's calls hit (Buy today / Add: target, Hold: stop held, Avoid / Sell: right) with filters by model, trigger and confidence, and a "How scoring works" sheet; the verdict card says how that verdict type has done; a stock's page lists its past calls with result chips.
 - Server: AI track record: every kept stock verdict is logged and scored after the close (17:00 job `track.score`, using that session's 5-minute prices) — Buy today/Add as win, loss, closed flat or not triggered, Hold by its own stop and target, Avoid/Sell right or wrong, Wait as "would have made", plus a 3-day result for information; `GET /v1/stocks/track-record` gives the counts per verdict, model, trigger and confidence.

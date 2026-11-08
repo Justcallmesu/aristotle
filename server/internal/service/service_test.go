@@ -297,6 +297,24 @@ func TestInstallForceRestartsRunningService(t *testing.T) {
 	}
 }
 
+func TestInstallForceRestartFailureSaysUnitUpdated(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	f.output = map[string]string{"--user is-active aristotle-server.service": "active\n"}
+	f.fail = map[string]bool{"--user restart aristotle-server.service": true}
+	err := m.Install(true, false)
+	if !errors.Is(err, ErrRestartFailed) || m.Restarted {
+		t.Fatalf("err %v restarted %v", err, m.Restarted)
+	}
+	for _, w := range []string{"exit status 1", m.UnitPath() + " was updated and enabled", "likely down", "journalctl --user -u aristotle-server"} {
+		if !strings.Contains(err.Error(), w) {
+			t.Errorf("missing %q in %q", w, err)
+		}
+	}
+	if _, serr := os.Stat(m.UnitPath()); serr != nil {
+		t.Fatal("unit not written", serr)
+	}
+}
+
 func TestInstallForceInactiveDoesNotRestart(t *testing.T) {
 	m, f := newMgr(t, "/opt/aristotle-server")
 	f.output = map[string]string{"--user is-active aristotle-server.service": "inactive\n"}

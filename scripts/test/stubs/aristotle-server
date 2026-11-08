@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Test stub of aristotle-server for scripts/test/install_test.sh: records its calls in $STUB_LOG and never touches systemd.
+# STUB_STATUS_FAILS: how many `status` calls fail before one succeeds (a number, or "always").
+set -euo pipefail
+echo "aristotle-server $*" >> "$STUB_LOG"
+case "${1:-}" in
+  install) echo "Installed (stub)" ;;
+  status)
+    calls=0
+    [[ -f "$STUB_STATE/status-calls" ]] && calls="$(cat "$STUB_STATE/status-calls")"
+    calls=$((calls + 1))
+    echo "$calls" > "$STUB_STATE/status-calls"
+    fails="${STUB_STATUS_FAILS:-0}"
+    if [[ "$fails" == always ]] || (( calls <= fails )); then
+      echo "Server:   not running (stub)"
+      exit 1
+    fi
+    echo "Server:   running (stub)" ;;
+  version) echo "aristotle-server 9.9.9 (stub) protocol 1" ;;
+  pair) echo "PAIRING QR (stub)" ;;
+  *) echo "stub: unexpected command: $*" >&2; exit 99 ;;
+esac

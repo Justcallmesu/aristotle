@@ -1,0 +1,96 @@
+=== install_test
+case: fresh install (status comes up on the 3rd poll)
+  ok: fresh install: exit 0
+  ok: binary copied to ~/.local/bin
+  ok: no .prev on a fresh install
+  ok: ran install --force --start
+  ok: polled status until it exited 0
+  ok: printed the version
+  ok: said where the APK is
+  ok: said the debug app must be uninstalled
+  ok: --no-pair: no pairing
+  ok: never ran systemctl itself
+  ok: no temp file left in ~/.local/bin
+case: update keeps the previous binary as .prev
+  ok: update: exit 0
+  ok: new binary in place
+  ok: previous binary kept as .prev
+  ok: printed the rollback command
+  ok: --pair: printed the pairing QR
+  ok: pairing output shown
+case: rerun with the same binary keeps the older .prev
+  ok: rerun: exit 0
+  ok: .prev still the older binary
+case: bad checksum refuses before copying
+  ok: bad checksum: exit 1
+  ok: said checksum mismatch
+  ok: installed binary untouched
+  ok: no .prev written
+  ok: nothing was run
+case: SHA256SUMS without the binary refuses
+  ok: binary not listed: exit 1
+  ok: nothing installed
+case: status never comes up -> non-zero and the journal tail
+  ok: server never came up: exit 1
+  ok: said it timed out
+  ok: read the unit's journal
+  ok: printed the journal tail
+  ok: no version line after a failed start
+  ok: no pairing after a failed start
+case: non-interactive without a flag does not pair
+  ok: no flag: exit 0
+  ok: no pairing without a terminal
+  ok: told how to pair later
+install_test: all passed
+PASS install_test
+=== release_test
+case: refusals before anything is built
+  ok: no version argument: exit 2
+  ok: not semver: exit 1
+  ok: not semver: says why
+  ok: not semver: no bundle
+  ok: leading zero: exit 1
+  ok: leading zero: says why
+  ok: leading zero: no bundle
+  ok: dirty tree (untracked file): exit 1
+  ok: dirty tree (untracked file): says why
+  ok: dirty tree (untracked file): no bundle
+  ok: dirty tree (modified file): exit 1
+  ok: dirty tree (modified file): says why
+  ok: dirty tree (modified file): no bundle
+  ok: version mismatch: exit 1
+  ok: version mismatch: says why
+  ok: version mismatch: no bundle
+  ok: missing CHANGELOG heading: exit 1
+  ok: missing CHANGELOG heading: says why
+  ok: missing CHANGELOG heading: no bundle
+  ok: existing tag: exit 1
+  ok: existing tag: says why
+  ok: existing tag: no bundle
+  ok: gate fails: exit 1
+  ok: gate fails: says why
+  ok: gate fails: no bundle
+case: wrong signer (throwaway key, real pin) is refused after the build
+  ok: wrong signer: exit 1
+  ok: wrong signer: says why
+  ok: wrong signer: no bundle
+  ok: the gate ran before the build
+  ok: no bundle after a wrong signer
+case: a good run (pin swapped to the throwaway cert in the scratch copy only) builds the bundle and tags
+  ok: good run: exit 0
+  ok: bundle has exactly the six files
+  ok: SHA256SUMS lists the five other files
+  ok: SHA256SUMS verifies
+  ok: binary carries version and commit
+  ok: release notes start at the version heading
+  ok: release notes hold that one section only
+  ok: install.sh shipped
+  ok: server notices shipped
+  ok: annotated tag v1.0.0 created
+  ok: tree still clean after the build
+  ok: rerun after tagging: exit 1
+  ok: rerun after tagging: says why
+  ok: the tagged bundle is left alone
+  ok: real repo tags unchanged
+release_test: all passed
+PASS release_test

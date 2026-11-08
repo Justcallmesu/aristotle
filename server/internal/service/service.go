@@ -29,6 +29,12 @@ var ErrUnitDiffers = errors.New("a different unit file already exists")
 // ErrUnitSymlink means the unit file is a symlink install will not rewrite.
 var ErrUnitSymlink = errors.New("unit file is a symlink")
 
+// ErrRestartFailed means the unit was installed and enabled but restarting the running service failed.
+var ErrRestartFailed = errors.New("service restart failed")
+
+// JournalCommand shows the service's recent log lines (what install.sh prints on a failed start, too).
+const JournalCommand = "journalctl --user -u aristotle-server -n 50 --no-pager (or: aristotle-server logs)"
+
 // UnitDir returns $XDG_CONFIG_HOME/systemd/user (default ~/.config/systemd/user).
 func UnitDir() (string, error) {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
@@ -173,7 +179,7 @@ func (m *Manager) Install(force, start bool) error {
 	}
 	if force && m.State("is-active") == "active" {
 		if err := m.ctl("restart", UnitName); err != nil {
-			return fmt.Errorf("systemctl restart: %w", err)
+			return restartFailure(path, linked, err)
 		}
 		m.Restarted = true
 		return nil
@@ -184,6 +190,17 @@ func (m *Manager) Install(force, start bool) error {
 		}
 	}
 	return nil
+}
+
+// restartFailure is the error for a failed restart after the unit was written (or kept) and enabled. A restart
+// is stop then start, so the server is probably down now; the message says what changed and where to look.
+func restartFailure(path string, linked bool, err error) error {
+	unit := "unit " + path + " was updated"
+	if linked {
+		unit = "unit " + path + " (a symlink) was kept"
+	}
+	return fmt.Errorf("%w (systemctl --user restart: %v): the %s and enabled, but the server is likely down now. See: %s",
+		ErrRestartFailed, err, unit, JournalCommand)
 }
 
 // symlinkRefusal is the error for a unit file that is a symlink whose content is not what install

@@ -69,5 +69,14 @@ else
   record SKIP android 0
 fi
 
+# RS4: release.sh / install.sh shell tests (temp HOME, stubs, scratch repo copy). They build an APK, so a
+# GATE_ONLY run skips them.
+if [[ -n "$ONLY" ]]; then
+  record SKIP scripts 0
+else
+  cd "$ROOT"
+  run_step scripts "$RUN_DIR/gate-scripts.log" bash scripts/test/run.sh
+fi
+
 cat "$SUMMARY"
 exit "$FAILED"

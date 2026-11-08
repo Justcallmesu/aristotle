@@ -593,6 +593,11 @@ All listeners use the same port (config `port`, default 8760). The server never 
   - `install [--start] [--force]` writes the unit, `daemon-reload`, `enable`. A different existing unit is refused without `--force`.
     With `--force` on a running service it also runs `systemctl --user restart`, so the new binary and unit are live, and prints
     that; if the service is not running it says nothing was restarted (`--start` starts it as before). Without `--force` it never restarts.
+    If that restart fails, `install` exits 1 with `service restart failed (systemctl --user restart: …): the unit <path> was updated
+    and enabled, but the server is likely down now. See: journalctl --user -u aristotle-server -n 50 --no-pager (or: aristotle-server logs)`
+    (a restart is stop then start, so the old process is gone too) (RS4).
+  - The release bundle's `install.sh` (RS4, `docs/release/README.md`) copies the binary to `~/.local/bin`, runs
+    `install --force --start` and then polls `status` for up to 30 s, because `status` exits 1 until the control socket is up.
   - A unit file that is a symlink is never replaced or written through: if its content already matches, it is left as is;
     otherwise (or when dangling) `install` exits 1 naming the target, with or without `--force`. Edit the target or remove the
     link. Reason: the target is managed elsewhere (dotfiles, read-only store) and replacing the link would detach it.

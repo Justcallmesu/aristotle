@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Test stub of journalctl for scripts/test/install_test.sh: records its arguments, prints two fake log lines.
+echo "journalctl $*" >> "$STUB_LOG"
+echo "stub journal: aristotle-server failed to bind"
+echo "stub journal: last line"

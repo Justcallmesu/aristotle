@@ -20,6 +20,7 @@ type fakeRunner struct {
 	mu    sync.Mutex
 	calls []string
 	out   map[string]string
+	fail  map[string]bool
 }
 
 func (f *fakeRunner) Run(stdout, _ io.Writer, name string, args ...string) error {
@@ -29,6 +30,9 @@ func (f *fakeRunner) Run(stdout, _ io.Writer, name string, args ...string) error
 	f.mu.Unlock()
 	if o, ok := f.out[j]; ok {
 		io.WriteString(stdout, o)
+	}
+	if f.fail[j] {
+		return errors.New("exit status 1")
 	}
 	return nil
 }
@@ -250,6 +254,24 @@ func TestInstallForceRestartsRunningServiceMessage(t *testing.T) {
 		t.Fatal(f.calls)
 	}
 	if !strings.Contains(out.String(), "restarted") || strings.Contains(out.String(), "starts at next login") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestInstallForceRestartFailurePointsAtJournal(t *testing.T) {
+	f, unit, _ := useFakes(t)
+	f.out = map[string]string{"systemctl --user is-active aristotle-server.service": "active\n"}
+	f.fail = map[string]bool{"systemctl --user restart aristotle-server.service": true}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"install", "--force"}, "v", &out, &errOut); code != 1 {
+		t.Fatalf("code %d", code)
+	}
+	for _, w := range []string{unit + " was updated and enabled", "likely down", "journalctl --user -u aristotle-server"} {
+		if !strings.Contains(errOut.String(), w) {
+			t.Errorf("missing %q in %q", w, errOut.String())
+		}
+	}
+	if strings.Contains(out.String(), "restarted the running service") {
 		t.Fatal(out.String())
 	}
 }

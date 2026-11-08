@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Test guard: install.sh must never run systemctl itself (the stub aristotle-server stands in for the service manager).
+echo "UNEXPECTED systemctl $*" >> "$STUB_LOG"
+exit 99
