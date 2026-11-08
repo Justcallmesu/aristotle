@@ -74,6 +74,8 @@ set_app_version() { sed -i "s/^aristotle\.version=.*/aristotle.version=$1/" "$S/
 
 make_scratch
 make_keystore
+# The scratch copy is pinned to 1.0.0 (a released CHANGELOG heading) so the cases below do not depend on the repo's current version.
+set_app_version 1.0.0; git -C "$S" diff --quiet || commit "pin the scratch copy to 1.0.0"
 
 echo "case: refusals before anything is built"
 run_release; expect_code 2 "$CODE" "no version argument"
