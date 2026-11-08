@@ -21,6 +21,12 @@ Status: **decided Q126-Q129 (2026-11-06); step 1 (personal release bundle) plann
 | Q11 | Superseded for step 2 by Q126-Q129; still true for step 1. | |
 | Q131 | **Open for step 2:** the QR scanner (`play-services-code-scanner`) pulls 8 Google artifacts under Google terms (Android SDK licence, ML Kit ToS), not open source. Fine for step 1 (listed in the notices, RS2). For the public open-source release (Q129): keep it (F-Droid and some users refuse proprietary deps), or replace it with an open scanner (e.g. ZXing, Apache-2.0; adds a camera permission flow). PM recommendation for step 2: replace. | RS2 stop condition, 2026-11-08. |
 
+## Release signing key (public facts only)
+Alias `aristotle`, `CN=Aristotle`, created 2026-11-08, file `~/.config/aristotle/aristotle-release.jks` (outside git, backed up by the
+user). Certificate SHA-256: `5a:f3:2f:63:9d:8c:98:e1:2c:18:e0:f0:93:e8:da:c2:6b:90:9d:0f:bd:4c:59:3d:cf:a1:20:24:5f:de:70:bb`. Every release
+APK must carry exactly this signer (`release.sh` checks it). Passwords live only in `~/.config/aristotle/signing.properties`; in that file
+a `\` must be written `\\` (Java properties escaping).
+
 ## Step 1 — personal release bundle (what gets built now)
 One bundle per version, `dist/aristotle-<version>/`: signed release APK, server binary (linux-amd64), `install.sh` (installs or updates the
 user service, restarts it, prints status and the pairing QR), `SHA256SUMS`, release notes from CHANGELOG. Plus "Get the app": the PC shows a
