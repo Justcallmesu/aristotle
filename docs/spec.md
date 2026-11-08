@@ -73,7 +73,7 @@ Rules that hold everywhere:
 | Q8 | Stock features are native app screens backed by the server. | v2. |
 | Q9 | App: Kotlin + Jetpack Compose (Material 3). | PM technical call ("stack with the best UI"). |
 | Q10 | When busy, the phone offers explicit Steer / Queue / Stop; it never changes `busy_input_mode`. | |
-| Q11 | Sideloaded APK, personal use. | |
+| Q11 | Sideloaded APK, personal use. **Superseded for the later public phase by `docs/release/spec.md` Q126-Q129 (2026-11-06); still true for step 1.** | |
 | Q12 | Own code; the co-worker's app is read only for protocol behaviour. | |
 | Q13 | Market: IDX. | |
 | Q14 | Day trading: screener ("good today") + favourites with buy-now / hold / when-to-sell. | |
