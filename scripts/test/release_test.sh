@@ -100,9 +100,31 @@ refused "wrong signer" "APK signer is not the release key: got '$THROWAWAY_SHA25
 expect_contains "$OUT" "stub gate (release_test)" "the gate ran before the build"
 expect_no_file "$S/dist/aristotle-1.0.0" "no bundle after a wrong signer"
 
-echo "case: a good run (pin swapped to the throwaway cert in the scratch copy only) builds the bundle and tags"
+echo "case: refusals after the build (pin swapped to the throwaway cert in the scratch copy only)"
 sed -i "s/^PINNED_SIGNER_SHA256=.*/PINNED_SIGNER_SHA256=$THROWAWAY_SHA256/" "$S/scripts/release.sh"
 commit "test: pin the throwaway signer"
+# A fake SDK: the real one, symlinked, plus an apksigner that reports two signers (always the newest build-tools).
+FAKE_SDK="$WORK/fake-sdk"
+mkdir -p "$FAKE_SDK/build-tools/99.0.0"
+for e in "$ANDROID_HOME"/*; do [[ "$(basename "$e")" == build-tools ]] || ln -s "$e" "$FAKE_SDK/"; done
+for e in "$ANDROID_HOME"/build-tools/*; do ln -s "$e" "$FAKE_SDK/build-tools/"; done
+printf '#!/usr/bin/env bash\necho "Signer #1 certificate SHA-256 digest: %s"\necho "Signer #2 certificate SHA-256 digest: %s"\n' \
+  "$THROWAWAY_SHA256" "$THROWAWAY_SHA256" > "$FAKE_SDK/build-tools/99.0.0/apksigner"
+chmod +x "$FAKE_SDK/build-tools/99.0.0/apksigner"
+REAL_SDK="$ANDROID_HOME"
+ANDROID_HOME="$FAKE_SDK" refused "two signers" "APK signer is not the release key" 1.0.0
+ANDROID_HOME="$REAL_SDK"
+
+# The scratch repo builds the server with a stub (see stubs/build-server.sh).
+cp "$HERE/stubs/build-server.sh" "$S/scripts/build-server.sh"
+commit "test: stub server build"
+BUILD_STUB_VERSION="aristotle-server 0.0.0 (abc) protocol 1" refused "wrong server version line" "aristotle-server version says 'aristotle-server 0.0.0 (abc) protocol 1'" 1.0.0
+SHORT_STUB="$(git -C "$S" rev-parse --short HEAD)"
+BUILD_STUB_VERSION="aristotle-server 1.0.0 ($SHORT_STUB) protocol 1" BUILD_STUB_DIRTY=1 refused "build dirtied the tree" "the git tree is not clean" 1.0.0
+cp "$ROOT/scripts/build-server.sh" "$S/scripts/build-server.sh"
+commit "test: real server build again"
+
+echo "case: a good run (throwaway pin) builds the bundle and tags"
 SHORT="$(git -C "$S" rev-parse --short HEAD)"
 run_release --tag 1.0.0
 expect_code 0 "$CODE" "good run"
@@ -115,6 +137,7 @@ expect_contains "$("$B/aristotle-server" version)" "aristotle-server 1.0.0 ($SHO
 expect_contains "$(head -n 1 "$B/RELEASE-NOTES.md")" "## [1.0.0] - 2026-11-04" "release notes start at the version heading"
 expect_not_contains "$(tail -n +2 "$B/RELEASE-NOTES.md")" "## [" "release notes hold that one section only"
 expect_same "$S/scripts/install.sh" "$B/install.sh" "install.sh shipped"
+[[ -x "$B/install.sh" ]] && pass "bundled install.sh is executable" || fail "bundled install.sh is not executable"
 expect_same "$S/server/THIRD_PARTY_NOTICES.txt" "$B/THIRD_PARTY_NOTICES.txt" "server notices shipped"
 expect_contains "$(git -C "$S" cat-file -t v1.0.0 2>&1)" "tag" "annotated tag v1.0.0 created"
 [[ -z "$(git -C "$S" status --porcelain)" ]] && pass "tree still clean after the build" || fail "the build changed the tree"

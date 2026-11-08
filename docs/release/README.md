@@ -24,9 +24,12 @@ Copy the whole `aristotle-<x.y.z>/` folder to the PC and run `./install.sh` in i
   `aristotle-server.prev`;
 - runs `aristotle-server install --force --start`: writes or updates the systemd user unit, restarts a running service or
   starts a stopped one;
-- waits up to 30 s for `aristotle-server status` to exit 0; if it does not, it prints the last lines of
-  `journalctl --user -u aristotle-server` and exits 1;
+- waits up to 30 s (wall time) for `aristotle-server status` to exit 0; if it does not, or if `install --force --start`
+  itself fails, it prints the last lines of `journalctl --user -u aristotle-server` and the rollback command, and exits 1;
 - prints the running version, the rollback command and where the APK is.
+
+Run it in a terminal on the PC, never from the phone's remote terminal: the script refuses there, because an update restarts
+the service and closes every open phone terminal.
 
 Rollback: `mv -f ~/.local/bin/aristotle-server.prev ~/.local/bin/aristotle-server && ~/.local/bin/aristotle-server install --force --start`.
 

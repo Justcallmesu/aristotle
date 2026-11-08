@@ -1,0 +1,9 @@
+# RS4b build report
+- MINOR-1: `install.sh` refuses (exit 1, the briefed message) when `ARISTOTLE_TERMINAL` is set (server marker: `server/internal/terminal/proc.go:15`, read at `sys_linux.go:168`) or `/proc/self/cgroup` names `aristotle-server.service`. It runs before anything is touched. README says an update closes the phone terminals. Tests: both paths, nothing installed, nothing run.
+- MINOR-2: one `on_failure` (journal tail + rollback line) is used by the status timeout and by a failed `install --force --start` (exit 1). `rollback_command` is the single rollback string, which removes the duplicate. Test: stub `install` fails.
+- Exec bit: `chmod +x` on `scripts/install.sh` and `scripts/release.sh`. Tests check both source files and the bundled `install.sh` in the scratch release.
+- `release.sh` tests added (the 3 refusals): wrong `version` line, two signers (fake SDK with a stub apksigner as newest build-tools), and the final clean-tree check (stub build dirties a tracked file). The scratch repo uses the new `stubs/build-server.sh`.
+- NITs done: the status wait uses wall time (`SECONDS`), not the iteration count. `ARISTOTLE_CGROUP_FILE` exists as a test-only override.
+- NITs skipped: "Running:" shows the file's version, not the version `status` reports. `JournalCommand` says `-n 50` and its comment is wrong, but it sits in `server/`, which is out of scope. Out of scope by brief: nested-jar asset scan, static/trimpath binary.
+- Files: `scripts/install.sh`, `scripts/release.sh` (mode only), `scripts/test/{install_test.sh,release_test.sh,stubs/aristotle-server,stubs/build-server.sh}`, `docs/release/README.md`.
+- Gate: `bash scripts/test/run.sh` GREEN (install_test and release_test both PASS), run after the last edit. Everything ran on scratch copies and a temp HOME with stubs.

@@ -17,6 +17,7 @@ new_case() {
   STUBS="$CASE/stubs"
   mkdir -p "$T_HOME" "$BUNDLE" "$STUBS" "$CASE/state"
   : > "$CASE/calls.log"
+  echo "0::/user.slice/user-1000.slice/session-1.scope" > "$CASE/cgroup"
   cp "$HERE/stubs/journalctl" "$HERE/stubs/systemctl" "$STUBS/"
   chmod +x "$STUBS"/*
   cp "$ROOT/scripts/install.sh" "$BUNDLE/install.sh"
@@ -38,7 +39,9 @@ old_binary() { # an installed binary that differs from the bundle's
 
 run_install() { # args... ; sets CODE, OUT, CALLS
   CODE=0
-  OUT="$(env HOME="$T_HOME" XDG_CONFIG_HOME="$T_HOME/.config" PATH="$STUBS:$PATH" \
+  OUT="$(env -u ARISTOTLE_TERMINAL HOME="$T_HOME" XDG_CONFIG_HOME="$T_HOME/.config" PATH="$STUBS:$PATH" \
+    ARISTOTLE_CGROUP_FILE="${CGROUP_FILE_FOR_TEST:-$CASE/cgroup}" ${EXTRA_ENV:-} \
+    STUB_INSTALL_FAILS="${INSTALL_FAILS:-}" \
     STUB_LOG="$CASE/calls.log" STUB_STATE="$CASE/state" STUB_STATUS_FAILS="${STATUS_FAILS:-0}" \
     ARISTOTLE_INSTALL_TIMEOUT="${INSTALL_TIMEOUT:-5}" bash "$BUNDLE/install.sh" "$@" < /dev/null 2>&1)" || CODE=$?
   CALLS="$(cat "$CASE/calls.log")"
@@ -102,6 +105,35 @@ expect_contains "$CALLS" "journalctl --user -u aristotle-server -n 30 --no-pager
 expect_contains "$OUT" "stub journal: last line" "printed the journal tail"
 expect_not_contains "$OUT" "Running:" "no version line after a failed start"
 expect_not_contains "$CALLS" "aristotle-server pair" "no pairing after a failed start"
+
+echo "case: install --force --start fails -> rollback line, journal tail, non-zero"
+new_case installfail
+old_binary
+INSTALL_FAILS=1 run_install --no-pair
+expect_code 1 "$CODE" "install failed"
+expect_contains "$OUT" "aristotle-server install failed" "said the install failed"
+expect_contains "$OUT" "stub journal: last line" "printed the journal tail"
+expect_contains "$OUT" "To go back to the previous binary: mv -f \"$TARGET.prev\" \"$TARGET\"" "printed the rollback command"
+expect_not_contains "$OUT" "Running:" "no version line after a failed install"
+expect_not_contains "$CALLS" "aristotle-server status" "did not poll status"
+
+echo "case: refuses inside the app's terminal"
+new_case marker
+EXTRA_ENV="ARISTOTLE_TERMINAL=1" run_install --no-pair
+expect_code 1 "$CODE" "ARISTOTLE_TERMINAL set"
+expect_contains "$OUT" "run this in a terminal on the PC, not from the phone" "said why"
+expect_no_file "$TARGET" "nothing installed"
+[[ -z "$CALLS" ]] && pass "nothing was run" || fail "ran: $CALLS"
+new_case cgroup
+echo "0::/user.slice/user-1000.slice/user@1000.service/app.slice/aristotle-server.service/term-1" > "$CASE/cgroup"
+run_install --no-pair
+expect_code 1 "$CODE" "inside the service cgroup"
+expect_contains "$OUT" "run this in a terminal on the PC, not from the phone" "said why"
+expect_no_file "$TARGET" "nothing installed"
+
+echo "case: the bundled install.sh keeps its executable bit"
+[[ -x "$ROOT/scripts/install.sh" ]] && pass "scripts/install.sh is executable" || fail "scripts/install.sh is not executable"
+[[ -x "$ROOT/scripts/release.sh" ]] && pass "scripts/release.sh is executable" || fail "scripts/release.sh is not executable"
 
 echo "case: non-interactive without a flag does not pair"
 new_case noninteractive

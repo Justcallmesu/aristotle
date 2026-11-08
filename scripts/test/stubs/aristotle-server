@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Test stub of aristotle-server for scripts/test/install_test.sh: records its calls in $STUB_LOG and never touches systemd.
+# STUB_INSTALL_FAILS: when set, `install` fails.
 # STUB_STATUS_FAILS: how many `status` calls fail before one succeeds (a number, or "always").
 set -euo pipefail
 echo "aristotle-server $*" >> "$STUB_LOG"
 case "${1:-}" in
-  install) echo "Installed (stub)" ;;
+  install)
+    if [[ -n "${STUB_INSTALL_FAILS:-}" ]]; then echo "stub: restart failed" >&2; exit 1; fi
+    echo "Installed (stub)" ;;
   status)
     calls=0
     [[ -f "$STUB_STATE/status-calls" ]] && calls="$(cat "$STUB_STATE/status-calls")"

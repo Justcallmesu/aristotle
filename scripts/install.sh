@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Install or update aristotle-server from this release bundle (run it from anywhere; it works in its own directory).
 # Usage: ./install.sh [--pair | --no-pair]
+#   0. refuses inside the app's remote terminal (the restart would end that session mid-update)
 #   1. checks every file against SHA256SUMS (refuses before touching anything when one does not match)
 #   2. copies aristotle-server to ~/.local/bin (atomic; the previous binary is kept as aristotle-server.prev)
 #   3. aristotle-server install --force --start: writes/updates the systemd user unit, restarts a running service or starts it
@@ -15,6 +16,8 @@ PREV="$TARGET.prev"
 UNIT=aristotle-server
 TIMEOUT="${ARISTOTLE_INSTALL_TIMEOUT:-30}"
 
+CGROUP_FILE="${ARISTOTLE_CGROUP_FILE:-/proc/self/cgroup}" # overridable for the tests only
+
 usage() { echo "usage: install.sh [--pair | --no-pair]" >&2; exit 2; }
 
 PAIR=ask
@@ -26,6 +29,15 @@ case "${1:-}" in
 esac
 [[ $# -le 1 ]] || usage
 [[ "$TIMEOUT" =~ ^[0-9]+$ ]] || { echo "ARISTOTLE_INSTALL_TIMEOUT must be a number of seconds" >&2; exit 2; }
+
+# refuse_in_app_terminal: a shell opened from the phone has ARISTOTLE_TERMINAL set and lives in the service's cgroup;
+# the restart below would kill it between the binary swap and the status check.
+refuse_in_app_terminal() {
+  if [[ -n "${ARISTOTLE_TERMINAL:-}" ]] || grep -q "$UNIT\.service" "$CGROUP_FILE" 2>/dev/null; then
+    echo "error: run this in a terminal on the PC, not from the phone: the restart would end this session mid-update" >&2
+    exit 1
+  fi
+}
 
 verify_bundle() {
   cd "$HERE"
@@ -58,24 +70,31 @@ install_binary() {
 }
 
 # wait_for_status polls `status` (it exits 1 until the control socket is up, right after a start or restart).
+# The deadline is wall time (SECONDS), so a hanging `status` cannot stretch the wait.
 wait_for_status() {
-  local waited=0 out=""
+  local deadline=$((SECONDS + TIMEOUT)) out=""
   while true; do
     if out="$("$TARGET" status 2>&1)"; then
       echo "$out"
       return 0
     fi
-    if (( waited >= TIMEOUT )); then break; fi
+    if (( SECONDS >= deadline )); then break; fi
     sleep 1
-    waited=$((waited + 1))
   done
   echo "$out"
-  echo "error: the server did not come up within ${TIMEOUT}s. Last service log lines:" >&2
+  on_failure "the server did not come up within ${TIMEOUT}s"
+  return 1
+}
+
+rollback_command() { echo "mv -f \"$PREV\" \"$TARGET\" && \"$TARGET\" install --force --start"; }
+
+# on_failure prints the reason, the service journal tail and the rollback command (when a .prev exists). Both failure paths use it.
+on_failure() {
+  echo "error: $1. Last service log lines:" >&2
   journalctl --user -u "$UNIT" -n 30 --no-pager >&2 || echo "(journalctl failed; try: aristotle-server logs)" >&2
   if [[ -f "$PREV" ]]; then
-    echo "To go back to the previous binary: mv -f \"$PREV\" \"$TARGET\" && \"$TARGET\" install --force --start" >&2
+    echo "To go back to the previous binary: $(rollback_command)" >&2
   fi
-  return 1
 }
 
 tell_about_app() {
@@ -107,14 +126,15 @@ offer_pairing() {
   "$TARGET" pair
 }
 
+refuse_in_app_terminal
 verify_bundle
 install_binary
-"$TARGET" install --force --start || { echo "error: aristotle-server install failed (see above)" >&2; exit 1; }
+"$TARGET" install --force --start || { on_failure "aristotle-server install failed (see above)"; exit 1; }
 wait_for_status
 echo
 echo "Running: $("$TARGET" version)"
 if [[ -f "$PREV" ]]; then
-  echo "Rollback, if needed: mv -f \"$PREV\" \"$TARGET\" && \"$TARGET\" install --force --start"
+  echo "Rollback, if needed: $(rollback_command)"
 fi
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
