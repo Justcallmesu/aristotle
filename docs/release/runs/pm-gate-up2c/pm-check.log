@@ -1,0 +1,21 @@
+== A1 any session accepted (AppUpdates.kt:282)
+AppUpdatesTest > give up, Try again, the stale Aborted arrives while committing, the new confirmation is shown once FAILED
+AppUpdatesTest > a stale Aborted status while a new install is Installing does not fail it FAILED
+> Task :app:testDebugUnitTest FAILED
+KILLED: tests failed (exit 1); restored sha256 match
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=796 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=796 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+unit tests: 1490

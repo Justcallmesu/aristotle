@@ -113,6 +113,11 @@ class MainActivity : FragmentActivity() {
      */
     private fun openFrom(intent: Intent?) {
         intent ?: return
+        // UP2: the update notification opens Settings › About.
+        if (OpenUpdate.read(intent.action, intent.component?.className, intent.flags)) {
+            (application as AristotleApplication).container.openUpdate.value = true
+            return
+        }
         // TBA2: a stock notification opens its stock's page, the brief or the alerts list.
         OpenStock.read(intent.action, intent.component?.className, intent.getStringExtra(OpenStock.EXTRA_TARGET), intent.getStringExtra(OpenStock.EXTRA_CODE), intent.flags)?.let {
             (application as AristotleApplication).container.stockOpen.value = it
@@ -143,6 +148,13 @@ class MainActivity : FragmentActivity() {
                 .putExtra(OpenSession.EXTRA_TITLE, title)
                 .putExtra(OpenSession.EXTRA_PROMPT, showPrompt)
                 .apply { if (profile != null) putExtra(OpenSession.EXTRA_PROFILE, profile) }
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        /** The update notification's tap ([OpenUpdate]): the same alias and flags as [openIntent]. */
+        fun openUpdateIntent(context: Context): Intent =
+            Intent()
+                .setClassName(context, OpenSession.ALIAS)
+                .setAction(OpenUpdate.ACTION)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
         /** A stock notification's tap ([OpenStock]): the same alias and flags as [openIntent]. */

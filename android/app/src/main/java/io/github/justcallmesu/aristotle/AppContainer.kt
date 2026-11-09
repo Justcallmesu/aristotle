@@ -71,6 +71,16 @@ import io.github.justcallmesu.aristotle.data.stocks.StocksTransport
 import java.util.Locale
 import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
 import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
+import io.github.justcallmesu.aristotle.background.AndroidUpdateDevice
+import io.github.justcallmesu.aristotle.data.update.AppUpdate
+import io.github.justcallmesu.aristotle.data.update.AppUpdates
+import io.github.justcallmesu.aristotle.data.update.OwnVersion
+import io.github.justcallmesu.aristotle.data.update.UpdateFiles
+import io.github.justcallmesu.aristotle.data.update.UpdateNotice
+import io.github.justcallmesu.aristotle.data.update.UpdateTarget
+import java.io.File
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +91,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
@@ -248,6 +259,27 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
     /** Set by a stock notification's tap ([OpenStock]), taken (set back to null) by the pages once shown. */
     val stockOpen = MutableStateFlow<StockOpen?>(null)
 
+    /**
+     * UP2 (Q132, P17-P20): the in-app updater. It asks aristotle-server (Hermes may be down) on every connect and every
+     * 6 h; the download goes to the cache's update/ folder only when the user taps Update.
+     */
+    val appUpdates = AppUpdates(
+        scope = linkScope,
+        target = combine(credentials.state, link.state, UpdateTarget::of).stateIn(linkScope, SharingStarted.Eagerly, null),
+        own = OwnVersion(BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME),
+        source = dialer,
+        store = ApplyingPreferencesStore(context.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE)),
+        files = UpdateFiles(File(context.cacheDir, UPDATE_DIR)),
+        device = AndroidUpdateDevice(context),
+        notice = object : UpdateNotice {
+            override fun show(update: AppUpdate) = notifier.postUpdate(update.version)
+            override fun cancel() = notifier.cancelUpdate()
+        },
+    )
+
+    /** Set by the update notification's tap, taken (set back to false) by the pages once Settings › About shows. */
+    val openUpdate = MutableStateFlow(false)
+
     /** Sessions the current relay socket has resumed: the watcher and the chat screen share it (one resume each). */
     val resumedSessions = ResumedSessions()
     private val alerts = AlertRouter()
@@ -272,6 +304,10 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         notifier.createChannels()
         watchSessions()
         watchStockAlerts()
+        // Off the main thread: it empties the update folder and reads what the last run left.
+        linkScope.launch(Dispatchers.IO) { appUpdates.start() }
+        // A held install confirmation is shown again whenever the app comes to the front (UP2b).
+        scope.launch { background.appVisible.filter { it }.collect { appUpdates.appResumed() } }
     }
 
     /**
@@ -397,6 +433,7 @@ class AppContainer(context: Context, val diagnostics: Diagnostics) {
         const val PINS_FILE = "pins"
         const val HISTORY_FILE = "connection_history"
         const val STOCK_ALERTS_FILE = "stock_alerts"
+        const val UPDATE_DIR = "update"
     }
 }
 

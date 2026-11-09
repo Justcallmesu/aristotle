@@ -8,6 +8,13 @@ import io.github.justcallmesu.aristotle.data.terminal.TerminalAccess
 import io.github.justcallmesu.aristotle.data.terminal.TerminalChannel
 import io.github.justcallmesu.aristotle.data.terminal.TerminalDialer
 import io.github.justcallmesu.aristotle.data.terminal.TerminalSocket
+import io.github.justcallmesu.aristotle.data.update.AppUpdate
+import io.github.justcallmesu.aristotle.data.update.AppUpdateSource
+import io.github.justcallmesu.aristotle.data.update.DownloadResult
+import io.github.justcallmesu.aristotle.data.update.UpdateCheck
+import io.github.justcallmesu.aristotle.data.update.appUpdate
+import io.github.justcallmesu.aristotle.data.update.downloadApk
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -85,7 +92,7 @@ class HttpPairingApi(private val httpClients: HttpClients) : PairingApi {
 }
 
 /** The link's calls over HTTPS with the PC's pin; one client per pin and address kind ([HttpClients]). */
-class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth, PcStatusSource, StocksTransport {
+class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, TerminalDialer, PinnedHealth, PcStatusSource, StocksTransport, AppUpdateSource {
     private val clients = ConcurrentHashMap<Pair<String, Network>, OkHttpClient>()
 
     override fun openRelay(pc: PcCredentials, endpoint: ServerEndpoint): RelayChannel =
@@ -122,6 +129,13 @@ class HttpLinkDialer(private val httpClients: HttpClients) : LinkDialer, Termina
 
     override suspend fun send(pc: PcCredentials, endpoint: ServerEndpoint, request: StocksRequest): StocksReply =
         clientFor(pc, endpoint).sendStocks(endpoint.baseUrl, pc.token, request)
+
+    /** UP2 (P17): the in-app updater's offer and APK, over the same pinned client and token, LAN and Tailscale alike. */
+    override suspend fun latestApp(pc: PcCredentials, endpoint: ServerEndpoint, ownVersionCode: Int): UpdateCheck =
+        clientFor(pc, endpoint).appUpdate(endpoint.baseUrl, pc.token, ownVersionCode)
+
+    override suspend fun downloadApp(pc: PcCredentials, endpoint: ServerEndpoint, update: AppUpdate, target: File, onProgress: (Long) -> Unit): DownloadResult =
+        clientFor(pc, endpoint).downloadApk(endpoint.baseUrl, pc.token, update, target, onProgress)
 
     private fun clientFor(pc: PcCredentials, endpoint: ServerEndpoint): OkHttpClient =
         clients.getOrPut(pc.fingerprint to endpoint.network) { httpClients.pinnedTo(pc.pin, endpoint.network) }

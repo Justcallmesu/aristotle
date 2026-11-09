@@ -52,6 +52,10 @@ func Serve(ctx context.Context, version string, log *slog.Logger) error {
 	srv.discovery.Start = discovery.MDNSStart
 	// Only the real server runs the stocks jobs (they call Yahoo); tests build servers without them.
 	srv.stocksJobs = true
+	// Only the real server serves the installed APK; tests build servers with no app dir (routes absent).
+	if srv.appDir, err = config.AppDir(); err != nil {
+		log.Warn("app update disabled: no app dir", "err", err)
+	}
 	return srv.run(ctx)
 }
 
@@ -77,6 +81,8 @@ type server struct {
 	stocks    *stocks.Service     // /v1/stocks/* (stocks.json)
 	// stocksJobs starts the stocks scheduler in run (catch-up at boot, then every 30 s); off in tests.
 	stocksJobs bool
+	// appDir is where install.sh put the APK for GET /v1/app/*; empty leaves those routes out.
+	appDir string
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -177,7 +183,7 @@ func (s *server) syncDiscovery(eps []listen.Endpoint) {
 
 func (s *server) remoteHandler(kind listen.Kind) http.Handler {
 	deps := httpapi.Deps{Codes: s.codes, Devices: s.devices, Rejects: s.rejects, Relay: s.relay, Terminal: s.terms,
-		Listener: string(kind), Addresses: s.addresses, PCStatus: s.pcstatus.Status, Stocks: s.stocks}
+		Listener: string(kind), Addresses: s.addresses, PCStatus: s.pcstatus.Status, Stocks: s.stocks, AppDir: s.appDir}
 	return httpapi.NewRemoteRouter(s.version, s.log.With("listener", string(kind)), deps)
 }
 

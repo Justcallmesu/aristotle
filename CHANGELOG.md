@@ -8,6 +8,11 @@ file at build time and shows the `Phone:` entries only.
 
 ## [Unreleased]
 
+### Added
+
+- Phone: The app updates itself from your PC. Settings › About shows "Update x.y.z available" (and an "App updates" notification, once per version). Tap Update to download it over your paired connection, checked against its checksum and the app's own signature, then install it. Android asks once to allow installs from Aristotle, and may ask you to confirm the install; the link reconnects by itself afterwards when "Keep connected in background" is on.
+- Server: `install.sh` also hands the release's phone app to the server, which offers it to paired phones (`GET /v1/app/update`, `GET /v1/app/apk`).
+
 ## [2.0.0] - 2026-11-08
 
 ### Added

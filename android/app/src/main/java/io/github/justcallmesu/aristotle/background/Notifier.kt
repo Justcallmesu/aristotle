@@ -122,6 +122,27 @@ class Notifier(private val context: Context) {
         manager.notify(notice.tag, ID_STOCK, builder.build())
     }
 
+    /** UP2 (Q132): "Update x.y.z available"; a tap opens Settings › About ([MainActivity.openUpdateIntent]). Silent. */
+    @SuppressLint("MissingPermission") // canPost() checks POST_NOTIFICATIONS
+    fun postUpdate(version: String) {
+        if (!canPost()) return
+        val notification = NotificationCompat.Builder(context, AppChannel.Updates.id)
+            .setSmallIcon(R.drawable.ic_stat_aristotle)
+            .setContentTitle(context.getString(R.string.notify_update_title, version))
+            .setContentText(context.getString(R.string.notify_update_text))
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setSilent(true)
+            .setAutoCancel(true)
+            .setContentIntent(
+                PendingIntent.getActivity(context, REQUEST_UPDATE, MainActivity.openUpdateIntent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
+            )
+            .build()
+        manager.notify(ID_UPDATE, notification)
+    }
+
+    /** The PC has no newer version any more (or it is installed): the update notification goes. */
+    fun cancelUpdate() = manager.cancel(ID_UPDATE)
+
     /** When the notification with this [tag] now in the tray was posted (`StatusBarNotification.postTime`); null: none. */
     private fun stockPostedAt(tag: String): Long? =
         context.getSystemService(NotificationManager::class.java)?.activeNotifications?.firstOrNull { it.tag == tag && it.id == ID_STOCK }?.postTime
@@ -231,8 +252,10 @@ class Notifier(private val context: Context) {
         const val ID_LINK = 1
         private const val ID_ALERT = 2
         private const val ID_STOCK = 3
+        private const val ID_UPDATE = 4
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
+        private const val REQUEST_UPDATE = 3
         private const val TIME = "HH:mm"
     }
 }

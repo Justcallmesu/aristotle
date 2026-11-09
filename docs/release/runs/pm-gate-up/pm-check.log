@@ -1,0 +1,37 @@
+=== SERVER UP1
+script tests exit=0
+== S1 size mismatch ignored (appupdate.go:51)
+--- FAIL: TestAppUpdateNone (0.02s)
+    --- FAIL: TestAppUpdateNone/size_mismatch (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== S2 sha256 format not checked (appupdate.go:43)
+--- FAIL: TestAppUpdateNone (0.01s)
+    --- FAIL: TestAppUpdateNone/bad_sha (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+=== ANDROID UP2
+== A1 offers an equal version (AppUpdate.kt:65)
+BUILD FAILED in 34s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+== A2 other signer accepted (ApkCheck.kt:22)
+BUILD FAILED in 34s
+KILLED: tests failed (exit 1); restored sha256 match
+rc=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=796 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=796 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+unit tests: 1468

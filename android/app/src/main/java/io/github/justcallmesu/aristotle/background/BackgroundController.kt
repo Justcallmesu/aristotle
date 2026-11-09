@@ -64,6 +64,11 @@ class BackgroundController(
         link.stop()
     }
 
+    /** `ACTION_MY_PACKAGE_REPLACED`: the new process starts the link service again when it should run (no app open). */
+    fun resumeAfterUpdate() {
+        if (keepRunning.value) startService()
+    }
+
     /** Android 12+ lets an app start a foreground service while it leaves the screen, not later from the background. */
     private fun startService() {
         try {

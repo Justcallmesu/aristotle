@@ -15,6 +15,9 @@ enum class AppChannel(val id: String, val importance: Int, @param:StringRes val 
 
     /** TBA2: price levels, setups, automatic analyses, strong news and the 08:30 brief (heads-up), one per stock. */
     StockAlerts("stock_alerts", NotificationManagerCompat.IMPORTANCE_HIGH, R.string.channel_stock_alerts, R.string.channel_stock_alerts_description),
+
+    /** UP2 (Q132): a new app version on the PC, once per version. Low importance: no sound, no heads-up. */
+    Updates("app_updates", NotificationManagerCompat.IMPORTANCE_LOW, R.string.channel_updates, R.string.channel_updates_description),
     ;
 
     /** The ongoing link notification is no news: no launcher badge for it. */

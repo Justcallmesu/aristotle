@@ -99,6 +99,8 @@ fun SettingsScreen(
     onOpen: (SettingsPage) -> Unit = {},
     /** Settings › Stocks (TS2): its own ViewModel lives with the stocks pages, so the route supplies the section. */
     stocksSection: @Composable () -> Unit = {},
+    /** Settings › About's update row (UP2, Q132): the updater is process-wide, so the route supplies it. */
+    updateRow: (@Composable () -> Unit)? = null,
 ) {
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -150,7 +152,7 @@ fun SettingsScreen(
                     SettingsPage.Appearance -> AppearanceSection(theme, textSize, onOpen = viewModel::show)
                     SettingsPage.Language -> LanguageSection(language) { viewModel.show(SettingsSheet.Language) }
                     SettingsPage.Security -> SecuritySection(viewModel, actions.screenLockSet)
-                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew, actions.onLicences, actions.onSendDebugLog)
+                    SettingsPage.About -> AboutSection(pc.pcId, actions.onWhatsNew, actions.onLicences, actions.onSendDebugLog, updateRow)
                     SettingsPage.Stocks -> stocksSection()
                 }
                 Spacer(Modifier.height(Spacing.xxl))
@@ -396,14 +398,20 @@ private fun lockTimeoutLabel(choice: LockTimeout): String = stringResource(
 
 /**
  * "Open-source licences" opens the third-party notices (D45). "Send debug log" (Q80b) says what the log holds and
- * what it never holds; it only opens the share sheet.
+ * what it never holds; it only opens the share sheet. [updateRow]: the in-app updater (UP2), under the version.
  */
 @Composable
-private fun AboutSection(pcId: String, onWhatsNew: () -> Unit, onLicences: () -> Unit, onSendDebugLog: () -> Unit) {
+private fun AboutSection(
+    pcId: String,
+    onWhatsNew: () -> Unit,
+    onLicences: () -> Unit,
+    onSendDebugLog: () -> Unit,
+    updateRow: (@Composable () -> Unit)? = null,
+) {
     val servers by ServerVersions.all.collectAsStateWithLifecycle()
     val server = servers[pcId]
     RowGroup(
-        listOf(
+        listOfNotNull(
             { SettingRow(title = stringResource(R.string.app_name), body = stringResource(R.string.settings_about_tagline)) },
             {
                 SettingRow(
@@ -411,6 +419,7 @@ private fun AboutSection(pcId: String, onWhatsNew: () -> Unit, onLicences: () ->
                     body = stringResource(R.string.settings_app_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                 )
             },
+            updateRow,
             {
                 SettingRow(
                     title = stringResource(R.string.settings_server_version),

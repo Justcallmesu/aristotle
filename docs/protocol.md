@@ -612,6 +612,8 @@ All listeners use the same port (config `port`, default 8760). The server never 
 | `GET /v1/me` | Bearer | `200 {"device_id":"…","name":"…","terminal":{"enabled":<bool>,"granted":<bool>},"server":{"version":"<semver>","protocol":<N>,"min_phone_protocol":<M>}}` (T19a, §14; `server`: §0) | `401` |
 | `GET /v1/addresses` | Bearer | `200 {"addresses":[…]}` | `401` |
 | `GET /v1/terminal` | Bearer (WebSocket upgrade, §14) | `101` | `401`; `403 {"error":"terminal_disabled"\|"terminal_not_granted"}` before upgrade |
+| `GET /v1/app/update` | Bearer | `200 {"version":"2.1.0","version_code":20100,"sha256":"<64 hex>","size":<bytes>}`; `204` when no APK is installed (§21) | `401` |
+| `GET /v1/app/apk` | Bearer | `200` APK stream (`Range` → `206`); `204` when none (§21) | `401` |
 | any other `/v1/*` | Bearer | `404` with a valid token | `401` without one |
 
 All JSON responses carry `Cache-Control: no-store`. Error bodies are `{"error":"<message>"}`.
@@ -1648,3 +1650,28 @@ New route: no `ProtocolVersion` bump. The phone shows the PC-offline state when 
   latest `session_date` among scored records. `pending`: records without a score.
 - **Logs** carry codes, counts, states and error codes only (`stocks: track-record run codes scored info_filled failed left requests
   unscorable skipped`).
+
+## 21. App update (`GET /v1/app/update`, `GET /v1/app/apk`, spec Q132-Q134, P17-P20, UP1)
+
+Both routes use the §11.2 device-token auth and the §11.3 pin, on the LAN and Tailscale listeners; read-only. They serve the phone APK
+of the release that `install.sh` last installed (latest only).
+
+**Source.** `$XDG_DATA_HOME/aristotle/app/` (default `~/.local/share/aristotle/app/`) holds `aristotle.apk` and `aristotle.json`,
+written by `install.sh` after its checksum check and before the restart (APK first, json last, each temp file + rename):
+
+```json
+{"version":"2.1.0","version_code":20100,"sha256":"<64 lowercase hex of aristotle.apk>","size":12345678}
+```
+
+`version_code` = major*10000 + minor*100 + patch (the Gradle formula). The server re-reads the json on every request, so no restart is
+needed after an install.
+
+**`GET /v1/app/update`** -> `200` with exactly that object (`Cache-Control: no-store`). `204` (empty body) when the pair is missing,
+`aristotle.json` is not valid JSON or has a missing/invalid field, or the size of `aristotle.apk` differs from `size`; the server logs
+one line per such request. The server does not re-hash the APK; the phone verifies `sha256` (P18).
+
+**`GET /v1/app/apk`** -> `200`, `Content-Type: application/vnd.android.package-archive`, `Content-Length`, `ETag: "<sha256>"`.
+Served with `http.ServeContent`, so `Range` (`206`), `If-Range` and `If-None-Match` (`304`) work. Same `204` conditions as above.
+
+Codes: `200`, `204`, `206`, `304`, `401` (no/revoked token), `403` (peer gate, §11.2). The updater never offers a lower
+`version_code` than the phone's own (P20).

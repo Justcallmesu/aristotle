@@ -11,13 +11,15 @@ class NotifyChannelsTest {
     @Test
     fun channelsKeepTheirIdsImportanceAndNames() {
         // The ids are permanent on installed phones: a new id would leave the user's choices on the old channel.
-        assertEquals(listOf("link", "turn_finished", "needs_you", "stock_alerts"), AppChannel.entries.map { it.id })
+        assertEquals(listOf("link", "turn_finished", "needs_you", "stock_alerts", "app_updates"), AppChannel.entries.map { it.id })
         assertEquals(
             listOf(
                 NotificationManagerCompat.IMPORTANCE_LOW,
                 NotificationManagerCompat.IMPORTANCE_DEFAULT,
                 NotificationManagerCompat.IMPORTANCE_HIGH,
                 NotificationManagerCompat.IMPORTANCE_HIGH,
+                // UP2 (Q132): an update is news, not an alarm: low importance, no sound.
+                NotificationManagerCompat.IMPORTANCE_LOW,
             ),
             AppChannel.entries.map { it.importance },
         )
@@ -27,7 +29,9 @@ class NotifyChannelsTest {
         assertEquals(R.string.channel_turns_description, AppChannel.Turns.description)
         assertEquals(R.string.channel_needs, AppChannel.NeedsYou.title)
         assertEquals(R.string.channel_needs_description, AppChannel.NeedsYou.description)
-        assertEquals(listOf(false, true, true, true), AppChannel.entries.map { it.showBadge })
+        assertEquals(R.string.channel_updates, AppChannel.Updates.title)
+        assertEquals(R.string.channel_updates_description, AppChannel.Updates.description)
+        assertEquals(listOf(false, true, true, true, true), AppChannel.entries.map { it.showBadge })
     }
 
     @Test

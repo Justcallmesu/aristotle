@@ -14,6 +14,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- T10 battery guide step 1: Android's one-tap "don't optimise" dialog (sideloaded, spec Q11). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- UP2 (P19): the in-app updater installs the PC's APK of this app through a PackageInstaller session. The user
+         allows "Install unknown apps" for Aristotle once; nothing is installed without a tap on Update. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- UP2b (Q133): without it Android ignores setRequireUserAction(USER_ACTION_NOT_REQUIRED) and every update asks for a tap.
+         Normal permission (API 31+), granted at install. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <!-- TS2 (Q94): see whether the broker app Ajaib is installed, to offer "Open" only then (package visibility, API 30+). -->
     <queries>
@@ -70,6 +76,21 @@
         <receiver
             android:name=".background.AlertDismissReceiver"
             android:exported="false" />
+
+        <!-- UP2 (P19): the update install session's status. Not exported: only the session's own PendingIntent reaches it. -->
+        <receiver
+            android:name=".background.UpdateInstallReceiver"
+            android:exported="false" />
+
+        <!-- UP2b: after an update replaced the app, start the link service again (FGS background-start exemption for
+             ACTION_MY_PACKAGE_REPLACED). Only the system sends it. -->
+        <receiver
+            android:name=".background.PackageReplacedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".background.LinkService"

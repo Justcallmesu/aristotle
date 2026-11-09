@@ -1,0 +1,11 @@
+# UP1 build report
+- Server: `GET /v1/app/update` and `GET /v1/app/apk` (`server/internal/httpapi/appupdate.go`, routes in `NewRemoteRouter` via `Deps.AppDir`; `config.AppDir()`; wired in `app/serve.go` only for the real server, so tests never see a real dir). Same `requireDevice` auth, both listeners.
+- `/v1/app/update` 200 (`Cache-Control: no-store`): `{"version":"2.1.0","version_code":20100,"sha256":"<64 hex>","size":12345678}` (exactly those 4 keys).
+- 204 empty body (both routes): dir/json/apk missing, json invalid or a field missing/invalid, APK size != `size`; one log line each (info when nothing is installed, warn when damaged). Re-read per request; the APK is not re-hashed by the server.
+- `/v1/app/apk` 200: `application/vnd.android.package-archive`, `Content-Length`, `ETag: "<sha256>"` (quoted). `Range` works for free (`http.ServeContent`): 206 / 304. Other codes: 401 no token, 403 peer gate, 404 for POST.
+- App dir: `$XDG_DATA_HOME/aristotle/app/` (default `~/.local/share/aristotle/app/`): `aristotle.apk` + `aristotle.json`.
+- `scripts/install.sh`: after checksum check, before restart: APK then json (last), temp + rename; version from `aristotle-<x.y.z>.apk`, `version_code` = major*10000+minor*100+patch (checked: 9.9.9 -> 90909, 12.3.45 -> 120345). No APK in bundle: previous pair kept.
+- Tests (RED first, compile error on `Deps.AppDir`): `httpapi/appupdate_test.go` (auth, JSON, headers, Range, 6 x 204 cases, log once, re-read, absent route), `config` AppDir, `install_test.sh` (default dir, XDG, stale replace, bad checksum leaves dir untouched).
+- Docs: `docs/protocol.md` §21 + §11.2 rows; `docs/release/README.md` (install copy; "Phones update themselves from 2.1.0 on").
+- Gate: see the last line below.
+- Gate after last edit: `GATE_ONLY=server gates.sh docs/release/runs/UP1` exit 0 (796 Go tests pass); `bash scripts/test/run.sh` exit 0 (install_test, release_test PASS).

@@ -1,0 +1,29 @@
+== S1 install.sh: unlisted APK accepted (install.sh:65)
+rc=0 (0 = killed)
+== A1 permission removed (manifest:22)
+UpdaterManifestTest > the install permissions are declared FAILED
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 25s
+KILLED: tests failed (exit 1); restored sha256 match
+== A2 the install timeout never gives up (AppUpdates.kt:311)
+AppUpdatesTest > an install with no status returns the row to Update after the timeout, and Update works again FAILED
+AppUpdatesTest > a pending confirmation nobody answers times out too, and a late status is ignored FAILED
+> Task :app:testDebugUnitTest FAILED
+BUILD FAILED in 56s
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=796 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+gate exit=0
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=796 failed=0
+PASS android (0)
+PASS licences (0)
+PASS scripts (0)
+unit tests: 1485
+ 2 files changed, 87 insertions(+), 3 deletions(-)

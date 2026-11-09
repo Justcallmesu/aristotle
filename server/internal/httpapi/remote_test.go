@@ -43,6 +43,19 @@ func (rm *remote) do(method, path, body, token string) *httptest.ResponseRecorde
 	return rm.doFrom("192.168.1.20:40000", method, path, body, token)
 }
 
+// doWith is a GET-style request with a token and extra headers.
+func (rm *remote) doWith(method, path, token string, hdr map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
+	req.RemoteAddr = "192.168.1.20:40000"
+	req.Header.Set("Authorization", "Bearer "+token)
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	rm.h.ServeHTTP(rec, req)
+	return rec
+}
+
 func (rm *remote) doFrom(remoteAddr, method, path, body, token string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.RemoteAddr = remoteAddr

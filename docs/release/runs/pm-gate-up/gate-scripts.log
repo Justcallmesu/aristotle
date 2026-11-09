@@ -1,0 +1,138 @@
+=== install_test
+case: fresh install (status comes up on the 3rd poll)
+  ok: fresh install: exit 0
+  ok: binary copied to ~/.local/bin
+  ok: no .prev on a fresh install
+  ok: ran install --force --start
+  ok: polled status until it exited 0
+  ok: printed the version
+  ok: said where the APK is
+  ok: said the debug app must be uninstalled
+  ok: --no-pair: no pairing
+  ok: never ran systemctl itself
+  ok: no temp file left in ~/.local/bin
+case: the APK and aristotle.json land in the app dir (default ~/.local/share), json last
+  ok: APK copied to the app dir
+  ok: aristotle.json content
+  ok: no temp file left in the app dir
+  ok: said where the phone update went
+case: version_code follows major*10000+minor*100+patch; XDG_DATA_HOME wins; a rerun replaces the pair
+  ok: install with XDG_DATA_HOME: exit 0
+  ok: version_code 12.3.45
+  ok: stale APK replaced
+  ok: default dir untouched when XDG_DATA_HOME is set
+case: a bad checksum leaves the app dir untouched
+  ok: bad APK checksum: exit 1
+  ok: nothing copied to the app dir
+case: update keeps the previous binary as .prev
+  ok: update: exit 0
+  ok: new binary in place
+  ok: previous binary kept as .prev
+  ok: printed the rollback command
+  ok: --pair: printed the pairing QR
+  ok: pairing output shown
+case: rerun with the same binary keeps the older .prev
+  ok: rerun: exit 0
+  ok: .prev still the older binary
+case: bad checksum refuses before copying
+  ok: bad checksum: exit 1
+  ok: said checksum mismatch
+  ok: installed binary untouched
+  ok: no .prev written
+  ok: nothing was run
+case: SHA256SUMS without the binary refuses
+  ok: binary not listed: exit 1
+  ok: nothing installed
+case: status never comes up -> non-zero and the journal tail
+  ok: server never came up: exit 1
+  ok: said it timed out
+  ok: read the unit's journal
+  ok: printed the journal tail
+  ok: no version line after a failed start
+  ok: no pairing after a failed start
+case: install --force --start fails -> rollback line, journal tail, non-zero
+  ok: install failed: exit 1
+  ok: said the install failed
+  ok: printed the journal tail
+  ok: printed the rollback command
+  ok: no version line after a failed install
+  ok: did not poll status
+case: refuses inside the app's terminal
+  ok: ARISTOTLE_TERMINAL set: exit 1
+  ok: said why
+  ok: nothing installed
+  ok: nothing was run
+  ok: inside the service cgroup: exit 1
+  ok: said why
+  ok: nothing installed
+case: the bundled install.sh keeps its executable bit
+  ok: scripts/install.sh is executable
+  ok: scripts/release.sh is executable
+case: non-interactive without a flag does not pair
+  ok: no flag: exit 0
+  ok: no pairing without a terminal
+  ok: told how to pair later
+install_test: all passed
+PASS install_test
+=== release_test
+case: refusals before anything is built
+  ok: no version argument: exit 2
+  ok: not semver: exit 1
+  ok: not semver: says why
+  ok: not semver: no bundle
+  ok: leading zero: exit 1
+  ok: leading zero: says why
+  ok: leading zero: no bundle
+  ok: dirty tree (untracked file): exit 1
+  ok: dirty tree (untracked file): says why
+  ok: dirty tree (untracked file): no bundle
+  ok: dirty tree (modified file): exit 1
+  ok: dirty tree (modified file): says why
+  ok: dirty tree (modified file): no bundle
+  ok: version mismatch: exit 1
+  ok: version mismatch: says why
+  ok: version mismatch: no bundle
+  ok: missing CHANGELOG heading: exit 1
+  ok: missing CHANGELOG heading: says why
+  ok: missing CHANGELOG heading: no bundle
+  ok: existing tag: exit 1
+  ok: existing tag: says why
+  ok: existing tag: no bundle
+  ok: gate fails: exit 1
+  ok: gate fails: says why
+  ok: gate fails: no bundle
+case: wrong signer (throwaway key, real pin) is refused after the build
+  ok: wrong signer: exit 1
+  ok: wrong signer: says why
+  ok: wrong signer: no bundle
+  ok: the gate ran before the build
+  ok: no bundle after a wrong signer
+case: refusals after the build (pin swapped to the throwaway cert in the scratch copy only)
+  ok: two signers: exit 1
+  ok: two signers: says why
+  ok: two signers: no bundle
+  ok: wrong server version line: exit 1
+  ok: wrong server version line: says why
+  ok: wrong server version line: no bundle
+  ok: build dirtied the tree: exit 1
+  ok: build dirtied the tree: says why
+  ok: build dirtied the tree: no bundle
+case: a good run (throwaway pin) builds the bundle and tags
+  ok: good run: exit 0
+  ok: bundle has exactly the six files
+  ok: SHA256SUMS lists the five other files
+  ok: SHA256SUMS verifies
+  ok: binary carries version and commit
+  ok: release notes start at the version heading
+  ok: release notes hold that one section only
+  ok: install.sh shipped
+  ok: bundled install.sh is executable
+  ok: server notices shipped
+  ok: annotated tag v1.0.0 created
+  ok: tree still clean after the build
+  ok: rerun after tagging: exit 1
+  ok: rerun after tagging: says why
+  ok: the tagged bundle is left alone
+  ok: real repo tags unchanged
+release_test: all passed
+PASS release_test

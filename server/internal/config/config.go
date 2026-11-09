@@ -236,6 +236,16 @@ func StateDir() (string, error) {
 	return xdgDir("XDG_STATE_HOME", filepath.Join(".local", "state"))
 }
 
+// AppDir returns $XDG_DATA_HOME/aristotle/app (default ~/.local/share), where install.sh puts the
+// phone APK and aristotle.json for the in-app updater. The server only reads it.
+func AppDir() (string, error) {
+	dir, err := xdgDir("XDG_DATA_HOME", filepath.Join(".local", "share"))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "app"), nil
+}
+
 // EnsureStateDir creates the state directory and enforces mode 0700. A
 // pre-existing directory owned by the current user is chmod'ed (and logged);
 // a symlink or a directory owned by another user is refused. A nil log is allowed.

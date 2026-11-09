@@ -43,6 +43,9 @@ type Deps struct {
 	PCStatus func(context.Context) pcstatus.Status
 	// Stocks serves /v1/stocks/* (docs/protocol.md §20) behind the device token; nil leaves the routes out.
 	Stocks http.Handler
+	// AppDir holds aristotle.apk + aristotle.json for GET /v1/app/update and /v1/app/apk
+	// (docs/protocol.md §21); empty leaves the routes out.
+	AppDir string
 }
 
 // Address is one listener URL the phone can use (docs/protocol.md §11.2). Every URL is https://.
@@ -97,6 +100,10 @@ func NewRemoteRouter(version string, log *slog.Logger, d Deps) http.Handler {
 	mux.Handle("GET /v1/addresses", requireDevice(d.Devices, addressesHandler(d)))
 	if d.PCStatus != nil {
 		mux.Handle("GET /v1/pc-status", requireDevice(d.Devices, pcStatusHandler(d.PCStatus)))
+	}
+	if d.AppDir != "" {
+		mux.Handle("GET /v1/app/update", requireDevice(d.Devices, appUpdateHandler(d.AppDir, log)))
+		mux.Handle("GET /v1/app/apk", requireDevice(d.Devices, appAPKHandler(d.AppDir, log)))
 	}
 	if d.Stocks != nil {
 		mux.Handle("/v1/stocks/", requireDevice(d.Devices, d.Stocks))

@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,6 +72,9 @@ import io.github.justcallmesu.aristotle.ui.settings.SettingsActions
 import io.github.justcallmesu.aristotle.ui.settings.SettingsPage
 import io.github.justcallmesu.aristotle.ui.settings.SettingsScreen
 import io.github.justcallmesu.aristotle.ui.settings.SettingsViewModel
+import io.github.justcallmesu.aristotle.ui.settings.UpdateRow
+import io.github.justcallmesu.aristotle.ui.settings.UpdateRowActions
+import io.github.justcallmesu.aristotle.background.AndroidUpdateDevice
 import io.github.justcallmesu.aristotle.ui.settings.LicencesScreen
 import io.github.justcallmesu.aristotle.ui.settings.WhatsNewScreen
 import io.github.justcallmesu.aristotle.ui.sessions.WhatsNewCard
@@ -318,6 +322,13 @@ private fun PairedPages(
         if (target == StockOpen.Brief) briefOpened()
         show(stocksStack().open(target))
     }
+    // UP2: the update notification's tap opens Settings › About, where the update row is.
+    val updateRequest by container.openUpdate.collectAsStateWithLifecycle()
+    LaunchedEffect(updateRequest) {
+        if (!updateRequest) return@LaunchedEffect
+        page = PairedPage.SettingsAbout
+        container.openUpdate.value = false
+    }
     // Each "Pair again" starts from an empty form.
     var repairCount by rememberSaveable(pc.pcId) { mutableIntStateOf(0) }
     LaunchedEffect(page) { if (page == PairedPage.FirstRunGuide) settings.markBatteryGuideShown() }
@@ -553,7 +564,32 @@ private fun SettingsRoute(
             screenLockSet = { isScreenLockSet(context) },
         )
     }
-    SettingsScreen(settingsViewModel, pc, actions, page, onOpen, stocksSection)
+    SettingsScreen(settingsViewModel, pc, actions, page, onOpen, stocksSection, updateRow = { AppUpdateRow(container) })
+}
+
+/**
+ * Settings › About's update row (UP2, Q132) over the process-wide updater. Back from Android's "Install unknown apps"
+ * page the update goes on when it was allowed (P19).
+ */
+@Composable
+private fun AppUpdateRow(container: AppContainer) {
+    val updates = container.appUpdates
+    val view by updates.view.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    LifecycleResumeEffect(updates) {
+        updates.permissionReturned()
+        onPauseOrDispose { }
+    }
+    val actions = remember(updates, context) {
+        UpdateRowActions(
+            onUpdate = updates::update,
+            onCheck = updates::checkNow,
+            onCancel = updates::cancel,
+            onAllow = { AndroidUpdateDevice.openInstallPermission(context) },
+            onConfirm = updates::confirmInstall,
+        )
+    }
+    UpdateRow(view, BuildConfig.VERSION_NAME, actions)
 }
 
 /**

@@ -263,3 +263,15 @@ func TestDiscoveryDefaultsOnAndCanBeDisabled(t *testing.T) {
 		}
 	}
 }
+
+func TestAppDir(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", "/x/data")
+	if got, err := AppDir(); err != nil || got != "/x/data/aristotle/app" {
+		t.Errorf("AppDir = %q, %v", got, err)
+	}
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("HOME", "/h")
+	if got, err := AppDir(); err != nil || got != "/h/.local/share/aristotle/app" {
+		t.Errorf("default AppDir = %q, %v", got, err)
+	}
+}
