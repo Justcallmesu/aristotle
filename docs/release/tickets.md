@@ -18,7 +18,7 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 | UP2 | Phone: update check (P18), Settings › About row + notification (Q132), download, sha256 + signer check, PackageInstaller install (P19), "Install unknown apps" first-time flow; tests | UP1 contract | android | DONE (3 review rounds: UP2b MAJORs permission + stuck row, UP2c stale session status; final review APPROVED) |
 | UP3 | Release 2.1.0 (USB once), then a 2.1.1 over the air on the Poco to prove it end to end | UP0-UP2 | user+PM | TODO |
 | UP4 | Updater polish (deferred): dead stored session id, receiver/timeout race (2-min deadline clears it), receiver session-check test, stale comments; `install.sh` versionCode collision for minor/patch >= 100 (refuse such versions in release.sh) | UP2c | both | TODO |
-| RS6 | Bundle NIT: `THIRD_PARTY_NOTICES.txt` mode 600 in the bundle -> 644 | RS4 | scripts | TODO |
+| RS6 | Bundle NIT: `THIRD_PARTY_NOTICES.txt` mode 600 in the bundle -> 644 | RS4 | scripts | DONE (chmod in release.sh; mutant killed. Root cause: licences.sh writes the notices via mktemp -> 600 in the working tree) |
 
 ## Log
 - 2026-11-06 User asked for an installer after signing + licences. Q126-Q129 decided (step 1 personal bundle now; public later with stocks,
@@ -36,3 +36,5 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 - 2026-11-09 UP2b built. PM full gate GREEN (796 Go, 1485 android, licences, scripts); mutants killed: unlisted APK accepted, permission renamed, install timeout never gives up. Deep re-review dispatched.
 - 2026-11-09 UP2b re-review CHANGES REQUESTED: MAJOR stale aborted status of the previous session fails every retry after a give-up (probe-proven). MAJOR-1 closed (API 34 source: self-update qualifies from the first update); FGS restart exemption confirmed + guarded. UP2c (std) dispatched. install.sh versionCode collision for minor/patch>=100 noted (fails safe).
 - 2026-11-09 UP2c built (std); focused re-review APPROVED (0/0/0, 4 NITs -> UP4). PM mutant any-session-accepted killed.
+- 2026-11-09 2.1.0 bundle built (9eef533). User ran install.sh (server 2.1.0, app pair served: version_code 20100). Phone: 2.0.0 -> 2.1.0 over adb (-r, same key, no re-pair), launches, both install permissions present (UPDATE_PACKAGES_WITHOUT_USER_ACTION granted), installer of record = null (adb). UP3 next: RS6 (light) becomes 2.1.1 for the first over-the-air update.
+- 2026-11-09 RS6 done (light; report claimed no tracked changes, diff was fine). Releasing 2.1.1 as the UP3 over-the-air test.

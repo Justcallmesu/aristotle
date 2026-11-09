@@ -8,6 +8,10 @@ file at build time and shows the `Phone:` entries only.
 
 ## [Unreleased]
 
+### Fixed
+
+- Server: Every file in a release folder is readable again (the licence notices came out readable only by you).
+
 ## [2.1.0] - 2026-11-09
 
 ### Added

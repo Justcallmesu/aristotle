@@ -126,8 +126,14 @@ verify_server_version
 cp "$ROOT/scripts/install.sh" "$STAGE/install.sh"
 chmod 0755 "$STAGE/install.sh"
 cp "$ROOT/server/THIRD_PARTY_NOTICES.txt" "$STAGE/THIRD_PARTY_NOTICES.txt"
+chmod 0644 "$STAGE/THIRD_PARTY_NOTICES.txt"
 write_release_notes
+chmod 0644 "$STAGE/RELEASE-NOTES.md"
 write_checksums
+chmod 0644 "$STAGE/SHA256SUMS"
+# Bundle modes: executables 755, everything else 644 (cp keeps a source's restrictive mode, e.g. a 600 notices file).
+chmod 0755 "$STAGE/aristotle-server"
+chmod 0644 "$STAGE/aristotle-$VERSION.apk"
 check_clean_tree # the build must not have changed tracked files
 rm -rf "$BUNDLE"
 mv "$STAGE" "$BUNDLE"
