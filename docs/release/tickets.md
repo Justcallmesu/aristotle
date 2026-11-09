@@ -12,7 +12,12 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 | RS2b | RS2 review: MAJOR-1 OkHttp's bundled Public Suffix List (MPL-2.0) missing from the notices; `--check` into gates.sh; screen reads assets off the main thread; NITs. RS3 minor (failed restart message) + RS4 notes (install.sh polls status; ship THIRD_PARTY_NOTICES.txt) go into RS4's brief | RS2 | android | DONE (gate GREEN 1422 + licences; mutation killed; not re-reviewed alone: the RS4 review covers it) |
 | RS4 | Release bundle script `scripts/release.sh <version>`: signed APK + server binary + `install.sh` (install/update, restart, status, pairing QR) + `SHA256SUMS` + notes; tag `v<version>`; never pushes a release on its own | RS1, RS2, RS3 | scripts | DONE (gate GREEN, 2 mutants killed, review PASS-WITH-FINDINGS) |
 | RS4b | RS4 review: MINOR-1 install.sh refuses inside the app's remote terminal (the restart kills it mid-update) + README note that an update closes phone terminals; MINOR-2 a failing `install --force --start` prints the rollback command + journal lines (test); executable bit on release.sh/install.sh; the three untested release.sh refusals. Deferred to step 2: MINOR-3 nested-jar asset scan, static/trimpath server binary | RS4 | scripts | DONE (script tests exit 0; mutants env-marker + cgroup killed; fixes of reviewed findings, no separate review) |
-| RS5 | "Get the app" QR: design + security red-team (LAN only, self-signed HTTPS in a browser, checksum on both sides) before any build | RS4 | design | TODO |
+| RS5 | "Get the app" QR | RS4 | design | DROPPED (Q134: replaced by the in-app updater) |
+| UP0 | Spike on the Poco (throwaway package + throwaway key, never the real app): PackageInstaller self-update with `USER_ACTION_NOT_REQUIRED` — first update from an adb install, then a second self-update; record every prompt HyperOS shows (screenshots) | - | device | TODO |
+| UP1 | Server: `GET /v1/app/update`, `GET /v1/app/apk` (P17), protocol §21; `install.sh` copies APK + sha256 to `~/.local/share/aristotle/app/`; tests | - | server+scripts | TODO |
+| UP2 | Phone: update check (P18), Settings › About row + notification (Q132), download, sha256 + signer check, PackageInstaller install (P19), "Install unknown apps" first-time flow; tests | UP1 contract | android | TODO |
+| UP3 | Release 2.1.0 (USB once), then a 2.1.1 over the air on the Poco to prove it end to end | UP0-UP2 | user+PM | TODO |
+| RS6 | Bundle NIT: `THIRD_PARTY_NOTICES.txt` mode 600 in the bundle -> 644 | RS4 | scripts | TODO |
 
 ## Log
 - 2026-11-06 User asked for an installer after signing + licences. Q126-Q129 decided (step 1 personal bundle now; public later with stocks,
@@ -24,3 +29,4 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 - 2026-11-08 RS4 review PASS-WITH-FINDINGS (no BLOCKER/MAJOR). Committed. RS4b dispatched before the first real release (MINOR-1: running install.sh from the phone terminal kills it mid-update).
 - 2026-11-08 RS4b done, committed. User chose version 2.0.0 ("2"). CHANGELOG [2.0.0] heading + aristotle.version=2.0.0; release.sh 2.0.0 run by the PM.
 - 2026-11-09 2.0.0 bundle built (gate GREEN, signer pinned OK, 5e22b34). User ran install.sh: server 2.0.0 live, .prev kept. Phone: debug uninstalled, release 2.0.0 (20000) installed via adb after the HyperOS USB-install prompt (first try cancelled). NIT: THIRD_PARTY_NOTICES.txt in the bundle is mode 600 -> next release round.
+- 2026-11-09 User asked for an in-app updater (no USB). Q132 A, Q133 A, Q134 A (RS5 dropped). P17-P20 recorded. UP0 (spike), UP1 (server), UP2 (phone) planned.

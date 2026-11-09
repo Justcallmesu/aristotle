@@ -27,6 +27,19 @@ user). Certificate SHA-256: `5a:f3:2f:63:9d:8c:98:e1:2c:18:e0:f0:93:e8:da:c2:6b:
 APK must carry exactly this signer (`release.sh` checks it). Passwords live only in `~/.config/aristotle/signing.properties`; in that file
 a `\` must be written `\\` (Java properties escaping).
 
+## In-app updater (2026-11-09; replaces RS5)
+| Id | Decision | Source |
+|---|---|---|
+| Q132 | The phone shows "Update x.y.z available" (Settings › About row + a notification); the user taps Update; it downloads and opens the install. No background download. | User 2026-11-09 "A". |
+| Q133 | Install without a tap when Android/HyperOS allows it (from the second self-update on); otherwise one tap. | User 2026-11-09 "A" (UP0 checks HyperOS). |
+| Q134 | RS5 (QR download page) dropped; a brand-new phone gets its first APK by USB or a copied file. | User 2026-11-09 "A". |
+| P17 | (PM technical) The PC serves the APK of the installed release: `install.sh` copies the bundle's APK + its sha256 to `~/.local/share/aristotle/app/` (latest only). `GET /v1/app/update` -> `{version, version_code, sha256, size}` or 204 when none; `GET /v1/app/apk` streams it. Same auth and certificate pin as every `/v1` endpoint (§11.2-§11.3), LAN and Tailscale. | Reuses the paired channel: no browser, no self-signed HTTPS prompt, no new port. |
+| P18 | (PM technical) The phone checks on connect and at most every 6 h while connected; offers only `version_code` > its own. Before installing it verifies the sha256 AND that the APK's signer equals the app's own signer (refuses otherwise, says why). Download to app cache, deleted after install or failure. | Android also enforces same-signer on update; checking first gives a clear message instead of a system error. |
+| P19 | (PM technical) Install through `PackageInstaller` sessions with `REQUEST_INSTALL_PACKAGES`; `setRequireUserAction(USER_ACTION_NOT_REQUIRED)` on API 31+ (Q133). The first update asks the user to allow "Install unknown apps" for Aristotle once. | Session API is the only path to tap-less updates. |
+| P20 | (PM technical) A server rollback (`.prev`) can leave the phone newer than the server: the phone keeps working by the protocol version rules (§0); the updater never offers a lower `version_code` (Android refuses downgrades). | |
+
+**Bootstrap:** 2.0.0 has no updater, so the first version with it (2.1.0) is installed by USB once; every update after that comes over the air.
+
 ## Step 1 — personal release bundle (what gets built now)
 One bundle per version, `dist/aristotle-<version>/`: signed release APK, server binary (linux-amd64), `install.sh` (installs or updates the
 user service, restarts it, prints status and the pairing QR), `SHA256SUMS`, release notes from CHANGELOG. Plus "Get the app": the PC shows a
