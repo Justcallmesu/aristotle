@@ -99,17 +99,10 @@ require_bundle() {
     }
   fi
 
-  if [[ -n $BUNDLE_SET ]]; then
-    [[ -x $BUNDLE_DIR/install.sh ]] || {
-      echo "error: $BUNDLE_DIR/install.sh does not exist or is not executable" >&2
-      exit 1
-    }
-  else
-    [[ -x $BUNDLE_DIR/install.sh ]] || {
-      echo "error: $BUNDLE_DIR/install.sh is missing or not executable (an incomplete copy?); fix it (chmod +x) or pass --bundle <dir>" >&2
-      exit 1
-    }
-  fi
+  [[ -x $BUNDLE_DIR/install.sh ]] || {
+    echo "error: $BUNDLE_DIR/install.sh is missing or not executable (an incomplete copy?); fix it (chmod +x) or pass --bundle <dir>" >&2
+    exit 1
+  }
 }
 
 require_not_root

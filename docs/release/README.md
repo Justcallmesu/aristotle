@@ -17,8 +17,15 @@ Signing: Gradle reads `~/.config/aristotle/signing.properties` (or the file name
 Tests: `bash scripts/test/run.sh` (also a line of the gate).
 
 ## Installing on a PC (Linux, systemd user session)
-Copy the whole `aristotle-<x.y.z>/` folder to the PC and run `./install.sh` in it (`--pair` shows the pairing QR at the end,
-`--no-pair` skips the question). It:
+Needs: Hermes Agent installed for your user (the installer starts its gateway; `--no-gateway` skips that), a terminal on the PC.
+
+**From a checkout of this repo:** `./install.sh` runs the newest `dist/aristotle-<x.y.z>/` (version order). `dist/` is not in git
+and only the dev PC can build it (`scripts/release.sh` needs the signing key), so on any other PC copy the release folder there and
+run `./install.sh --bundle <dir>` (or run `<dir>/install.sh` directly; same result). Every other option goes to the bundle installer.
+If the newest folder is incomplete (its `install.sh` missing or not executable) it stops; it never installs an older one instead.
+
+**The bundle installer** (`aristotle-<x.y.z>/install.sh [--pair | --no-pair] [--no-gateway] [--no-firewall]`):
+- refuses inside the phone's remote terminal, and (unless `--no-gateway`) when the `hermes` CLI is missing, before touching anything;
 - checks every file against `SHA256SUMS` and installs nothing if one does not match;
 - copies the binary to `~/.local/bin/aristotle-server` (temp file + rename) and keeps the one it replaces as
   `aristotle-server.prev`;
@@ -29,6 +36,15 @@ Copy the whole `aristotle-<x.y.z>/` folder to the PC and run `./install.sh` in i
   starts a stopped one;
 - waits up to 30 s (wall time) for `aristotle-server status` to exit 0; if it does not, or if `install --force --start`
   itself fails, it prints the last lines of `journalctl --user -u aristotle-server` and the rollback command, and exits 1;
+- checks that the server can reach Hermes (`aristotle-server status` shows `Hermes:`). If not, it runs
+  `hermes -p default gateway install` (the gateway of `~/.hermes`, the home the server uses, even when you switched profiles
+  with `hermes profile use`), then waits up to 120 s (`ARISTOTLE_GATEWAY_TIMEOUT`) for Hermes to report ready. Still not
+  reachable: it prints the reason and the gateway log, says what was and was not done, and exits 1 (fix Hermes, run it again);
+- turns on systemd linger when it is off, so both services keep running after you log out;
+- opens the firewall for the LAN subnet(s) the server serves, and only those: `<port>/tcp` and `5353/udp` (discovery) from
+  e.g. `192.168.1.0/24`, with ufw or firewalld; sudo asks for your password. Tailscale needs no rule. When sudo cannot ask, the
+  firewall is something else, or `--no-firewall` is given, it prints the exact commands instead. A firewall problem never fails
+  the install. **On another network, run the installer again** (rules for old networks stay in place);
 - prints the running version, the rollback command and where the APK is.
 
 Run it in a terminal on the PC, never from the phone's remote terminal: the script refuses there, because an update restarts

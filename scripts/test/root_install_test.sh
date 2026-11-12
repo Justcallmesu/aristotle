@@ -169,7 +169,7 @@ new_case no_install_in_bundle
 mkdir -p "$REPO/dist/aristotle-2.10.0"
 run_root_install --bundle "$REPO/dist/aristotle-2.10.0"
 expect_code 1 "$CODE" "no install.sh"
-expect_contains "$OUT" "install.sh does not exist" "said install.sh missing"
+expect_contains "$OUT" "install.sh is missing or not executable" "said install.sh missing"
 
 echo "case: no bundle found -> exit 1 with message naming both ways out"
 new_case no_bundle
