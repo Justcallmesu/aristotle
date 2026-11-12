@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Test stub of hermes: records its arguments and HERMES_HOME (or <unset>) in $STUB_LOG; `gateway install` leaves a marker
+# the aristotle-server stub reads. STUB_HERMES_FAILS: when set, `gateway install` fails.
+echo "hermes $*" >> "$STUB_LOG"
+echo "hermes HERMES_HOME=${HERMES_HOME-<unset>}" >> "$STUB_LOG"
+[[ "${1:-}" != -p ]] || shift 2 # `-p default gateway install`: the profile flag comes first (recorded above)
+if [[ "${1:-}" == gateway && "${2:-}" == install ]]; then
+  if [[ -n "${STUB_HERMES_FAILS:-}" ]]; then echo "stub: gateway install failed" >&2; exit 1; fi
+  touch "$STUB_STATE/gateway-installed"
+  echo "Installed and started (stub)"
+  exit 0
+fi
+echo "stub: unexpected hermes command: $*" >&2
+exit 99

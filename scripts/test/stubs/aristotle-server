@@ -2,13 +2,66 @@
 # Test stub of aristotle-server for scripts/test/install_test.sh: records its calls in $STUB_LOG and never touches systemd.
 # STUB_INSTALL_FAILS: when set, `install` fails.
 # STUB_STATUS_FAILS: how many `status` calls fail before one succeeds (a number, or "always").
+# `status --porcelain` (spec P22) is driven by STUB_PORCELAIN_HERMES (reachable | not-running | error | none = no hermes line;
+# default reachable), STUB_PORCELAIN_PORT (default 8760), STUB_PORCELAIN_LAN (lines "iface ip subnet", \n-separated;
+# default one wlan0 line) and STUB_HERMES_AFTER_POLLS=N (once the hermes stub has run `gateway install`, hermes turns
+# reachable on the Nth porcelain call after that). STUB_PORCELAIN_SERVER=not-running: only service/enabled/server lines, like
+# a stopped server (STUB_SERVER_DIES_AFTER=N: from the N+1st porcelain call on); STUB_LAN_AFTER_CALLS=N: the lan lines show up only from the Nth porcelain call (a first scan not done yet).
+# The plain `status` also prints a `Hermes:` line (STUB_HERMES_REASON; STUB_HERMES_REASON_LATE replaces it once the hermes
+# stub has run `gateway install`, so a test can tell the line read after the gateway step from the one read at start).
 set -euo pipefail
 echo "aristotle-server $*" >> "$STUB_LOG"
+
+# hermes_state prints the hermes fact: the fixed value, or reachable once enough polls followed the gateway install.
+hermes_state() {
+  local state="${STUB_PORCELAIN_HERMES:-reachable}" polls=0
+  if [[ -f "$STUB_STATE/gateway-installed" && -n "${STUB_HERMES_AFTER_POLLS:-}" ]]; then
+    [[ -f "$STUB_STATE/after-polls" ]] && polls="$(cat "$STUB_STATE/after-polls")"
+    if (( polls < STUB_HERMES_AFTER_POLLS )); then # stop counting once reachable: later reads are not polls
+      polls=$((polls + 1))
+      echo "$polls" > "$STUB_STATE/after-polls"
+    fi
+    (( polls >= STUB_HERMES_AFTER_POLLS )) && state=reachable
+  fi
+  echo "$state"
+}
+
+# lan_lines prints the lan facts, or none while STUB_LAN_AFTER_CALLS porcelain calls have not happened yet.
+lan_lines() {
+  local line
+  (( PORCELAIN_CALLS >= ${STUB_LAN_AFTER_CALLS:-0} )) || return 0
+  while IFS= read -r line; do [[ -z "$line" ]] || echo "lan $line"; done <<< "${STUB_PORCELAIN_LAN-wlan0 192.168.1.20 192.168.1.0/24}"
+}
+
+# porcelain counts its calls; the server is "not running" when STUB_PORCELAIN_SERVER says so, or after STUB_SERVER_DIES_AFTER calls.
+PORCELAIN_CALLS=0
+porcelain() {
+  local state
+  [[ -f "$STUB_STATE/porcelain-calls" ]] && PORCELAIN_CALLS="$(cat "$STUB_STATE/porcelain-calls")"
+  PORCELAIN_CALLS=$((PORCELAIN_CALLS + 1))
+  echo "$PORCELAIN_CALLS" > "$STUB_STATE/porcelain-calls"
+  echo "service active"
+  echo "enabled enabled"
+  if [[ "${STUB_PORCELAIN_SERVER:-running}" != running ]] || (( PORCELAIN_CALLS > ${STUB_SERVER_DIES_AFTER:-1000000} )); then
+    echo "server not-running"; return 0
+  fi
+  echo "server running"
+  echo "version 9.9.9"
+  echo "port ${STUB_PORCELAIN_PORT:-8760}"
+  lan_lines
+  echo "tailscale tailscale0 100.64.0.1"
+  state="$(hermes_state)"
+  [[ "$state" == none ]] || echo "hermes $state"
+}
 case "${1:-}" in
   install)
     if [[ -n "${STUB_INSTALL_FAILS:-}" ]]; then echo "stub: restart failed" >&2; exit 1; fi
     echo "Installed (stub)" ;;
   status)
+    if [[ "${2:-}" == --porcelain ]]; then
+      porcelain
+      exit 0
+    fi
     calls=0
     [[ -f "$STUB_STATE/status-calls" ]] && calls="$(cat "$STUB_STATE/status-calls")"
     calls=$((calls + 1))
@@ -18,7 +71,10 @@ case "${1:-}" in
       echo "Server:   not running (stub)"
       exit 1
     fi
-    echo "Server:   running (stub)" ;;
+    echo "Server:   running (stub)"
+    reason="${STUB_HERMES_REASON:-not reachable: stub reason}"
+    [[ -f "$STUB_STATE/gateway-installed" && -n "${STUB_HERMES_REASON_LATE:-}" ]] && reason="$STUB_HERMES_REASON_LATE"
+    echo "Hermes:   $reason" ;;
   version) echo "aristotle-server 9.9.9 (stub) protocol 1" ;;
   pair) echo "PAIRING QR (stub)" ;;
   *) echo "stub: unexpected command: $*" >&2; exit 99 ;;

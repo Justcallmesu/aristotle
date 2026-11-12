@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Test stub of sudo: records its arguments, then runs the rest of the command (the stubs on PATH). STUB_SUDO_REFUSE: refuse like `sudo -n` without a password.
+# STUB_SUDO_ASKTTY: like a real sudo without a ticket, read a "password" line from /dev/tty (5s limit), and refuse when none comes.
+echo "sudo $*" >> "$STUB_LOG"
+if [[ -n "${STUB_SUDO_ASKTTY:-}" && "${1:-}" != -n ]]; then
+  read -r -t 5 _pw < /dev/tty || { echo "sudo: no password read from the terminal" >&2; exit 1; }
+  echo "sudo password-read-from-tty" >> "$STUB_LOG"
+fi
+if [[ -n "${STUB_SUDO_REFUSE:-}" ]]; then echo "sudo: a password is required" >&2; exit 1; fi
+[[ "${1:-}" != -n ]] || shift
+exec "$@"

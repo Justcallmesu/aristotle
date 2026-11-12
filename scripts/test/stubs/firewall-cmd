@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Test stub of firewall-cmd: records calls and LC_ALL. STUB_FWD_STATE (running|anything else = not running); STUB_FWD_EXISTING:
+# --query-rich-rule succeeds; STUB_FWD_REFUSE: --add-rich-rule fails; STUB_FWD_RELOAD_FAILS: --reload fails.
+echo "firewall-cmd $*" >> "$STUB_LOG"
+echo "firewall-cmd-env LC_ALL=${LC_ALL-<unset>}" >> "$STUB_LOG"
+case "$*" in
+  --state) if [[ "${STUB_FWD_STATE:-}" == running ]]; then echo running; else echo "not running"; exit 252; fi ;;
+  *--query-rich-rule=*) if [[ -n "${STUB_FWD_EXISTING:-}" ]]; then echo yes; else echo no; exit 1; fi ;;
+  *--add-rich-rule=*) if [[ -n "${STUB_FWD_REFUSE:-}" ]]; then echo "Error: stub refuses" >&2; exit 1; fi; echo success ;;
+  --reload) if [[ -n "${STUB_FWD_RELOAD_FAILS:-}" ]]; then echo "Error: stub reload failed" >&2; exit 1; fi; echo success ;;
+  *) echo "stub: unexpected firewall-cmd command: $*" >&2; exit 99 ;;
+esac

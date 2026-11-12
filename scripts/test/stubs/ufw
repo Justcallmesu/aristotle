@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Test stub of ufw: records calls and LC_ALL. STUB_UFW_STATUS (active|inactive, default inactive); STUB_UFW_EXISTING: `allow` says
+# the rule exists; STUB_UFW_REFUSE: `allow` fails. Like a translated ufw it answers "Status: aktiv" unless LC_ALL=C.
+echo "ufw $*" >> "$STUB_LOG"
+echo "ufw-env LC_ALL=${LC_ALL-<unset>}" >> "$STUB_LOG"
+status_word() {
+  local word="${STUB_UFW_STATUS:-inactive}"
+  if [[ "${LC_ALL:-}" != C ]]; then case "$word" in active) word=aktiv ;; inactive) word=inaktiv ;; esac; fi
+  echo "$word"
+}
+case "${1:-}" in
+  status) echo "Status: $(status_word)" ;;
+  allow)
+    if [[ -n "${STUB_UFW_REFUSE:-}" ]]; then echo "ERROR: stub ufw refuses the rule" >&2; exit 1; fi
+    if [[ -n "${STUB_UFW_EXISTING:-}" ]]; then echo "Skipping adding existing rule"; else echo "Rule added"; fi ;;
+  *) echo "stub: unexpected ufw command: $*" >&2; exit 99 ;;
+esac

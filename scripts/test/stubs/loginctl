@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Test stub of loginctl: records calls. STUB_LINGER (yes|no, default yes) answers `show-user`; STUB_LOGINCTL_FAILS makes every call fail.
+echo "loginctl $*" >> "$STUB_LOG"
+[[ -z "${STUB_LOGINCTL_FAILS:-}" ]] || { echo "stub: loginctl failed" >&2; exit 1; }
+case "${1:-}" in
+  show-user) echo "Linger=${STUB_LINGER:-yes}" ;;
+  enable-linger) ;;
+  *) echo "stub: unexpected loginctl command: $*" >&2; exit 99 ;;
+esac

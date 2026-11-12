@@ -1,0 +1,441 @@
+=== install_test
+case: fresh install (status comes up on the 3rd poll)
+  ok: fresh install: exit 0
+  ok: binary copied to ~/.local/bin
+  ok: no .prev on a fresh install
+  ok: ran install --force --start
+  ok: polled status until it exited 0
+  ok: printed the version
+  ok: said where the APK is
+  ok: said the debug app must be uninstalled
+  ok: --no-pair: no pairing
+  ok: never ran systemctl itself
+  ok: no temp file left in ~/.local/bin
+case: the APK and aristotle.json land in the app dir (default ~/.local/share), json last
+  ok: APK copied to the app dir
+  ok: aristotle.json content
+  ok: no temp file left in the app dir
+  ok: said where the phone update went
+case: version_code follows major*10000+minor*100+patch; XDG_DATA_HOME wins; a rerun replaces the pair
+  ok: install with XDG_DATA_HOME: exit 0
+  ok: version_code 12.3.45
+  ok: stale APK replaced
+  ok: default dir untouched when XDG_DATA_HOME is set
+case: a bad checksum leaves the app dir untouched
+  ok: bad APK checksum: exit 1
+  ok: nothing copied to the app dir
+case: an APK missing from SHA256SUMS refuses before touching anything (UP2b)
+  ok: APK not listed: exit 1
+  ok: said which file is not listed
+  ok: installed binary untouched
+  ok: no .prev written
+  ok: nothing copied to the app dir
+  ok: nothing was run
+case: a bad APK file name refuses before the binary is replaced (UP2b)
+  ok: bad APK name: exit 1
+  ok: said why
+  ok: installed binary untouched
+  ok: nothing copied to the app dir
+  ok: nothing was run
+case: the app pair is in place before the server binary is replaced (UP2b)
+  ok: app copy fails: exit 1
+  ok: the old binary stays when the app copy fails
+  ok: no .prev written
+  ok: service not restarted
+case: update keeps the previous binary as .prev
+  ok: update: exit 0
+  ok: new binary in place
+  ok: previous binary kept as .prev
+  ok: printed the rollback command
+  ok: --pair: printed the pairing QR
+  ok: pairing output shown
+case: rerun with the same binary keeps the older .prev
+  ok: rerun: exit 0
+  ok: .prev still the older binary
+case: bad checksum refuses before copying
+  ok: bad checksum: exit 1
+  ok: said checksum mismatch
+  ok: installed binary untouched
+  ok: no .prev written
+  ok: nothing was run
+case: SHA256SUMS without the binary refuses
+  ok: binary not listed: exit 1
+  ok: nothing installed
+case: status never comes up -> non-zero and the journal tail
+  ok: server never came up: exit 1
+  ok: said it timed out
+  ok: read the unit's journal
+  ok: printed the journal tail
+  ok: no version line after a failed start
+  ok: no pairing after a failed start
+case: install --force --start fails -> rollback line, journal tail, non-zero
+  ok: install failed: exit 1
+  ok: said the install failed
+  ok: printed the journal tail
+  ok: printed the rollback command
+  ok: no version line after a failed install
+  ok: did not poll status
+case: refuses inside the app's terminal
+  ok: ARISTOTLE_TERMINAL set: exit 1
+  ok: said why
+  ok: nothing installed
+  ok: nothing was run
+  ok: inside the service cgroup: exit 1
+  ok: said why
+  ok: nothing installed
+case: the bundled install.sh keeps its executable bit
+  ok: scripts/install.sh is executable
+  ok: scripts/release.sh is executable
+case: non-interactive without a flag does not pair
+  ok: no flag: exit 0
+  ok: no pairing without a terminal
+  ok: told how to pair later
+case: flag parsing
+  ok: --pair --no-pair: exit 2
+  ok: --no-pair --pair: exit 2
+  ok: unknown flag: exit 2
+  ok: unknown flag after a good one: exit 2
+  ok: usage errors install nothing
+  ok: --no-gateway --no-firewall --no-pair: exit 0
+  ok: --no-pair --no-firewall --no-gateway: exit 0
+  ok: --no-firewall --pair --no-gateway: exit 0
+case: hermes CLI missing refuses before anything is touched
+  ok: hermes missing: exit 1
+  ok: said Hermes is missing
+  ok: named the --no-gateway way out
+  ok: no binary installed
+  ok: no app copy
+  ok: no install call
+  ok: nothing was run
+case: hermes missing is fine with --no-gateway; ~/.local/bin/hermes is found
+  ok: --no-gateway without hermes: exit 0
+  ok: hermes found in ~/.local/bin: exit 0
+  ok: used ~/.local/bin/hermes
+case: hermes reachable -> no gateway call
+  ok: reachable: exit 0
+  ok: said reachable
+  ok: no hermes gateway call
+  ok: read the porcelain
+case: not reachable -> gateway install with HERMES_HOME unset, then reachable after polls
+  ok: gateway comes up: exit 0
+  ok: said what it does
+  ok: ran hermes -p default gateway install (not the sticky profile)
+  ok: HERMES_HOME was unset for hermes
+  ok: the inherited HERMES_HOME did not leak
+  ok: polled until reachable
+  ok: said reachable
+case: gateway never reachable -> exit 1 with the journal tail
+  ok: never reachable: exit 1
+  ok: said why
+  ok: said how long it waits
+  ok: printed the server's Hermes line read AFTER the gateway step
+  ok: said what state the PC is in
+  ok: linger step not reached
+  ok: firewall step not reached
+  ok: read the gateway journal
+  ok: printed the journal tail
+  ok: no version line
+  ok: hermes gateway install fails: exit 1
+  ok: said the install failed
+  ok: printed the server's own Hermes line
+  ok: said what was skipped
+  ok: printed the journal tail
+case: the gateway wait has its own budget: slow Hermes passes with a 1s server timeout (IN2c)
+  ok: Hermes reachable after more than ARISTOTLE_INSTALL_TIMEOUT: exit 0
+  ok: printed the wait line
+  ok: said reachable
+  ok: ARISTOTLE_GATEWAY_TIMEOUT='abc': exit 2
+  ok: said why
+  ok: ARISTOTLE_GATEWAY_TIMEOUT='-5': exit 2
+  ok: said why
+  ok: ARISTOTLE_GATEWAY_TIMEOUT='1.5': exit 2
+  ok: said why
+  ok: ARISTOTLE_GATEWAY_TIMEOUT='5 s': exit 2
+  ok: said why
+  ok: bad value installs nothing
+case: hermes error (a gateway answered) -> no gateway install, reason and advice, exit 1
+  ok: hermes error: exit 1
+  ok: never ran hermes gateway install
+  ok: never ran any hermes gateway command
+  ok: printed the reason
+  ok: printed the advice
+  ok: read the gateway journal
+  ok: hermes error with --no-gateway: exit 0
+case: the server is not running at the gateway step -> fails like wait_for_status
+  ok: server not running at the gateway step: exit 1
+  ok: said why
+  ok: read the server journal
+  ok: no gateway call
+  ok: no gateway install
+  ok: did not blame the server version
+  ok: server stopped before the firewall step: exit 1
+  ok: said why
+  ok: did not claim no rule is needed
+  ok: no firewall call
+case: --no-gateway and not reachable -> warning only
+  ok: --no-gateway: exit 0
+  ok: printed the command to run
+  ok: warned
+  ok: no gateway call
+case: old server without a hermes line -> warning, exit 0
+  ok: no hermes line: exit 0
+  ok: warned
+  ok: no gateway call
+case: linger
+  ok: linger off: exit 0
+  ok: enabled linger
+  ok: linger on: exit 0
+  ok: did not touch linger
+  ok: loginctl fails: exit 0
+  ok: warned
+case: ufw active, two LAN subnets -> four rules with the porcelain port, none for Tailscale
+  ok: ufw: exit 0
+  ok: exactly four allow rules
+  ok: tcp rule, subnet 1, porcelain port
+  ok: mDNS rule, subnet 1
+  ok: tcp rule, subnet 2
+  ok: mDNS rule, subnet 2
+  ok: no rule for the Tailscale address
+  ok: the default port is not hard-coded
+  ok: non-interactive uses sudo -n
+  ok: listed an added rule
+  ok: told how to cover another network
+case: ufw rule that already exists is reported as kept
+  ok: ufw rerun: exit 0
+  ok: kept
+  ok: added nothing
+case: firewalld running -> rich rules + reload; an existing rule is not re-added
+  ok: firewalld: exit 0
+  ok: tcp rich rule
+  ok: udp rich rule
+  ok: reloaded
+  ok: no ufw rule
+  ok: firewalld rerun: exit 0
+  ok: existing rules not re-added
+  ok: no reload without a change
+  ok: kept
+  ok: ipv6 subnet gets an ipv6 rule
+case: no active firewall -> nothing opened
+  ok: no active firewall: exit 0
+  ok: said so
+  ok: no rule
+  ok: no rich rule
+case: no LAN listener (after re-reading) -> no rule, said honestly
+  ok: no LAN: exit 0
+  ok: no rule
+  ok: worded as a fact, not as 'no rule needed'
+  ok: old wording gone
+  ok: re-read the porcelain before giving up
+case: the first LAN scan is not done yet -> re-read until the lan line shows, then open the firewall
+  ok: late LAN listener: exit 0
+  ok: both rules (one subnet) once the lan line appeared
+  ok: no false 'no LAN'
+case: non-interactive and sudo -n refused -> commands printed, exit 0
+  ok: sudo refused: exit 0
+  ok: printed the ufw command
+  ok: printed the firewalld command
+  ok: warned
+  ok: ran no rule
+case: --no-firewall prints the commands and never calls sudo
+  ok: --no-firewall: exit 0
+  ok: printed the commands
+  ok: no sudo call
+  ok: no ufw call
+case: sudo refused at detection never fails the install
+  ok: sudo refused at detection: exit 0
+  ok: install finished
+case: ufw and firewall-cmd run under LC_ALL=C through sudo (a translated ufw would say 'Status: aktiv')
+  ok: ufw under a translated-ufw stub: exit 0
+  ok: status through sudo env LC_ALL=C
+  ok: the ufw stub saw LC_ALL=C
+  ok: no ufw call without LC_ALL
+  ok: the active firewall was recognised, both rules (one subnet)
+  ok: the firewall-cmd stub saw LC_ALL=C
+  ok: no firewall-cmd call without LC_ALL
+  ok: rules through sudo env LC_ALL=C
+case: no firewall tool at all -> warning and the commands for both firewalls, exit 0
+  ok: no firewall tool: exit 0
+  ok: warned
+  ok: printed the ufw command
+  ok: printed the firewalld command
+  ok: no sudo call
+case: ufw refuses a rule -> warning, the exact ufw commands, exit 0
+  ok: ufw refuses: exit 0
+  ok: detection worked
+  ok: warned
+  ok: printed the ufw commands
+  ok: printed the mDNS command
+  ok: no firewalld commands for a ufw user
+  ok: install finished
+case: firewalld refuses a rule -> warning and the firewalld commands (they were missing), exit 0
+  ok: firewalld refuses: exit 0
+  ok: warned
+  ok: printed the firewalld command
+  ok: printed the reload
+  ok: no ufw commands for a firewalld user
+  ok: reload fails: exit 0
+  ok: warned
+  ok: printed the reload command
+case: interactive (pty) -> plain sudo, no -n, for detection and for every rule; the password is read inside the loop
+  ok: interactive install: exit 0
+  ok: printed the notice
+  ok: no sudo -n call at all
+  ok: plain sudo for detection
+  ok: plain sudo for the tcp rule
+  ok: plain sudo for the mDNS rule
+  ok: sudo read a password from the terminal for each of its 3 calls
+  ok: both rules went through
+  ok: interactive firewalld install: exit 0
+  ok: no sudo -n call (firewalld)
+  ok: plain sudo for a firewalld rule
+  ok: plain sudo for the reload
+  ok: interactive, sudo refuses: exit 0
+  ok: printed the commands
+install_test: all passed
+PASS install_test
+=== release_test
+case: refusals before anything is built
+  ok: no version argument: exit 2
+  ok: not semver: exit 1
+  ok: not semver: says why
+  ok: not semver: no bundle
+  ok: leading zero: exit 1
+  ok: leading zero: says why
+  ok: leading zero: no bundle
+  ok: dirty tree (untracked file): exit 1
+  ok: dirty tree (untracked file): says why
+  ok: dirty tree (untracked file): no bundle
+  ok: dirty tree (modified file): exit 1
+  ok: dirty tree (modified file): says why
+  ok: dirty tree (modified file): no bundle
+  ok: version mismatch: exit 1
+  ok: version mismatch: says why
+  ok: version mismatch: no bundle
+  ok: missing CHANGELOG heading: exit 1
+  ok: missing CHANGELOG heading: says why
+  ok: missing CHANGELOG heading: no bundle
+  ok: existing tag: exit 1
+  ok: existing tag: says why
+  ok: existing tag: no bundle
+  ok: gate fails: exit 1
+  ok: gate fails: says why
+  ok: gate fails: no bundle
+case: wrong signer (throwaway key, real pin) is refused after the build
+  ok: wrong signer: exit 1
+  ok: wrong signer: says why
+  ok: wrong signer: no bundle
+  ok: the gate ran before the build
+  ok: no bundle after a wrong signer
+case: refusals after the build (pin swapped to the throwaway cert in the scratch copy only)
+  ok: two signers: exit 1
+  ok: two signers: says why
+  ok: two signers: no bundle
+  ok: wrong server version line: exit 1
+  ok: wrong server version line: says why
+  ok: wrong server version line: no bundle
+  ok: build dirtied the tree: exit 1
+  ok: build dirtied the tree: says why
+  ok: build dirtied the tree: no bundle
+case: a good run (throwaway pin) builds the bundle and tags
+  ok: good run: exit 0
+  ok: bundle has exactly the six files
+  ok: SHA256SUMS lists the five other files
+  ok: SHA256SUMS verifies
+  ok: binary carries version and commit
+  ok: release notes start at the version heading
+  ok: release notes hold that one section only
+  ok: install.sh shipped
+  ok: bundled install.sh is executable
+  ok: aristotle-server mode is 755
+  ok: install.sh mode is 755
+  ok: aristotle-1.0.0.apk mode is 644
+  ok: THIRD_PARTY_NOTICES.txt mode is 644
+  ok: RELEASE-NOTES.md mode is 644
+  ok: SHA256SUMS mode is 644
+  ok: server notices shipped
+  ok: annotated tag v1.0.0 created
+  ok: tree still clean after the build
+  ok: rerun after tagging: exit 1
+  ok: rerun after tagging: says why
+  ok: the tagged bundle is left alone
+  ok: real repo tags unchanged
+release_test: all passed
+PASS release_test
+=== root_install_test
+case: picks the newest bundle by numeric version order (2.10.0 > 2.9.0 > 2.1.1)
+  ok: found newest bundle: exit 0
+  ok: exactly aristotle-2.10.0 ran
+case: ignores gate-, rc, non-version names and bundles without install.sh
+  ok: ignores junk: exit 0
+  ok: only the valid bundle ran
+case: newest bundle without a usable install.sh -> exit 1, never an older bundle (IN2c)
+  ok: non-executable newest bundle: exit 1
+  ok: said which file and the way out
+  ok: nothing ran, no older bundle used
+  ok: did not start installing
+  ok: newest bundle without install.sh: exit 1
+  ok: said install.sh is missing
+  ok: nothing ran
+case: args pass through unchanged and in order
+  ok: args passed: exit 0
+  ok: args in order
+case: --bundle is removed and wins over a newer bundle
+  ok: --bundle handled: exit 0
+  ok: chosen bundle ran, --bundle not in args
+case: --bundle first and last
+  ok: --bundle first: exit 0
+  ok: args correct when --bundle first
+  ok: --bundle last: exit 0
+  ok: args correct when --bundle last
+case: --bundle=<dir> works like --bundle <dir>, anywhere (IN2c)
+  ok: --bundle=dir first: exit 0
+  ok: --bundle=dir removed from the args
+  ok: --bundle=dir in the middle: exit 0
+  ok: other args kept in order
+  ok: --bundle and --bundle=: exit 2
+  ok: bundle installer did not run
+  ok: --bundle= missing dir: exit 1
+  ok: said dir missing
+  ok: --bundle= empty value: exit 1
+case: --bundle relative path from another cwd
+  ok: relative --bundle: exit 0
+  ok: relative bundle ran
+case: auto-detect works from another cwd
+  ok: from another cwd: exit 0
+  ok: newest bundle ran
+case: missing --bundle dir -> exit 1 with message
+  ok: missing bundle dir: exit 1
+  ok: said dir missing
+case: --bundle dir without install.sh -> exit 1 with message
+  ok: no install.sh: exit 1
+  ok: said install.sh missing
+case: no bundle found -> exit 1 with message naming both ways out
+  ok: no bundle: exit 1
+  ok: said release.sh needs the signing key
+  ok: said to copy a bundle
+  ok: mentioned --bundle
+case: --bundle twice -> exit 2, bundle not run
+  ok: duplicate --bundle: exit 2
+  ok: usage error
+  ok: bundle installer did not run
+case: --bundle without value -> exit 2, bundle not run
+  ok: --bundle no value: exit 2
+  ok: usage error
+  ok: bundle installer did not run
+case: --help and -h -> exit 0 with usage
+  ok: --help: exit 0
+  ok: showed usage
+  ok: listed the flags the bundle installer takes
+  ok: -h: exit 0
+  ok: showed usage
+  ok: bundle installer did not run
+case: bundle installer's exit code is returned
+  ok: exit 3 from bundle: exit 3
+case: bundle dir is printed before exec
+  ok: printed Installing line
+case: running as root is refused
+  ok: root refused: exit 1
+  ok: message says run as your user
+  ok: bundle installer did not run
+root_install_test: all passed
+PASS root_install_test

@@ -1,0 +1,8 @@
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=805 failed=0
+SKIP android (0)
+SKIP scripts (0)
+race exit=0
+scripts exit=0
