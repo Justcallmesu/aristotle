@@ -8,6 +8,14 @@ file at build time and shows the `Phone:` entries only.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-12
+
+### Added
+
+- Server: `./install.sh` at the top of the repo installs the newest release folder in `dist/` (or the one you name with `--bundle <dir>`).
+- Server: The installer now finishes the whole setup: it starts the Hermes gateway when it is not running (`--no-gateway` to skip), keeps the services running after you log out, and opens the firewall (ufw or firewalld) for your local network only, asking for your sudo password (`--no-firewall` to only print the commands). It reports success only when the server can reach Hermes.
+- Server: `aristotle-server status` shows whether Hermes is reachable; `status --porcelain` prints the same facts for scripts.
+
 ## [2.1.1] - 2026-11-09
 
 ### Fixed
