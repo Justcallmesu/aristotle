@@ -48,7 +48,7 @@ func (s *server) controlHandlers() map[string]control.Handler {
 		cmdDevicesList:   func(json.RawMessage) (any, error) { return s.devices.List(), nil },
 		cmdDevicesRevoke: s.revoke,
 		cmdStatus: func(json.RawMessage) (any, error) {
-			return statusResult{Version: s.version, Addresses: s.addresses()}, nil
+			return s.status(), nil
 		},
 	}
 	for cmd, h := range s.terminalHandlers() {
@@ -119,9 +119,101 @@ func decodeArgs(raw json.RawMessage, v any) error {
 	return nil
 }
 
+// statusResult is the control answer of `status`. Fields after Addresses are newer: an old server leaves
+// them out and the CLI prints only what it got.
 type statusResult struct {
 	Version   string            `json:"version"`
 	Addresses []httpapi.Address `json:"addresses"`
+	Port      int               `json:"port,omitempty"`
+	Listeners []statusListener  `json:"listeners,omitempty"`
+	Hermes    *hermesStatus     `json:"hermes,omitempty"`
+}
+
+// statusListener is one bound listener as the installer needs it. Control socket only: never sent to a phone.
+type statusListener struct {
+	Kind   string `json:"kind"` // "lan" or "tailscale"
+	Iface  string `json:"iface"`
+	IP     string `json:"ip"`
+	Subnet string `json:"subnet,omitempty"` // CIDR of the interface's on-link prefix (LAN)
+}
+
+// Hermes reachability states in statusResult.
+const (
+	hermesReachable  = "reachable"
+	hermesNotRunning = "not-running"
+	hermesError      = "error"
+)
+
+type hermesStatus struct {
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// hermesProbeTimeout bounds the reachability check so `status` cannot hang.
+const hermesProbeTimeout = 2 * time.Second
+
+// identifier is the only Hermes call `status` makes: identify (read-only, mints nothing).
+type identifier interface {
+	Identify(ctx context.Context) (hermes.Identity, error)
+}
+
+func (s *server) status() statusResult {
+	res := statusResult{Version: s.version, Addresses: s.addresses(), Port: s.cfg.Port, Listeners: s.statusListeners()}
+	if s.hermesProbe != nil {
+		h := probeHermes(s.hermesProbe, s.hermesTimeout)
+		res.Hermes = &h
+	}
+	return res
+}
+
+func (s *server) statusListeners() []statusListener {
+	var out []statusListener
+	for _, e := range s.listen.Active() {
+		l := statusListener{Kind: string(e.Kind), Iface: e.Iface, IP: e.Addr.String()}
+		if e.Subnet.IsValid() {
+			l.Subnet = e.Subnet.Masked().String()
+		}
+		out = append(out, l)
+	}
+	return out
+}
+
+// probeHermes runs identify within timeout (hermesProbeTimeout when zero). The reason is short and holds
+// no token or prompt text.
+func probeHermes(c identifier, timeout time.Duration) hermesStatus {
+	if timeout <= 0 {
+		timeout = hermesProbeTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	type answer struct{ err error }
+	ch := make(chan answer, 1)
+	go func() {
+		_, err := c.Identify(ctx)
+		ch <- answer{err}
+	}()
+	var err error
+	select {
+	case a := <-ch:
+		err = a.err
+	case <-ctx.Done():
+		return hermesStatus{State: hermesError, Reason: "no answer within " + timeout.String()}
+	}
+	switch {
+	case err == nil:
+		return hermesStatus{State: hermesReachable}
+	case errors.Is(err, hermes.ErrHermesNotRunning):
+		return hermesStatus{State: hermesNotRunning, Reason: shortReason(err)}
+	}
+	return hermesStatus{State: hermesError, Reason: shortReason(err)}
+}
+
+func shortReason(err error) string {
+	r := []rune(sanitize(err.Error()))
+	if len(r) > 120 {
+		r = append(r[:120], '…')
+	}
+	return string(r)
 }
 
 // tailscaleUp: a Tailscale listener is bound right now (§16).

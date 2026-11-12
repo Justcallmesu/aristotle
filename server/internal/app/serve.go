@@ -83,6 +83,10 @@ type server struct {
 	stocksJobs bool
 	// appDir is where install.sh put the APK for GET /v1/app/*; empty leaves those routes out.
 	appDir string
+	// hermesProbe answers `status` Hermes reachability (the relay's connector); hermesTimeout overrides
+	// hermesProbeTimeout in tests.
+	hermesProbe   identifier
+	hermesTimeout time.Duration
 }
 
 // newServer builds the components. scan, when non-nil, replaces the system
@@ -123,6 +127,7 @@ func newServer(cfg config.Config, stateDir, version string, log *slog.Logger, sc
 		relay:  relay.New(relay.Options{Dialer: connector, Devices: store, Log: log}),
 		grants: grants, terms: terminal.New(terminal.Options{Grants: grants, Devices: store, Log: log,
 			KeepEnv: cfg.Terminal.KeepEnv, DelegatedUnit: delegatedUnit()})}
+	s.hermesProbe = connector
 	s.pcstatus = &pcstatus.Collector{Log: log, Hermes: hermesRunning(connector), Tailscale: s.tailscaleUp}
 	s.stocks = stocks.New(stocks.Options{StateDir: stateDir, Log: log, Analyst: stocks.HermesAnalyst(connector)})
 	s.listen = &listen.Manager{

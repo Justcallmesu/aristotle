@@ -18,7 +18,20 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 | UP2 | Phone: update check (P18), Settings › About row + notification (Q132), download, sha256 + signer check, PackageInstaller install (P19), "Install unknown apps" first-time flow; tests | UP1 contract | android | DONE (3 review rounds: UP2b MAJORs permission + stuck row, UP2c stale session status; final review APPROVED) |
 | UP3 | Release 2.1.0 (USB once), then a 2.1.1 over the air on the Poco to prove it end to end | UP0-UP2 | user+PM | TODO |
 | UP4 | Updater polish (deferred): dead stored session id, receiver/timeout race (2-min deadline clears it), receiver session-check test, stale comments; `install.sh` versionCode collision for minor/patch >= 100 (refuse such versions in release.sh) | UP2c | both | TODO |
+| IN1 | Server: `status --porcelain` (P22) + `Hermes:` line in plain `status`; the control `status` answer carries port, LAN subnets and Hermes reachability (fixes G5) | - | server | BUILT, review APPROVED-WITH-FINDINGS for IN1 alone (MINOR-5 race -> IN2b); commit with IN2b |
+| IN2 | Bundle `scripts/install.sh`: hermes CLI pre-check, gateway step (Q137, P24, G1), linger (P25, G4), firewall step (Q136, P23, G2+G3), multi-flag parsing `--pair/--no-pair/--no-gateway/--no-firewall`; tests with stubs | IN1 contract (P22) | scripts | CHANGES-REQUIRED (review: MAJOR-1 sudo never prompts, MAJOR-2 sticky active_profile) -> IN2b |
+| IN3 | Root `install.sh` (Q135, Q138, P21): picks newest `dist/aristotle-x.y.z/` or `--bundle <dir>`, execs its `install.sh` with the other args; tests (G6 reduced to local by Q135) | - | scripts | BUILT + IN3b fixed (std): PM mutants sort -V and root guard KILLED; review together with IN2b |
+| IN2b | IN2 review fix round: #1 sudo interactivity decided once + pty test; #2 `-p default` for the gateway; #3 reason + honest partial-state message, no gateway install on `error`; #4 `LC_ALL=C` for ufw/firewalld; #5 IN1 test race; #6 trust porcelain only with `server running`, wait for first LAN scan; #7 test isolation (`has_tool`), real rule-refusal case | IN2 | scripts+server test | BUILT (PM gate GREEN incl. -race; mutants sudo non-interactive, -p default dropped, LC_ALL=C dropped KILLED); deep re-review running |
+| IN4 | Docs: `docs/release/README.md` install section (root installer, gateway, firewall, `--bundle` on other PCs); release 2.2.0 and re-install on `cachyos-asus-1` as the real-PC check | IN1-IN3 | PM+user | TODO |
 | RS6 | Bundle NIT: `THIRD_PARTY_NOTICES.txt` mode 600 in the bundle -> 644 | RS4 | scripts | DONE (chmod in release.sh; mutant killed. Root cause: licences.sh writes the notices via mktemp -> 600 in the working tree) |
+
+## Deferred review findings
+| Id | Finding | Target | Status |
+|---|---|---|---|
+| IN2-R8 | `hermesRunning` (pcstatus) and `probeHermes` duplicate the reachability check and disagree on what counts as running | after 2.2.0 | OPEN |
+| IN2-R9 | firewalld: rules land in the default zone only (the LAN iface may be in another zone); `--reload` drops runtime-only rules the user had | after 2.2.0 | OPEN |
+| IN2-R10 | A user who exports a non-default `HERMES_HOME` on purpose gets a second gateway on `~/.hermes` (the server dials `~/.hermes` too, so the pair is consistent, but it is a new gateway). **User decision** | user | CLOSED (Q139 A: keep as built) |
+| IN2-R11..14 | NITs: validate porcelain values before root commands, `firewall-cmd --state` path, empty porcelain field, duplicated command text/comments | after 2.2.0 | OPEN |
 
 ## Log
 - 2026-11-06 User asked for an installer after signing + licences. Q126-Q129 decided (step 1 personal bundle now; public later with stocks,
@@ -38,3 +51,10 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 - 2026-11-09 UP2c built (std); focused re-review APPROVED (0/0/0, 4 NITs -> UP4). PM mutant any-session-accepted killed.
 - 2026-11-09 2.1.0 bundle built (9eef533). User ran install.sh (server 2.1.0, app pair served: version_code 20100). Phone: 2.0.0 -> 2.1.0 over adb (-r, same key, no re-pair), launches, both install permissions present (UPDATE_PACKAGES_WITHOUT_USER_ACTION granted), installer of record = null (adb). UP3 next: RS6 (light) becomes 2.1.1 for the first over-the-air update.
 - 2026-11-09 RS6 done (light; report claimed no tracked changes, diff was fine). Releasing 2.1.1 as the UP3 over-the-air test.
+- 2026-11-12 Second PC (`cachyos-asus-1`, user gapura) set up by the PM over ssh: bundle 2.1.1 installed; three manual fixes (Hermes gateway
+  installed on user OK, ufw LAN rule added by the user, linger already on). Gaps found: G1 no gateway check/start; G2 firewall never opened
+  (LAN 8760/tcp dropped by ufw); G3 mDNS 5353/udp same; G4 linger only printed; G5 `status` green while Hermes unreachable; G6 no install
+  path to another PC. User asked for a root installer that does all of it: Q135-Q138 answered (clarify), P21-P25 recorded. IN1-IN4 planned.
+- 2026-11-12 IN1-IN3 built in parallel (std, std, light). PM gate GREEN (805 Go, scripts install/release/root_install). Mutants: HERMES_HOME leak, hard-coded firewall port, not-running->reachable KILLED; root installer sort -V->sort SURVIVED and the light report claimed a root-refusal test that does not exist -> IN3b (std). Deep review of IN1+IN2 dispatched in parallel.
+- 2026-11-12 IN1+IN2 deep review CHANGES-REQUIRED (2 MAJOR in IN2, both verified by the PM in source: priv inside $(...) never prompts; hermes main.py:606-620 sticky active_profile). IN2b (std) dispatched with #1-#7; #8-#14 deferred table. IN3b done: PM mutants sort -V and root guard KILLED (the first root mutant was an equivalent one: [[ .. && false ]] is a string test).
+- 2026-11-12 IN2b built (std). PM gate GREEN (805 Go, -race app, scripts x3); mutants M6 sudo non-interactive, M7 -p default dropped, M8 LC_ALL=C dropped KILLED. Deep re-review of IN2 (whole) + IN3 (first review) dispatched; last allowed fix round for IN2.

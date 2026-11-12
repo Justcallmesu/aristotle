@@ -31,7 +31,7 @@ commands:
                         install as a systemd user service (starts at login)
   uninstall [--purge [--yes]]
                         remove the service; --purge also deletes devices and certificate
-  status                service state and the listener URLs
+  status [--porcelain]  service state, the listener URLs and Hermes reachability; --porcelain is the stable one-fact-per-line form
   logs [-f]             show the service log (journalctl)
   version               print the server version, commit and protocol version
   help                  show this help

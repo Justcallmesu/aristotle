@@ -13,6 +13,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/config"
 	"github.com/justcallmesu/aristotle/server/internal/control"
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
+	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/service"
 )
 
@@ -132,8 +133,9 @@ func confirm(w io.Writer, prompt string) bool {
 }
 
 func runStatus(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 0 {
-		fmt.Fprintln(stderr, "usage: aristotle-server status")
+	porcelain := len(args) == 1 && args[0] == "--porcelain"
+	if len(args) != 0 && !porcelain {
+		fmt.Fprintln(stderr, "usage: aristotle-server status [--porcelain]")
 		return 2
 	}
 	m, err := newManager(stdout, stderr)
@@ -141,26 +143,83 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
-	active := m.State("is-active")
-	fmt.Fprintf(stdout, "Service:  %s\n", active)
-	fmt.Fprintf(stdout, "Enabled:  %s\n", m.State("is-enabled"))
+	active, enabled := m.State("is-active"), m.State("is-enabled")
 	var res statusResult
 	err = queryStatus(&res)
-	answering := err == nil
-	switch {
-	case errors.Is(err, control.ErrNotRunning):
-		fmt.Fprintln(stdout, "Server:   not running (no control socket)")
-	case err != nil:
-		fmt.Fprintf(stdout, "Server:   no answer (%v)\n", err)
-	default:
-		fmt.Fprintf(stdout, "Server:   running, version %s\n", sanitize(res.Version))
-		fmt.Fprintln(stdout, "Addresses:")
-		printAddrs(stdout, toPairAddrs(res.Addresses))
+	if porcelain {
+		printPorcelain(stdout, active, enabled, res, err)
+	} else {
+		printStatus(stdout, active, enabled, res, err)
 	}
-	if active != "active" || !answering {
+	if active != "active" || err != nil {
 		return 1
 	}
 	return 0
+}
+
+func printStatus(w io.Writer, active, enabled string, res statusResult, err error) {
+	fmt.Fprintf(w, "Service:  %s\n", active)
+	fmt.Fprintf(w, "Enabled:  %s\n", enabled)
+	switch {
+	case errors.Is(err, control.ErrNotRunning):
+		fmt.Fprintln(w, "Server:   not running (no control socket)")
+	case err != nil:
+		fmt.Fprintf(w, "Server:   no answer (%v)\n", err)
+	default:
+		fmt.Fprintf(w, "Server:   running, version %s\n", sanitize(res.Version))
+		fmt.Fprintln(w, "Addresses:")
+		printAddrs(w, toPairAddrs(res.Addresses))
+		printHermesLine(w, res.Hermes)
+	}
+}
+
+func printHermesLine(w io.Writer, h *hermesStatus) {
+	if h == nil {
+		return
+	}
+	switch h.State {
+	case hermesReachable:
+		fmt.Fprintln(w, "Hermes:   reachable")
+	case hermesNotRunning:
+		fmt.Fprintf(w, "Hermes:   not running (%s)\n", sanitize(h.Reason))
+	default:
+		fmt.Fprintf(w, "Hermes:   error (%s)\n", sanitize(h.Reason))
+	}
+}
+
+// printPorcelain writes the stable one-fact-per-line form the installer parses.
+func printPorcelain(w io.Writer, active, enabled string, res statusResult, err error) {
+	fmt.Fprintf(w, "service %s\n", porcelainWord(active))
+	fmt.Fprintf(w, "enabled %s\n", porcelainWord(enabled))
+	switch {
+	case errors.Is(err, control.ErrNotRunning):
+		fmt.Fprintln(w, "server not-running")
+		return
+	case err != nil:
+		fmt.Fprintln(w, "server no-answer")
+		return
+	}
+	fmt.Fprintln(w, "server running")
+	fmt.Fprintf(w, "version %s\n", porcelainWord(res.Version))
+	if res.Port > 0 {
+		fmt.Fprintf(w, "port %d\n", res.Port)
+	}
+	for _, l := range res.Listeners {
+		switch l.Kind {
+		case string(listen.LAN):
+			fmt.Fprintf(w, "lan %s %s %s\n", porcelainWord(l.Iface), porcelainWord(l.IP), porcelainWord(l.Subnet))
+		case string(listen.Tailscale):
+			fmt.Fprintf(w, "tailscale %s %s\n", porcelainWord(l.Iface), porcelainWord(l.IP))
+		}
+	}
+	if res.Hermes != nil {
+		fmt.Fprintf(w, "hermes %s\n", porcelainWord(res.Hermes.State))
+	}
+}
+
+// porcelainWord keeps a value one token: sanitized, no spaces.
+func porcelainWord(s string) string {
+	return strings.Join(strings.Fields(sanitize(s)), "_")
 }
 
 // queryStatus asks the running server for its status (a seam for tests).
