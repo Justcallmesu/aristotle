@@ -23,7 +23,7 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 | IN3 | Root `install.sh` (Q135, Q138, P21): picks newest `dist/aristotle-x.y.z/` or `--bundle <dir>`, execs its `install.sh` with the other args; tests (G6 reduced to local by Q135) | - | scripts | DONE (IN3b + IN2c; re-review APPROVED-WITH-FINDINGS; mutants sort -V, root guard, no-downgrade KILLED) |
 | IN2b | IN2 review fix round: #1 sudo interactivity decided once + pty test; #2 `-p default` for the gateway; #3 reason + honest partial-state message, no gateway install on `error`; #4 `LC_ALL=C` for ufw/firewalld; #5 IN1 test race; #6 trust porcelain only with `server running`, wait for first LAN scan; #7 test isolation (`has_tool`), real rule-refusal case | IN2 | scripts+server test | DONE (with IN2) |
 | IN2c | Re-review fixes (P26, user chose "fix now", no 3rd review): gateway wait `ARISTOTLE_GATEWAY_TIMEOUT` 120 s + "waiting for Hermes" line; test for the failure reason line; root installer never falls back to an older bundle; `--bundle=`, help and no-bundle text | IN2b | scripts | DONE (PM gate GREEN; mutants gateway budget + no-downgrade KILLED; no 3rd review per P26) |
-| IN4 | Docs: `docs/release/README.md` install section (root installer, gateway, firewall, `--bundle` on other PCs); release 2.2.0 and re-install on `cachyos-asus-1` as the real-PC check | IN1-IN3 | PM+user | TODO |
+| IN4 | Docs: `docs/release/README.md` install section (root installer, gateway, firewall, `--bundle` on other PCs); release 2.2.0 and re-install on `cachyos-asus-1` as the real-PC check | IN1-IN3 | PM+user | DONE except the interactive checks below (2.2.0 built 1e82b75, gate GREEN; root installer run over ssh on cachyos-asus-1: exit 0, Hermes reachable, phone relay back in 1 s; firewall printed commands as designed without a TTY) |
 | RS6 | Bundle NIT: `THIRD_PARTY_NOTICES.txt` mode 600 in the bundle -> 644 | RS4 | scripts | DONE (chmod in release.sh; mutant killed. Root cause: licences.sh writes the notices via mktemp -> 600 in the working tree) |
 
 ## Deferred review findings
@@ -35,7 +35,11 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 | IN2-R11..14 | NITs: validate porcelain values before root commands, `firewall-cmd --state` path, empty porcelain field, duplicated command text/comments | after 2.2.0 | OPEN |
 | IN2-RR5 | Re-review NITs: wrong reason in the warning after a failed interactive sudo; failure text claims "running" without checking; pairing prompt re-tests the tty instead of `INTERACTIVE`; bundle `install.sh` does not refuse root (pre-existing) | after 2.2.0 | OPEN |
 | IN2-RR6 | `ARISTOTLE_SBIN_DIRS` replaces instead of adds the default dirs (test-only override; worst case printed commands) | after 2.2.0 | OPEN |
-| IN3-T1 | Root `install.sh` `require_bundle`: the `-x install.sh` check is written twice (one per BUNDLE_SET branch) with two messages; fold into one check | before IN4 commit of docs | OPEN |
+| IN3-T1 | Root `install.sh` `require_bundle`: the `-x install.sh` check is written twice (one per BUNDLE_SET branch) with two messages; fold into one check | before IN4 commit of docs | DONE (c05d318; PM mutant killed) |
+| IN4-D1 | The Go `install` still prints "To keep it running when you are logged out, run: loginctl enable-linger" even with linger on; the installer now handles linger -> print it only when Linger is off (`server/internal/app/servicecmds.go:74`) | next server ticket | OPEN |
+| IN4-D2 | Installer output: `Hermes: reachable` printed twice (status block + gateway step); the firewall warning (stderr) lands after its first command line (stdout) | after 2.2.0 | OPEN |
+| IN4-U1 | **User check:** in a terminal ON cachyos-asus-1 run `cd ~/aristotle && ./install.sh`: sudo must prompt, ufw rules reported "kept (already there)" | user | OPEN |
+| IN4-U2 | **Not exercised live:** the gateway-install path (the gateway was already running; stopping it would cut live Hermes sessions) and firewalld (no firewalld PC); covered by stub tests only | next fresh PC | OPEN |
 
 ## Log
 - 2026-11-06 User asked for an installer after signing + licences. Q126-Q129 decided (step 1 personal bundle now; public later with stocks,
@@ -64,3 +68,5 @@ Spec: `docs/release/spec.md`. Gates/roles: `PROJECT.md`. Runs: `docs/release/run
 - 2026-11-12 IN2b built (std). PM gate GREEN (805 Go, -race app, scripts x3); mutants M6 sudo non-interactive, M7 -p default dropped, M8 LC_ALL=C dropped KILLED. Deep re-review of IN2 (whole) + IN3 (first review) dispatched; last allowed fix round for IN2.
 
 - 2026-11-12 IN2c built (std). PM gate GREEN (scripts x3); mutants M9 gateway budget, M10 no-downgrade KILLED. IN2 + IN3 committed. Root installer duplicate -x check noted (IN3-T1).
+
+- 2026-11-12 IN4: 2.2.0 released (bundle dist/aristotle-2.2.0, no tag, like 2.1.x). Installed on cachyos-asus-1 via the ROOT installer copied with dist/ to ~/aristotle (non-interactive ssh): exit 0, server 2.2.0, Hermes reachable, porcelain = P22, phone relay reattached. Open: IN4-U1 (interactive sudo by the user), IN4-U2, D1, D2.
