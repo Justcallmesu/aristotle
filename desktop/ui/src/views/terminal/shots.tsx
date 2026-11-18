@@ -21,20 +21,20 @@ function snapshot(o: Partial<SnapshotDto> = {}, server = "running", installed = 
   return {
     status: { kind: "answered", status: { service: server === "running" ? "active" : "inactive", enabled: "enabled", installed, server,
       result: server === "running" ? { version: "1.2.3", addresses: [], port: 8760, listeners: null, hermes: { state: "reachable", reason: null } } : null } },
-    devices, terminals: open, terminal_enabled: true, seq: 1, version: { kind: "match" },
+    devices, terminals: open, terminal_enabled: true, terminal_granted: ["a1b2c3"], seq: 1, version: { kind: "match" },
     assessment: { state: "green", reason: "all-ok" }, app_version: "1.2.3", ...o,
   };
 }
 
 interface Scenario { snap: SnapshotDto; term?: TerminalStatus; steps?: string[]; fail?: boolean; never?: boolean }
-const offSnap = snapshot({ terminal_enabled: false, terminals: [] });
+const offSnap = snapshot({ terminal_enabled: false, terminals: [], terminal_granted: [] });
 const scenarios: Record<string, Scenario> = {
   loading: { snap: snapshot(), never: true },
   "needs-server": { snap: snapshot({}, "not-running") },
   "not-installed": { snap: snapshot({}, "not-running", false) },
   off: { snap: offSnap, term: terminal({ enabled: false, open: [] }) },
   on: { snap: snapshot(), term: terminal() },
-  "on-empty": { snap: snapshot({ terminals: [] }), term: terminal({ granted: [], open: [] }) },
+  "on-empty": { snap: snapshot({ terminals: [], terminal_granted: [] }), term: terminal({ granted: [], open: [] }) },
   warning: { snap: snapshot(), term: terminal({ warning: "terminal.json mode is 0644, expected 0600" }) },
   problem: { snap: offSnap, term: terminal({ enabled: false, granted: [], open: [], problem: "invalid character '}' at line 3" }) },
   mismatch: { snap: snapshot({ version: { kind: "mismatch", server: "1.0.0", desktop: "1.2.3" } }), term: terminal() },

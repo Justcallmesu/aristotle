@@ -1,10 +1,9 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { snapshotOf } from "../../test/fakes";
-import { latestSeen, listenAddress, seenText } from "./facts";
-import { createTranslator } from "../../i18n";
+import { latestSeen, listenAddress } from "../../state/facts";
 import { StatusView } from "./StatusView";
-import { called, gate, renderView, runningWith, stoppedSnapshot, withStatus } from "./testing";
+import { called, gate, renderView, runningWith, stoppedSnapshot, withStatus } from "../../test/views";
 
 const hermes = (state: string | null, reason: string | null = null) =>
   runningWith({ hermes: state ? { state, reason } : null });
@@ -172,14 +171,13 @@ describe("Status: phones and terminal summaries", () => {
     expect(within(row).getByText("—")).toBeInTheDocument();
   });
 
-  it("terminal on: open count from the snapshot, granted from terminal_status, and navigates", async () => {
+  it("terminal on: open and granted counts from the snapshot, no terminal_status read, and navigates", async () => {
     const terminals = [{ id: "t1", device_id: "dev_a", listener: "lan", since: "2026-01-01T00:00:00Z", pid: 1 }];
     const { fake } = renderView(<StatusView />, {
-      snapshot: snapshotOf({ terminals, terminal_enabled: true }),
-      terminal_status: { enabled: true, granted: [{ id: "dev_a", name: "a" }, { id: "dev_b", name: "b" }] },
+      snapshot: snapshotOf({ terminals, terminal_enabled: true, terminal_granted: ["dev_a", "dev_b"] }),
     });
     expect(await screen.findByText("On · 1 open · 2 granted")).toBeInTheDocument();
-    expect(called(fake, "terminal_status")).toHaveLength(1);
+    expect(called(fake, "terminal_status")).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Open Terminal" }));
     expect(window.location.hash).toBe("#/terminal");
   });
@@ -190,9 +188,9 @@ describe("Status: phones and terminal summaries", () => {
     expect(called(fake, "terminal_status")).toHaveLength(0);
   });
 
-  it("terminal on with a failed granted read shows — for granted", async () => {
+  it("terminal on with nothing granted says 0 granted", async () => {
     renderView(<StatusView />, { snapshot: snapshotOf({ terminal_enabled: true }) });
-    expect(await screen.findByText("On · 0 open · — granted")).toBeInTheDocument();
+    expect(await screen.findByText("On · 0 open · 0 granted")).toBeInTheDocument();
   });
 });
 
@@ -229,8 +227,31 @@ describe("Status: Start server", () => {
     const { fake } = renderView(<StatusView />, { snapshot: stoppedSnapshot() });
     gate(fake, "service_action").resolve({ ok: false, service: "failed" });
     await userEvent.click(await screen.findByRole("button", { name: "Start server" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("That did not work");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("That did not work");
+    expect(alert).toHaveTextContent("error: service is failed");
     expect(screen.getByRole("button", { name: "Start server" })).toBeEnabled();
+  });
+
+  it.each(["active", "inactive", "failed", "activating", "deactivating", "reloading", "unknown", "maintenance"])(
+    "service %s (server not running): Start only for inactive and failed (P21)",
+    async (service) => {
+      renderView(<StatusView />, { snapshot: stoppedSnapshot({ service }) });
+      await screen.findByRole("heading", { name: "Server stopped" });
+      const start = screen.queryByRole("button", { name: "Start server" });
+      if (service === "inactive" || service === "failed") expect(start).toBeEnabled();
+      else expect(start).toBeNull();
+    },
+  );
+
+  it("the failure banner is right after the sr-only header, above the state row, with no margin wrapper", async () => {
+    const { fake } = renderView(<StatusView />, { snapshot: stoppedSnapshot() });
+    gate(fake, "service_action").reject({ kind: "server-error", message: "unit is masked", exit_code: 1 });
+    await userEvent.click(await screen.findByRole("button", { name: "Start server" }));
+    const alert = await screen.findByRole("alert");
+    expect(screen.getByRole("heading", { level: 1 }).nextElementSibling).toBe(alert);
+    expect(alert.parentElement?.classList.contains("banner-slot")).toBe(false);
+    expect(alert.parentElement?.classList.contains("kv-failed")).toBe(false);
   });
 
   it("is absent while running, when the service is active but not answering, and with no CLI", async () => {
@@ -250,20 +271,6 @@ describe("Status: Indonesian", () => {
 });
 
 describe("facts helpers", () => {
-  const en = createTranslator("en");
-  const id = createTranslator("id");
-  const now = new Date(2026, 10, 18, 15, 0, 0);
-  const at = (d: Date) => d.toISOString();
-
-  it("seenText follows design.md 4.7", () => {
-    expect(seenText(en, at(new Date(2026, 10, 18, 14, 59, 30)), now)).toBe("just now");
-    expect(seenText(en, at(new Date(2026, 10, 18, 14, 30, 0)), now)).toBe("30 min ago");
-    expect(seenText(en, at(new Date(2026, 10, 18, 8, 5, 0)), now)).toBe("Today 08:05");
-    expect(seenText(en, at(new Date(2026, 10, 17, 22, 0, 0)), now)).toBe("Nov 17 22:00");
-    expect(seenText(id, at(new Date(2026, 4, 3, 7, 9, 0)), now)).toBe("3 Mei 07:09");
-    expect(seenText(en, "garbage", now)).toBe("—");
-  });
-
   it("latestSeen picks the most recent device", () => {
     const d = (id: string, seen: string) => ({ id, name: id, created_at: seen, last_seen_at: seen });
     expect(latestSeen([d("a", "2026-01-01T00:00:00Z"), d("b", "2026-02-01T00:00:00Z")])?.id).toBe("b");

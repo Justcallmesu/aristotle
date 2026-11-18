@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { useRoute } from "../../state/route";
 import { snapshotOf } from "../../test/fakes";
-import { called, renderView, stoppedSnapshot } from "../status/testing";
+import { called, renderView, stoppedSnapshot } from "../../test/views";
 import { appendLines, EMPTY_BUFFER, LOG_CAP } from "./logBuffer";
 import { parseLine } from "./logLine";
 import { LogsView } from "./LogsView";
@@ -131,6 +131,11 @@ describe("Logs: lines", () => {
     expect(screen.getByText(/keeps the last 2,000 lines/)).toBeInTheDocument();
   });
 
+  it("writes the cap with the locale's thousands separator", async () => {
+    renderView(<LogsView />, { snapshot: snapshotOf(), ...REPLIES }, { locale: "id" });
+    expect(await screen.findByText(/menyimpan 2\.000 baris terakhir/)).toBeInTheDocument();
+  });
+
   it("shows only the empty box before any line", async () => {
     await open();
     expect(lines()).toHaveLength(0);
@@ -231,7 +236,7 @@ describe("Logs: stream ended or failed", () => {
 
     await userEvent.click(within(alert).getByRole("button", { name: "Reconnect" }));
     await waitFor(() => expect(called(fake, "logs_start")).toHaveLength(2));
-    expect(called(fake, "logs_stop").length).toBeGreaterThanOrEqual(1);
+    expect(called(fake, "logs_stop"), "Reconnect sends start only (NIT-5)").toHaveLength(0);
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("before the end")).toBeNull();
     act(() => fake.emit("logs-lines", { lines: ["after reconnect"] }));

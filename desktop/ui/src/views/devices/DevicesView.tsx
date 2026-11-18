@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ActionButton, Button } from "../../components/Button";
 import { CommandFailed } from "../../components/CommandFailed";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -6,49 +6,14 @@ import { EmptyState } from "../../components/EmptyState";
 import { NeedsServer } from "../../components/NeedsServer";
 import { Tag } from "../../components/Tag";
 import { ViewHeader } from "../../components/ViewHeader";
-import { useI18n, type Translator } from "../../i18n";
+import { DASH } from "../../format/dash";
+import { dmyText, relativeText } from "../../format/time";
+import { useI18n } from "../../i18n";
 import { useIpc, type Device } from "../../ipc";
 import { useRoute } from "../../state/route";
 import { useActionGuard, useSnapshot } from "../../state/snapshot";
 import { useCommand } from "../../state/useCommand";
 import "./devices.css";
-import { dayMonthYear, parseTime, relativeTime } from "./time";
-
-const MISSING = "—";
-
-function lastSeen(device: Device, tr: Translator): { text: string; title?: string } {
-  const date = parseTime(device.last_seen_at);
-  if (!date) return { text: MISSING };
-  const rel = relativeTime(date, new Date(), tr.locale);
-  const text =
-    rel.kind === "now"
-      ? tr.t("now")
-      : rel.kind === "minutes"
-        ? tr.t("ago_min", { n: rel.n })
-        : rel.kind === "today"
-          ? tr.t("today", { t: rel.time })
-          : rel.text;
-  return { text, title: device.last_seen_at };
-}
-
-/** Ids holding a terminal grant: one read of `terminal status`, again when the device list changes (no polling). */
-function useGrantedIds(devices: Device[] | null): Set<string> | null {
-  const client = useIpc();
-  const [granted, setGranted] = useState<Set<string> | null>(null);
-  const key = devices ? devices.map((d) => d.id).join(",") : null;
-  useEffect(() => {
-    if (key === null) return;
-    let alive = true;
-    client
-      .terminalStatus()
-      .then((status) => alive && setGranted(new Set((status.granted ?? []).map((g) => g.id))))
-      .catch(() => undefined); // keep the last good data; the column shows — where none exists
-    return () => {
-      alive = false;
-    };
-  }, [client, key]);
-  return granted;
-}
 
 export function DevicesView() {
   const { t } = useI18n();
@@ -69,16 +34,15 @@ export function DevicesView() {
       </>
     );
   }
-  return <DeviceList devices={snapshot.devices} />;
+  return <DeviceList devices={snapshot.devices} granted={snapshot.terminal_granted} />;
 }
 
-function DeviceList({ devices }: { devices: Device[] | null }) {
+function DeviceList({ devices, granted }: { devices: Device[] | null; granted: string[] }) {
   const tr = useI18n();
   const { t } = tr;
   const client = useIpc();
   const [, navigate] = useRoute();
   const guard = useActionGuard();
-  const granted = useGrantedIds(devices);
   const [asking, setAsking] = useState<Device | null>(null);
   const revoke = useCommand((id: string) => client.devicesRevoke(id));
   const pairButton = (variant: "tonal" | "primary") => (
@@ -95,10 +59,10 @@ function DeviceList({ devices }: { devices: Device[] | null }) {
 
   return (
     <>
-      {revoke.error ? <CommandFailed error={revoke.error} /> : null}
       <ViewHeader title={t("dev_title")} subtitle={t("dev_sub")} actions={pairButton("tonal")} />
+      {revoke.error ? <CommandFailed error={revoke.error} /> : null}
       {devices === null ? (
-        <p>{MISSING}</p>
+        <p>{DASH}</p>
       ) : devices.length === 0 ? (
         <EmptyState title={t("empty_dev_t")} action={pairButton("primary")}>
           {t("empty_dev_b")}
@@ -117,17 +81,15 @@ function DeviceList({ devices }: { devices: Device[] | null }) {
             </thead>
             <tbody>
               {devices.map((device) => {
-                const seen = lastSeen(device, tr);
-                const paired = parseTime(device.created_at);
                 return (
                   <tr key={device.id}>
                     <td>
                       <span className="dev-name">{device.name}</span>
                       <code className="dev-id">{device.id}</code>
                     </td>
-                    <td className="col-paired">{paired ? dayMonthYear(paired, tr.locale) : MISSING}</td>
-                    <td className="col-seen" title={seen.title}>{seen.text}</td>
-                    <td className="col-term">{granted?.has(device.id) ? <Tag tone="ok">{t("granted")}</Tag> : MISSING}</td>
+                    <td className="col-paired">{dmyText(tr, device.created_at)}</td>
+                    <td className="col-seen" title={device.last_seen_at}>{relativeText(tr, device.last_seen_at)}</td>
+                    <td className="col-term">{granted.includes(device.id) ? <Tag tone="ok">{t("granted")}</Tag> : DASH}</td>
                     <td>
                       <ActionButton
                         variant="outline-danger"
@@ -144,7 +106,7 @@ function DeviceList({ devices }: { devices: Device[] | null }) {
               })}
             </tbody>
           </table>
-          {guard.reasonKey ? <p className="reason-hint">{t(guard.reasonKey)}</p> : null}
+          {guard.reasonKey ? <p className="hint">{t(guard.reasonKey)}</p> : null}
         </>
       )}
       {asking ? (

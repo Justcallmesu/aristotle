@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useIpc, type Device, type OpenTerminal, type TerminalStatus } from "../../ipc";
+import { useIpc, type Device, type GrantedDevice, type OpenTerminal, type TerminalStatus } from "../../ipc";
 import { useSnapshot } from "../../state/snapshot";
 
 /** The fields a view may rely on; the server's own shape is read defensively (§22). */
 export interface TerminalData {
   enabled: boolean;
-  granted: TerminalStatus["granted"];
   open: OpenTerminal[];
   warning: string | null;
   problem: string | null;
@@ -14,7 +13,6 @@ export interface TerminalData {
 function normalise(status: TerminalStatus): TerminalData {
   return {
     enabled: status.enabled === true,
-    granted: status.granted ?? [],
     open: status.open ?? [],
     warning: status.warning || null,
     problem: status.problem || null,
@@ -26,12 +24,16 @@ export interface TerminalState {
   data: TerminalData | null;
   /** `data.open` is replaced by the live snapshot list when the poll has one. */
   open: OpenTerminal[];
+  /** Who holds a grant, from the poll (ids) and the device list (names); null when the poll could not read it. */
+  granted: GrantedDevice[] | null;
   devices: Device[];
   loading: boolean;
   /** Takes the result of a change command (enable, disable, grant, ungrant). */
   apply: (status: TerminalStatus) => void;
   /** Re-reads `terminal status` (Check again). */
   reread: () => Promise<void>;
+  /** The terminals open right now, read fresh (the poll is up to 5 s old); the poll's list if the read fails. */
+  freshOpen: () => Promise<OpenTerminal[]>;
 }
 
 /**
@@ -69,6 +71,14 @@ export function useTerminalData(): TerminalState {
     }
   }, [client]);
 
+  const polledOpen = snapshot?.terminals ?? null;
+  const freshOpen = useCallback(async () => {
+    try {
+      return (await client.terminalStatus()).open ?? [];
+    } catch {
+      return polledOpen ?? [];
+    }
+  }, [client, polledOpen]);
   useEffect(() => {
     if (!world.running) return;
     void reread();
@@ -77,9 +87,17 @@ export function useTerminalData(): TerminalState {
   return {
     data,
     open: snapshot?.terminals ?? data?.open ?? [],
+    granted: grantedFrom(snapshot?.terminal_granted, snapshot?.terminal_enabled ?? null, devices),
     devices,
     loading: world.row === 0 || (world.running && !settled),
     apply,
     reread,
+    freshOpen,
   };
+}
+
+/** Ids from the poll with the names the device list knows; `name` is empty for a device that is gone. */
+function grantedFrom(ids: string[] | undefined, enabled: boolean | null, devices: Device[]): GrantedDevice[] | null {
+  if (!ids || enabled === null) return null;
+  return ids.map((id) => ({ id, name: devices.find((d) => d.id === id)?.name ?? "" }));
 }

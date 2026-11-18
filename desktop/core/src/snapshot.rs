@@ -67,6 +67,8 @@ pub struct Snapshot {
     pub terminals: Option<Vec<OpenTerminal>>,
     /// The terminal switch, from the same `terminal status` call; `None` when that read failed.
     pub terminal_enabled: Option<bool>,
+    /// Ids granted terminal access, from the same `terminal status` call (empty when that read failed).
+    pub terminal_granted: Vec<String>,
     pub version: VersionCheck,
 }
 
@@ -208,7 +210,10 @@ impl Snapshotter {
             status,
             devices,
             terminals: terminal.as_ref().map(|t| t.open.clone()),
-            terminal_enabled: terminal.map(|t| t.enabled),
+            terminal_enabled: terminal.as_ref().map(|t| t.enabled),
+            terminal_granted: terminal
+                .map(|t| t.granted.into_iter().map(|g| g.id).collect())
+                .unwrap_or_default(),
             version: combine_checks(&self.version, &status_check),
         }
     }

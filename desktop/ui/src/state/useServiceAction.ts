@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import { useIpc, type ServiceAction } from "../../ipc";
-import { useSnapshot } from "../../state/snapshot";
-import { useCommand } from "../../state/useCommand";
+import { useIpc, type ServiceAction } from "../ipc";
+import { useSnapshot } from "./snapshot";
+import { useCommand } from "./useCommand";
 
 /**
  * Start / Stop / Restart as one command for a view (design.md 4.2). `busy` covers the run and then

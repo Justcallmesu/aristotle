@@ -25,7 +25,10 @@ interface Setup {
   replies?: Record<string, unknown>;
 }
 
+/** The poll lists the same grants as the server's `terminal status`, unless the test sets its own. */
 async function setup({ snapshot = snapshotOf({ devices: [pixel, tab] }), terminal = status(), replies = {} }: Setup = {}) {
+  const ids = terminal.granted.map((g) => g.id);
+  snapshot = { ...snapshot, terminal_granted: snapshot.terminal_granted.length > 0 ? snapshot.terminal_granted : ids };
   const fake = fakeTransport({ snapshot, start_intent: { kind: "status" }, terminal_status: terminal, ...replies });
   renderWithApp(<TerminalView />, { client: createClient(fake.transport) });
   await screen.findByRole("heading", { name: "Remote terminal", level: 1 });
@@ -38,8 +41,8 @@ const terminalCommands = (fake: { calls: { command: string }[] }) =>
 
 describe("Terminal view states", () => {
   it("loading: says so until the first poll", async () => {
-    const never = { ...fakeTransport({}).transport, invoke: () => new Promise<never>(() => undefined) };
-    renderWithApp(<TerminalView />, { client: createClient(never) });
+    const fake = fakeTransport({ snapshot: () => new Promise(() => undefined) });
+    renderWithApp(<TerminalView />, { client: createClient(fake.transport) });
     expect(await screen.findByRole("status")).toHaveTextContent("Checking the server…");
   });
 
@@ -172,13 +175,9 @@ describe("Terminal view states", () => {
 
   it("command failed: alert with the server's text; the dialog was confirmed once", async () => {
     const fake = await setup({ terminal: status({ enabled: false }) });
-    fake.transport.invoke = async (command, args) => {
-      fake.calls.push({ command, args });
-      if (command === "terminal_enable") throw { kind: "cli-error", message: "disk full", exit_code: 1 };
-      if (command === "snapshot") return snapshotOf({ devices: [pixel] });
-      if (command === "terminal_status") return status({ enabled: false });
-      return { kind: "status" };
-    };
+    fake.setReply("terminal_enable", () => {
+      throw { kind: "cli-error", message: "disk full", exit_code: 1 };
+    });
     await userEvent.click(await screen.findByRole("button", { name: "Turn on…" }));
     await userEvent.click(screen.getByRole("button", { name: "Turn on remote terminal" }));
     const alert = await screen.findByRole("alert");
@@ -221,17 +220,8 @@ describe("Terminal view: D7 enable dialog", () => {
   });
 
   it("the switch off→on opens the same dialog; confirm runs terminal_enable and shows the result", async () => {
-    const fake = await setup({
-      terminal: status({ enabled: false }),
-      replies: {},
-    });
-    fake.transport.invoke = async (command, args) => {
-      fake.calls.push({ command, args });
-      if (command === "terminal_enable") return status({ enabled: true, warning: "heads up" });
-      if (command === "snapshot") return snapshotOf({ devices: [pixel], terminal_enabled: false });
-      if (command === "terminal_status") return status({ enabled: false });
-      return { kind: "status" };
-    };
+    const fake = await setup({ terminal: status({ enabled: false }) });
+    fake.setReply("terminal_enable", status({ enabled: true, warning: "heads up" }));
     await userEvent.click(await screen.findByRole("switch", { name: "Off" }));
     expect(screen.getByRole("alertdialog", { name: "Turn on the remote terminal?" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Turn on remote terminal" }));
@@ -296,6 +286,26 @@ describe("Terminal view: turn off and remove grant", () => {
     expect(sent(fake, "terminal_disable")).toHaveLength(1);
   });
 
+  it("a terminal opened since the last poll still gets the D19-8 dialog (fresh read)", async () => {
+    const fake = await setup({ snapshot: snapshotOf({ devices: [pixel], terminals: [] }), terminal: status() });
+    await screen.findByRole("switch", { name: "On" });
+    fake.setReply("terminal_status", status({ open }));
+    await userEvent.click(screen.getByRole("switch", { name: "On" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Turn off the remote terminal?" });
+    expect(within(dialog).getByText("Open terminals: 1. Turning off closes them and ends their processes.")).toBeInTheDocument();
+    expect(sent(fake, "terminal_disable")).toHaveLength(0);
+  });
+
+  it("when the fresh read fails it falls back to the polled list", async () => {
+    const fake = await setup({ snapshot, terminal: status({ open }) });
+    await screen.findByRole("switch", { name: "On" });
+    fake.setReply("terminal_status", () => {
+      throw { kind: "timeout", message: null, exit_code: null };
+    });
+    await userEvent.click(screen.getByRole("switch", { name: "On" }));
+    expect(await screen.findByRole("alertdialog", { name: "Turn off the remote terminal?" })).toBeInTheDocument();
+  });
+
   it("with none open it runs at once, no dialog", async () => {
     const fake = await setup({ terminal: status(), replies: { terminal_disable: status({ enabled: false }) } });
     await userEvent.click(await screen.findByRole("switch", { name: "On" }));
@@ -305,14 +315,48 @@ describe("Terminal view: turn off and remove grant", () => {
   });
 
   it("Remove grant runs directly with the id", async () => {
-    const fake = await setup({
-      terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }),
-      replies: { terminal_ungrant: status({ granted: [] }) },
+    const fake = await setup({ terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }) });
+    // The backend publishes a fresh poll before it replies to a change.
+    fake.setReply("terminal_ungrant", () => {
+      fake.emit("snapshot", snapshotOf({ devices: [pixel, tab], terminal_granted: [], seq: 2 }));
+      return status({ granted: [] });
     });
     await userEvent.click(await screen.findByRole("button", { name: "Remove grant" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(await screen.findByText("No phone holds a grant. Grant one below.")).toBeInTheDocument();
     expect(sent(fake, "terminal_ungrant")[0].args).toEqual({ id: "dev-1" });
+  });
+});
+
+describe("Terminal view: grants and banners", () => {
+  it("lists the grants from the poll, not from the terminal status read", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: [pixel, tab], terminal_granted: ["dev-2"] }),
+      terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }),
+    });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("tablet")).toBeInTheDocument();
+    expect(within(grants).queryByText("pixel", { selector: "strong" })).toBeNull();
+  });
+
+  it("shows — for the grants when the poll could not read the terminal", async () => {
+    await setup({ snapshot: snapshotOf({ devices: [pixel], terminal_enabled: null, terminal_granted: [] }) });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("—")).toBeInTheDocument();
+  });
+
+  it("the failure banner comes right after the header, before the state row, with no margin wrapper", async () => {
+    const fake = await setup({ terminal: status({ enabled: false }) });
+    fake.setReply("terminal_enable", () => {
+      throw { kind: "cli-error", message: "disk full", exit_code: 1 };
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Turn on…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Turn on remote terminal" }));
+    const alert = await screen.findByRole("alert");
+    const header = document.querySelector(".view-header") as HTMLElement;
+    expect(header.nextElementSibling).toBe(alert);
+    expect(alert).toHaveClass("banner");
+    expect(alert.parentElement?.classList.contains("banner-slot")).toBe(false);
   });
 });
 

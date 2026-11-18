@@ -51,7 +51,10 @@ impl Poller {
         if let (true, Some(prev)) = (snapshot.server_running(), &self.last_good) {
             base.devices = base.devices.or_else(|| prev.devices.clone());
             base.terminals = base.terminals.or_else(|| prev.terminals.clone());
-            base.terminal_enabled = base.terminal_enabled.or(prev.terminal_enabled);
+            if base.terminal_enabled.is_none() {
+                base.terminal_enabled = prev.terminal_enabled;
+                base.terminal_granted = prev.terminal_granted.clone();
+            }
         }
         base
     }

@@ -219,3 +219,26 @@ fn every_reason_has_a_tooltip() {
         "Server running · Hermes reachable"
     );
 }
+
+#[test]
+fn the_d7_notice_uses_the_design_text_and_no_name() {
+    for notice in [
+        Notice::TerminalTurnedOn,
+        Notice::TerminalGranted {
+            device_name: Some("pixel".into()),
+        },
+    ] {
+        let (t, b) = notice_text(Lang::En, &notice);
+        assert_eq!(t, "Remote terminal turned on");
+        assert_eq!(
+            b,
+            "Granted phones can open a shell with full access to your account."
+        );
+        let (t, b) = notice_text(Lang::Id, &notice);
+        assert_eq!(t, "Terminal jarak jauh diaktifkan");
+        assert_eq!(
+            b,
+            "Ponsel yang diberi izin bisa membuka shell dengan akses penuh ke akunmu."
+        );
+    }
+}

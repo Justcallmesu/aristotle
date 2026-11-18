@@ -1,7 +1,4 @@
 import { useId, type ReactNode } from "react";
-import { CommandFailed } from "../../components/CommandFailed";
-import type { IpcError } from "../../ipc";
-import "./rows.css";
 
 /** design.md 3.5 grouped rows: an optional header and rows 2 px apart. */
 export function KvGroup({ title, listen = false, children }: { title?: string; listen?: boolean; children: ReactNode }) {
@@ -41,14 +38,5 @@ export function StateRow({ title, sub, light, action, busy = false }: { title: R
       </div>
       {action ? <div className="kv-state-action">{action}</div> : null}
     </section>
-  );
-}
-
-/** The shared failure banner sits inside the view's padding here, so it drops its own outer margin. */
-export function FailedBanner({ error }: { error: IpcError }) {
-  return (
-    <div className="kv-failed">
-      <CommandFailed error={error} />
-    </div>
   );
 }

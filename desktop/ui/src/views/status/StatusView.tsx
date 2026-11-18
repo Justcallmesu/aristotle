@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
 import { ActionButton, Button } from "../../components/Button";
 import { CodeBlock } from "../../components/CodeBlock";
+import { CommandFailed } from "../../components/CommandFailed";
 import { CopyButton } from "../../components/CopyButton";
 import { Progress } from "../../components/Progress";
 import { StateLight } from "../../components/StateLight";
+import { KvGroup, KvRow, StateRow } from "../../components/Rows";
 import { Tag } from "../../components/Tag";
 import { ViewHeader } from "../../components/ViewHeader";
+import { DASH } from "../../format/dash";
+import { relativeText } from "../../format/time";
 import { useI18n, type Translator } from "../../i18n";
-import { useIpc, type Address, type Listener, type SnapshotDto, type Status } from "../../ipc";
+import { type Address, type Listener, type SnapshotDto, type Status } from "../../ipc";
+import { enabledWord, latestSeen, listenAddress, serviceWord, statusOf } from "../../state/facts";
 import { navigate } from "../../state/route";
+import { canStart } from "../../state/serviceButtons";
 import { useSnapshot } from "../../state/snapshot";
+import { useServiceAction } from "../../state/useServiceAction";
 import type { World } from "../../state/world";
-import { DASH, enabledWord, latestSeen, listenAddress, seenText, serviceWord, statusOf } from "./facts";
-import { FailedBanner, KvGroup, KvRow, StateRow } from "./Rows";
-import { useServiceAction } from "./useServiceAction";
 import "./status.css";
 
 export function StatusView() {
@@ -21,19 +24,19 @@ export function StatusView() {
   const { snapshot, world } = useSnapshot();
   const status = statusOf(snapshot);
   const start = useServiceAction();
-  const canStart = status !== null && world.installed && !world.mismatch && status.service !== "active";
+  const startable = canStart(status, world);
 
   return (
     <>
       <ViewHeader title={t("nav_status")} srOnly />
-      {start.error ? <FailedBanner error={start.error} /> : null}
+      {start.error ? <CommandFailed error={start.error} /> : null}
       <StateRow
         busy={world.row === 0}
         light={world.light ? <StateLight light={world.light} /> : null}
         title={t(world.titleKey)}
         sub={world.subKey ? t(world.subKey) : undefined}
         action={
-          canStart ? (
+          startable ? (
             <ActionButton variant="primary" disabled={start.busy} onClick={() => void start.run("start")}>
               {t("b_start")}
             </ActionButton>
@@ -61,7 +64,7 @@ function Working({ label }: { label: string }) {
   return (
     <div className="status-working">
       <Progress label={label} />
-      <p className="status-working-hint">{label}</p>
+      <p className="hint">{label}</p>
     </div>
   );
 }
@@ -152,31 +155,13 @@ function ListenerRow({ listener, port, addresses }: { listener: Listener; port: 
   );
 }
 
-/** Granted phones are not in the snapshot: read `terminal_status` when the switch is on or the open count changes. */
-function useGrantedCount(enabled: boolean, openCount: number | null): number | null {
-  const client = useIpc();
-  const [granted, setGranted] = useState<number | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    client
-      .terminalStatus()
-      .then((s) => alive && Array.isArray(s.granted) && setGranted(s.granted.length))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [client, enabled, openCount]);
-  return granted;
-}
-
 function PhonesGroup({ snapshot }: { snapshot: SnapshotDto | null }) {
   const tr = useI18n();
   const { t } = tr;
   const devices = snapshot?.devices ?? null;
   const enabled = snapshot?.terminal_enabled ?? null;
   const open = snapshot?.terminals?.length ?? null;
-  const granted = useGrantedCount(enabled === true, open);
+  const granted = snapshot?.terminal_granted.length ?? null;
   const latest = devices ? latestSeen(devices) : null;
   return (
     <KvGroup title={t("g_phones")}>
@@ -188,7 +173,7 @@ function PhonesGroup({ snapshot }: { snapshot: SnapshotDto | null }) {
           </Button>
         }
       >
-        {devices === null ? DASH : latest ? t("paired_summary", { n: devices.length, t: seenText(tr, latest.last_seen_at) }) : t("none_paired")}
+        {devices === null ? DASH : latest ? t("paired_summary", { n: devices.length, t: relativeText(tr, latest.last_seen_at) }) : t("none_paired")}
       </KvRow>
       <KvRow
         label={t("k_terminal")}

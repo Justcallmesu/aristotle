@@ -1,4 +1,3 @@
 .svc-buttons { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .svc-working { max-width: 420px; }
-.svc-hint { margin-top: 10px; font-size: 12px; line-height: 16px; color: var(--on-surface-v); }
 .svc-working .progress { margin-top: 14px; }

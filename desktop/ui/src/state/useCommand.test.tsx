@@ -42,6 +42,14 @@ describe("useCommand", () => {
     expect(result.current.error).toEqual({ kind: "not-ok", message: null, exit_code: null });
   });
 
+  it("names the service word of a { ok: false, service } reply", async () => {
+    const { result } = renderHook(() => useCommand(async () => ({ ok: false, service: "failed" })));
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.error).toEqual({ kind: "not-ok", message: "service is failed", exit_code: null });
+  });
+
   it.each([[{ ok: true }], [5], [null], ["s"], [undefined]])("treats resolved %j as succeeded", async (value) => {
     const { result } = renderHook(() => useCommand(async () => value));
     await act(async () => {

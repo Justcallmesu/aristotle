@@ -1,0 +1,27 @@
+=== D1 switch off->on not notified
+test a_removed_grant_is_silent_and_enable_plus_grant_gives_two_notices ... FAILED
+test terminal_switched_on_notifies_once ... FAILED
+test result: FAILED. 26 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== D2 every granted id notified (known set ignored)
+test new_grant_notifies_by_device_name ... FAILED
+test result: FAILED. 27 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== D3 failed read not silent (None treated as off)
+test a_failed_terminal_read_is_not_a_transition ... FAILED
+test result: FAILED. 27 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== U1 Start allowed while activating
+AssertionError: expected <button type="button" …(1)></button> to be null
+AssertionError: expected true to be false // Object.is equality
+AssertionError: expected { start: true, stop: false, …(2) } to deeply equal { start: false, stop: false, …(2) }
+AssertionError: expected { start: 'on', stop: 'off', …(1) } to deeply equal { start: 'off', stop: 'off', …(1) }
+TestingLibraryElementError: Unable to find an element with the text: Nyalakan, Hentikan dan Mulai ulang mati selama layanan activating.. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+AssertionError: expected { start: 'on', stop: 'off', …(1) } to deeply equal { start: 'off', stop: 'off', …(1) }
+AssertionError: expected { start: true, stop: false, …(2) } to match object { start: false, stop: false, …(1) }
+AssertionError: expected <button type="button" …(1)></button> to be null
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0

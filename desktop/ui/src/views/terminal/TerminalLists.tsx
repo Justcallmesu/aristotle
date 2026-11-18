@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { ActionButton } from "../../components/Button";
 import { useI18n } from "../../i18n";
-import type { Device, OpenTerminal } from "../../ipc";
-import type { TerminalData } from "./useTerminal";
-import { clock, minutesSince } from "./format";
+import { DASH } from "../../format/dash";
+import { clockText, minutesSince } from "../../format/time";
+import type { Device, GrantedDevice, OpenTerminal } from "../../ipc";
 
 interface GrantsProps {
-  data: TerminalData | null;
+  /** Null when the poll could not read the list. */
+  granted: GrantedDevice[] | null;
   devices: Device[];
   busy: boolean;
   onRemove: (id: string) => void;
@@ -14,30 +15,31 @@ interface GrantsProps {
 }
 
 /** Left column: who holds a grant, and the add row. Shown whether the switch is on or off. */
-export function GrantsGroup({ data, devices, busy, onRemove, onGrant }: GrantsProps) {
+export function GrantsGroup({ granted: list, devices, busy, onRemove, onGrant }: GrantsProps) {
   const { t } = useI18n();
   const [chosen, setChosen] = useState("");
-  const granted = data?.granted ?? [];
+  const granted = list ?? [];
   const free = devices.filter((d) => !granted.some((g) => g.id === d.id));
   const selected = free.find((d) => d.id === chosen) ?? free[0];
 
   return (
-    <section className="tm-group" aria-labelledby="tm-grants">
+    <section className="kv-group" aria-labelledby="tm-grants">
       <h3 id="tm-grants" className="group-title">
         {t("t_grants")}
       </h3>
-      {data === null ? (
-        <div className="tm-row">—</div>
+      <div className="kv-rows">
+      {list === null ? (
+        <div className="kv-row">{DASH}</div>
       ) : granted.length === 0 ? (
-        <div className="tm-row">{t("t_grants_empty")}</div>
+        <div className="kv-row">{t("t_grants_empty")}</div>
       ) : (
         granted.map((g) => {
           const name = g.name || devices.find((d) => d.id === g.id)?.name || "";
           return (
-            <div className="tm-row" key={g.id}>
-              <div className="tm-row-text">
+            <div className="kv-row" key={g.id}>
+              <div className="kv-val">
                 <strong>{name || t("t_gone")}</strong>
-                <span className="tm-sub">{g.id}</span>
+                <div className="kv-sub">{g.id}</div>
               </div>
               <ActionButton variant="text-danger" small disabled={busy} onClick={() => onRemove(g.id)}>
                 {t("t_remove")}
@@ -46,11 +48,11 @@ export function GrantsGroup({ data, devices, busy, onRemove, onGrant }: GrantsPr
           );
         })
       )}
-      {data !== null && devices.length > 0 ? (
+      {list !== null && devices.length > 0 ? (
         free.length === 0 ? (
-          <div className="tm-row">{t("t_grant_all")}</div>
+          <div className="kv-row">{t("t_grant_all")}</div>
         ) : (
-          <div className="tm-row tm-add">
+          <div className="kv-row tm-add">
             <label htmlFor="tm-grant-to">{t("t_grant_to")}</label>
             <select
               id="tm-grant-to"
@@ -76,6 +78,7 @@ export function GrantsGroup({ data, devices, busy, onRemove, onGrant }: GrantsPr
           </div>
         )
       ) : null}
+      </div>
     </section>
   );
 }
@@ -90,32 +93,34 @@ interface OpenProps {
 export function OpenGroup({ open, devices, now }: OpenProps) {
   const { t, word } = useI18n();
   return (
-    <section className="tm-group" aria-labelledby="tm-open">
+    <section className="kv-group" aria-labelledby="tm-open">
       <h3 id="tm-open" className="group-title">
         {t("t_open")}
       </h3>
+      <div className="kv-rows">
       {open.length === 0 ? (
-        <div className="tm-row">{t("t_open_empty")}</div>
+        <div className="kv-row">{t("t_open_empty")}</div>
       ) : (
         open.map((o) => {
           const minutes = minutesSince(o.since, now);
           const parts = [
             word("kind_", o.listener),
-            clock(o.since),
-            minutes === null ? "—" : t("dur_min", { n: minutes }),
+            clockText(o.since),
+            minutes === null ? DASH : t("dur_min", { n: minutes }),
             `${t("c_pid")} ${o.pid}`,
           ];
           return (
-            <div className="tm-row" key={o.id}>
-              <div className="tm-row-text">
+            <div className="kv-row" key={o.id}>
+              <div className="kv-val">
                 <strong>{devices.find((d) => d.id === o.device_id)?.name || o.device_id}</strong>
-                <span className="tm-sub">{parts.join(" · ")}</span>
+                <div className="kv-sub">{parts.join(" · ")}</div>
               </div>
-              <span className="tm-end">{o.id}</span>
+              <span className="kv-sub kv-end">{o.id}</span>
             </div>
           );
         })
       )}
+      </div>
     </section>
   );
 }

@@ -43,6 +43,7 @@ const SCENES: Record<string, Scene> = {
   "status-not-installed": { view: "status", snapshot: stopped({ installed: false }) },
   "status-no-cli": { view: "status", snapshot: snapshot({}, { status: { kind: "cli-missing" } }) },
   "status-mismatch": { view: "status", snapshot: mismatch() },
+  "status-activating": { view: "status", snapshot: stopped({ service: "activating" }) },
   "status-start-working": { view: "status", snapshot: stopped(), click: "Start server", action: "hang" },
   "status-start-failed": { view: "status", snapshot: stopped(), click: "Start server", action: "fail" },
   "service-running": { view: "service", snapshot: running },

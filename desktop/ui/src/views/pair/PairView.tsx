@@ -1,23 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActionButton } from "../../components/Button";
-import { CodeBlock } from "../../components/CodeBlock";
 import { CommandFailed } from "../../components/CommandFailed";
-import { CopyButton } from "../../components/CopyButton";
 import { NeedsServer } from "../../components/NeedsServer";
-import { Progress } from "../../components/Progress";
 import { ViewHeader } from "../../components/ViewHeader";
 import { useI18n } from "../../i18n";
 import { useIpc, type Pair, type PairAddress } from "../../ipc";
 import { useStartIntent } from "../../state/intent";
 import { useActionGuard, useSnapshot } from "../../state/snapshot";
 import { useCommand } from "../../state/useCommand";
-import { clock } from "../devices/time";
-import { QrTile } from "./QrTile";
-import { modulesOf } from "./qr";
-import { mmss, useCountdown } from "./useCountdown";
+import { CodePanel, ExpiredPanel, NoListenerPanel } from "./PairPanels";
 import "./pair.css";
-
-const LIFETIME_SECONDS = 300;
 
 /**
  * What the view holds (P11): the code, payload and fingerprint live in this component's state only,
@@ -34,7 +26,8 @@ function expiryOf(pair: Pair): number {
 }
 
 function shownFor(pair: Pair): Shown {
-  if (pair.qr_error || !pair.qr_payload) return { kind: "none", error: pair.qr_error ?? null };
+  // A QR that could not be drawn does not hide a valid code: only a missing payload means no listener.
+  if (!pair.qr_payload) return { kind: "none", error: pair.qr_error ?? null };
   return { kind: "code", pair, expiresAt: expiryOf(pair) };
 }
 
@@ -105,13 +98,13 @@ function PairFlow() {
   const label = busy ? t("pair_busy") : null;
   const failed = issue.error ? <CommandFailed error={issue.error} /> : null;
   const disabled = busy || nameInvalid;
-  const hint = guard.reasonKey ? <p className="reason-hint">{t(guard.reasonKey)}</p> : null;
+  const hint = guard.reasonKey ? <p className="hint">{t(guard.reasonKey)}</p> : null;
 
   if (shown === null) {
     return (
       <>
-        {failed}
         <ViewHeader title={t("pair_title")} subtitle={t("pair_sub")} />
+        {failed}
         <form
           className="pair-form"
           onSubmit={(e) => {
@@ -152,120 +145,16 @@ function PairFlow() {
 
   return (
     <>
-      {failed}
       <ViewHeader title={t("pair_title")} />
+      {failed}
       {shown.kind === "code" ? (
         <CodePanel pair={shown.pair} expiresAt={shown.expiresAt} onExpire={expire} action={again("outline", t("pair_new"))} />
       ) : shown.kind === "expired" ? (
-        <div className="pair-code-layout">
-          <div className="pair-left">
-            <div className="qr-dead">
-              <strong>{t("pair_expired")}</strong>
-              <span>{t("pair_expired_b", { t: clock(new Date(shown.expiresAt)) })}</span>
-            </div>
-          </div>
-          <div className="pair-right">
-            <Addresses addresses={shown.addresses} />
-            {again("primary", t("pair_new"))}
-          </div>
-        </div>
+        <ExpiredPanel addresses={shown.addresses} expiresAt={shown.expiresAt} action={again("primary", t("pair_new"))} />
       ) : (
-        <div className="pair-code-layout">
-          <div className="pair-left">
-            <div className="qr-dead">
-              <strong>{t("pair_none_t")}</strong>
-            </div>
-          </div>
-          <div className="pair-right">
-            <p className="pair-section">{t("pair_none_b")}</p>
-            {shown.error ? (
-              <div className="pair-section">
-                <h2 className="pair-label">{t("details")}</h2>
-                <CodeBlock>{`qr_error: ${shown.error}`}</CodeBlock>
-              </div>
-            ) : null}
-            {again("primary", t("pair_try"))}
-          </div>
-        </div>
+        <NoListenerPanel error={shown.error} action={again("primary", t("pair_try"))} />
       )}
       {hint}
     </>
-  );
-}
-
-function CodePanel({
-  pair,
-  expiresAt,
-  onExpire,
-  action,
-}: {
-  pair: Pair;
-  expiresAt: number;
-  onExpire: () => void;
-  action: React.ReactNode;
-}) {
-  const { t } = useI18n();
-  const seconds = useCountdown(expiresAt);
-  useEffect(() => {
-    if (seconds === 0) onExpire();
-  }, [seconds, onExpire]);
-  const rows = modulesOf(pair);
-  const minutes = Math.ceil(seconds / 60);
-  const fingerprint = pair.fingerprint.replace(/\s+/g, "").match(/.{1,4}/g) ?? [];
-
-  return (
-    <div className="pair-code-layout">
-      <div className="pair-left">
-        {rows ? <QrTile rows={rows} /> : null}
-        <p className="countdown">{t("pair_expires", { t: mmss(seconds) })}</p>
-        <Progress label={t("pair_expires", { t: mmss(seconds) })} value={Math.min(seconds, LIFETIME_SECONDS)} max={LIFETIME_SECONDS} />
-        <span className="sr-only" aria-live="polite">
-          {t("pair_expires", { t: t("dur_min", { n: minutes }) })}
-        </span>
-      </div>
-      <div className="pair-right">
-        <div className="pair-section">
-          <h2 className="pair-label">{t("pair_code")}</h2>
-          <div className="code-row">
-            <span className="pair-code" data-sensitive="">
-              {pair.code.slice(0, 4)} {pair.code.slice(4)}
-            </span>
-            <CopyButton text={pair.code} />
-          </div>
-          <p className="pair-hint">{t("pair_scan")}</p>
-        </div>
-        <div className="pair-section">
-          <h2 className="pair-label">{t("pair_fp")}</h2>
-          <div className="fp-card" data-sensitive="">
-            {fingerprint.map((group, i) => (
-              <span key={i}>{group}</span>
-            ))}
-          </div>
-          <p className="pair-hint">{t("pair_fp_hint")}</p>
-        </div>
-        <Addresses addresses={pair.addresses} />
-        {action}
-      </div>
-    </div>
-  );
-}
-
-function Addresses({ addresses }: { addresses: PairAddress[] }) {
-  const { t, word } = useI18n();
-  return (
-    <div className="pair-section">
-      <h2 className="pair-label">{t("pair_addr")}</h2>
-      <ul className="addr-list">
-        {addresses.map((a) => (
-          <li key={a.url} className="addr-row">
-            <span className="addr-url">{a.url}</span>
-            <span className="addr-meta">
-              {word("kind_", a.kind)} · {a.iface}
-              {a.default_route ? ` · ${t("default_route")}` : ""}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

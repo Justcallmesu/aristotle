@@ -1,11 +1,11 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { snapshotOf } from "../../test/fakes";
-import { called, gate, renderView, stoppedSnapshot, withStatus } from "../status/testing";
-import { serviceButtons } from "./serviceButtons";
+import { called, gate, renderView, stoppedSnapshot, withStatus } from "../../test/views";
+import { serviceButtons } from "../../state/serviceButtons";
 import { ServiceView } from "./ServiceView";
 import { deriveWorld } from "../../state/world";
-import { statusOf } from "../status/facts";
+import { statusOf } from "../../state/facts";
 
 const btn = (name: string) => screen.getByRole("button", { name });
 const states = () => ({
@@ -36,14 +36,34 @@ describe("Service: which buttons are on (design.md 4.4)", () => {
     expect(screen.getByText("Stop and Restart are off: the server isn’t running.")).toBeInTheDocument();
   });
 
-  it.each(["activating", "deactivating", "unknown"])("service %s: all off (the tray's rule)", async (service) => {
-    await open(stoppedSnapshot({ service }));
-    expect(states()).toEqual({ start: "off", stop: "off", restart: "off" });
+  it.each(["activating", "deactivating", "reloading", "unknown", "maintenance"])(
+    "service %s: all off, with the written reason naming the word (the tray's rule, dis_other)",
+    async (service) => {
+      await open(stoppedSnapshot({ service }));
+      expect(states()).toEqual({ start: "off", stop: "off", restart: "off" });
+      expect(screen.getByText(`Start, Stop and Restart are off while the service is ${service}.`)).toBeInTheDocument();
+    },
+  );
+
+  it("dis_other in Indonesian", async () => {
+    renderView(<ServiceView />, { snapshot: stoppedSnapshot({ service: "activating" }) }, { locale: "id" });
+    expect(await screen.findByText("Nyalakan, Hentikan dan Mulai ulang mati selama layanan activating.")).toBeInTheDocument();
   });
 
-  it("running but service unknown (started by hand): all off", async () => {
+  it("the failure banner is right after the header with no margin wrapper", async () => {
+    const { fake } = await open(snapshotOf());
+    gate(fake, "service_action").reject({ kind: "refused", message: "refused: inside a remote terminal", exit_code: 1 });
+    await userEvent.click(btn("Stop server"));
+    await userEvent.click(document.querySelector(".dialog .btn-danger") as HTMLElement);
+    const alert = await screen.findByRole("alert");
+    expect((document.querySelector(".view-header") as HTMLElement).nextElementSibling).toBe(alert);
+    expect(alert.parentElement?.classList.contains("banner-slot")).toBe(false);
+  });
+
+  it("running but service unknown (started by hand): all off, dis_other with the word", async () => {
     await open(withStatus({ service: "unknown" }));
     expect(states()).toEqual({ start: "off", stop: "off", restart: "off" });
+    expect(screen.getByText("Start, Stop and Restart are off while the service is unknown.")).toBeInTheDocument();
   });
 
   it("server not answering with the service active: Stop and Restart stay on (recovery)", async () => {

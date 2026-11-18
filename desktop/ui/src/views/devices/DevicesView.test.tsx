@@ -21,14 +21,13 @@ const TAB: Device = {
 };
 
 function snap(devices: Device[] | null, patch: Partial<SnapshotDto> = {}) {
-  return snapshotOf({ devices, ...patch });
+  return snapshotOf({ devices, terminal_granted: ["d-aa11"], ...patch });
 }
 
 function setup(snapshot: SnapshotDto, replies: Record<string, unknown> = {}, locale: "en" | "id" = "en") {
   const fake = fakeTransport({
     snapshot,
     start_intent: { kind: "status" },
-    terminal_status: { enabled: true, granted: [{ id: "d-aa11", name: "pixel" }], open: [] },
     devices_revoke: PIXEL,
     ...replies,
   });
@@ -55,11 +54,19 @@ describe("Devices: list", () => {
     expect(pixel.getByText("Oct 3, 2026")).toBeInTheDocument();
     const seen = pixel.getByText("30 min ago");
     expect(seen).toHaveAttribute("title", PIXEL.last_seen_at);
-    await waitFor(() => expect(pixel.getByText("Granted")).toBeInTheDocument());
+    expect(pixel.getByText("Granted")).toBeInTheDocument();
     const tablet = within(rows[2]);
     expect(tablet.getByText("Nov 17 23:50")).toHaveAttribute("title", TAB.last_seen_at);
     expect(tablet.queryByText("Granted")).not.toBeInTheDocument();
     expect(tablet.getByText("—", { selector: "td" })).toBeInTheDocument();
+  });
+
+  it("reads the grants from the snapshot and never calls terminal_status", async () => {
+    const fake = setup(snap([PIXEL, TAB], { terminal_granted: ["d-bb22"] }));
+    const rows = await screen.findAllByRole("row");
+    expect(within(rows[1]).queryByText("Granted")).not.toBeInTheDocument();
+    expect(within(rows[2]).getByText("Granted")).toBeInTheDocument();
+    expect(fake.calls.filter((c) => c.command === "terminal_status")).toHaveLength(0);
   });
 
   it("keeps the CLI order", async () => {
@@ -76,8 +83,8 @@ describe("Devices: list", () => {
     expect(screen.getByText("3 Okt 2026")).toBeInTheDocument();
   });
 
-  it("shows — for an unreadable last-seen and keeps — in the grant column when terminal status fails", async () => {
-    setup(snap([{ ...PIXEL, last_seen_at: "" }]), { terminal_status: undefined });
+  it("shows — for an unreadable last-seen and in the grant column when the poll has no grants", async () => {
+    setup(snap([{ ...PIXEL, last_seen_at: "" }], { terminal_enabled: null, terminal_granted: [] }));
     const row = (await screen.findAllByRole("row"))[1];
     await act(async () => undefined);
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
@@ -110,8 +117,7 @@ describe("Devices: states", () => {
   });
 
   it("loading before the first poll", () => {
-    const fake = fakeTransport({});
-    fake.transport.invoke = () => new Promise(() => undefined);
+    const fake = fakeTransport({ snapshot: () => new Promise(() => undefined) });
     renderWithApp(<DevicesView />, { client: createClient(fake.transport) });
     expect(screen.getByText("Checking the server…")).toBeInTheDocument();
   });
@@ -207,16 +213,15 @@ describe("Devices: revoke", () => {
     const fake = fakeTransport({
       snapshot: snap([PIXEL]),
       start_intent: { kind: "status" },
-      terminal_status: { enabled: false, granted: [], open: [] },
+      devices_revoke: () => Promise.reject({ kind: "cli", message: "no such device", exit_code: 1 }),
     });
-    const invoke = fake.transport.invoke;
-    fake.transport.invoke = (command, args) =>
-      command === "devices_revoke" ? Promise.reject({ kind: "cli", message: "no such device", exit_code: 1 }) : invoke(command, args);
     renderWithApp(<DevicesView />, { client: createClient(fake.transport) });
     await u.click(await screen.findByRole("button", { name: /Revoke/ }));
     await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Revoke" }));
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("error: no such device")).toBeInTheDocument();
+    expect((document.querySelector(".view-header") as HTMLElement).nextElementSibling).toBe(alert);
+    expect(alert.parentElement?.classList.contains("banner-slot")).toBe(false);
     expect(screen.getByText("pixel")).toBeInTheDocument();
   });
 });

@@ -64,6 +64,7 @@
   "dis_stopped": "Tombol Hentikan dan Mulai ulang mati: server tidak berjalan.",
   "dis_mismatch": "Tombol aksi mati sampai server diperbarui.",
   "dis_notinst": "Tidak ada yang bisa dikendalikan: layanan belum terpasang.",
+  "dis_other": "Nyalakan, Hentikan dan Mulai ulang mati selama layanan {word}.",
   "working_restart": "Memulai ulang…",
   "working_stop": "Menghentikan…",
   "d_stop_t": "Hentikan server?",

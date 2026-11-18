@@ -23,11 +23,17 @@ export interface Command<A extends unknown[], R> {
   reset: () => void;
 }
 
+/** What a `{ ok: false, service }` reply says: the §22 service word, the only text the server gives. */
+function notOkText(result: unknown): string | null {
+  const service = (result as { service?: unknown }).service;
+  return typeof service === "string" && service !== "" ? `service is ${service}` : null;
+}
+
 /**
  * Runs one IPC command for a view (design.md 4.2): working while it runs (disable the button with
  * `working`), succeeded or failed afterwards. A failure stays until the next run or a view change.
- * A resolved `{ ok: false }` result (the §22 action shape) is a failure: `error.kind` is "not-ok" and
- * `result` keeps the value for the view to read.
+ * A resolved `{ ok: false }` result (the §22 action shape) is a failure: `error.kind` is "not-ok", `error.message`
+ * is `service is <word>` and `result` keeps the value for the view to read.
  */
 export function useCommand<A extends unknown[], R>(command: (...args: A) => Promise<R>): Command<A, R> {
   const [state, setState] = useState<State<R>>(IDLE);
@@ -59,7 +65,7 @@ export function useCommand<A extends unknown[], R>(command: (...args: A) => Prom
         const notOk = typeof result === "object" && result !== null && (result as { ok?: unknown }).ok === false;
         setState(
           notOk
-            ? { phase: "failed", result, error: { kind: "not-ok", message: null, exit_code: null } }
+            ? { phase: "failed", result, error: { kind: "not-ok", message: notOkText(result), exit_code: null } }
             : { phase: "succeeded", result, error: null },
         );
       }

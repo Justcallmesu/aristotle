@@ -86,8 +86,7 @@ describe("Pair: before a code", () => {
   });
 
   it("shows the loading word before the first poll", () => {
-    const fake = fakeTransport({});
-    fake.transport.invoke = () => new Promise(() => undefined);
+    const fake = fakeTransport({ snapshot: () => new Promise(() => undefined) });
     renderWithApp(<PairView />, { client: createClient(fake.transport) });
     expect(screen.getByText("Checking the server…")).toBeInTheDocument();
   });
@@ -97,10 +96,11 @@ describe("Pair: making a code", () => {
   it("shows the busy label and turns the button off until the reply", async () => {
     const u = user();
     let finish: (p: Pair) => void = () => undefined;
-    const fake = fakeTransport({ snapshot: snapshotOf(), start_intent: { kind: "status" } });
-    const invoke = fake.transport.invoke;
-    fake.transport.invoke = (command, args) =>
-      command === "pair" ? new Promise((resolve) => (finish = resolve as (p: Pair) => void)) : invoke(command, args);
+    const fake = fakeTransport({
+      snapshot: snapshotOf(),
+      start_intent: { kind: "status" },
+      pair: () => new Promise((resolve) => (finish = resolve as (p: Pair) => void)),
+    });
     renderWithApp(<PairView />, { client: createClient(fake.transport) });
     await u.click(await screen.findByRole("button", { name: "Show pairing code" }));
     const busy = await screen.findByRole("button", { name: "Making a code…" });
@@ -219,17 +219,31 @@ describe("Pair: no listener and failure", () => {
     await waitFor(() => expect(pairCalls()).toHaveLength(2));
   });
 
+  it("an encode failure with a payload keeps the code and puts qr_error under Details (no no-listener state)", async () => {
+    const u = user();
+    setup({ pair: pairOf({ qr_error: "encode failed", qr_modules: undefined }) });
+    await showCode(u);
+    expect(screen.queryByText("No address to pair on")).not.toBeInTheDocument();
+    expect(screen.getByText("qr_error: encode failed")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Details" })).toBeInTheDocument();
+    expect(document.querySelector(".qr-tile")).toBeNull();
+  });
+
   it("a failed command shows CommandFailed and keeps the form", async () => {
     const u = user();
-    const fake = fakeTransport({ snapshot: snapshotOf(), start_intent: { kind: "status" } });
-    const invoke = fake.transport.invoke;
-    fake.transport.invoke = (command, args) =>
-      command === "pair" ? Promise.reject({ kind: "cli", message: "boom", exit_code: 1 }) : invoke(command, args);
+    const fake = fakeTransport({
+      snapshot: snapshotOf(),
+      start_intent: { kind: "status" },
+      pair: () => Promise.reject({ kind: "cli", message: "boom", exit_code: 1 }),
+    });
     renderWithApp(<PairView />, { client: createClient(fake.transport) });
     await u.click(await screen.findByRole("button", { name: "Show pairing code" }));
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("error: boom")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show pairing code" })).toBeEnabled();
+    // One placement (design 4.2): right after the header, no margin wrapper.
+    expect((document.querySelector(".view-header") as HTMLElement).nextElementSibling).toBe(alert);
+    expect(alert.parentElement?.classList.contains("banner-slot")).toBe(false);
   });
 });
 
@@ -256,6 +270,16 @@ describe("Pair: needs server, mismatch, intent, unmount", () => {
 
   it("the --pair intent under a mismatch issues nothing", async () => {
     const { pairCalls } = setup({}, snapshotOf({ version: { kind: "mismatch", server: "1.0.0", desktop: "1.2.3" } }), "pair");
+    await screen.findByRole("button", { name: "Show pairing code" });
+    await act(async () => vi.advanceTimersByTime(10));
+    expect(pairCalls()).toHaveLength(0);
+  });
+
+  it("a --pair hand-off that arrives while the server is down is dropped: starting it later issues no code", async () => {
+    const { pairCalls, emit } = setup({}, stopped(), "pair");
+    await screen.findByRole("heading", { name: "Needs the running server" });
+    await act(async () => vi.advanceTimersByTime(10));
+    act(() => emit("snapshot", snapshotOf({ seq: 5 })));
     await screen.findByRole("button", { name: "Show pairing code" });
     await act(async () => vi.advanceTimersByTime(10));
     expect(pairCalls()).toHaveLength(0);

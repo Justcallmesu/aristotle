@@ -81,6 +81,7 @@ function snapshot(patch: Partial<SnapshotDto> = {}, stopped = false): SnapshotDt
     devices: DEVICES,
     terminals: [],
     terminal_enabled: true,
+    terminal_granted: ["d-5f3a91c2"],
     seq: 1,
     version: { kind: "match" },
     assessment: { state: "green", reason: "all-ok" },

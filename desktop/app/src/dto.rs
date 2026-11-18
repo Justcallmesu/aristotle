@@ -40,6 +40,8 @@ pub struct SnapshotDto {
     pub terminals: Option<Vec<OpenTerminal>>,
     /// The terminal switch from the same poll (the sidebar count); `None` when that read failed.
     pub terminal_enabled: Option<bool>,
+    /// Ids granted terminal access, from the same poll (empty when that read failed).
+    pub terminal_granted: Vec<String>,
     /// Grows with every poll; the frontend drops a snapshot older than the one it shows.
     pub seq: u64,
     pub version: VersionDto,
@@ -66,6 +68,7 @@ impl SnapshotDto {
             devices: snapshot.devices.clone(),
             terminals: snapshot.terminals.clone(),
             terminal_enabled: snapshot.terminal_enabled,
+            terminal_granted: snapshot.terminal_granted.clone(),
             seq,
             version: match &snapshot.version {
                 VersionCheck::Unchecked => VersionDto::Unchecked,

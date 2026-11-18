@@ -206,6 +206,7 @@ fn poll_running_fetches_version_devices_terminals() {
     assert_eq!(snap.devices.as_ref().unwrap().len(), 2);
     assert_eq!(snap.terminals.as_ref().unwrap().len(), 1);
     assert_eq!(snap.terminal_enabled, Some(true), "carried for the sidebar");
+    assert_eq!(snap.terminal_granted, vec!["dev_a1".to_string()]);
     assert_eq!(tray_state(&snap), TrayState::Green);
     let argv: Vec<String> = cli.calls().iter().map(|c| c.join(" ")).collect();
     assert_eq!(
@@ -228,6 +229,7 @@ fn poll_stopped_skips_devices_and_terminals() {
     let snap = Snapshotter::new(Some("1.2.3")).poll(&cli);
     assert!(snap.devices.is_none() && snap.terminals.is_none());
     assert_eq!(snap.terminal_enabled, None);
+    assert!(snap.terminal_granted.is_empty());
     assert_eq!(tray_state(&snap), TrayState::Red);
 }
 

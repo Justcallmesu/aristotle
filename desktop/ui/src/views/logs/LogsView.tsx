@@ -20,7 +20,7 @@ function reducer(buffer: LogBuffer, action: Action): LogBuffer {
 }
 
 export function LogsView() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { world } = useSnapshot();
   const [buffer, dispatch] = useReducer(reducer, EMPTY_BUFFER);
   const { ended, reconnect } = useLogStream((lines) => dispatch({ type: "lines", lines }), () => dispatch({ type: "reset" }));
@@ -93,7 +93,7 @@ export function LogsView() {
         ) : null}
       </div>
       {world.running ? null : <p className="log-note">{t("logs_stopped")}</p>}
-      <p className="log-note">{t("cap_note", { n: LOG_CAP.toLocaleString("en-US") })}</p>
+      <p className="log-note">{t("cap_note", { n: LOG_CAP.toLocaleString(locale === "id" ? "id-ID" : "en-US") })}</p>
     </>
   );
 }
@@ -115,42 +115,46 @@ function FollowStatus({ follow, missed }: { follow: boolean; missed: number }) {
  * `logs_start` when the view opens, `logs_stop` when it closes (design.md 4.5, P9). The line and
  * end events are subscribed before the stream starts so no first batch is missed. A stream that
  * ends or fails to start sets `ended`; `reconnect` drops the old lines (the journal replays its
- * tail) and starts again.
+ * tail) and sends `logs_start` only: the backend replaces a running stream, and a stop sent on
+ * its own thread could otherwise land after the new start and kill it.
  */
 function useLogStream(onLines: (lines: string[]) => void, onReset: () => void) {
   const client = useIpc();
   const [ended, setEnded] = useState(false);
-  const [attempt, setAttempt] = useState(0);
   const handlers = useRef({ onLines, onReset });
   handlers.current = { onLines, onReset };
+  const alive = useRef(false);
+
+  const start = useCallback(async () => {
+    try {
+      await client.logsStart();
+    } catch {
+      if (alive.current) setEnded(true);
+    }
+  }, [client]);
 
   useEffect(() => {
-    let alive = true;
+    alive.current = true;
     const offs: (() => void)[] = [];
-    const keep = (off: () => void) => (alive ? offs.push(off) : off());
+    const keep = (off: () => void) => (alive.current ? offs.push(off) : off());
     async function open() {
-      keep(await client.on("logs-lines", (payload) => alive && handlers.current.onLines(payload.lines)));
-      keep(await client.on("logs-ended", () => alive && setEnded(true)));
-      if (!alive) return;
-      try {
-        await client.logsStart();
-      } catch {
-        if (alive) setEnded(true);
-      }
+      keep(await client.on("logs-lines", (payload) => alive.current && handlers.current.onLines(payload.lines)));
+      keep(await client.on("logs-ended", () => alive.current && setEnded(true)));
+      if (alive.current) await start();
     }
     void open();
     return () => {
-      alive = false;
+      alive.current = false;
       offs.forEach((off) => off());
       client.logsStop().catch(() => undefined);
     };
-  }, [client, attempt]);
+  }, [client, start]);
 
   const reconnect = useCallback(() => {
     handlers.current.onReset();
     setEnded(false);
-    setAttempt((n) => n + 1);
-  }, []);
+    void start();
+  }, [start]);
 
   return { ended, reconnect };
 }

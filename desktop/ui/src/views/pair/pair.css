@@ -8,7 +8,6 @@
 .field-hint { margin: 4px 0 var(--gap); font-size: 12px; line-height: 16px; color: var(--on-surface-v); }
 .field-error { margin: 4px 0 var(--gap); font-size: 12px; line-height: 16px; color: var(--err); }
 .pair-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
-.reason-hint { margin-top: 10px; font-size: 12px; line-height: 16px; color: var(--on-surface-v); }
 
 .pair-code-layout { display: flex; gap: 24px; align-items: flex-start; }
 @container (max-width: 459px) { .pair-code-layout { flex-direction: column; } }

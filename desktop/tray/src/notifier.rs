@@ -11,7 +11,12 @@ const ICON: &str = "network-server";
 
 pub fn show_notice(lang: Lang, notice: &Notice, launcher: &Arc<Launcher>) {
     let (title, body) = notice_text(lang, notice);
-    show(lang, &title, &body, Some(launcher));
+    show(
+        lang,
+        &title,
+        &body,
+        notice.has_open_action().then_some(launcher),
+    );
 }
 
 pub fn show_window_missing(lang: Lang) {

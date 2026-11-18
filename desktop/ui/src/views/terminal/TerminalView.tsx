@@ -4,6 +4,7 @@ import { ActionButton, Button } from "../../components/Button";
 import { CodeBlock } from "../../components/CodeBlock";
 import { CommandFailed } from "../../components/CommandFailed";
 import { NeedsServer } from "../../components/NeedsServer";
+import { DASH } from "../../format/dash";
 import { Switch } from "../../components/Switch";
 import { ViewHeader } from "../../components/ViewHeader";
 import { useI18n } from "../../i18n";
@@ -38,13 +39,14 @@ function TerminalBody() {
   const client = useIpc();
   const guard = useActionGuard();
   const state = useTerminalData();
-  const { data, open, devices } = state;
+  const { data, open, devices, granted } = state;
   const [dialog, setDialog] = useState<TerminalDialog | null>(null);
+  const [checking, setChecking] = useState(false);
   const act = useCommand((job: () => Promise<TerminalStatus>) => job());
 
   const enabled = data?.enabled ?? false;
   const problem = data?.problem ?? null;
-  const locked = guard.disabled || act.working;
+  const locked = guard.disabled || act.working || checking;
   const switchLocked = locked || problem !== null || data === null;
 
   async function perform(job: () => Promise<TerminalStatus>) {
@@ -52,8 +54,12 @@ function TerminalBody() {
     if (result) state.apply(result);
   }
 
-  function turnOff() {
-    if (open.length > 0) setDialog({ kind: "off" });
+  /** D19-8: decide from a fresh read, not the poll (a terminal may have opened in the last 5 s). */
+  async function turnOff() {
+    setChecking(true);
+    const openNow = await state.freshOpen();
+    setChecking(false);
+    if (openNow.length > 0) setDialog({ kind: "off", open: openNow.length });
     else void perform(() => client.terminalDisable());
   }
 
@@ -72,52 +78,48 @@ function TerminalBody() {
     <>
       {act.error ? <CommandFailed error={act.error} /> : null}
       {problem !== null ? (
-        <div className="banner-slot">
-          <Banner
-            role="alert"
-            light="err"
-            title={t("t_prob_t")}
-            actions={
-              <Button variant="tonal" disabled={act.working} onClick={() => void state.reread()}>
-                {t("t_check")}
-              </Button>
-            }
-          >
-            <p>{t("t_prob_b")}</p>
-            <CodeBlock>{`problem: ${problem}`}</CodeBlock>
-          </Banner>
-        </div>
+        <Banner
+          role="alert"
+          light="err"
+          title={t("t_prob_t")}
+          actions={
+            <Button variant="tonal" disabled={act.working} onClick={() => void state.reread()}>
+              {t("t_check")}
+            </Button>
+          }
+        >
+          <p>{t("t_prob_b")}</p>
+          <CodeBlock>{`problem: ${problem}`}</CodeBlock>
+        </Banner>
       ) : data?.warning ? (
-        <div className="banner-slot">
-          <Banner role="status" light="warn" title={t("t_warn_t")}>
-            <CodeBlock>{`warning: ${data.warning}`}</CodeBlock>
-          </Banner>
-        </div>
+        <Banner role="status" light="warn" title={t("t_warn_t")}>
+          <CodeBlock>{`warning: ${data.warning}`}</CodeBlock>
+        </Banner>
       ) : null}
-
-      <div className="tm-state">
-        <div className="tm-state-main">
-          <Switch
-            checked={enabled}
-            label={enabled ? t("t_on") : t("t_off")}
-            disabled={switchLocked}
-            onChange={(next) => (next ? setDialog({ kind: "enable" }) : turnOff())}
-          />
-          <p className="tm-desc">{data === null ? "—" : enabled ? t("t_on_d") : t("t_off_d")}</p>
+      <div className="tm-block">
+        <div className="kv-state">
+          <div className="tm-state-main">
+            <Switch
+              checked={enabled}
+              label={enabled ? t("t_on") : t("t_off")}
+              disabled={switchLocked}
+              onChange={(next) => (next ? setDialog({ kind: "enable" }) : void turnOff())}
+            />
+            <p className="tm-desc">{data === null ? DASH : enabled ? t("t_on_d") : t("t_off_d")}</p>
+          </div>
+          {!enabled && problem === null ? (
+            <ActionButton variant="primary" disabled={switchLocked} onClick={() => setDialog({ kind: "enable" })}>
+              {t("t_turn_on")}
+            </ActionButton>
+          ) : null}
         </div>
-        {!enabled && problem === null ? (
-          <ActionButton variant="primary" disabled={switchLocked} onClick={() => setDialog({ kind: "enable" })}>
-            {t("t_turn_on")}
-          </ActionButton>
-        ) : null}
+        {enabled && problem === null ? <p className="hint">{t("t_off_hint")}</p> : null}
+        {guard.reasonKey ? <p className="hint">{t(guard.reasonKey)}</p> : null}
       </div>
-      {enabled && problem === null ? <p className="tm-hint">{t("t_off_hint")}</p> : null}
-      {guard.reasonKey ? <p className="tm-hint">{t(guard.reasonKey)}</p> : null}
-
       {problem === null ? (
         <div className="tm-cols">
           <GrantsGroup
-            data={data}
+            granted={granted}
             devices={devices}
             busy={locked}
             onRemove={(id) => void perform(() => client.terminalUngrant(id))}
@@ -130,8 +132,7 @@ function TerminalBody() {
       {dialog ? (
         <TerminalDialogs
           dialog={dialog}
-          noGrants={(data?.granted.length ?? 0) === 0}
-          openCount={open.length}
+          noGrants={(granted?.length ?? 0) === 0}
           onConfirm={confirm}
           onCancel={() => setDialog(null)}
         />

@@ -28,6 +28,7 @@ export function snapshot(status: Partial<Status> = {}, rest: Partial<SnapshotDto
     devices: [device("dev_a1b2c3d4e5f6", "pixel", 4), device("dev_0f9e8d7c6b5a", "tablet", 190)],
     terminals: [{ id: "term_1", device_id: "dev_a1b2c3d4e5f6", listener: "lan", since: "2026-11-18T10:00:00Z", pid: 4121 }],
     terminal_enabled: true,
+    terminal_granted: ["dev_a1b2c3d4e5f6"],
     seq: 1,
     version: { kind: "match" },
     assessment: { state: "green", reason: "all-ok" },

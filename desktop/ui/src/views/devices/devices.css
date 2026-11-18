@@ -16,4 +16,3 @@
 @container (max-width: 599px) {
   .dev-table .col-paired, .dev-table .col-term { display: none; }
 }
-.reason-hint { margin-top: 10px; font-size: 12px; line-height: 16px; color: var(--on-surface-v); }

@@ -44,8 +44,17 @@ export function IntentProvider({ children }: { children: ReactNode }) {
       navigate(viewFor(intent));
       setPending({ id: ++next, intent });
     };
-    client.on("start-intent", receive).then((off) => (alive ? (unlisten = off) : off()));
-    client.startIntent().then(receive).catch(() => undefined);
+    // The listener first: a hand-off between the read and the listener would be lost otherwise.
+    void (async () => {
+      try {
+        const off = await client.on("start-intent", receive);
+        if (alive) unlisten = off;
+        else off();
+        if (alive) receive(await client.startIntent());
+      } catch {
+        // No intent to act on: the window opens on Status.
+      }
+    })();
     return () => {
       alive = false;
       unlisten?.();

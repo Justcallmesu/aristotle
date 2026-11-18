@@ -1,10 +1,10 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { I18nProvider, type Locale } from "../../i18n";
-import { createClient, IpcProvider, type SnapshotDto, type Status, type Transport } from "../../ipc";
-import { IntentProvider } from "../../state/intent";
-import { SnapshotProvider } from "../../state/snapshot";
-import { fakeTransport, snapshotOf } from "../../test/fakes";
+import { I18nProvider, type Locale } from "../i18n";
+import { createClient, IpcProvider, type SnapshotDto, type Status } from "../ipc";
+import { IntentProvider } from "../state/intent";
+import { SnapshotProvider } from "../state/snapshot";
+import { fakeTransport, snapshotOf } from "./fakes";
 
 /** A snapshot whose `status` answer is the default running one with `patch` on top. */
 export function withStatus(patch: Partial<Status>, rest: Partial<SnapshotDto> = {}): SnapshotDto {
@@ -32,13 +32,12 @@ export interface Rendered {
 export function renderView(
   ui: ReactElement,
   replies: Record<string, unknown>,
-  options: { locale?: Locale; wrap?: (transport: Transport) => Transport } = {},
+  options: { locale?: Locale } = {},
 ): Rendered {
   const fake = fakeTransport({ start_intent: { kind: "status" }, ...replies });
-  const transport = options.wrap ? options.wrap(fake.transport) : fake.transport;
   render(
     <I18nProvider locale={options.locale ?? "en"}>
-      <IpcProvider client={createClient(transport)}>
+      <IpcProvider client={createClient(fake.transport)}>
         <SnapshotProvider>
           <IntentProvider>{ui}</IntentProvider>
         </SnapshotProvider>
@@ -50,7 +49,6 @@ export function renderView(
 
 /** Holds one command open until the test resolves or rejects it (works before or after the call). */
 export function gate(fake: ReturnType<typeof fakeTransport>, command: string) {
-  const original = fake.transport.invoke;
   let resolve: (v: unknown) => void = () => undefined;
   let reject: (e: unknown) => void = () => undefined;
   const held = new Promise((res, rej) => {
@@ -58,11 +56,7 @@ export function gate(fake: ReturnType<typeof fakeTransport>, command: string) {
     reject = rej;
   });
   held.catch(() => undefined);
-  fake.transport.invoke = (name, args) => {
-    if (name !== command) return original(name, args);
-    fake.calls.push({ command: name, args });
-    return held;
-  };
+  fake.setReply(command, () => held);
   return { resolve: (v: unknown) => resolve(v), reject: (e: unknown) => reject(e) };
 }
 

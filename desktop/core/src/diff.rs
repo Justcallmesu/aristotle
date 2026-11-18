@@ -19,8 +19,24 @@ pub enum Notice {
         device_name: Option<String>,
         listener: String,
     },
+    /// D7/P20: the remote terminal switch went off to on.
+    TerminalTurnedOn,
+    /// D7/P20: a device was newly granted terminal access. `device_name` is `None` for an unknown id.
+    TerminalGranted {
+        device_name: Option<String>,
+    },
     HermesUnreachable,
     ServerStopped,
+}
+
+impl Notice {
+    /// design.md 4.8 and the notification list: the D7 notice has no **Open** button.
+    pub fn has_open_action(&self) -> bool {
+        !matches!(
+            self,
+            Notice::TerminalTurnedOn | Notice::TerminalGranted { .. }
+        )
+    }
 }
 
 /// Notices for the change from `prev` to `next`. Silent on the first poll and on failed polls.
@@ -40,6 +56,7 @@ pub fn diff(
     let mut notices = Vec::new();
     notices.extend(new_devices(prev, next));
     notices.extend(new_terminals(prev, next));
+    notices.extend(terminal_access_widened(prev, next));
     if hermes_went_down(prev, next) {
         notices.push(Notice::HermesUnreachable);
     }
@@ -97,6 +114,29 @@ fn new_terminals(prev: &Snapshot, next: &Snapshot) -> Vec<Notice> {
             listener: t.listener.clone(),
         })
         .collect()
+}
+
+/// D7/P20: the switch went off to on, or a device id is newly granted. Both reads must have worked on
+/// each side (`terminal_enabled` is `None` when `terminal status` failed), so a failed read is silent.
+fn terminal_access_widened(prev: &Snapshot, next: &Snapshot) -> Vec<Notice> {
+    let (Some(was_on), Some(is_on)) = (prev.terminal_enabled, next.terminal_enabled) else {
+        return Vec::new();
+    };
+    let mut notices = Vec::new();
+    if !was_on && is_on {
+        notices.push(Notice::TerminalTurnedOn);
+    }
+    let known: HashSet<&str> = prev.terminal_granted.iter().map(String::as_str).collect();
+    let devices = next.devices.as_deref().unwrap_or(&[]);
+    notices.extend(
+        next.terminal_granted
+            .iter()
+            .filter(|id| !known.contains(id.as_str()))
+            .map(|id| Notice::TerminalGranted {
+                device_name: device_name(devices, id),
+            }),
+    );
+    notices
 }
 
 fn device_name(devices: &[Device], id: &str) -> Option<String> {

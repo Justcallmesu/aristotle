@@ -276,6 +276,52 @@ fn a_failed_terminal_poll_keeps_the_baseline_so_a_new_terminal_still_notifies_on
         ]),
         now,
     );
+    // The baseline had the switch off and no grants, so the fixture also turns it on and grants pixel (D7).
+    let opened = |n: &&Notice| matches!(n, Notice::TerminalOpened { .. });
+    assert_eq!(t.notices.iter().filter(opened).count(), 1);
+    assert_eq!(t.notices.len(), 3);
+    let t = p.tick(
+        &FakeCli::new(vec![
+            status(),
+            devices(),
+            ok(&fixture("terminal_status.json"), 0),
+        ]),
+        now,
+    );
+    assert!(t.notices.is_empty(), "announced once");
+}
+
+#[test]
+fn a_failed_terminal_read_keeps_the_granted_baseline_so_a_new_grant_notifies_once() {
+    let mut p = Poller::new(None, None);
+    let now = at(1_800_000_000);
+    let status = || ok(&fixture("status.json"), 0);
+    let devices = || ok(&fixture("devices_list.json"), 0);
+    let granted = || ok(&fixture("terminal_status.json"), 0);
+    let two = ok(
+        r#"{"enabled":true,"granted":[{"id":"dev_a1","name":"pixel"},{"id":"dev_b2","name":"tablet"}],"open":[],"changed":false}"#,
+        0,
+    );
+    let first = p.tick(
+        &FakeCli::new(vec![
+            status(),
+            ok(&fixture("version.json"), 0),
+            devices(),
+            granted(),
+        ]),
+        now,
+    );
+    assert!(first.notices.is_empty(), "first poll is the baseline");
+    let t = p.tick(
+        &FakeCli::new(vec![
+            status(),
+            devices(),
+            Err(aristotle_core::runner::CliError::Timeout),
+        ]),
+        now,
+    );
+    assert!(t.notices.is_empty());
+    let t = p.tick(&FakeCli::new(vec![status(), devices(), two]), now);
     assert_eq!(t.notices.len(), 1);
-    assert!(matches!(t.notices[0], Notice::TerminalOpened { .. }));
+    assert!(matches!(t.notices[0], Notice::TerminalGranted { .. }));
 }

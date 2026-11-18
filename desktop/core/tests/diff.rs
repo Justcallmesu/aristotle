@@ -24,6 +24,12 @@ fn with_terminals(mut s: Snapshot, t: Vec<aristotle_core::types::OpenTerminal>) 
     s
 }
 
+fn with_terminal_access(mut s: Snapshot, enabled: bool, granted: &[&str]) -> Snapshot {
+    s.terminal_enabled = Some(enabled);
+    s.terminal_granted = granted.iter().map(|g| g.to_string()).collect();
+    s
+}
+
 fn up(hermes: &str) -> Snapshot {
     snap(running(Some(hermes)))
 }
@@ -240,4 +246,94 @@ fn stamp_in_window_is_symmetric_around_now() {
     assert!(stamp_in_window(s(60), now()));
     assert!(!stamp_in_window(s(-61), now()));
     assert!(!stamp_in_window(s(61), now()));
+}
+
+#[test]
+fn terminal_switched_on_notifies_once() {
+    let prev = with_terminal_access(up("reachable"), false, &[]);
+    let next = with_terminal_access(up("reachable"), true, &[]);
+    assert_eq!(
+        diff(Some(&prev), &next, None, now()),
+        vec![Notice::TerminalTurnedOn]
+    );
+    assert!(diff(Some(&next), &next, None, now()).is_empty());
+}
+
+#[test]
+fn terminal_switched_off_or_unchanged_is_silent() {
+    let on = with_terminal_access(up("reachable"), true, &[]);
+    let off = with_terminal_access(up("reachable"), false, &[]);
+    assert!(diff(Some(&on), &off, None, now()).is_empty());
+    assert!(diff(Some(&off), &off, None, now()).is_empty());
+}
+
+#[test]
+fn a_failed_terminal_read_is_not_a_transition() {
+    let off = with_terminal_access(up("reachable"), false, &[]);
+    let unknown = up("reachable");
+    assert!(diff(
+        Some(&unknown),
+        &with_terminal_access(up("reachable"), true, &["d1"]),
+        None,
+        now()
+    )
+    .is_empty());
+    assert!(diff(Some(&off), &unknown, None, now()).is_empty());
+}
+
+#[test]
+fn new_grant_notifies_by_device_name() {
+    let devices = vec![device("d1", "pixel"), device("d2", "tablet")];
+    let prev = with_terminal_access(
+        with_devices(up("reachable"), devices.clone()),
+        true,
+        &["d1"],
+    );
+    let next = with_terminal_access(with_devices(up("reachable"), devices), true, &["d1", "d2"]);
+    assert_eq!(
+        diff(Some(&prev), &next, None, now()),
+        vec![Notice::TerminalGranted {
+            device_name: Some("tablet".into())
+        }]
+    );
+}
+
+#[test]
+fn grant_of_an_unknown_device_has_no_name() {
+    let prev = with_terminal_access(up("reachable"), true, &[]);
+    let next = with_terminal_access(up("reachable"), true, &["ghost"]);
+    assert_eq!(
+        diff(Some(&prev), &next, None, now()),
+        vec![Notice::TerminalGranted { device_name: None }]
+    );
+}
+
+#[test]
+fn a_removed_grant_is_silent_and_enable_plus_grant_gives_two_notices() {
+    let granted = with_terminal_access(up("reachable"), true, &["d1"]);
+    let none = with_terminal_access(up("reachable"), true, &[]);
+    assert!(diff(Some(&granted), &none, None, now()).is_empty());
+    let off = with_terminal_access(up("reachable"), false, &[]);
+    assert_eq!(
+        diff(Some(&off), &granted, None, now()),
+        vec![
+            Notice::TerminalTurnedOn,
+            Notice::TerminalGranted { device_name: None }
+        ]
+    );
+}
+
+#[test]
+fn first_poll_with_the_terminal_on_and_grants_is_the_baseline() {
+    let next = with_terminal_access(up("reachable"), true, &["d1"]);
+    assert!(diff(None, &next, None, now()).is_empty());
+}
+
+#[test]
+fn only_the_d7_notices_have_no_open_action() {
+    assert!(!Notice::TerminalTurnedOn.has_open_action());
+    assert!(!Notice::TerminalGranted { device_name: None }.has_open_action());
+    assert!(Notice::ServerStopped.has_open_action());
+    assert!(Notice::HermesUnreachable.has_open_action());
+    assert!(Notice::DevicePaired { name: "x".into() }.has_open_action());
 }

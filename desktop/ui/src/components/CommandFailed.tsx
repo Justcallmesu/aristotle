@@ -4,17 +4,16 @@ import { Banner } from "./Banner";
 import { CodeBlock } from "./CodeBlock";
 
 /**
- * design.md 4.2 "command failed": an alert above the view's content. The server's own text goes in a
+ * design.md 4.2 "command failed": an alert right after the view header, above the content. Views render
+ * it there themselves; the banner has no outer margin of its own beyond the gap below it. The server's own text goes in a
  * code block (shown, never logged); with no text the error kind stands in.
  */
 export function CommandFailed({ error }: { error: IpcError }) {
   const { t } = useI18n();
   return (
-    <div className="banner-slot">
-      <Banner role="alert" light="err" title={t("act_failed_t")}>
-        <p>{t("act_failed_b")}</p>
-        <CodeBlock>{`error: ${error.message ?? error.kind}`}</CodeBlock>
-      </Banner>
-    </div>
+    <Banner role="alert" light="err" title={t("act_failed_t")}>
+      <p>{t("act_failed_b")}</p>
+      <CodeBlock>{`error: ${error.message ?? error.kind}`}</CodeBlock>
+    </Banner>
   );
 }

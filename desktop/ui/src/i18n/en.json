@@ -64,6 +64,7 @@
   "dis_stopped": "Stop and Restart are off: the server isn’t running.",
   "dis_mismatch": "Actions are off until the server is updated.",
   "dis_notinst": "Nothing to control: the service isn’t installed.",
+  "dis_other": "Start, Stop and Restart are off while the service is {word}.",
   "working_restart": "Restarting…",
   "working_stop": "Stopping…",
   "d_stop_t": "Stop the server?",

@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../components/Button";
+import { CommandFailed } from "../../components/CommandFailed";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Progress } from "../../components/Progress";
+import { KvGroup, KvRow, StateRow } from "../../components/Rows";
 import { StateLight } from "../../components/StateLight";
 import { ViewHeader } from "../../components/ViewHeader";
-import { useI18n } from "../../i18n";
+import { useI18n, type Params, type Translator } from "../../i18n";
+import { enabledWord, serviceWord, statusOf } from "../../state/facts";
 import { useStartIntent } from "../../state/intent";
+import { serviceButtons } from "../../state/serviceButtons";
 import { useSnapshot } from "../../state/snapshot";
-import { enabledWord, serviceWord, statusOf } from "../status/facts";
-import { FailedBanner, KvGroup, KvRow, StateRow } from "../status/Rows";
-import { useServiceAction } from "../status/useServiceAction";
-import { serviceButtons } from "./serviceButtons";
+import { useServiceAction } from "../../state/useServiceAction";
 import "./service.css";
 
 type Dialog = "stop" | "restart" | null;
@@ -23,6 +24,7 @@ export function ServiceView() {
   const action = useServiceAction();
   const [dialog, setDialog] = useState<Dialog>(null);
   const buttons = serviceButtons(status, world, action.busy);
+  const reasonText = buttons.reason ? t(buttons.reason.key, wordParams(tr, buttons.reason.params)) : null;
   useConfirmStopIntent(world.row !== 0, buttons.stop, () => setDialog("stop"));
 
   function confirm(kind: "stop" | "restart") {
@@ -33,7 +35,7 @@ export function ServiceView() {
   return (
     <>
       <ViewHeader title={t("svc_title")} subtitle={t("svc_sub")} />
-      {action.error ? <FailedBanner error={action.error} /> : null}
+      {action.error ? <CommandFailed error={action.error} /> : null}
       <StateRow
         busy={world.row === 0}
         light={world.light ? <StateLight light={world.light} /> : null}
@@ -61,10 +63,10 @@ export function ServiceView() {
       {action.busy && action.action ? (
         <div className="svc-working">
           <Progress label={t(`working_${action.action}`)} />
-          <p className="svc-hint">{t(`working_${action.action}`)}</p>
+          <p className="hint">{t(`working_${action.action}`)}</p>
         </div>
       ) : buttons.reason ? (
-        <p className="svc-hint svc-reason">{t(buttons.reason)}</p>
+        <p className="hint svc-reason">{reasonText}</p>
       ) : null}
       {dialog === "stop" ? (
         <ConfirmDialog title={t("d_stop_t")} confirmLabel={t("b_stop")} onConfirm={() => confirm("stop")} onCancel={() => setDialog(null)}>
@@ -84,6 +86,11 @@ export function ServiceView() {
       ) : null}
     </>
   );
+}
+
+/** `{word}` is a systemctl word: the catalog's `svc_*` text, or the raw word when it has none. */
+function wordParams(tr: Translator, params: Params | undefined): Params | undefined {
+  return params && "word" in params ? { ...params, word: tr.word("svc_", String(params.word)) } : params;
 }
 
 /**

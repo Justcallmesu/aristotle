@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n";
 import { createClient, type SnapshotDto, type Status } from "../ipc";
 import { fakeTransport, renderWithApp, snapshotOf } from "../test/fakes";
+import { gate } from "../test/views";
 import { CommandFailed } from "./CommandFailed";
 import { NeedsServer } from "./NeedsServer";
 
@@ -31,34 +32,35 @@ describe("NeedsServer", () => {
   });
 
   it("starts the service on click and shows the working hint, off while it runs", async () => {
-    let finish: (value: unknown) => void = () => undefined;
     const fake = fakeTransport({ snapshot: stopped() });
-    const invoke = fake.transport.invoke;
-    fake.transport.invoke = (command, args) => {
-      if (command !== "service_action") return invoke(command, args);
-      fake.calls.push({ command, args });
-      return new Promise((resolve) => (finish = resolve));
-    };
+    const held = gate(fake, "service_action");
     renderWithApp(<NeedsServer />, { client: createClient(fake.transport) });
     await userEvent.click(await screen.findByRole("button", { name: "Start server" }));
     expect(fake.calls.at(-1)).toEqual({ command: "service_action", args: { action: "start" } });
     expect(screen.getByRole("button", { name: "Start server" })).toBeDisabled();
     expect(screen.getByRole("progressbar", { name: "Starting…" })).toBeInTheDocument();
-    await act(async () => finish({ ok: true, service: "active" }));
+    await act(async () => held.resolve({ ok: true, service: "active" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Start server" })).toBeEnabled());
   });
 
   it("shows the failure banner when Start fails", async () => {
     const fake = fakeTransport({ snapshot: stopped() });
-    const invoke = fake.transport.invoke;
-    fake.transport.invoke = async (command, args) => {
-      if (command === "service_action") throw { kind: "server-error", message: "unit is masked", exit_code: 1 };
-      return invoke(command, args);
-    };
+    gate(fake, "service_action").reject({ kind: "server-error", message: "unit is masked", exit_code: 1 });
     renderWithApp(<NeedsServer />, { client: createClient(fake.transport) });
     await userEvent.click(await screen.findByRole("button", { name: "Start server" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("error: unit is masked");
   });
+
+  it.each(["active", "inactive", "failed", "activating", "deactivating", "reloading", "unknown", "maintenance"])(
+    "service %s: Start shows only for inactive and failed (P21)",
+    async (service) => {
+      renderNeeds(stopped({ service }));
+      await screen.findByRole("heading", { name: "Needs the running server" });
+      const start = screen.queryByRole("button", { name: "Start server" });
+      if (service === "inactive" || service === "failed") expect(start).toBeEnabled();
+      else expect(start).toBeNull();
+    },
+  );
 
   it.each([
     ["not installed", stopped({ installed: false }), undefined],
@@ -86,6 +88,13 @@ describe("CommandFailed", () => {
     expect(alert).toHaveTextContent("That did not work");
     expect(alert).toHaveTextContent("The command failed. The message from the server is below.");
     expect(alert.querySelector("pre.code")).toHaveTextContent("error: refused: inside a terminal");
+  });
+
+  it("has no outer margin wrapper: the banner is the alert itself", () => {
+    show({ kind: "timeout", message: null, exit_code: null });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveClass("banner");
+    expect(document.querySelector(".banner-slot")).toBeNull();
   });
 
   it("falls back to the error kind when the server said nothing", () => {

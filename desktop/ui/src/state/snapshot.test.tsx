@@ -36,12 +36,9 @@ describe("snapshot sequence numbers", () => {
   });
 
   it("does not let the first read replace a newer event", async () => {
-    const fake = fakeTransport({ snapshot: snapshotOf({ seq: 1 }) });
-    const slow = fake.transport.invoke;
-    fake.transport.invoke = async (command, args) => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      return slow(command, args);
-    };
+    const fake = fakeTransport({
+      snapshot: () => new Promise((resolve) => setTimeout(() => resolve(snapshotOf({ seq: 1 })), 20)),
+    });
     render(
       <I18nProvider locale="en">
         <IpcProvider client={createClient(fake.transport)}>

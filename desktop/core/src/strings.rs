@@ -76,7 +76,7 @@ pub enum Key {
     HermesBody,
     StopTitle,
     StopBody,
-    /// Sent by the window app after a terminal change (D7); kept here with the other texts.
+    /// Sent by the tray when its poll sees the terminal switched on or a new grant (D7, P20).
     TermOnTitle,
     TermOnBody,
     /// Added in DS3: the window app binary is missing.
@@ -241,6 +241,11 @@ pub fn notice_text(lang: Lang, notice: &Notice) -> (String, String) {
                 .replace("{via}", &listener_label(listener));
             (text(lang, Key::TermTitle).to_owned(), body)
         }
+        // The D7 text is the same for both: the warning is about full access, not about who.
+        Notice::TerminalTurnedOn | Notice::TerminalGranted { .. } => (
+            text(lang, Key::TermOnTitle).to_owned(),
+            text(lang, Key::TermOnBody).to_owned(),
+        ),
         Notice::HermesUnreachable => (
             text(lang, Key::HermesTitle).to_owned(),
             text(lang, Key::HermesBody).to_owned(),
