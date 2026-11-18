@@ -1,9 +1,9 @@
 //! `aristotle-desktop`: one window; the process ends when the window closes (D18).
 
 use aristotle_core::POLL_INTERVAL;
-use aristotle_desktop::args::parse_args;
+use aristotle_desktop::args::{parse_args, PendingIntent};
 use aristotle_desktop::backend::Backend;
-use aristotle_desktop::ipc::{self, PendingIntent};
+use aristotle_desktop::ipc;
 use aristotle_desktop::logs::LogStream;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
@@ -11,19 +11,27 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 const WINDOW: &str = "main";
 
 fn main() {
-    let intent = parse_args(&std::env::args().collect::<Vec<_>>());
+    let pending = Arc::new(PendingIntent::new(parse_args(
+        &std::env::args().collect::<Vec<_>>(),
+    )));
     let backend = Arc::new(Backend::from_env());
     let logs = Arc::new(LogStream::new());
 
     let app = tauri::Builder::default()
         // A second launch hands its arguments to this process and exits (P14).
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            focus_window(app);
-            let _ = app.emit(ipc::EVENT_START_INTENT, parse_args(&argv));
+        .plugin(tauri_plugin_single_instance::init({
+            let pending = pending.clone();
+            move |app, argv, _cwd| {
+                focus_window(app);
+                // While the window is still loading nothing listens: the intent is queued instead.
+                if let Some(intent) = pending.hand_off(parse_args(&argv)) {
+                    let _ = app.emit(ipc::EVENT_START_INTENT, intent);
+                }
+            }
         }))
         .manage(backend.clone())
         .manage(logs.clone())
-        .manage(PendingIntent(std::sync::Mutex::new(Some(intent))))
+        .manage(pending)
         .invoke_handler(tauri::generate_handler![
             ipc::snapshot,
             ipc::start_intent,

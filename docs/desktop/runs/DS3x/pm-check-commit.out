@@ -1,0 +1,25 @@
+PASS ui-ci (0)
+PASS ui-lint (0)
+PASS ui-typecheck (0)
+PASS ui-test (0)
+ui-tests passed=73
+PASS ui-test-count (73)
+PASS ui-build (0)
+PASS desktop-fmt (0)
+PASS desktop-clippy (0)
+PASS desktop-test (0)
+rust-tests passed=145 failed=0
+PASS desktop-test-count (145)
+PASS desktop-test-binaries (0)
+PASS desktop-tray-build (0)
+PASS desktop-tray-ldd (0)
+PASS desktop-app-build (0)
+PASS desktop-app-binary (0)
+=== M2 logs stop does not kill the group (must FAIL now, not hang)
+test logs::tests::starting_again_stops_the_previous_child ... FAILED
+test logs::tests::stop_kills_the_child_and_its_group_and_reaps_it ... FAILED
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 33 filtered out; finished in 29.28s
+KILLED: tests failed (exit 101); restored sha256 match
+rc=0
+=== M4 ok:false counted as success
+KILLED: tests failed (exit 1); restored sha256 match

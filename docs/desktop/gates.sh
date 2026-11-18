@@ -13,8 +13,12 @@ SUMMARY="$RUN_DIR/gate-summary.txt"
 : > "$SUMMARY"
 FAILED=0
 export CARGO_TARGET_DIR="$ROOT/desktop/target"
-# Floor for the desktop test count (0 tests = FAIL). Raised by each ticket that adds tests.
-MIN_TESTS=94
+# Floors for the Rust and Vitest test counts (0 tests = FAIL). Set to the real total; each ticket that adds
+# tests raises them, so a deleted test cannot pass silently.
+MIN_TESTS=145
+MIN_UI_TESTS=73
+# A step that runs past this many seconds is killed and recorded as FAIL (exit 124), never left hanging.
+STEP_TIMEOUT=900
 
 record() { # status step code
   echo "$1 $2 ($3)" >> "$SUMMARY"
@@ -53,6 +57,7 @@ REQUIRED_TEST_BINARIES=(
   "tests/diff.rs|diff" "tests/fixtures.rs|fixtures" "tests/poller_stamp.rs|poller_stamp"
   "tests/runner.rs|runner" "tests/state.rs|state" "tests/strings.rs|strings"
   "tests/capabilities.rs|capabilities" "unittests src/lib.rs|aristotle_desktop"
+  "unittests src/main.rs|aristotle_tray"
 )
 check_test_binaries() {
   local log="$1" entry label bin n bad=0
@@ -70,6 +75,8 @@ check_test_binaries() {
 
 # UI gates run from desktop/ui; each is one step so a failure names itself.
 ui_step() { (cd "$ROOT/desktop/ui" && "$@"); }
+# A bounded step: `timeout` exits 124, which `run_step` records as FAIL.
+bounded() { timeout "$STEP_TIMEOUT" "$@"; }
 # `tauri build` finds the app by searching for tauri.conf.json below the current directory.
 app_build() { (cd "$ROOT/desktop" && ui/node_modules/.bin/tauri build --no-bundle); }
 app_binary() { [[ -x "$CARGO_TARGET_DIR/release/aristotle-desktop" ]] && ls -l "$CARGO_TARGET_DIR/release/aristotle-desktop"; }
@@ -82,12 +89,15 @@ else
   run_step ui-ci "$RUN_DIR/gate-ui-ci.log" ui_step npm ci
   run_step ui-lint "$RUN_DIR/gate-ui-lint.log" ui_step npm run lint
   run_step ui-typecheck "$RUN_DIR/gate-ui-typecheck.log" ui_step npm run typecheck
-  run_step ui-test "$RUN_DIR/gate-ui-test.log" ui_step npm test
+  run_step ui-test "$RUN_DIR/gate-ui-test.log" ui_step bounded npm test
+  ui_tests=$(sed -n 's/^ *Tests  *\([0-9]*\) passed.*/\1/p' "$RUN_DIR/gate-ui-test.log" | tail -1)
+  echo "ui-tests passed=${ui_tests:-0}" >> "$SUMMARY"
+  if [[ "${ui_tests:-0}" -ge "$MIN_UI_TESTS" ]]; then record PASS ui-test-count "${ui_tests:-0}"; else record FAIL ui-test-count "${ui_tests:-0}<$MIN_UI_TESTS"; fi
   run_step ui-build "$RUN_DIR/gate-ui-build.log" ui_step npm run build
   run_step desktop-fmt "$RUN_DIR/gate-desktop-fmt.log" cargo fmt --check
   run_step desktop-clippy "$RUN_DIR/gate-desktop-clippy.log" \
     cargo clippy --workspace --all-targets -- -D warnings
-  run_step desktop-test "$RUN_DIR/gate-desktop-test.log" cargo test --workspace
+  run_step desktop-test "$RUN_DIR/gate-desktop-test.log" bounded cargo test --workspace
   tests=$(awk '/^test result: ok/ {n += $4} END {print n + 0}' "$RUN_DIR/gate-desktop-test.log")
   fails=$(grep -E '^test .* \.\.\. FAILED$' -c "$RUN_DIR/gate-desktop-test.log" || true)
   echo "rust-tests passed=$tests failed=$fails" >> "$SUMMARY"

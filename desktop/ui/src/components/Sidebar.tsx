@@ -1,8 +1,6 @@
 import { useI18n, type MessageKey } from "../i18n";
-import { useIpc } from "../ipc";
 import { useSnapshot } from "../state/snapshot";
 import { VIEWS, type View } from "../state/route";
-import { useEffect, useState } from "react";
 import { StatusFooter } from "./StatusFooter";
 
 const groups: { header: MessageKey; items: View[] }[] = [
@@ -24,36 +22,14 @@ if (groups.flatMap((g) => g.items).length !== VIEWS.length) {
   throw new Error("sidebar groups must list every view");
 }
 
-/** The Terminal count needs `enabled`, which the snapshot does not carry: read it per poll while running. */
-function useTerminalEnabled(): boolean | null {
-  const client = useIpc();
-  const { snapshot, world } = useSnapshot();
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!world.running) {
-      setEnabled(null);
-      return;
-    }
-    let alive = true;
-    client
-      .terminalStatus()
-      .then((s) => alive && setEnabled(s.enabled))
-      .catch(() => alive && setEnabled(null));
-    return () => {
-      alive = false;
-    };
-  }, [client, snapshot, world.running]);
-  return enabled;
-}
-
 export function Sidebar({ current, onOpen }: { current: View; onOpen: (view: View) => void }) {
   const { t } = useI18n();
   const { snapshot, world } = useSnapshot();
-  const terminalEnabled = useTerminalEnabled();
   const counts: Partial<Record<View, string>> = {};
   if (world.running) {
     if (snapshot?.devices) counts.devices = String(snapshot.devices.length);
-    if (terminalEnabled !== null) counts.terminal = t(terminalEnabled ? "t_on" : "t_off");
+    const enabled = snapshot?.terminal_enabled;
+    if (enabled !== null && enabled !== undefined) counts.terminal = t(enabled ? "t_on" : "t_off");
   }
 
   return (

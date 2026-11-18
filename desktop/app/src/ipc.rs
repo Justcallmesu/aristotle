@@ -1,7 +1,7 @@
 //! The Tauri commands and events: thin wrappers that hand blocking work to a worker thread and call
 //! the concern modules. No logic lives here.
 
-use crate::args::StartIntent;
+use crate::args::{PendingIntent, StartIntent};
 use crate::backend::Backend;
 use crate::dto::{IpcError, IpcResult, SnapshotDto};
 use crate::logs::{LogEvent, LogStream};
@@ -9,7 +9,7 @@ use crate::service::{run_service_action, ServiceAction};
 use crate::{devices, pairing, terminal};
 use aristotle_core::types::{ActionResult, Device, Pair, TerminalStatus};
 use serde::Serialize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::SystemTime;
 use tauri::{AppHandle, Emitter, State};
 
@@ -19,11 +19,6 @@ pub const EVENT_LOGS_LINES: &str = "logs-lines";
 pub const EVENT_LOGS_ENDED: &str = "logs-ended";
 
 type Shared<'a> = State<'a, Arc<Backend>>;
-
-/// The intent the window was started with, until the frontend has read it (it cannot listen yet when
-/// the process starts; hand-offs reach it as the `start-intent` event).
-#[derive(Default)]
-pub struct PendingIntent(pub Mutex<Option<StartIntent>>);
 
 #[derive(Serialize, Clone)]
 struct LogLines {
@@ -62,8 +57,7 @@ pub async fn snapshot(backend: Shared<'_>, fresh: Option<bool>) -> IpcResult<Sna
 
 #[tauri::command]
 pub fn start_intent(pending: State<'_, PendingIntent>) -> StartIntent {
-    let mut slot = pending.0.lock().unwrap_or_else(|e| e.into_inner());
-    slot.take().unwrap_or(StartIntent::Status)
+    pending.take()
 }
 
 #[tauri::command]

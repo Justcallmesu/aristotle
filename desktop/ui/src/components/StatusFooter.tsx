@@ -1,5 +1,5 @@
 import { useI18n } from "../i18n";
-import { footerDetail } from "../state/world";
+import { footerDetail, footerState } from "../state/world";
 import { useSnapshot } from "../state/snapshot";
 import { StateLight } from "./StateLight";
 
@@ -7,11 +7,12 @@ import { StateLight } from "./StateLight";
 export function StatusFooter() {
   const tr = useI18n();
   const { snapshot, world } = useSnapshot();
+  const { light, titleKey } = footerState(world);
   return (
     <div className="side-footer" role="status">
       <div className="side-footer-state">
-        {world.light ? <StateLight light={world.light} size={12} /> : null}
-        <span>{tr.t(world.titleKey)}</span>
+        {light ? <StateLight light={light} size={12} /> : null}
+        <span>{tr.t(titleKey)}</span>
       </div>
       <div className="side-footer-detail">{footerDetail(snapshot, tr)}</div>
     </div>

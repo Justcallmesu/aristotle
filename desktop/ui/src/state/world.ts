@@ -71,6 +71,12 @@ export function deriveWorld(snapshot: SnapshotDto | null): World {
   };
 }
 
+/** P18: on a version mismatch the footer is red with the mismatch word, like the tray; the banner stays. */
+export function footerState(world: World): { light: Light | null; titleKey: MessageKey } {
+  if (world.mismatch) return { light: "err", titleKey: "mm_title" };
+  return { light: world.light, titleKey: world.titleKey };
+}
+
 /** Footer line 2 (design.md 3.1): `<version> · Hermes <word>` while running, else the systemctl word. */
 export function footerDetail(snapshot: SnapshotDto | null, tr: Translator): string {
   if (!snapshot || snapshot.status.kind !== "answered") return "";

@@ -55,7 +55,7 @@ describe("shell", () => {
     const fake = renderApp();
     await screen.findByText("Server running");
     act(() =>
-      fake.emit("snapshot", snapshotOf({ status: { kind: "failed" } })),
+      fake.emit("snapshot", snapshotOf({ status: { kind: "failed" }, seq: 2 })),
     );
     expect(await screen.findByText("Server not answering")).toBeInTheDocument();
   });
@@ -65,6 +65,20 @@ describe("shell", () => {
     const nav = await screen.findByRole("navigation");
     await waitFor(() => expect(within(nav).getByRole("button", { name: /Devices/ })).toHaveTextContent("1"));
     await waitFor(() => expect(within(nav).getByRole("button", { name: /Terminal/ })).toHaveTextContent("On"));
+  });
+
+  it("takes the Terminal count from the snapshot and asks nothing extra", async () => {
+    const fake = renderApp(snapshotOf({ terminal_enabled: false }));
+    const nav = await screen.findByRole("navigation");
+    await waitFor(() => expect(within(nav).getByRole("button", { name: /Terminal/ })).toHaveTextContent("Off"));
+    expect(fake.calls.map((c) => c.command)).not.toContain("terminal_status");
+  });
+
+  it("shows no Terminal count when the switch is unknown", async () => {
+    renderApp(snapshotOf({ terminal_enabled: null }));
+    const nav = await screen.findByRole("navigation");
+    await waitFor(() => expect(within(nav).getByRole("button", { name: /Devices/ })).toHaveTextContent("0"));
+    expect(within(nav).getByRole("button", { name: /Terminal/ })).not.toHaveTextContent(/On|Off/);
   });
 
   it("shows the not-installed state with no install button", async () => {
@@ -102,6 +116,14 @@ describe("version mismatch", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Server and app don’t match");
     expect(alert).toHaveTextContent("The server is version 1.2.2, this app is version 1.2.3.");
+  });
+
+  it("turns the status footer red with the mismatch word (P18)", async () => {
+    renderApp(mismatch);
+    const footer = await screen.findByRole("status");
+    await waitFor(() => expect(footer).toHaveTextContent("Server and app don’t match"));
+    expect(footer.querySelector(".light-err")).not.toBeNull();
+    expect(footer.querySelector(".light-ok")).toBeNull();
   });
 
   it("disables action buttons but not plain ones", async () => {

@@ -2,6 +2,11 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { useIpc, type SnapshotDto } from "../ipc";
 import { deriveWorld, type World } from "./world";
 
+/** The newer of two snapshots: events and the first read can arrive out of order (NIT 3). */
+function newer(current: SnapshotDto | null, next: SnapshotDto): SnapshotDto {
+  return current && current.seq >= next.seq ? current : next;
+}
+
 interface SnapshotState {
   snapshot: SnapshotDto | null;
   world: World;
@@ -9,7 +14,7 @@ interface SnapshotState {
 
 const SnapshotContext = createContext<SnapshotState>({ snapshot: null, world: deriveWorld(null) });
 
-/** The latest poll: one read at start, then the backend's `snapshot` event every 5 s. */
+/** The latest poll: one read at start, then the backend's `snapshot` event every 5 s; older ones are dropped. */
 export function SnapshotProvider({ children }: { children: ReactNode }) {
   const client = useIpc();
   const [snapshot, setSnapshot] = useState<SnapshotDto | null>(null);
@@ -18,11 +23,11 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
     let alive = true;
     let unlisten: (() => void) | undefined;
     client
-      .on("snapshot", (next) => alive && setSnapshot(next))
+      .on("snapshot", (next) => alive && setSnapshot((current) => newer(current, next)))
       .then((off) => (alive ? (unlisten = off) : off()));
     client
       .snapshot()
-      .then((first) => alive && setSnapshot((current) => current ?? first))
+      .then((first) => alive && setSnapshot((current) => newer(current, first)))
       .catch(() => undefined);
     return () => {
       alive = false;

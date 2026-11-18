@@ -2,7 +2,7 @@
 
 use crate::backend::Backend;
 use crate::dto::IpcResult;
-use aristotle_core::runner::query;
+use aristotle_core::runner::{query, CliError, Reply as CliReply};
 use aristotle_core::types::ActionResult;
 use serde::Deserialize;
 use std::time::SystemTime;
@@ -30,7 +30,17 @@ impl ServiceAction {
     }
 }
 
-/// Writes the stamp before `stop` / `restart` and removes it again when the command fails (DF6): a
+/// A timeout is not a failure: the CLI client was killed, but the systemd stop job may still finish,
+/// so the stamp stays (it expires after 60 s, P17). Everything else that went wrong is definite.
+fn definitely_failed(outcome: &Result<CliReply<ActionResult>, CliError>) -> bool {
+    match outcome {
+        Ok(reply) => !reply.value.ok,
+        Err(CliError::Timeout) => false,
+        Err(_) => true,
+    }
+}
+
+/// Writes the stamp before `stop` / `restart` and removes it again when the command definitely fails (DF6): a
 /// stamp left behind would hide a real crash in the next 60 s.
 pub fn run_service_action(
     backend: &Backend,
@@ -44,8 +54,7 @@ pub fn run_service_action(
         let _ = stamp.write(now);
     }
     let outcome = query::<ActionResult>(backend.cli(), &[action.verb()]);
-    let failed = outcome.as_ref().map_or(true, |reply| !reply.value.ok);
-    if let (true, Some(stamp)) = (failed, stamp) {
+    if let (true, Some(stamp)) = (definitely_failed(&outcome), stamp) {
         let _ = stamp.delete();
     }
     Ok(outcome?.value)
@@ -55,7 +64,6 @@ pub fn run_service_action(
 mod tests {
     use super::*;
     use crate::testing::*;
-    use aristotle_core::runner::CliError;
     use aristotle_core::stamp::ExpectedStop;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -125,11 +133,41 @@ mod tests {
     }
 
     #[test]
-    fn a_stop_that_cannot_run_the_binary_deletes_the_stamp() {
-        let r = rig("restart-fail", Err(CliError::Timeout));
+    fn a_stop_that_times_out_keeps_the_stamp() {
+        // The systemd stop job may still finish after the CLI client was killed (MINOR-3).
+        let r = rig("restart-timeout", Err(CliError::Timeout));
         let err =
             run_service_action(&r.backend, ServiceAction::Restart, SystemTime::now()).unwrap_err();
         assert_eq!(err.kind, "timeout");
+        assert!(r.stamp.path().exists(), "kept: the stop may still land");
+    }
+
+    #[test]
+    fn a_stop_that_cannot_run_the_binary_deletes_the_stamp() {
+        let r = rig("stop-missing", Err(CliError::NotInstalled));
+        let err =
+            run_service_action(&r.backend, ServiceAction::Stop, SystemTime::now()).unwrap_err();
+        assert_eq!(err.kind, "not-installed");
+        assert!(!r.stamp.path().exists());
+    }
+
+    #[test]
+    fn a_stop_with_unreadable_output_deletes_the_stamp() {
+        let r = rig("stop-garbage", reply("not json", 1));
+        let err =
+            run_service_action(&r.backend, ServiceAction::Stop, SystemTime::now()).unwrap_err();
+        assert_eq!(err.kind, "bad-output");
+        assert!(!r.stamp.path().exists());
+    }
+
+    #[test]
+    fn a_stop_that_answers_not_ok_deletes_the_stamp() {
+        let r = rig(
+            "stop-not-ok",
+            reply(r#"{"ok":false,"service":"active"}"#, 0),
+        );
+        let done = run_service_action(&r.backend, ServiceAction::Stop, SystemTime::now()).unwrap();
+        assert!(!done.ok);
         assert!(!r.stamp.path().exists());
     }
 

@@ -10,6 +10,7 @@ use aristotle_core::snapshot::{
 };
 use aristotle_core::stamp::ExpectedStop;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub struct Backend {
@@ -19,7 +20,15 @@ pub struct Backend {
     pub(crate) stamp: Option<ExpectedStop>,
     app_version: Option<String>,
     snapshotter: Mutex<Snapshotter>,
-    latest: Mutex<Option<Snapshot>>,
+    latest: Mutex<Option<Latest>>,
+    next_seq: AtomicU64,
+}
+
+/// The newest poll and its sequence number.
+#[derive(Clone)]
+struct Latest {
+    seq: u64,
+    snapshot: Snapshot,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -40,6 +49,7 @@ impl Backend {
             app_version: app_version.map(str::to_owned),
             snapshotter: Mutex::new(Snapshotter::new(app_version)),
             latest: Mutex::new(None),
+            next_seq: AtomicU64::new(0),
         }
     }
 
@@ -59,9 +69,14 @@ impl Backend {
 
     /// Polls now and replaces the latest snapshot.
     pub fn refresh(&self) -> SnapshotDto {
-        let snapshot = lock(&self.snapshotter).poll(self.cli.as_ref());
-        let dto = self.dto(&snapshot);
-        *lock(&self.latest) = Some(snapshot);
+        // The sequence number is taken under the snapshotter lock, so it follows the poll order even
+        // when the poller and an action thread publish at the same time.
+        let mut snapshotter = lock(&self.snapshotter);
+        let snapshot = snapshotter.poll(self.cli.as_ref());
+        let seq = self.next_seq.fetch_add(1, Ordering::SeqCst) + 1;
+        let dto = self.dto(&snapshot, seq);
+        // Stored before the snapshotter lock is released, so `latest` never goes back to an older poll.
+        *lock(&self.latest) = Some(Latest { seq, snapshot });
         dto
     }
 
@@ -69,13 +84,13 @@ impl Backend {
     pub fn current(&self) -> SnapshotDto {
         let latest = lock(&self.latest).clone();
         match latest {
-            Some(snapshot) => self.dto(&snapshot),
+            Some(latest) => self.dto(&latest.snapshot, latest.seq),
             None => self.refresh(),
         }
     }
 
-    fn dto(&self, snapshot: &Snapshot) -> SnapshotDto {
-        SnapshotDto::new(snapshot, assess(snapshot), self.app_version.as_deref())
+    fn dto(&self, snapshot: &Snapshot, seq: u64) -> SnapshotDto {
+        SnapshotDto::new(snapshot, assess(snapshot), self.app_version.as_deref(), seq)
     }
 
     /// Refuses an action while the server and the app disagree (P5/P17) or nothing is installed (P13).
@@ -84,10 +99,11 @@ impl Backend {
         // Bound first: a lock taken in the `match` head would still be held when `refresh` locks it.
         let cached = lock(&self.latest).clone();
         let snapshot = match cached {
-            Some(snapshot) => snapshot,
+            Some(latest) => latest.snapshot,
             None => {
                 self.refresh();
-                lock(&self.latest).clone().ok_or_else(IpcError::internal)?
+                let latest = lock(&self.latest).clone();
+                latest.ok_or_else(IpcError::internal)?.snapshot
             }
         };
         if matches!(snapshot.version, VersionCheck::Mismatch { .. }) {
@@ -142,6 +158,29 @@ mod tests {
     fn guard_allows_an_installed_matching_server() {
         let cli = FakeCli::new(running_poll());
         assert!(backend(&cli, "1.2.3").guard_action().is_ok());
+    }
+
+    #[test]
+    fn the_snapshot_carries_the_terminal_switch() {
+        let cli = FakeCli::new(running_poll());
+        let dto = backend(&cli, "1.2.3").refresh();
+        assert_eq!(dto.terminal_enabled, Some(true));
+    }
+
+    #[test]
+    fn each_poll_gets_a_higher_sequence_number_and_current_repeats_the_last() {
+        let mut replies = running_poll();
+        // The version is asked only once, so the second poll is status, devices, terminal.
+        replies.extend([
+            json("status.json"),
+            json("devices_list.json"),
+            json("terminal_status.json"),
+        ]);
+        let cli = FakeCli::new(replies);
+        let b = backend(&cli, "1.2.3");
+        let (first, second) = (b.refresh().seq, b.refresh().seq);
+        assert!(second > first, "{first} then {second}");
+        assert_eq!(b.current().seq, second);
     }
 
     #[test]

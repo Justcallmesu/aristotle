@@ -45,6 +45,7 @@ pub fn snap(status: Status) -> Snapshot {
         status: StatusPoll::Answered(Box::new(status)),
         devices: None,
         terminals: None,
+        terminal_enabled: None,
         version: VersionCheck::Skipped,
     }
 }
@@ -54,6 +55,7 @@ pub fn failed() -> Snapshot {
         status: StatusPoll::Failed,
         devices: None,
         terminals: None,
+        terminal_enabled: None,
         version: VersionCheck::Skipped,
     }
 }

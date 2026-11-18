@@ -104,6 +104,10 @@ export interface SnapshotDto {
   status: StatusDto;
   devices: Device[] | null;
   terminals: OpenTerminal[] | null;
+  /** The terminal switch from the same poll; null when that read failed. */
+  terminal_enabled: boolean | null;
+  /** Grows with every poll; an older snapshot than the one shown is dropped. */
+  seq: number;
   version: VersionDto;
   assessment: { state: "green" | "amber" | "red"; reason: string };
   /** This build's version; null for dev builds (P5). */

@@ -28,9 +28,73 @@ pub fn parse_args<S: AsRef<str>>(argv: &[S]) -> StartIntent {
     StartIntent::Status
 }
 
+/// The intent for a window that cannot listen yet, until its frontend has read it.
+///
+/// A second launch while the first window is still loading would otherwise emit an event nobody
+/// receives: [`PendingIntent::hand_off`] queues it until the frontend has called `start_intent`.
+pub struct PendingIntent(std::sync::Mutex<Slot>);
+
+struct Slot {
+    queued: Option<StartIntent>,
+    /// The frontend has read its intent, so it listens for the event from now on.
+    window_ready: bool,
+}
+
+impl PendingIntent {
+    pub fn new(first: StartIntent) -> Self {
+        Self(std::sync::Mutex::new(Slot {
+            queued: Some(first),
+            window_ready: false,
+        }))
+    }
+
+    fn slot(&self) -> std::sync::MutexGuard<'_, Slot> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The `start_intent` command: the queued intent (the newest hand-off wins), else Status. After
+    /// this the window listens for the `start-intent` event.
+    pub fn take(&self) -> StartIntent {
+        let mut slot = self.slot();
+        slot.window_ready = true;
+        slot.queued.take().unwrap_or(StartIntent::Status)
+    }
+
+    /// A second launch's intent. `Some(intent)` = the window listens, emit it now; `None` = queued
+    /// for the window's first `start_intent` read.
+    #[must_use]
+    pub fn hand_off(&self, intent: StartIntent) -> Option<StartIntent> {
+        let mut slot = self.slot();
+        if slot.window_ready {
+            return Some(intent);
+        }
+        slot.queued = Some(intent);
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_hand_off_before_the_window_reads_its_intent_is_queued_not_emitted() {
+        let pending = PendingIntent::new(StartIntent::Status);
+        assert_eq!(pending.hand_off(StartIntent::Pair), None);
+        assert_eq!(pending.take(), StartIntent::Pair, "the newest intent wins");
+    }
+
+    #[test]
+    fn a_hand_off_after_the_window_read_its_intent_is_emitted_and_not_kept() {
+        let pending = PendingIntent::new(StartIntent::ConfirmStop);
+        assert_eq!(pending.take(), StartIntent::ConfirmStop);
+        assert_eq!(pending.hand_off(StartIntent::Pair), Some(StartIntent::Pair));
+        assert_eq!(
+            pending.take(),
+            StartIntent::Status,
+            "nothing replays on a reload"
+        );
+    }
 
     #[test]
     fn no_arguments_open_the_status_view() {

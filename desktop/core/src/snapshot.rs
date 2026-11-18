@@ -65,6 +65,8 @@ pub struct Snapshot {
     /// `None` unless the server answered and the call worked.
     pub devices: Option<Vec<Device>>,
     pub terminals: Option<Vec<OpenTerminal>>,
+    /// The terminal switch, from the same `terminal status` call; `None` when that read failed.
+    pub terminal_enabled: Option<bool>,
     pub version: VersionCheck,
 }
 
@@ -196,8 +198,8 @@ impl Snapshotter {
         if matches!(status, StatusPoll::Answered(_)) && self.version_due(&status) {
             self.refresh_version(cli);
         }
-        let (devices, terminals) = if running {
-            (fetch_devices(cli), fetch_terminals(cli))
+        let (devices, terminal) = if running {
+            (fetch_devices(cli), fetch_terminal(cli))
         } else {
             (None, None)
         };
@@ -205,7 +207,8 @@ impl Snapshotter {
         Snapshot {
             status,
             devices,
-            terminals,
+            terminals: terminal.as_ref().map(|t| t.open.clone()),
+            terminal_enabled: terminal.map(|t| t.enabled),
             version: combine_checks(&self.version, &status_check),
         }
     }
@@ -261,8 +264,8 @@ fn fetch_devices(cli: &dyn ServerCli) -> Option<Vec<Device>> {
         .map(|r| r.value.devices)
 }
 
-fn fetch_terminals(cli: &dyn ServerCli) -> Option<Vec<OpenTerminal>> {
+fn fetch_terminal(cli: &dyn ServerCli) -> Option<TerminalStatus> {
     query::<TerminalStatus>(cli, &["terminal", "status"])
         .ok()
-        .map(|r| r.value.open)
+        .map(|r| r.value)
 }

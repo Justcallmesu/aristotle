@@ -38,6 +38,10 @@ pub struct SnapshotDto {
     pub status: StatusDto,
     pub devices: Option<Vec<Device>>,
     pub terminals: Option<Vec<OpenTerminal>>,
+    /// The terminal switch from the same poll (the sidebar count); `None` when that read failed.
+    pub terminal_enabled: Option<bool>,
+    /// Grows with every poll; the frontend drops a snapshot older than the one it shows.
+    pub seq: u64,
     pub version: VersionDto,
     pub assessment: AssessmentDto,
     /// This build's version; `None` for dev builds (P5).
@@ -45,7 +49,12 @@ pub struct SnapshotDto {
 }
 
 impl SnapshotDto {
-    pub fn new(snapshot: &Snapshot, assessment: Assessment, app_version: Option<&str>) -> Self {
+    pub fn new(
+        snapshot: &Snapshot,
+        assessment: Assessment,
+        app_version: Option<&str>,
+        seq: u64,
+    ) -> Self {
         Self {
             status: match &snapshot.status {
                 StatusPoll::Answered(status) => StatusDto::Answered {
@@ -56,6 +65,8 @@ impl SnapshotDto {
             },
             devices: snapshot.devices.clone(),
             terminals: snapshot.terminals.clone(),
+            terminal_enabled: snapshot.terminal_enabled,
+            seq,
             version: match &snapshot.version {
                 VersionCheck::Unchecked => VersionDto::Unchecked,
                 VersionCheck::Skipped => VersionDto::Skipped,

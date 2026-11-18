@@ -1,0 +1,18 @@
+npm notice run aristotle-desktop-ui@0.0.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ✓ src/state/useCommand.test.tsx (14 tests) 94ms
+ ✓ src/components/shared.test.tsx (8 tests) 562ms
+ ✓ src/components/components.test.tsx (19 tests) 1044ms
+ ✓ src/ipc/ipc.test.ts (5 tests) 12ms
+ ✓ src/state/world.test.ts (17 tests) 16ms
+ ✓ src/i18n/i18n.test.ts (8 tests) 55ms
+ ✓ src/state/snapshot.test.tsx (2 tests) 156ms
+
+ Test Files  7 passed (7)
+      Tests  73 passed (73)
+   Start at  20:21:44
+   Duration  4.05s (transform 448ms, setup 1.08s, collect 1.11s, tests 1.94s, environment 4.45s, prepare 981ms)
+

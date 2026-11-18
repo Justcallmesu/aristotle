@@ -24,6 +24,8 @@ export function snapshotOf(overrides: Partial<SnapshotDto> = {}): SnapshotDto {
     },
     devices: [],
     terminals: [],
+    terminal_enabled: true,
+    seq: 1,
     version: { kind: "match" },
     assessment: { state: "green", reason: "all-ok" },
     app_version: "1.2.3",

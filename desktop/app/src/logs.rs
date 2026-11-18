@@ -11,6 +11,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 /// Lines per event at most; a smaller batch goes out as soon as the pipe has no more buffered data.
 const MAX_BATCH: usize = 200;
@@ -66,29 +67,73 @@ impl LogStream {
             let stopped = stopped.clone();
             move || read_lines(stdout, &stopped, &emit)
         });
-        *lock(&self.running) = Some(Running {
+        let started = Running {
             child,
             reader,
             stopped,
-        });
+        };
+        // Swap in one step: a concurrent `start` that got here first is stopped, not leaked.
+        let previous = lock(&self.running).replace(started);
+        if let Some(previous) = previous {
+            stop_running(previous);
+        }
         Ok(())
     }
 
-    /// Kills the child's group and reaps it. Quiet when nothing runs.
+    /// Kills the child's group and reaps it, waiting at most [`STOP_WAIT`]. Quiet when nothing runs.
     pub fn stop(&self) {
-        let Some(mut running) = lock(&self.running).take() else {
-            return;
-        };
-        running.stopped.store(true, Ordering::SeqCst);
-        if let Ok(pgid) = i32::try_from(running.child.id()) {
-            // SAFETY: killpg takes two plain integers and touches no memory of ours. The child is not
-            // reaped yet, so its pid cannot belong to anything else.
-            unsafe {
-                killpg(pgid, SIGKILL);
-            }
+        let running = lock(&self.running).take();
+        if let Some(running) = running {
+            stop_running(running);
         }
-        let _ = running.child.wait();
+    }
+}
+
+/// How long `stop` may wait for the child to exit and the reader to finish.
+const STOP_WAIT: Duration = Duration::from_secs(2);
+const STOP_POLL: Duration = Duration::from_millis(10);
+
+/// Kills the group, waits up to `STOP_WAIT`, then `kill`s the child itself. Whatever is still not
+/// finished (an unkillable child, or a process outside the group holding the pipe) goes to a
+/// detached reaper thread, so the caller (the window's close path) never blocks without bound.
+fn stop_running(mut running: Running) {
+    running.stopped.store(true, Ordering::SeqCst);
+    if let Ok(pgid) = i32::try_from(running.child.id()) {
+        // SAFETY: killpg takes two plain integers and touches no memory of ours. The child is not
+        // reaped yet, so its pid cannot belong to anything else.
+        unsafe {
+            killpg(pgid, SIGKILL);
+        }
+    }
+    let deadline = Instant::now() + STOP_WAIT;
+    let exited = wait_until(deadline, || matches!(running.child.try_wait(), Ok(Some(_))));
+    if !exited {
+        let _ = running.child.kill();
+    }
+    let reader = &running.reader;
+    if exited && wait_until(deadline, || reader.is_finished()) {
         let _ = running.reader.join();
+        return;
+    }
+    let Running {
+        mut child, reader, ..
+    } = running;
+    thread::spawn(move || {
+        let _ = child.wait();
+        let _ = reader.join();
+    });
+}
+
+/// Polls `done` every `STOP_POLL` until it is true or the deadline passes.
+fn wait_until(deadline: Instant, mut done: impl FnMut() -> bool) -> bool {
+    loop {
+        if done() {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        thread::sleep(STOP_POLL);
     }
 }
 
@@ -147,7 +192,6 @@ mod tests {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
-    use std::time::{Duration, Instant};
 
     fn script(tag: &str, body: &str) -> (PathBuf, PathBuf) {
         let dir = std::env::temp_dir().join(format!("aristotle-logs-{tag}-{}", std::process::id()));
@@ -214,6 +258,84 @@ mod tests {
         assert_eq!(events.lock().unwrap().len(), seen, "no events after stop");
         assert!(!events.lock().unwrap().contains(&LogEvent::Ended));
         let _ = fs::remove_dir_all(dir);
+    }
+
+    /// A grandchild that leaves the group (`setsid`) and keeps the stdout pipe open.
+    const ESCAPEE: &str = "setsid sleep 30 &\necho $! > \"$(dirname \"$0\")/escapee-pid\"\nwhile true; do echo line; sleep 0.05; done";
+
+    fn kill_pid(pid: &str) {
+        let _ = std::process::Command::new("kill")
+            .args(["-9", pid])
+            .status();
+    }
+
+    #[test]
+    fn stop_returns_in_bounded_time_when_a_process_outside_the_group_holds_the_pipe() {
+        let _g = fork_lock();
+        let (dir, bin) = script("escapee", ESCAPEE);
+        let (events, emit) = collector();
+        let stream = Arc::new(LogStream::new());
+        stream.start(Some(&bin), emit).unwrap();
+        wait_for("a first line", || !events.lock().unwrap().is_empty());
+        wait_for("the escapee pid", || dir.join("escapee-pid").exists());
+        let escapee = fs::read_to_string(dir.join("escapee-pid"))
+            .unwrap()
+            .trim()
+            .to_owned();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let stopper = stream.clone();
+        thread::spawn(move || {
+            stopper.stop();
+            let _ = done_tx.send(());
+        });
+        let returned = done_rx.recv_timeout(Duration::from_secs(3));
+        kill_pid(&escapee);
+        assert!(returned.is_ok(), "stop() did not return within 3 s");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    const RECORDING: &str =
+        "echo $$ >> \"$(dirname \"$0\")/pids\"\nwhile true; do echo line; sleep 0.05; done";
+
+    fn pids(dir: &Path) -> Vec<String> {
+        fs::read_to_string(dir.join("pids"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[test]
+    fn two_starts_at_once_leave_exactly_one_stream_running() {
+        let _g = fork_lock();
+        for round in 0..5 {
+            let (dir, bin) = script(&format!("twostarts{round}"), RECORDING);
+            let stream = Arc::new(LogStream::new());
+            let gate = Arc::new(std::sync::Barrier::new(2));
+            let starters: Vec<_> = (0..2)
+                .map(|_| {
+                    let (stream, gate, bin) = (stream.clone(), gate.clone(), bin.clone());
+                    thread::spawn(move || {
+                        gate.wait();
+                        stream.start(Some(&bin), |_| {}).unwrap();
+                    })
+                })
+                .collect();
+            for starter in starters {
+                starter.join().unwrap();
+            }
+            // A loser killed before its shell wrote a pid leaves one line; either way, once the
+            // starts have settled exactly one child may be alive.
+            wait_for("a child to have started", || !pids(&dir).is_empty());
+            thread::sleep(Duration::from_millis(600));
+            let alive_now = pids(&dir).iter().filter(|p| alive(p)).count();
+            assert_eq!(alive_now, 1, "round {round}: pids {:?}", pids(&dir));
+            stream.stop();
+            wait_for("the last child to die", || {
+                pids(&dir).iter().all(|p| !alive(p))
+            });
+            let _ = fs::remove_dir_all(dir);
+        }
     }
 
     #[test]

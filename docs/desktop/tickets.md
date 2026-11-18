@@ -111,13 +111,14 @@ states, `id` strings present for every `en` key; screenshots light + dark in the
 ## Deferred review findings
 | Id | Finding (source: `runs/DS3/re-review-report.md`) | Target | Status |
 |---|---|---|---|
-| DF1 | m1 gate: per-test-binary ">= 1 test" check beside `MIN_TESTS` | DS3w (touches gates.sh) | TODO |
-| DF2 | m2 gate: `ldd` allowlist (libc/libm/libgcc_s/ld-linux/vdso) instead of a gtk/webkit denylist | DS3w | TODO |
-| DF3 | m3 runner: child exits but a grandchild holds stdout -> kill the group and join the reader | DS3w (core) | TODO |
-| DF4 | m4 CLI `version --json` cached until restart: re-ask every 12 polls or when `status.result.version` changes | DS3w (core) | TODO |
-| DF5 | m5 `PermissionDenied` binary -> CLI missing (row 1), not "not answering" | DS3w (core) | TODO |
-| DF6 | m6 delete the expected-stop stamp when `stop`/`restart` fails | DS3w (writer lives there) | TODO |
+| DF1 | m1 gate: per-test-binary ">= 1 test" check beside `MIN_TESTS` | DS3w (touches gates.sh) | DONE (DS3w/DS3x) |
+| DF2 | m2 gate: `ldd` allowlist (libc/libm/libgcc_s/ld-linux/vdso) instead of a gtk/webkit denylist | DS3w | DONE (DS3w/DS3x) |
+| DF3 | m3 runner: child exits but a grandchild holds stdout -> kill the group and join the reader | DS3w (core) | DONE (DS3w/DS3x) |
+| DF4 | m4 CLI `version --json` cached until restart: re-ask every 12 polls or when `status.result.version` changes | DS3w (core) | DONE (DS3w/DS3x) |
+| DF5 | m5 `PermissionDenied` binary -> CLI missing (row 1), not "not answering" | DS3w (core) | DONE (DS3w/DS3x) |
+| DF6 | m6 delete the expected-stop stamp when `stop`/`restart` fails | DS3w (writer lives there) | DONE (DS3w/DS3x) |
 | DF7 | NITs a-h + first-review NIT-3/5/6/7/9 (zombie on `try_wait` Err, stamp read/delete race, unparsable stamp, stale string comments, design.md surface labels/§6 wording, Start enabled while starting, Hermes swap wording, markup escape, `non_empty_env` dup, unused `ErrorBody`, `assess` module, query timeouts) | one NIT sweep after DS6 | TODO |
+| DF8 | DS3w review NITs left after DS3x: (1) the UI re-derives the §4.1 state table instead of mapping core's `assessment.reason` (split Hermes not-running/error in core's `Reason`, map in TS); (4) logs child orphaned on app crash (PDEATHSIG from a long-lived spawner thread); (5) dialog double-confirm guard untested; (6) tray decodes PNGs on every `icon_pixmap` (OnceLock); (8) `ServerState::Other` serialises as `"Other"`; (9) see report | NIT sweep after DS6 | TODO |
 
 ## Resume point (paused 2026-11-18 by the user, after the DS3w + DSI wave)
 1. Read `decisions.md` (last lines) and this board. DS3w and DSI were running at the pause; check their reports
