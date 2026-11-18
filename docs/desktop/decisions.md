@@ -22,3 +22,6 @@
   confirmation; the real tray click was not run (no /tmp/ksni.log), so it stays a user check (the tray also offers "Open" in its
   menu, so DS3 does not depend on it). P5 corrected (compare versions, not the phone protocol). DS3 split into DS3 (core + tray),
   DSDc (design.md), DS3w (window skeleton), DSI (icons). DS3 + DSDc dispatched in parallel.
+- 2026-11-18 DS3 package committed (e9e12a2). DS3w + DSI dispatched. **User: "after this pause"** = pause once this wave is done:
+  DS3w and DSI may finish (workers never commit); their results are logged as BUILT (unreviewed); no gate, mutation, review,
+  commit or new dispatch until the user says go. Resume point in `tickets.md` § Resume point.
