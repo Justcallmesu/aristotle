@@ -499,6 +499,9 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 | `st_outside ★` | Running outside the service | Berjalan di luar layanan | UI + tray tooltip |
 | `sub_outside ★` | The server answers, but not as the aristotle-server service, so start, stop and restart may not reach it. | Server menjawab, tetapi bukan sebagai layanan aristotle-server, jadi nyalakan, matikan, dan mulai ulang mungkin tidak berpengaruh. | UI |
 | `sub_hermunk ★` | This server does not report Hermes. Update it with the installer. | Server ini tidak melaporkan Hermes. Perbarui dengan installer. | UI + tray tooltip |
+| `NoAppTitle` (Rust) | Window app not found | Aplikasi jendela tidak ditemukan | tray notification |
+| `NoAppBody` (Rust) | aristotle-desktop is not installed next to the tray. | aristotle-desktop tidak terpasang di samping tray. | tray notification |
+| `ADevice` (Rust) | A device | Sebuah perangkat | notification fallback name |
 | `no_listen_up ★` | No network listener is up. | Tidak ada listener jaringan yang aktif. | UI |
 | `working_start ★` | Starting… | Menyalakan… | UI |
 | `act_failed_t ★` | That did not work | Itu tidak berhasil | UI |

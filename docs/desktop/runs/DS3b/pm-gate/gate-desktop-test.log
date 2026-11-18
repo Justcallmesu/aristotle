@@ -1,0 +1,149 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (target/debug/build/aristotle-core/42324cdcf5287651/out/aristotle_core-42324cdcf5287651)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/diff.rs (target/debug/build/aristotle-core/c12cfea0fcb5cde6/out/diff-c12cfea0fcb5cde6)
+
+running 20 tests
+test device_list_missing_on_one_side_is_silent ... ok
+test already_stopped_does_not_notify_again ... ok
+test failed_poll_is_not_a_transition ... ok
+test existing_terminal_is_not_new ... ok
+test first_poll_never_notifies ... ok
+test hermes_flap_notifies_once_per_transition ... ok
+test hermes_going_absent_counts_as_unreachable ... ok
+test hermes_notice_is_not_added_when_the_server_stopped ... ok
+test new_device_is_announced_by_name ... ok
+test new_terminal_names_the_device ... ok
+test new_terminal_with_unknown_device_has_no_name ... ok
+test notices_carry_only_names_ids_and_listeners ... ok
+test stamp_in_window_is_symmetric_around_now ... ok
+test stop_with_fresh_stamp_is_silent ... ok
+test stop_with_future_stamp_counts_as_fresh ... ok
+test stop_with_stamp_61s_in_the_future_notifies ... ok
+test stop_with_stamp_61s_old_notifies ... ok
+test stop_with_stamp_exactly_at_the_window_edges_is_expected ... ok
+test stop_without_stamp_notifies ... ok
+test stop_with_stale_stamp_notifies ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fixtures.rs (target/debug/build/aristotle-core/9ff3c0f7ba941c59/out/fixtures-9ff3c0f7ba941c59)
+
+running 9 tests
+test error_body_decodes ... ok
+test pair_debug_hides_the_code_and_payload ... ok
+test no_fixture_is_left_uncovered ... ok
+test status_full_fields ... ok
+test status_not_installed_and_not_running ... ok
+test status_sparse_has_absent_fields ... ok
+test every_fixture_decodes ... ok
+test unknown_fields_are_ignored ... ok
+test terminal_optional_fields ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/poller_stamp.rs (target/debug/build/aristotle-core/dd2ff1b36ec503e8/out/poller_stamp-dd2ff1b36ec503e8)
+
+running 11 tests
+test poller_deletes_a_future_stamp_and_the_next_crash_notifies ... ok
+test a_failed_devices_poll_keeps_the_baseline_so_a_new_phone_still_notifies_once ... ok
+test a_failed_terminal_poll_keeps_the_baseline_so_a_new_terminal_still_notifies_once ... ok
+test poller_deletes_a_stale_stamp_even_when_no_stop_was_seen ... ok
+test poller_stop_without_stamp_notifies_and_failed_poll_keeps_the_baseline ... ok
+test poller_stop_with_fresh_stamp_is_silent_and_consumes_the_stamp ... ok
+test poller_keeps_an_in_window_stamp_until_the_stop_is_seen ... ok
+test stamp_garbage_reads_as_none ... ok
+test stamp_write_read_delete_roundtrip ... ok
+test stamp_without_runtime_dir_is_none ... ok
+test restart_without_an_observed_stop_leaves_no_stamp_after_60_s ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runner.rs (target/debug/build/aristotle-core/06b198abaf4aa9d0/out/runner-06b198abaf4aa9d0)
+
+running 12 tests
+test error_kind_is_a_fixed_code_without_the_message ... ok
+test default_bin_prefers_the_env_override ... ok
+test missing_binary_is_not_installed ... ok
+test query_appends_json_as_the_last_argument ... ok
+test error_object_and_exit_1_is_a_server_error ... ok
+test garbage_stdout_is_bad_output_without_content ... ok
+test semicolon_argument_is_passed_literally ... ok
+test success_object_is_parsed_with_exit_code ... ok
+test success_object_with_exit_1_is_still_success ... ok
+test wrong_shape_is_bad_output ... ok
+test timeout_kills_the_process ... ok
+test timeout_kills_grandchildren_too ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.12s
+
+     Running tests/state.rs (target/debug/build/aristotle-core/ba83a19bbb6041fb/out/state-ba83a19bbb6041fb)
+
+running 15 tests
+test compare_versions_rules ... ok
+test dev_versions_skip_the_check_on_either_side ... ok
+test poll_cli_mismatch_wins_over_a_matching_running_version ... ok
+test poll_devices_failure_keeps_status ... ok
+test poll_failed_version_call_is_retried_next_poll ... ok
+test poll_dev_build_skips_the_check ... ok
+test poll_failures_map_to_red_states ... ok
+test poll_stopped_skips_devices_and_terminals ... ok
+test poll_running_fetches_version_devices_terminals ... ok
+test poll_running_server_dev_version_skips_its_side ... ok
+test poll_running_server_version_differs_while_cli_matches_is_red ... ok
+test poll_version_mismatch_is_red ... ok
+test tray_state_table ... ok
+test running_server_version_is_checked_on_every_poll_not_only_after_a_restart ... ok
+test poll_version_asked_once_and_again_after_restart ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/strings.rs (target/debug/build/aristotle-core/a55088449feb234b/out/strings-a55088449feb234b)
+
+running 10 tests
+test board_texts_are_exact ... ok
+test design_md_tray_texts_are_exact ... ok
+test every_reason_has_a_tooltip ... ok
+test locale_defaults_to_english ... ok
+test locale_order_is_lc_all_then_lc_messages_then_lang ... ok
+test notice_texts_fill_names_and_fall_back ... ok
+test no_text_names_a_pairing_code_and_no_placeholder_is_left_in_notices ... ok
+test every_key_has_text_in_both_tables_with_the_same_placeholders ... ok
+test texts_differ_between_languages_except_the_brand_like_ones ... ok
+test the_new_reasons_pick_their_own_tooltips ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/build/aristotle-tray/a9e88523338404a9/out/aristotle_tray-a9e88523338404a9)
+
+running 17 tests
+test icons::tests::the_three_states_have_distinct_colours ... ok
+test launcher::tests::missing_binary_is_reported_not_spawned ... ok
+test launcher::tests::no_path_is_reported_as_missing ... ok
+test launcher::tests::second_open_is_deduplicated_while_the_child_runs ... ok
+test launcher::tests::window_bin_absolute_override_wins ... ok
+test icons::tests::pixmap_is_22x22_argb_with_the_state_colour_in_the_middle ... ok
+test launcher::tests::window_bin_relative_override_is_ignored ... ok
+test launcher::tests::window_bin_without_a_usable_exe_path_is_none ... ok
+test menu::tests::active_service_shows_stop_and_enables_pair ... ok
+test menu::tests::hand_started_server_with_inactive_service_shows_start_not_stop ... ok
+test launcher::tests::window_bin_sits_next_to_the_tray ... ok
+test menu::tests::not_installed_shows_neither ... ok
+test menu::tests::other_service_words_show_neither ... ok
+test menu::tests::stopped_service_shows_start_and_disables_pair ... ok
+test menu::tests::version_mismatch_shows_neither_and_keeps_open ... ok
+test menu::tests::unknown_service_state_shows_neither ... ok
+test menu::tests::no_answer_with_active_service_keeps_stop_for_recovery ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests aristotle_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

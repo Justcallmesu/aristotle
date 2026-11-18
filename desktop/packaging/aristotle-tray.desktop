@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Aristotle Server
+Comment=Tray icon and notifications for aristotle-server
+# The installer (DS7) replaces @BIN_DIR@ with the absolute install directory.
+Exec=@BIN_DIR@/aristotle-tray
+Icon=network-server
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+Hidden=false

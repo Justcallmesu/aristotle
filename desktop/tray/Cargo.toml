@@ -1,0 +1,16 @@
+[package]
+name = "aristotle-tray"
+description = "Resident StatusNotifierItem tray for aristotle-server (no GUI toolkit, no webview)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "aristotle-tray"
+path = "src/main.rs"
+
+[dependencies]
+aristotle-core = { path = "../core" }
+ksni.workspace = true
+notify-rust.workspace = true

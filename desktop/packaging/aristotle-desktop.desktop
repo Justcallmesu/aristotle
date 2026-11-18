@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Aristotle Server
+Comment=Control the Aristotle server on this PC
+# The installer (DS7) replaces @BIN_DIR@ with the absolute install directory.
+Exec=@BIN_DIR@/aristotle-desktop
+Icon=network-server
+Terminal=false
+Categories=Utility;Network;
+StartupWMClass=aristotle-desktop

@@ -1,0 +1,25 @@
+PASS desktop-fmt (0)
+PASS desktop-clippy (0)
+PASS desktop-test (0)
+rust-tests passed=94 failed=0
+PASS desktop-test-count (94)
+PASS desktop-tray-build (0)
+PASS desktop-tray-ldd (0)
+=== M1 outside-service rule off
+test tray_state_table ... FAILED
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+=== M2 future stamp always fresh
+test stamp_in_window_is_symmetric_around_now ... FAILED
+test stop_with_stamp_61s_in_the_future_notifies ... FAILED
+test result: FAILED. 18 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+=== M3 running-server version ignored
+test garbage_stdout_is_bad_output_without_content ... FAILED
+test timeout_kills_the_process ... FAILED
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s
+KILLED: tests failed (exit 101); restored sha256 match
+=== M4 other service words show Stop
+test menu::tests::other_service_words_show_neither ... FAILED
+test result: FAILED. 16 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match

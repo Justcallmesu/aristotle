@@ -1,0 +1,7 @@
+PASS desktop-fmt (0)
+PASS desktop-clippy (0)
+PASS desktop-test (0)
+rust-tests passed=94 failed=0
+PASS desktop-test-count (94)
+PASS desktop-tray-build (0)
+PASS desktop-tray-ldd (0)

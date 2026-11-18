@@ -1,0 +1,19 @@
+=== M1 stale stamp window 60 s -> 6000 s
+test stop_with_stale_stamp_notifies ... FAILED
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== M2 Hermes down maps to Green (amber lost)
+test tray_state_table ... FAILED
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== M3 expected-stop negation dropped
+test hermes_notice_is_not_added_when_the_server_stopped ... FAILED
+test stop_with_fresh_stamp_is_silent ... FAILED
+test stop_with_future_stamp_counts_as_fresh ... FAILED
+test stop_without_stamp_notifies ... FAILED
+test stop_with_stale_stamp_notifies ... FAILED
+test result: FAILED. 11 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0

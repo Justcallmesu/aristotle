@@ -1684,7 +1684,7 @@ fixtures in `server/internal/app/testdata/json/` are the exact success output of
 **Rules.** Success: exactly one JSON object and a newline on stdout, nothing else on stdout, exit code identical to the plain command.
 Failure: `{"error":"<text>"}` on stdout, same non-zero exit code as the plain command, nothing on stderr. A usage error (exit 2)
 keeps the text usage message on stderr and prints nothing on stdout. `--json` may sit anywhere after the command name, always as the separate token `--json` (`-json` and `--json=true` are usage errors on every command; `pair --name --json` is a usage error, not a device called `--json`; `pair` refuses a `--name` that starts with `-`). The app passes it as the last argument. Field names are
-snake_case; times are RFC 3339. Plain (no `--json`) output is unchanged. The shapes are the control results the server already returns
+snake_case; times are RFC 3339. Plain (no `--json`) output of every command is unchanged, except the usage lines (they now name `--json`) and `pair`'s flag rules (DS1b: `--json` is stripped like on every command, a `--name` starting with `-` is refused). The shapes are the control results the server already returns
 (`statusResult`, `terminalStatusResult`, `devices.Public`, `pairStartResult`), so a field added there appears here; parse leniently.
 A field marked `?` can be absent (the key is not there; it is never `null`). A systemctl word (`service`, `enabled`, and `service` in `start|stop|restart`) can also be `"unknown"` when systemctl printed nothing: the app maps it to the red state.
 

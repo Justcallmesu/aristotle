@@ -12,8 +12,9 @@ Routes: build `std` unless noted; every review `deep`, fresh context, never the 
 | DSD | Design pass: mockups of every view (real states, light/dark, EN/ID), tray icon set, tokens; user picks; then consolidated into `docs/desktop/design.md` | - | design | std | BUILT (board + notes, slop 0/10); waiting on the user's picks (design-notes §9, 1-12; 11 settled by P13) |
 | DS2b | Spike: `ksni` tray, left click launches the window app (D17/D18); memory, single instance, real-click check | DS2 | spike | std | BUILT (icon visible, Activate via D-Bus launches the child, tray ~7 MB, single instance, reaped); **real left click: user check pending** |
 | DS1c | Server: `status --json` `installed` field (P13) + fixture + §22 | DS1b | server | std | DONE (aa9c5a7; gate GREEN 893, PM mutant killed; no own review: the DS3 review re-checks it) |
-| DS3 | Desktop core + tray: `desktop/` Rust workspace (P16), `core` (CLI runner, §22 types, poller, tray state, notification diff incl. P15, strings P10, version check P5), `tray` bin (ksni, left click + menu per P14, notifications), desktop gate script | DS1c, DS2b | desktop | std | TODO |
-| DSDc | Consolidate the picked design (D19) into binding `docs/desktop/design.md` (tokens as CSS variables, type, spacing, components per view, only chosen options) | DSD | design | std | TODO |
+| DS3 | Desktop core + tray: `desktop/` Rust workspace (P16), `core` (CLI runner, §22 types, poller, tray state, notification diff incl. P15, strings P10, version check P5), `tray` bin (ksni, left click + menu per P14, notifications), desktop gate script | DS1c, DS2b | desktop | std | DONE (with DS3b/c/d; committed after PM gate + 30-run flake loop) |
+| DS3b | DS3 fix round 1 of 2: the 3 MAJORs + minors (menu by service state, `-dev` skip, P11 log, gate SKIP/0-tests, process-group kill, absolute env paths, lost notices) + string alignment with design.md | DS3 | desktop | std | DONE with DS3c (menu) + DS3d (fix round 2: flaky runner test lock, 100/100); re-review: product code approved; minors -> DF1-DF7 |
+| DSDc | Consolidate the picked design (D19) into binding `docs/desktop/design.md` (tokens as CSS variables, type, spacing, components per view, only chosen options) | DSD | design | std | DONE (P17 rows applied by the PM) |
 | DS3w | Window app skeleton: `app` crate (Tauri 2.12.6, single instance + argument hand-off P14, expected-stop stamp P15, P4 capabilities/CSP, process exits on window close), `desktop/ui` React+TS+Vite + Vitest + ESLint, design tokens + fonts from `design.md`, shell 2 navigation with empty views, IPC to `core`; gate gains npm steps | DS3, DSDc | desktop | std | TODO |
 | DSI | Tray icon set: green/amber/red from the app icon, heavier 16 px variant (D19-5); user approves on the real panel | DS3 | design | std | TODO |
 | DS4 | UI: Status, Service, Logs | DS3w | desktop | std | TODO |
@@ -105,6 +106,17 @@ states, `id` strings present for every `en` key; screenshots light + dark in the
 | DL1 | Settings editor (port, LAN interfaces) | D3 |
 | DL2 | Stocks view/settings on the desktop | D3 |
 | DL3 | Server push channel instead of polling | P1 |
+
+## Deferred review findings
+| Id | Finding (source: `runs/DS3/re-review-report.md`) | Target | Status |
+|---|---|---|---|
+| DF1 | m1 gate: per-test-binary ">= 1 test" check beside `MIN_TESTS` | DS3w (touches gates.sh) | TODO |
+| DF2 | m2 gate: `ldd` allowlist (libc/libm/libgcc_s/ld-linux/vdso) instead of a gtk/webkit denylist | DS3w | TODO |
+| DF3 | m3 runner: child exits but a grandchild holds stdout -> kill the group and join the reader | DS3w (core) | TODO |
+| DF4 | m4 CLI `version --json` cached until restart: re-ask every 12 polls or when `status.result.version` changes | DS3w (core) | TODO |
+| DF5 | m5 `PermissionDenied` binary -> CLI missing (row 1), not "not answering" | DS3w (core) | TODO |
+| DF6 | m6 delete the expected-stop stamp when `stop`/`restart` fails | DS3w (writer lives there) | TODO |
+| DF7 | NITs a-h + first-review NIT-3/5/6/7/9 (zombie on `try_wait` Err, stamp read/delete race, unparsable stamp, stale string comments, design.md surface labels/§6 wording, Start enabled while starting, Hermes swap wording, markup escape, `non_empty_env` dup, unused `ErrorBody`, `assess` module, query timeouts) | one NIT sweep after DS6 | TODO |
 
 ## Log
 - 2026-11-18 Spec + tickets committed (f9213fe). Baseline `runs/baseline` GREEN (server, 805 Go tests). Wave 1 dispatched in
