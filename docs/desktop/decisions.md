@@ -25,3 +25,6 @@
 - 2026-11-18 DS3 package committed (e9e12a2). DS3w + DSI dispatched. **User: "after this pause"** = pause once this wave is done:
   DS3w and DSI may finish (workers never commit); their results are logged as BUILT (unreviewed); no gate, mutation, review,
   commit or new dispatch until the user says go. Resume point in `tickets.md` § Resume point.
+- 2026-11-18 User "continue" = go (pause lifted). DS3w worker had died mid-gate (no report; fmt + clippy failures) -> continuation
+  worker dispatched. DSI finished; user approved the icons from the preview sheet ("icons okau"). DSI commits after DS3w because
+  both touch `desktop/Cargo.toml`/`Cargo.lock`; the DS3w review covers DSI too.

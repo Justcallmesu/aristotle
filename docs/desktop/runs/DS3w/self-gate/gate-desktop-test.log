@@ -1,0 +1,494 @@
+   Compiling unicode-ident v1.0.27
+   Compiling equivalent v1.0.3
+   Compiling hashbrown v0.17.1
+   Compiling libc v0.2.191
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling indexmap v2.14.2
+   Compiling syn v3.0.10
+   Compiling syn v2.0.119
+   Compiling memchr v2.8.3
+   Compiling cfg-if v1.0.5
+   Compiling pin-project-lite v0.2.17
+   Compiling winnow v1.0.5
+   Compiling itoa v1.0.19
+   Compiling futures-core v0.3.34
+   Compiling zmij v1.0.23
+   Compiling bitflags v2.13.2
+   Compiling siphasher v1.0.4
+   Compiling writeable v0.6.4
+   Compiling litemap v0.8.3
+   Compiling phf_shared v0.13.1
+   Compiling utf_types v1.0.0
+   Compiling phf_generator v0.13.1
+   Compiling slab v0.4.12
+   Compiling synstructure v0.14.0
+   Compiling utf8_iter v1.1.0
+   Compiling futures-io v0.3.34
+   Compiling once_cell v1.21.4
+   Compiling smallvec v1.16.5
+   Compiling icu_normalizer_data v2.4.0
+   Compiling icu_properties_data v2.4.0
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling futures-task v0.3.34
+   Compiling proc-macro-error-attr v1.0.4
+   Compiling syn v1.0.109
+   Compiling scopeguard v1.2.0
+   Compiling num-conv v0.2.2
+   Compiling proc-macro-error v1.0.4
+   Compiling time-core v0.1.9
+   Compiling stable_deref_trait v1.2.1
+   Compiling log v0.4.35
+   Compiling lock_api v0.4.14
+   Compiling phf_codegen v0.13.1
+   Compiling futures-channel v0.3.34
+   Compiling powerfmt v0.2.1
+   Compiling serde_derive v1.0.229
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerovec-derive v0.11.7
+   Compiling displaydoc v0.2.7
+   Compiling zerofrom v0.1.8
+   Compiling yoke v0.8.4
+   Compiling futures-macro v0.3.34
+   Compiling zerovec v0.11.9
+   Compiling phf_macros v0.13.1
+   Compiling futures-util v0.3.34
+   Compiling thiserror-impl v1.0.69
+   Compiling tinystr v0.8.5
+   Compiling thiserror-impl v2.0.21
+   Compiling serde v1.0.229
+   Compiling toml_datetime v0.6.3
+   Compiling serde_spanned v0.6.9
+   Compiling futures-executor v0.3.34
+   Compiling toml_edit v0.20.2
+   Compiling thiserror v1.0.69
+   Compiling deranged v0.5.9
+   Compiling bytes v1.12.2
+   Compiling darling_core v0.24.1
+   Compiling thiserror v2.0.21
+   Compiling icu_locale_core v2.4.0
+   Compiling potential_utf v0.1.6
+   Compiling zerotrie v0.2.5
+   Compiling serde_json v1.0.154
+   Compiling toml v0.8.2
+   Compiling system-deps v6.2.2
+   Compiling proc-macro-crate v2.0.2
+   Compiling toml_writer v1.2.0+spec-1.1.0
+   Compiling icu_provider v2.4.0
+   Compiling glib-macros v0.18.5
+   Compiling glib-sys v0.18.1
+   Compiling gobject-sys v0.18.0
+   Compiling gio-sys v0.18.1
+   Compiling gdk-sys v0.18.2
+   Compiling pango-sys v0.18.0
+   Compiling gdk-pixbuf-sys v0.18.0
+   Compiling cairo-sys-rs v0.18.2
+   Compiling atk-sys v0.18.2
+   Compiling darling_macro v0.24.1
+   Compiling icu_collections v2.4.0
+   Compiling typeid v1.0.3
+   Compiling crossbeam-utils v0.8.23
+   Compiling aho-corasick v1.1.5
+   Compiling fnv v1.0.7
+   Compiling regex-syntax v0.8.12
+   Compiling web-time v1.1.0
+   Compiling darling v0.24.1
+   Compiling phf v0.13.1
+   Compiling parking_lot_core v0.9.12
+   Compiling string_cache_codegen v0.6.1
+   Compiling glib v0.18.5
+   Compiling parking v2.2.1
+   Compiling alloc-no-stdlib v3.0.0
+   Compiling alloc-stdlib v0.3.0
+   Compiling regex-automata v0.4.19
+   Compiling web_atoms v0.2.6
+   Compiling parking_lot v0.12.5
+   Compiling regex v1.13.2
+   Compiling serde_with_macros v3.24.0
+   Compiling icu_properties v2.4.0
+   Compiling icu_normalizer v2.4.0
+   Compiling gtk-sys v0.18.2
+   Compiling quick-xml v0.42.0
+   Compiling base64 v0.23.1
+   Compiling idna_adapter v1.2.2
+   Compiling string_cache v0.9.0
+   Compiling brotli-decompressor v6.3.2
+   Compiling getrandom v0.4.3
+   Compiling http v1.5.0
+   Compiling gio v0.18.4
+   Compiling serde_spanned v1.1.3
+   Compiling dunce v1.0.5
+   Compiling same-file v1.0.6
+   Compiling form_urlencoded v1.2.2
+   Compiling walkdir v2.5.0
+   Compiling toml v1.2.1+spec-1.1.0
+   Compiling brotli v9.1.3
+   Compiling uuid v1.29.3
+   Compiling idna v1.1.0
+   Compiling anyhow v1.0.104
+   Compiling derive_more-impl v2.1.1
+   Compiling cssparser-macros v0.7.1
+   Compiling selectors v0.38.0
+   Compiling ctor v1.0.14
+   Compiling glob v0.3.4
+   Compiling derive_more v2.1.1
+   Compiling cssparser v0.37.0
+   Compiling markup5ever v0.39.0
+   Compiling url v2.5.8
+   Compiling serde_derive_internals v0.29.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling fastrand v2.5.0
+   Compiling simd-adler32 v0.3.10
+   Compiling indexmap v1.9.3
+   Compiling schemars_derive v0.8.22
+   Compiling rustix v1.1.6
+   Compiling html5ever v0.39.0
+   Compiling cfb v0.14.0
+   Compiling cairo-rs v0.18.5
+   Compiling jsonptr v0.7.1
+   Compiling erased-serde v0.4.11
+   Compiling time v0.3.55
+   Compiling toml_edit v0.19.15
+   Compiling gdk-pixbuf v0.18.5
+   Compiling pango v0.18.3
+   Compiling cargo-platform v0.1.9
+   Compiling enumflags2_derive v0.7.12
+   Compiling toml_edit v0.25.19+spec-1.1.0
+   Compiling endi v1.1.1
+   Compiling adler2 v2.0.1
+   Compiling schemars v0.8.22
+   Compiling proc-macro-crate v3.5.0
+   Compiling gdk v0.18.2
+   Compiling dom_query v0.28.0
+   Compiling cargo_metadata v0.19.2
+   Compiling proc-macro-crate v1.3.1
+   Compiling plist v1.10.4
+   Compiling serde-untagged v0.1.9
+   Compiling json-patch v4.2.0
+   Compiling infer v0.22.0
+   Compiling memoffset v0.9.1
+   Compiling futures-lite v2.6.1
+   Compiling urlpattern v0.6.0
+   Compiling serde_with v3.24.0
+   Compiling event-listener v5.4.2
+   Compiling concurrent-queue v2.5.0
+   Compiling javascriptcore-rs-sys v1.1.1
+   Compiling soup3-sys v0.5.0
+   Compiling zvariant_utils v4.2.0
+   Compiling percent-encoding v2.3.2
+   Compiling gtk v0.18.2
+   Compiling tauri-utils v2.10.3
+   Compiling event-listener-strategy v0.5.4
+   Compiling field-offset v0.3.6
+   Compiling gtk3-macros v0.18.2
+   Compiling crc32fast v1.5.5
+   Compiling miniz_oxide v0.9.1
+   Compiling zvariant_derive v5.15.1
+   Compiling atk v0.18.2
+   Compiling webkit2gtk-sys v2.0.2
+   Compiling time-macros v0.2.32
+   Compiling errno v0.3.15
+   Compiling socket2 v0.6.5
+   Compiling option-ext v0.2.0
+   Compiling dirs-sys v0.5.0
+   Compiling signal-hook-registry v1.4.8
+   Compiling flate2 v1.1.11
+   Compiling miniz_oxide v0.8.9
+   Compiling fdeflate v0.3.7
+   Compiling gdkx11-sys v0.18.2
+   Compiling aristotle-core v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/core)
+   Compiling zcheapstr v1.2.0
+   Compiling bitflags v1.3.2
+   Compiling x11 v2.21.0
+   Compiling dirs v7.0.0
+   Compiling enumflags2 v0.7.12
+   Compiling polling v3.11.0
+   Compiling dpi v0.1.2
+   Compiling serde_repr v0.1.21
+   Compiling async-task v4.7.1
+   Compiling zvariant v5.15.1
+   Compiling async-io v2.6.0
+   Compiling javascriptcore-rs v1.1.2
+   Compiling soup3 v0.5.0
+   Compiling async-channel v2.5.0
+   Compiling async-trait v0.1.92
+   Compiling tokio-macros v2.7.2
+   Compiling ordered-stream v0.2.0
+   Compiling toml_datetime v1.1.3+spec-1.1.0
+   Compiling mio v1.2.5
+   Compiling atomic-waker v1.1.2
+   Compiling raw-window-handle v0.6.2
+   Compiling hex v0.4.3
+   Compiling tokio v1.54.1
+   Compiling piper v0.2.5
+   Compiling zbus_names v4.3.5
+   Compiling async-signal v0.2.14
+   Compiling cookie v0.18.2
+   Compiling x11-dl v2.21.0
+   Compiling libdbus-sys v0.2.7
+   Compiling png v0.18.1
+   Compiling webkit2gtk v2.0.2
+   Compiling async-lock v3.5.0
+   Compiling crossbeam-channel v0.5.17
+   Compiling dlopen2_derive v0.4.3
+   Compiling tracing-attributes v0.1.31
+   Compiling tracing-core v0.1.36
+   Compiling semver v1.0.28
+   Compiling ico v0.6.0
+   Compiling wry v0.57.2
+   Compiling tracing v0.1.44
+   Compiling sha2 v0.11.1
+   Compiling dlopen2 v0.8.2
+   Compiling async-process v2.5.0
+   Compiling dbus v0.9.12
+   Compiling zbus_macros v5.19.0
+   Compiling blocking v1.7.0
+   Compiling embed-resource v3.0.12
+   Compiling tauri v2.12.6
+   Compiling gdkx11 v0.18.2
+   Compiling async-executor v1.14.1
+   Compiling async-broadcast v0.7.2
+   Compiling gdkwayland-sys v0.18.2
+   Compiling async-recursion v1.2.0
+   Compiling tao v0.37.2
+   Compiling zbus v5.19.0
+   Compiling tauri-winres v0.3.7
+   Compiling tauri-runtime v2.12.3
+   Compiling tauri-codegen v2.7.5
+   Compiling cargo_toml v1.0.1
+   Compiling keyboard-types v0.8.3
+   Compiling serialize-to-javascript-impl v0.1.2
+   Compiling serialize-to-javascript v0.1.2
+   Compiling muda v0.20.0
+   Compiling tauri-macros v2.7.5
+   Compiling tauri-build v2.7.5
+   Compiling tauri-runtime-wry v2.12.4
+   Compiling getrandom v0.3.4
+   Compiling mime v0.3.18
+   Compiling aristotle-desktop v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/app)
+   Compiling zbus_utils v6.1.0
+   Compiling zruntime v0.2.3
+   Compiling zbus_macros v6.3.0
+   Compiling zbus v6.3.0
+   Compiling arc-swap v1.9.5
+   Compiling crossbeam-queue v0.3.14
+   Compiling ksni v0.3.7
+   Compiling tauri-plugin-single-instance v2.5.5
+   Compiling notify-rust v4.19.0
+   Compiling aristotle-tray v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/tray)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 53s
+     Running unittests src/lib.rs (target/debug/build/aristotle-core/62744eaf1e62d1b2/out/aristotle_core-62744eaf1e62d1b2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/diff.rs (target/debug/build/aristotle-core/1aa68756bd681b91/out/diff-1aa68756bd681b91)
+
+running 20 tests
+test already_stopped_does_not_notify_again ... ok
+test device_list_missing_on_one_side_is_silent ... ok
+test failed_poll_is_not_a_transition ... ok
+test hermes_going_absent_counts_as_unreachable ... ok
+test hermes_notice_is_not_added_when_the_server_stopped ... ok
+test new_device_is_announced_by_name ... ok
+test new_terminal_names_the_device ... ok
+test new_terminal_with_unknown_device_has_no_name ... ok
+test first_poll_never_notifies ... ok
+test existing_terminal_is_not_new ... ok
+test hermes_flap_notifies_once_per_transition ... ok
+test stamp_in_window_is_symmetric_around_now ... ok
+test stop_with_fresh_stamp_is_silent ... ok
+test stop_with_future_stamp_counts_as_fresh ... ok
+test stop_with_stale_stamp_notifies ... ok
+test stop_with_stamp_61s_in_the_future_notifies ... ok
+test stop_with_stamp_61s_old_notifies ... ok
+test notices_carry_only_names_ids_and_listeners ... ok
+test stop_without_stamp_notifies ... ok
+test stop_with_stamp_exactly_at_the_window_edges_is_expected ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fixtures.rs (target/debug/build/aristotle-core/b1ce4466fab495c3/out/fixtures-b1ce4466fab495c3)
+
+running 9 tests
+test error_body_decodes ... ok
+test no_fixture_is_left_uncovered ... ok
+test status_full_fields ... ok
+test pair_debug_hides_the_code_and_payload ... ok
+test status_sparse_has_absent_fields ... ok
+test status_not_installed_and_not_running ... ok
+test unknown_fields_are_ignored ... ok
+test terminal_optional_fields ... ok
+test every_fixture_decodes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/poller_stamp.rs (target/debug/build/aristotle-core/6ef4123d51e2f54f/out/poller_stamp-6ef4123d51e2f54f)
+
+running 11 tests
+test a_failed_terminal_poll_keeps_the_baseline_so_a_new_terminal_still_notifies_once ... ok
+test a_failed_devices_poll_keeps_the_baseline_so_a_new_phone_still_notifies_once ... ok
+test poller_stop_with_fresh_stamp_is_silent_and_consumes_the_stamp ... ok
+test poller_deletes_a_future_stamp_and_the_next_crash_notifies ... ok
+test poller_deletes_a_stale_stamp_even_when_no_stop_was_seen ... ok
+test poller_keeps_an_in_window_stamp_until_the_stop_is_seen ... ok
+test poller_stop_without_stamp_notifies_and_failed_poll_keeps_the_baseline ... ok
+test stamp_without_runtime_dir_is_none ... ok
+test stamp_garbage_reads_as_none ... ok
+test restart_without_an_observed_stop_leaves_no_stamp_after_60_s ... ok
+test stamp_write_read_delete_roundtrip ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runner.rs (target/debug/build/aristotle-core/d9248ae38244b56b/out/runner-d9248ae38244b56b)
+
+running 14 tests
+test error_kind_is_a_fixed_code_without_the_message ... ok
+test a_binary_without_execute_permission_is_not_installed ... ok
+test default_bin_prefers_the_env_override ... ok
+test a_grandchild_holding_stdout_is_killed_and_the_output_still_returns ... ok
+test query_appends_json_as_the_last_argument ... ok
+test error_object_and_exit_1_is_a_server_error ... ok
+test garbage_stdout_is_bad_output_without_content ... ok
+test missing_binary_is_not_installed ... ok
+test semicolon_argument_is_passed_literally ... ok
+test success_object_is_parsed_with_exit_code ... ok
+test success_object_with_exit_1_is_still_success ... ok
+test timeout_kills_grandchildren_too ... ok
+test timeout_kills_the_process ... ok
+test wrong_shape_is_bad_output ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.20s
+
+     Running tests/state.rs (target/debug/build/aristotle-core/44f3dae1677a4c00/out/state-44f3dae1677a4c00)
+
+running 16 tests
+test compare_versions_rules ... ok
+test dev_versions_skip_the_check_on_either_side ... ok
+test poll_dev_build_skips_the_check ... ok
+test poll_devices_failure_keeps_status ... ok
+test poll_cli_mismatch_wins_over_a_matching_running_version ... ok
+test poll_failures_map_to_red_states ... ok
+test poll_running_server_dev_version_skips_its_side ... ok
+test poll_failed_version_call_is_retried_next_poll ... ok
+test poll_running_fetches_version_devices_terminals ... ok
+test poll_running_server_version_differs_while_cli_matches_is_red ... ok
+test poll_version_asked_once_and_again_after_restart ... ok
+test tray_state_table ... ok
+test poll_stopped_skips_devices_and_terminals ... ok
+test running_server_version_is_checked_on_every_poll_not_only_after_a_restart ... ok
+test poll_version_mismatch_is_red ... ok
+test version_is_asked_again_every_12_polls ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/strings.rs (target/debug/build/aristotle-core/662836c32f9e64cc/out/strings-662836c32f9e64cc)
+
+running 10 tests
+test board_texts_are_exact ... ok
+test design_md_tray_texts_are_exact ... ok
+test locale_defaults_to_english ... ok
+test every_reason_has_a_tooltip ... ok
+test locale_order_is_lc_all_then_lc_messages_then_lang ... ok
+test notice_texts_fill_names_and_fall_back ... ok
+test no_text_names_a_pairing_code_and_no_placeholder_is_left_in_notices ... ok
+test every_key_has_text_in_both_tables_with_the_same_placeholders ... ok
+test texts_differ_between_languages_except_the_brand_like_ones ... ok
+test the_new_reasons_pick_their_own_tooltips ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/build/aristotle-desktop/a4f6c228612e07cb/out/aristotle_desktop-a4f6c228612e07cb)
+
+running 30 tests
+test args::tests::confirm_stop_opens_the_service_dialog ... ok
+test args::tests::serialises_as_a_kebab_tag ... ok
+test args::tests::confirm_with_another_word_or_nothing_is_ignored ... ok
+test args::tests::unknown_arguments_are_ignored_and_the_known_one_still_counts ... ok
+test args::tests::pair_opens_the_pair_view ... ok
+test args::tests::no_arguments_open_the_status_view ... ok
+test backend::tests::guard_refuses_a_version_mismatch ... ok
+test backend::tests::guard_allows_an_installed_matching_server ... ok
+test backend::tests::guard_refuses_when_the_cli_is_missing ... ok
+test backend::tests::plain_arg_rejects_flags_and_empty ... ok
+test devices::tests::an_id_that_looks_like_a_flag_is_refused ... ok
+test backend::tests::guard_refuses_when_the_service_is_not_installed ... ok
+test devices::tests::revoke_is_refused_while_mismatched ... ok
+test devices::tests::revoke_runs_the_cli_with_the_id ... ok
+test logs::tests::a_missing_binary_is_not_installed_and_stop_is_quiet ... ok
+test pairing::tests::a_name_that_looks_like_a_flag_never_reaches_the_cli ... ok
+test pairing::tests::pair_passes_the_name_as_one_token ... ok
+test pairing::tests::pair_without_a_name_runs_plain_pair ... ok
+test pairing::tests::the_result_does_not_print_the_code ... ok
+test service::tests::a_failed_stop_deletes_the_stamp ... ok
+test service::tests::a_mismatched_server_refuses_before_any_stamp_or_command ... ok
+test service::tests::a_stop_that_cannot_run_the_binary_deletes_the_stamp ... ok
+test service::tests::restart_writes_the_stamp_too ... ok
+test service::tests::start_never_writes_a_stamp ... ok
+test service::tests::stop_writes_the_stamp_before_the_command_runs ... ok
+test terminal::tests::each_command_maps_to_its_cli_call ... ok
+test terminal::tests::writes_are_refused_while_mismatched_but_the_read_still_works ... ok
+test logs::tests::a_stream_that_ends_by_itself_reports_ended_after_its_lines ... ok
+test logs::tests::stop_kills_the_child_and_its_group_and_reaps_it ... ok
+test logs::tests::starting_again_stops_the_previous_child ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running unittests src/main.rs (target/debug/build/aristotle-desktop/47a4d3be2d39973a/out/aristotle_desktop-47a4d3be2d39973a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/capabilities.rs (target/debug/build/aristotle-desktop/6249e57980062a73/out/capabilities-6249e57980062a73)
+
+running 6 tests
+test no_plugin_or_broad_core_permission_is_granted ... ok
+test the_app_depends_on_no_shell_fs_http_or_opener_plugin ... ok
+test only_the_main_window_has_a_capability_and_there_is_one_file ... ok
+test the_tray_does_not_depend_on_tauri_or_the_app ... ok
+test the_capability_file_allows_exactly_the_listed_commands_and_event_listening ... ok
+test the_csp_is_strict_and_the_global_tauri_object_is_off ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/build/aristotle-tray/37709d981d9124f4/out/aristotle_tray-37709d981d9124f4)
+
+running 19 tests
+test icons::tests::opaque_pixels_carry_the_state_colour ... ok
+test launcher::tests::missing_binary_is_reported_not_spawned ... ok
+test launcher::tests::no_path_is_reported_as_missing ... ok
+test icons::tests::every_state_serves_every_declared_size_with_matching_data ... ok
+test launcher::tests::second_open_is_deduplicated_while_the_child_runs ... ok
+test launcher::tests::window_bin_relative_override_is_ignored ... ok
+test launcher::tests::window_bin_absolute_override_wins ... ok
+test launcher::tests::window_bin_without_a_usable_exe_path_is_none ... ok
+test launcher::tests::window_bin_sits_next_to_the_tray ... ok
+test menu::tests::active_service_shows_stop_and_enables_pair ... ok
+test menu::tests::hand_started_server_with_inactive_service_shows_start_not_stop ... ok
+test icons::tests::the_16_px_variant_is_solid ... ok
+test menu::tests::no_answer_with_active_service_keeps_stop_for_recovery ... ok
+test menu::tests::not_installed_shows_neither ... ok
+test menu::tests::stopped_service_shows_start_and_disables_pair ... ok
+test menu::tests::other_service_words_show_neither ... ok
+test menu::tests::unknown_service_state_shows_neither ... ok
+test menu::tests::version_mismatch_shows_neither_and_keeps_open ... ok
+test icons::tests::the_three_states_differ_in_shape_not_only_colour ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests aristotle_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests aristotle_desktop
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

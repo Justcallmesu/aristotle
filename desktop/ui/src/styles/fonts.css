@@ -1,0 +1,8 @@
+/* Local files only (offline, strict CSP: font-src 'self'). Licences sit beside them: OFL.txt, OFL-Literata.txt. */
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../assets/fonts/atkinson_next_regular.ttf") format("truetype"); font-weight: 400; font-display: block; }
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../assets/fonts/atkinson_next_medium.ttf") format("truetype"); font-weight: 500; font-display: block; }
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../assets/fonts/atkinson_next_semibold.ttf") format("truetype"); font-weight: 600 700; font-display: block; }
+@font-face { font-family: "Atkinson Hyperlegible Mono"; src: url("../assets/fonts/atkinson_mono_regular.ttf") format("truetype"); font-weight: 400; font-display: block; }
+@font-face { font-family: "Atkinson Hyperlegible Mono"; src: url("../assets/fonts/atkinson_mono_medium.ttf") format("truetype"); font-weight: 500; font-display: block; }
+@font-face { font-family: "Atkinson Hyperlegible Mono"; src: url("../assets/fonts/atkinson_mono_semibold.ttf") format("truetype"); font-weight: 600 700; font-display: block; }
+@font-face { font-family: "Literata"; src: url("../assets/fonts/Literata-variable.ttf") format("truetype"); font-weight: 200 900; font-display: block; }

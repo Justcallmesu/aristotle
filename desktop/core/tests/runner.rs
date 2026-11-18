@@ -208,3 +208,39 @@ fn error_kind_is_a_fixed_code_without_the_message() {
     assert_eq!(CliError::BadOutput { exit_code: 2 }.kind(), "bad-output");
     assert_eq!(CliError::Io("NotFound".into()).kind(), "io");
 }
+
+#[test]
+fn a_grandchild_holding_stdout_is_killed_and_the_output_still_returns() {
+    let s = Scratch::new("held");
+    let child_pid = s.0.join("held-pid");
+    let bin = s.script(&format!(
+        "sleep 30 &\necho $! > {}\necho '{{\"ok\":true,\"service\":\"active\"}}'",
+        child_pid.display()
+    ));
+    let started = Instant::now();
+    let reply = query::<ActionResult>(&cli(&bin, 10), &["start"]).unwrap();
+    assert!(reply.value.ok);
+    assert!(
+        started.elapsed() < Duration::from_millis(1500),
+        "waited {:?} for the reader",
+        started.elapsed()
+    );
+    let pid = fs::read_to_string(&child_pid).unwrap().trim().to_owned();
+    let gone = (0..50).any(|_| {
+        let gone = !Path::new(&format!("/proc/{pid}")).exists();
+        if !gone {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        gone
+    });
+    assert!(gone, "grandchild {pid} still alive after the child exited");
+}
+
+#[test]
+fn a_binary_without_execute_permission_is_not_installed() {
+    let s = Scratch::new("noexec");
+    let bin = s.script("echo '{}'");
+    fs::set_permissions(&bin, fs::Permissions::from_mode(0o644)).unwrap();
+    let err = cli(&bin, 5).run(&["status", "--json"]).unwrap_err();
+    assert_eq!(err, CliError::NotInstalled);
+}

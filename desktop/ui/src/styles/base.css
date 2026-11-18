@@ -1,0 +1,21 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font: 400 14px/20px var(--font-ui);
+  background: var(--surface);
+  color: var(--on-surface);
+}
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+h1 { font: 500 22px/28px var(--font-title); font-optical-sizing: auto; }
+h2 { font: 500 18px/24px var(--font-title); font-optical-sizing: auto; }
+button { font: inherit; color: inherit; }
+code, pre { font: 400 13px/18px var(--font-mono); margin: 0; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

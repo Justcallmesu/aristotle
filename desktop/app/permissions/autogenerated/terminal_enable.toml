@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-terminal-enable"
+description = "Enables the terminal_enable command without any pre-configured scope."
+commands.allow = ["terminal_enable"]
+
+[[permission]]
+identifier = "deny-terminal-enable"
+description = "Denies the terminal_enable command without any pre-configured scope."
+commands.deny = ["terminal_enable"]

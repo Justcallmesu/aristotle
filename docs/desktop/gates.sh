@@ -29,22 +29,61 @@ run_step() { # step log command...
   if [[ $code -eq 0 ]]; then record PASS "$step" 0; else record FAIL "$step" "$code"; fi
 }
 
-# The tray must stay free of GUI toolkits (spec P16, D18): libc-only like the DS2b spike.
+# The tray must stay libc-only (spec P16, D18): every linked library must be on this allowlist (DF2).
+TRAY_LDD_ALLOW='^(linux-vdso\.so\.1|libc\.so\.6|libm\.so\.6|libgcc_s\.so\.1|ld-linux[^ /]*\.so\.[0-9]+)$'
 tray_ldd() {
-  local bin="$CARGO_TARGET_DIR/release/aristotle-tray" out
+  local bin="$CARGO_TARGET_DIR/release/aristotle-tray" out line name bad=0
   out="$(ldd "$bin")" || return $?
   echo "$out"
-  if echo "$out" | grep -Eiq 'gtk|webkit'; then
-    echo "FORBIDDEN: aristotle-tray links gtk or webkit" >&2
-    return 1
-  fi
-  echo "ldd: no gtk/webkit"
+  while read -r line; do
+    [[ -z "$line" ]] && continue
+    name="$(basename "${line%% *}")"
+    if [[ ! "$name" =~ $TRAY_LDD_ALLOW ]]; then
+      echo "NOT ALLOWED: aristotle-tray links $name" >&2
+      bad=1
+    fi
+  done <<< "$out"
+  [[ $bad -eq 0 ]] || return 1
+  echo "ldd: only linux-vdso, libc, libm, libgcc_s, ld-linux"
 }
+
+# Test binaries that must each run at least one test (DF1): a binary that silently lost its tests
+# keeps the total above MIN_TESTS, so the total alone cannot catch it. Format: <label>|<binary>.
+REQUIRED_TEST_BINARIES=(
+  "tests/diff.rs|diff" "tests/fixtures.rs|fixtures" "tests/poller_stamp.rs|poller_stamp"
+  "tests/runner.rs|runner" "tests/state.rs|state" "tests/strings.rs|strings"
+  "tests/capabilities.rs|capabilities" "unittests src/lib.rs|aristotle_desktop"
+)
+check_test_binaries() {
+  local log="$1" entry label bin n bad=0
+  for entry in "${REQUIRED_TEST_BINARIES[@]}"; do
+    label="${entry%%|*}"; bin="${entry##*|}"
+    n=$(awk -v label="$label" -v bin="$bin" '
+      /^ *Running / { cur = ($0 ~ "Running " label " " && $0 ~ ("/" bin "-[0-9a-f]+\\)")) }
+      cur && /^running [0-9]+ test/ { total += $2; cur = 0 }
+      END { print total + 0 }' "$log")
+    echo "test binary $bin ($label): $n tests"
+    [[ "$n" -ge 1 ]] || { echo "FAIL: $bin ran no tests" >&2; bad=1; }
+  done
+  return $bad
+}
+
+# UI gates run from desktop/ui; each is one step so a failure names itself.
+ui_step() { (cd "$ROOT/desktop/ui" && "$@"); }
+# `tauri build` finds the app by searching for tauri.conf.json below the current directory.
+app_build() { (cd "$ROOT/desktop" && ui/node_modules/.bin/tauri build --no-bundle); }
+app_binary() { [[ -x "$CARGO_TARGET_DIR/release/aristotle-desktop" ]] && ls -l "$CARGO_TARGET_DIR/release/aristotle-desktop"; }
 
 if [[ ! -f "$ROOT/desktop/Cargo.toml" ]]; then
   record FAIL desktop-missing 1
 else
   cd "$ROOT/desktop"
+  # The Tauri app embeds ui/dist, so the frontend steps (and its build) come before any cargo step.
+  run_step ui-ci "$RUN_DIR/gate-ui-ci.log" ui_step npm ci
+  run_step ui-lint "$RUN_DIR/gate-ui-lint.log" ui_step npm run lint
+  run_step ui-typecheck "$RUN_DIR/gate-ui-typecheck.log" ui_step npm run typecheck
+  run_step ui-test "$RUN_DIR/gate-ui-test.log" ui_step npm test
+  run_step ui-build "$RUN_DIR/gate-ui-build.log" ui_step npm run build
   run_step desktop-fmt "$RUN_DIR/gate-desktop-fmt.log" cargo fmt --check
   run_step desktop-clippy "$RUN_DIR/gate-desktop-clippy.log" \
     cargo clippy --workspace --all-targets -- -D warnings
@@ -54,9 +93,13 @@ else
   echo "rust-tests passed=$tests failed=$fails" >> "$SUMMARY"
   # A run that executed (almost) nothing must not pass: each ticket raises MIN_TESTS.
   if [[ "$tests" -ge "$MIN_TESTS" ]]; then record PASS desktop-test-count "$tests"; else record FAIL desktop-test-count "$tests<$MIN_TESTS"; fi
+  run_step desktop-test-binaries "$RUN_DIR/gate-desktop-test-binaries.log" \
+    check_test_binaries "$RUN_DIR/gate-desktop-test.log"
   run_step desktop-tray-build "$RUN_DIR/gate-desktop-tray-build.log" \
     cargo build --release -p aristotle-tray
   run_step desktop-tray-ldd "$RUN_DIR/gate-desktop-tray-ldd.log" tray_ldd
+  run_step desktop-app-build "$RUN_DIR/gate-desktop-app-build.log" app_build
+  run_step desktop-app-binary "$RUN_DIR/gate-desktop-app-binary.log" app_binary
 fi
 
 cat "$SUMMARY"

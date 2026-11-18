@@ -395,7 +395,38 @@ fn running_server_version_is_checked_on_every_poll_not_only_after_a_restart() {
         FakeCli::new(replies)
     };
     assert_eq!(s.poll(&up("1.2.3", true)).version, VersionCheck::Match);
-    // No restart seen, no `version` call, but the status carries a different version now.
-    let snap = s.poll(&up("1.2.2", false));
+    // No restart seen, but the status carries a different version now: `version` is asked again (DF4).
+    let cli = up("1.2.2", true);
+    let snap = s.poll(&cli);
+    assert!(cli.calls().iter().any(|c| c[0] == "version"));
     assert!(matches!(snap.version, VersionCheck::Mismatch { .. }));
+}
+
+#[test]
+fn version_is_asked_again_every_12_polls() {
+    let mut s = Snapshotter::new(Some("1.2.3"));
+    let stopped = |with_version_call: bool| {
+        let mut replies = vec![ok(&fixture("status_not_running.json"), 1)];
+        if with_version_call {
+            replies.push(json("version.json"));
+        }
+        FakeCli::new(replies)
+    };
+    let asked = |cli: &FakeCli| cli.calls().iter().any(|c| c[0] == "version");
+    assert!(asked(&{
+        let cli = stopped(true);
+        s.poll(&cli);
+        cli
+    }));
+    for n in 2..=12 {
+        let cli = stopped(false);
+        s.poll(&cli);
+        assert!(!asked(&cli), "poll {n} must not ask");
+    }
+    let cli = stopped(true);
+    s.poll(&cli);
+    assert!(asked(&cli), "poll 13 asks again");
+    let cli = stopped(false);
+    s.poll(&cli);
+    assert!(!asked(&cli), "the counter restarts after an ask");
 }

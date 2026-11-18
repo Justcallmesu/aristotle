@@ -1,0 +1,5 @@
+RED (before the DF3-DF5 fixes), cargo test -p aristotle-core:
+  runner: a_grandchild_holding_stdout_is_killed_and_the_output_still_returns FAILED (Err(Timeout))
+  runner: a_binary_without_execute_permission_is_not_installed FAILED (left Io("PermissionDenied"))
+  state : version_is_asked_again_every_12_polls FAILED ("poll 13 asks again")
+  state : running_server_version_is_checked_on_every_poll_not_only_after_a_restart FAILED (no version call on version change)

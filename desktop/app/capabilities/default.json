@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "The main window may call the app's own commands and listen to its events. No plugins.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-snapshot",
+    "allow-start-intent",
+    "allow-service-action",
+    "allow-pair",
+    "allow-devices-revoke",
+    "allow-terminal-status",
+    "allow-terminal-grant",
+    "allow-terminal-ungrant",
+    "allow-terminal-enable",
+    "allow-terminal-disable",
+    "allow-logs-start",
+    "allow-logs-stop",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

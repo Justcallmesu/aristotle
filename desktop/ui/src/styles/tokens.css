@@ -1,0 +1,38 @@
+/* Design tokens, copied from docs/desktop/design.md section 1. Light by default; dark follows the system (P7). */
+:root{
+  --font-ui:"Atkinson Hyperlegible Next",sans-serif;
+  --font-title:"Literata","Source Serif 4",Georgia,serif;
+  --font-mono:"Atkinson Hyperlegible Mono",monospace;
+  --r-xs:4px;--r-s:12px;--r-m:16px;--r-l:20px;--r-xl:28px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --row:48px;--btn:36px;--pad:24px;--gap:16px;            /* comfortable, the only density */
+  --ease-out:cubic-bezier(.05,.7,.1,1);--ease-in:cubic-bezier(.3,0,1,1);
+}
+:root{
+  color-scheme:light;
+  --primary:#3B2E23;--on-primary:#F8F0E1;--primary-c:#E7D7BC;--on-primary-c:#2B2119;
+  --secondary:#6E5843;--secondary-c:#EADCC6;--on-secondary-c:#2B2119;
+  --tert:#2C6A5C;--on-tert:#FFFFFF;--tert-c:#BFE3D6;--on-tert-c:#0B2A23;
+  --err:#B3261E;--on-err:#FFFFFF;--err-c:#F7D9D2;--on-err-c:#5A110A;
+  --warn:#8A5300;--warn-c:#F4DFA8;--on-warn-c:#3B2600;
+  --surface:#F5EEDF;--on-surface:#2B2119;--on-surface-v:#5C4B3C;
+  --c-lowest:#FFFBF3;--c-low:#F0E7D5;--c:#EBE1CD;--c-high:#E5DAC4;--c-highest:#DFD3BB;
+  --outline:#8A7763;--outline-v:#D3C4AA;
+  --inverse:#3A3029;--on-inverse:#F5EEDF;--scrim:rgba(0,0,0,.32);
+  --qr-ink:#2B2119;--qr-bg:#FFFBF3;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+  color-scheme:dark;
+  --primary:#E8D6B8;--on-primary:#2F241A;--primary-c:#4B3D30;--on-primary-c:#F3E4CA;
+  --secondary:#D6C2A6;--secondary-c:#4A3C2E;--on-secondary-c:#F0E0C8;
+  --tert:#8BD0BC;--on-tert:#00382D;--tert-c:#1C4F43;--on-tert-c:#A9EDD8;
+  --err:#FFB4A9;--on-err:#690003;--err-c:#8C1D13;--on-err-c:#FFDAD4;
+  --warn:#E8B04F;--warn-c:#4E3A12;--on-warn-c:#FBE2AE;
+  --surface:#17130F;--on-surface:#EDE3D1;--on-surface-v:#CBBBA4;
+  --c-lowest:#110E0B;--c-low:#1F1A15;--c:#231E19;--c-high:#2D2721;--c-highest:#38312A;
+  --outline:#96846F;--outline-v:#4B4035;
+  --inverse:#EDE3D1;--on-inverse:#2B2119;--scrim:rgba(0,0,0,.5);
+  --qr-ink:#2B2119;--qr-bg:#FFFBF3;                         /* a QR never inverts */
+}
+}

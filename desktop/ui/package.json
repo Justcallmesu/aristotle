@@ -1,0 +1,38 @@
+{
+  "name": "aristotle-desktop-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@tauri-apps/cli": "2.12.5",
+    "@testing-library/jest-dom": "^6",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^5",
+    "globals": "^16",
+    "jsdom": "^26",
+    "typescript": "^5",
+    "typescript-eslint": "^8",
+    "vite": "^7",
+    "vitest": "^3"
+  }
+}

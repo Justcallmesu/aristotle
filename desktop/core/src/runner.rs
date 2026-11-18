@@ -29,7 +29,7 @@ pub struct RawOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CliError {
-    /// The binary does not exist (or `$HOME` is unset): the server is not installed.
+    /// The binary does not exist or cannot be executed (or `$HOME` is unset): the server is not installed.
     NotInstalled,
     /// The process ran past the timeout and was killed.
     Timeout,
@@ -203,10 +203,14 @@ impl ServerCli for RealCli {
                 Err(e) => return Err(CliError::Io(format!("{:?}", e.kind()))),
             }
         };
+        // The child is gone. A grandchild that kept the pipe open would block the reader: kill the
+        // group (a no-op when it is empty) so the reader ends, then join it.
+        kill_group(&child);
         let bytes = rx
             .recv_timeout(READER_GRACE)
             .map_err(|_| CliError::Timeout)?
             .map_err(|e| CliError::Io(format!("{:?}", e.kind())))?;
+        let _ = reader.join();
         Ok(RawOutput {
             // A signal death has no code: report it as a failure.
             exit_code: status.code().unwrap_or(-1),
@@ -233,7 +237,10 @@ fn kill_group(child: &std::process::Child) {
 
 fn spawn_error(e: std::io::Error) -> CliError {
     match e.kind() {
-        std::io::ErrorKind::NotFound => CliError::NotInstalled,
+        // A binary we may not execute is as good as missing (DF5).
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied => {
+            CliError::NotInstalled
+        }
         kind => CliError::Io(format!("{kind:?}")),
     }
 }

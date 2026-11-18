@@ -159,7 +159,14 @@ pub struct Snapshotter {
     /// The `version --json` check; asked again after each (re)start.
     version: VersionCheck,
     was_running: bool,
+    /// Answered polls since `version --json` was last asked.
+    polls_since_version: u32,
+    /// `status.result.version` of the last answered poll that had one.
+    last_status_version: Option<String>,
 }
+
+/// `version --json` is asked again after this many answered polls (DF4).
+const VERSION_RECHECK_POLLS: u32 = 12;
 
 impl Snapshotter {
     pub fn new(desktop_version: Option<&str>) -> Self {
@@ -167,6 +174,8 @@ impl Snapshotter {
             desktop_version: desktop_version.map(str::to_owned),
             version: VersionCheck::Unchecked,
             was_running: false,
+            polls_since_version: 0,
+            last_status_version: None,
         }
     }
 
@@ -184,7 +193,7 @@ impl Snapshotter {
             self.version = VersionCheck::Unchecked;
         }
         self.was_running = running;
-        if matches!(status, StatusPoll::Answered(_)) && self.version == VersionCheck::Unchecked {
+        if matches!(status, StatusPoll::Answered(_)) && self.version_due(&status) {
             self.refresh_version(cli);
         }
         let (devices, terminals) = if running {
@@ -212,8 +221,26 @@ impl Snapshotter {
         }
     }
 
+    /// Not asked yet, 12 answered polls since the last ask, or the running server's version changed
+    /// (an installed-but-not-restarted binary, DF4).
+    fn version_due(&mut self, status: &StatusPoll) -> bool {
+        self.polls_since_version += 1;
+        let seen = match status {
+            StatusPoll::Answered(s) => s.result.as_ref().map(|r| r.version.clone()),
+            _ => None,
+        };
+        let changed = matches!((&self.last_status_version, &seen), (Some(a), Some(b)) if a != b);
+        if seen.is_some() {
+            self.last_status_version = seen;
+        }
+        self.version == VersionCheck::Unchecked
+            || self.polls_since_version >= VERSION_RECHECK_POLLS
+            || changed
+    }
+
     fn refresh_version(&mut self, cli: &dyn ServerCli) {
         if let Ok(reply) = query::<VersionInfo>(cli, &["version"]) {
+            self.polls_since_version = 0;
             self.version = compare_versions(&reply.value.version, self.desktop_version.as_deref());
         }
     }

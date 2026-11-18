@@ -1,0 +1,28 @@
+Diff in /home/justcallmesu/project/personal/Aristotle/desktop/app/tests/capabilities.rs:41:
+ fn no_plugin_or_broad_core_permission_is_granted() {
+     for permission in permissions() {
+         assert!(!permission.ends_with(":default"), "{permission}");
+-        for forbidden in ["shell:", "fs:", "http:", "opener:", "core:webview", "core:window"] {
++        for forbidden in [
++            "shell:",
++            "fs:",
++            "http:",
++            "opener:",
++            "core:webview",
++            "core:window",
++        ] {
+             assert!(!permission.starts_with(forbidden), "{permission}");
+         }
+     }
+Diff in /home/justcallmesu/project/personal/Aristotle/desktop/app/tests/capabilities.rs:67:
+     assert!(!csp.contains("unsafe-inline"), "{csp}");
+     assert!(csp.contains("default-src 'none'"), "{csp}");
+     // The only network-looking source is Tauri's own IPC.
+-    for source in csp.split([' ', ';']).filter(|s| s.contains("://") || s.contains('*')) {
++    for source in csp
++        .split([' ', ';'])
++        .filter(|s| s.contains("://") || s.contains('*'))
++    {
+         assert!(
+             source == "http://ipc.localhost",
+             "remote source in the CSP: {source}"

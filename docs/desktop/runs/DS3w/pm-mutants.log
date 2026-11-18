@@ -1,0 +1,7 @@
+=== M1 stamp kept after a failed stop (DF6)
+test service::tests::a_failed_stop_deletes_the_stamp ... FAILED
+test service::tests::a_stop_that_cannot_run_the_binary_deletes_the_stamp ... FAILED
+test result: FAILED. 28 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== M2 logs stop no longer kills the group

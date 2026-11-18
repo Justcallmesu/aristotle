@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["core", "tray"]
-# DS3w adds "app" (Tauri, aristotle-desktop). The tray must never depend on it.
+members = ["core", "tray", "app"]
+# The tray must never depend on app (Tauri): P16.
 
 [workspace.package]
 version = "0.0.0"
@@ -14,3 +14,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ksni = { version = "0.3.7", features = ["blocking"] }
 notify-rust = "4.19.0"
+png = { version = "0.18", default-features = false }

@@ -1,0 +1,22 @@
+   Compiling tokio-macros v2.7.2
+   Compiling png v0.18.1
+   Compiling aristotle-desktop v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/app)
+   Compiling zbus_utils v6.1.0
+   Compiling zruntime v0.2.3
+   Compiling tokio v1.54.1
+   Compiling ico v0.6.0
+   Compiling tauri-codegen v2.7.5
+   Compiling zbus_macros v6.3.0
+   Compiling zbus v6.3.0
+   Compiling tauri-macros v2.7.5
+   Compiling zbus v5.19.0
+   Compiling tauri v2.12.6
+   Compiling aristotle-core v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/core)
+   Compiling notify-rust v4.19.0
+   Compiling tauri-plugin-single-instance v2.5.5
+   Compiling ksni v0.3.7
+rustc-LLVM ERROR: IO failure on output stream: No space left on device
+error: could not compile `zbus` (lib)
+
+Caused by:
+  process didn't exit successfully: `rustc --crate-name zbus --edition=2024 /home/justcallmesu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zbus-5.19.0/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 'feature="async-executor"' --cfg 'feature="async-fs"' --cfg 'feature="async-io"' --cfg 'feature="async-lock"' --cfg 'feature="async-process"' --cfg 'feature="async-task"' --cfg 'feature="blocking"' --cfg 'feature="blocking-api"' --cfg 'feature="default"' --cfg 'feature="tokio"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("async-executor", "async-fs", "async-io", "async-lock", "async-process", "async-task", "blocking", "blocking-api", "bus-impl", "camino", "chrono", "default", "heapless", "option-as-array", "p2p", "serde_bytes", "time", "tokio", "tokio-vsock", "url", "uuid", "vsock"))' -C metadata=7227efe6c48a2a31 -C extra-filename=-88c2a3632e5c757c --out-dir /home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/zbus/88c2a3632e5c757c/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/async-channel/7b6d5d9d07793d79/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/async-io/352fc55be2ccfe62/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/async-lock/c2ac893856115945/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/async-signal/d5777282f7679f04/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/async-task/844b8292c2cafde5/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/atomic-waker/072ff56e6fce282e/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/bitflags/9c22f67753a99d40/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/bytes/9d8293b0ac9bfb18/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/cfg-if/e4c65286c0ba8a92/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/concurrent-queue/44b050c296346667/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/crossbeam-utils/89ba8e182ba9ac77/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/endi/38538e62ad387ae7/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/enumflags2/7e74879e1daedc9f/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/enumflags2_derive/b10c2bfc307764bd/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/errno/ab25faea9b021625/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/event-listener-strategy/730583338dac7d6b/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/event-listener/dc88008113e5994d/out -L dependency=/home/justcallmesu/project/personal/Aristotle/desktop/target/debug/build/fastrand/398d3f75122c6340/out -L dependency=/home/justc

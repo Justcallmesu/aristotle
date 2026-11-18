@@ -117,7 +117,7 @@ impl Tray for AristotleTray {
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
-        vec![icons::pixmap(self.assessment.state)]
+        icons::pixmaps(self.assessment.state)
     }
 
     fn tool_tip(&self) -> ToolTip {

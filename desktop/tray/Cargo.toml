@@ -14,3 +14,4 @@ path = "src/main.rs"
 aristotle-core = { path = "../core" }
 ksni.workspace = true
 notify-rust.workspace = true
+png.workspace = true

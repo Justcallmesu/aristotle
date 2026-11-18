@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-terminal-ungrant"
+description = "Enables the terminal_ungrant command without any pre-configured scope."
+commands.allow = ["terminal_ungrant"]
+
+[[permission]]
+identifier = "deny-terminal-ungrant"
+description = "Denies the terminal_ungrant command without any pre-configured scope."
+commands.deny = ["terminal_ungrant"]

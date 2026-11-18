@@ -15,11 +15,12 @@ Routes: build `std` unless noted; every review `deep`, fresh context, never the 
 | DS3 | Desktop core + tray: `desktop/` Rust workspace (P16), `core` (CLI runner, §22 types, poller, tray state, notification diff incl. P15, strings P10, version check P5), `tray` bin (ksni, left click + menu per P14, notifications), desktop gate script | DS1c, DS2b | desktop | std | DONE (with DS3b/c/d; committed after PM gate + 30-run flake loop) |
 | DS3b | DS3 fix round 1 of 2: the 3 MAJORs + minors (menu by service state, `-dev` skip, P11 log, gate SKIP/0-tests, process-group kill, absolute env paths, lost notices) + string alignment with design.md | DS3 | desktop | std | DONE with DS3c (menu) + DS3d (fix round 2: flaky runner test lock, 100/100); re-review: product code approved; minors -> DF1-DF7 |
 | DSDc | Consolidate the picked design (D19) into binding `docs/desktop/design.md` (tokens as CSS variables, type, spacing, components per view, only chosen options) | DSD | design | std | DONE (P17 rows applied by the PM) |
-| DS3w | Window app skeleton: `app` crate (Tauri 2.12.6, single instance + argument hand-off P14, expected-stop stamp P15, P4 capabilities/CSP, process exits on window close), `desktop/ui` React+TS+Vite + Vitest + ESLint, design tokens + fonts from `design.md`, shell 2 navigation with empty views, IPC to `core`; gate gains npm steps | DS3, DSDc | desktop | std | IN PROGRESS (also all IPC commands for DS4-6 + DF1-DF6) |
-| DSI | Tray icon set: green/amber/red from the app icon, heavier 16 px variant (D19-5); user approves on the real panel | DS3 | design | std | IN PROGRESS |
-| DS4 | UI: Status, Service, Logs | DS3w | desktop | std | TODO |
-| DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3w | desktop | std | TODO |
-| DS6 | UI: Terminal (on/off, grants, open terminals; D7 confirms) | DS3w | desktop | std | TODO |
+| DS3w | Window app skeleton: `app` crate (Tauri 2.12.6, single instance + argument hand-off P14, expected-stop stamp P15, P4 capabilities/CSP, process exits on window close), `desktop/ui` React+TS+Vite + Vitest + ESLint, design tokens + fonts from `design.md`, shell 2 navigation with empty views, IPC to `core`; gate gains npm steps | DS3, DSDc | desktop | std | DONE (2 workers; PM gate GREEN 135 + UI; mutants: stamp + capability KILLED, log-kill HUNG = MAJOR-1; review APPROVED-WITH-FINDINGS) -> DS3x before DS4 |
+| DS3x | DS3w review fixes before the views: MAJOR-1 bounded `LogStream::stop()` + test deadline + gate `timeout`; MINOR-1 concurrent `logs_start`; MINOR-2 `MIN_TESTS`/per-binary incl. tray; MINOR-3 keep stamp on CLI timeout; MINOR-4 shared UI pieces (needs-server empty state, command-failed banner, run-command hook); MINOR-5 `enabled` in the snapshot; footer red on version mismatch (P18) | DS3w | desktop | std | TODO |
+| DSI | Tray icon set: green/amber/red from the app icon, heavier 16 px variant (D19-5); user approves on the real panel | DS3 | design | std | DONE (user approved the sheet; real-panel look is a user live check) |
+| DS4 | UI: Status, Service, Logs | DS3x | desktop | std | TODO |
+| DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3x | desktop | std | TODO |
+| DS6 | UI: Terminal (on/off, grants, open terminals; D7 confirms) | DS3x | desktop | std | TODO |
 | DS7 | Bundle + installer + release + second PC | DS4-DS6 | scripts | std | TODO |
 
 DS1 and DS2 can run in parallel (disjoint dirs). DS4, DS5, DS6 can run in parallel after DS3 (disjoint view folders;
