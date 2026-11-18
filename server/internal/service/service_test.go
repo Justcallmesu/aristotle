@@ -380,3 +380,35 @@ func TestInstallRefusesDanglingSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestInstalled(t *testing.T) {
+	m, f := newMgr(t, "/opt/aristotle-server")
+	if m.Installed() {
+		t.Fatal("empty unit dir reported installed")
+	}
+	if err := os.MkdirAll(m.Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/nonexistent/aristotle-server.service", m.UnitPath()); err != nil {
+		t.Fatal(err)
+	}
+	if m.Installed() {
+		t.Fatal("dangling symlink reported installed")
+	}
+	if err := os.Remove(m.UnitPath()); err != nil {
+		t.Fatal(err)
+	}
+	real := filepath.Join(t.TempDir(), "real.service")
+	if err := os.WriteFile(real, []byte("[Unit]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, m.UnitPath()); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Installed() {
+		t.Fatal("symlinked unit reported not installed")
+	}
+	if got := f.list(); len(got) != 0 {
+		t.Fatalf("Installed ran commands: %v", got)
+	}
+}

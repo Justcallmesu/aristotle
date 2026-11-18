@@ -369,6 +369,65 @@ func TestJSONStatusServerDown(t *testing.T) {
 	}
 }
 
+// installed is the unit file at UnitPath: a file or a symlink to one counts, a dangling symlink and
+// nothing do not. It is there in every state, server down included, and never calls systemctl.
+func TestJSONStatusInstalled(t *testing.T) {
+	linkTo := func(target string) func(*testing.T, string) {
+		return func(t *testing.T, unit string) {
+			if err := os.MkdirAll(filepath.Dir(unit), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, unit); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	real := func(t *testing.T, unit string) {
+		other := filepath.Join(t.TempDir(), "elsewhere.service")
+		if err := os.WriteFile(other, []byte("[Unit]\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		linkTo(other)(t, unit)
+	}
+	cases := []struct {
+		name  string
+		setup func(*testing.T, string)
+		want  bool
+	}{
+		{"file", installUnit, true},
+		{"absent", func(*testing.T, string) {}, false},
+		{"symlink", real, true},
+		{"dangling symlink", linkTo("/nonexistent/aristotle-server.service"), false},
+	}
+	for _, c := range cases {
+		for _, down := range []bool{false, true} {
+			var res *statusResult
+			var qerr error
+			if down {
+				qerr = fmt.Errorf("x: %w", control.ErrNotRunning)
+			} else {
+				res = goldenStatus()
+			}
+			_, out, errOut := runStatusUnit(t, c.setup, "active", res, qerr, "--json")
+			m := oneObject(t, out)
+			if got, ok := m["installed"].(bool); !ok || got != c.want || errOut != "" {
+				t.Errorf("%s (server down %v): installed %v, want %v; %q %q", c.name, down, m["installed"], c.want, out, errOut)
+			}
+			if _, porcelain, _ := runStatusUnit(t, c.setup, "active", res, qerr, "--porcelain"); strings.Contains(porcelain, "installed") {
+				t.Errorf("%s: porcelain mentions installed: %q", c.name, porcelain)
+			}
+		}
+	}
+}
+
+func TestJSONStatusNotInstalledFixture(t *testing.T) {
+	code, out, errOut := runStatusUnit(t, func(*testing.T, string) {}, "inactive", nil, fmt.Errorf("x: %w", control.ErrNotRunning), "--json")
+	if code != 1 || errOut != "" {
+		t.Fatalf("exit %d stderr %q", code, errOut)
+	}
+	checkFixture(t, "status_not_installed.json", out)
+}
+
 // status --json decides exactly what status --porcelain decides: the server word and the exit code.
 func TestJSONStatusMatchesPorcelain(t *testing.T) {
 	answers := []error{nil, fmt.Errorf("x: %w", control.ErrNotRunning), errors.New("boom")}

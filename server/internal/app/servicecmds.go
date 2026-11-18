@@ -154,7 +154,7 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 	err = queryStatus(&res)
 	switch {
 	case asJSON:
-		printJSON(stdout, newStatusJSON(active, enabled, res, err))
+		printJSON(stdout, newStatusJSON(active, enabled, m.Installed(), res, err))
 	case porcelain:
 		printPorcelain(stdout, active, enabled, res, err)
 	default:
@@ -166,17 +166,18 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// statusJSON is `status --json`: the service facts from systemd, how the server answered (the word
+// statusJSON is `status --json`: the service facts from systemd, whether the unit file exists, how the server answered (the word
 // `status --porcelain` prints after "server"), and the control result when it did.
 type statusJSON struct {
-	Service string        `json:"service"`
-	Enabled string        `json:"enabled"`
-	Server  string        `json:"server"`
-	Result  *statusResult `json:"result,omitempty"`
+	Service   string        `json:"service"`
+	Enabled   string        `json:"enabled"`
+	Installed bool          `json:"installed"`
+	Server    string        `json:"server"`
+	Result    *statusResult `json:"result,omitempty"`
 }
 
-func newStatusJSON(active, enabled string, res statusResult, err error) statusJSON {
-	out := statusJSON{Service: active, Enabled: enabled, Server: serverState(err)}
+func newStatusJSON(active, enabled string, installed bool, res statusResult, err error) statusJSON {
+	out := statusJSON{Service: active, Enabled: enabled, Installed: installed, Server: serverState(err)}
 	if err == nil {
 		res.Addresses = nonNil(res.Addresses)
 		out.Result = &res

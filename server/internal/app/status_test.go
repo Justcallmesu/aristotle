@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/justcallmesu/aristotle/server/internal/control"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -32,7 +34,25 @@ func runStatusWith(t *testing.T, active string, answer *statusResult, qerr error
 // status stub: runStatusWith, the JSON tests and the golden tests all use it.
 func runStatusCmd(t *testing.T, active string, answer *statusResult, qerr error, args ...string) (int, string, string) {
 	t.Helper()
-	f, _, _ := useFakes(t)
+	return runStatusUnit(t, installUnit, active, answer, qerr, args...)
+}
+
+// installUnit writes a plain unit file: the installed state every status test starts from.
+func installUnit(t *testing.T, unit string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(unit), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(unit, []byte("[Unit]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// runStatusUnit is runStatusCmd with setup shaping the unit path (file, symlink, nothing) first.
+func runStatusUnit(t *testing.T, setup func(*testing.T, string), active string, answer *statusResult, qerr error, args ...string) (int, string, string) {
+	t.Helper()
+	f, unit, _ := useFakes(t)
+	setup(t, unit)
 	f.out = map[string]string{isActiveCmd: active + "\n", isEnabledCmd: "enabled\n"}
 	old := queryStatus
 	queryStatus = func(res *statusResult) error {

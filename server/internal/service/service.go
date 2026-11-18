@@ -130,6 +130,14 @@ type Manager struct {
 // UnitPath is the full path of the unit file.
 func (m *Manager) UnitPath() string { return filepath.Join(m.Dir, UnitName) }
 
+// Installed reports whether the unit file exists at UnitPath. A symlinked unit counts; a dangling
+// symlink does not. It reads the file system only: `systemctl is-enabled` cannot tell (it prints
+// "enabled" for an absent unit on some systems).
+func (m *Manager) Installed() bool {
+	info, err := os.Stat(m.UnitPath())
+	return err == nil && !info.IsDir()
+}
+
 func (m *Manager) ctl(args ...string) error {
 	return m.Runner.Run(m.Out, m.Err, "systemctl", append([]string{"--user"}, args...)...)
 }
