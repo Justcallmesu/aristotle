@@ -11,11 +11,14 @@ Routes: build `std` unless noted; every review `deep`, fresh context, never the 
 | DS2 | Spike: Tauri v2 tray + window on KDE (throwaway, `spikes/tauri-tray/`) | DS0 | spike | std | BUILT, stop condition hit: no tray left click, window memory not freed -> D17/D18 to the user; tray visibility check by the user |
 | DSD | Design pass: mockups of every view (real states, light/dark, EN/ID), tray icon set, tokens; user picks; then consolidated into `docs/desktop/design.md` | - | design | std | BUILT (board + notes, slop 0/10); waiting on the user's picks (design-notes §9, 1-12; 11 settled by P13) |
 | DS2b | Spike: `ksni` tray, left click launches the window app (D17/D18); memory, single instance, real-click check | DS2 | spike | std | BUILT (icon visible, Activate via D-Bus launches the child, tray ~7 MB, single instance, reaped); **real left click: user check pending** |
-| DS1c | Server: `status --json` `installed` field (P13) + fixture + §22 | DS1b | server | std | TODO |
-| DS3 | Desktop core: `desktop/` skeleton, CLI runner, poller, tray state, notification diff, strings, desktop gate | DS1b, DS2b | desktop | std | TODO (scope changes for D18: workspace core + tray + window app) |
-| DS4 | UI: Status, Service, Logs | DS3, DSD | desktop | std | TODO |
-| DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3, DSD | desktop | std | TODO |
-| DS6 | UI: Terminal (on/off, grants, open terminals; D7 confirms) | DS3, DSD | desktop | std | TODO |
+| DS1c | Server: `status --json` `installed` field (P13) + fixture + §22 | DS1b | server | std | DONE (aa9c5a7; gate GREEN 893, PM mutant killed; no own review: the DS3 review re-checks it) |
+| DS3 | Desktop core + tray: `desktop/` Rust workspace (P16), `core` (CLI runner, §22 types, poller, tray state, notification diff incl. P15, strings P10, version check P5), `tray` bin (ksni, left click + menu per P14, notifications), desktop gate script | DS1c, DS2b | desktop | std | TODO |
+| DSDc | Consolidate the picked design (D19) into binding `docs/desktop/design.md` (tokens as CSS variables, type, spacing, components per view, only chosen options) | DSD | design | std | TODO |
+| DS3w | Window app skeleton: `app` crate (Tauri 2.12.6, single instance + argument hand-off P14, expected-stop stamp P15, P4 capabilities/CSP, process exits on window close), `desktop/ui` React+TS+Vite + Vitest + ESLint, design tokens + fonts from `design.md`, shell 2 navigation with empty views, IPC to `core`; gate gains npm steps | DS3, DSDc | desktop | std | TODO |
+| DSI | Tray icon set: green/amber/red from the app icon, heavier 16 px variant (D19-5); user approves on the real panel | DS3 | design | std | TODO |
+| DS4 | UI: Status, Service, Logs | DS3w | desktop | std | TODO |
+| DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3w | desktop | std | TODO |
+| DS6 | UI: Terminal (on/off, grants, open terminals; D7 confirms) | DS3w | desktop | std | TODO |
 | DS7 | Bundle + installer + release + second PC | DS4-DS6 | scripts | std | TODO |
 
 DS1 and DS2 can run in parallel (disjoint dirs). DS4, DS5, DS6 can run in parallel after DS3 (disjoint view folders;
