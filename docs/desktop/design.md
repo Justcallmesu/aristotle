@@ -29,7 +29,7 @@ Window: start 960 × 640, minimum 720 × 520 (from design-notes §1, not a D19 p
 
 ## 1. Tokens
 
-Light and dark as CSS custom properties. Components use only these variables; no hex in component CSS. Roles follow `docs/design.md` §1
+Light and dark as CSS custom properties, switched by `prefers-color-scheme` (the code; the `:root[data-theme]` form below is the board's notation). Components use only these variables; no hex in component CSS. Roles follow `docs/design.md` §1
 (M3 name in the comment). The set is copied from the board.
 
 ```css
@@ -253,12 +253,12 @@ A systemctl word the string table has no key for (`activating`, …) is shown ra
 
 - **Working**: while Start / Stop / Restart runs, all three buttons are off, an indeterminate bar (max-width 420, margin-top 14) with `aria-label` and the hint `working_start|working_stop|working_restart` appears; it ends when the command returns and the next poll confirms the state. Before `stop` / `restart` the window writes the P15 stamp.
 - **Command failed** (`{"error":…}` or a non-zero exit): a `role="alert"` banner above the view content with `act_failed_t`, `act_failed_b` and a code block `error: <text>` (the CLI's text, shown, never logged); stays until the next action or a view change. A `refused:` error from `stop`/`restart` shows the same way.
-- **Needs the running server** (Pair, Devices, Terminal when `server != running`): empty state with `needs_title`, `needs_body` and, only when `installed`, no version mismatch and `service != active`, a primary **Start server**.
+- **Needs the running server** (Pair, Devices, Terminal when `server != running`): empty state with `needs_title`, `needs_body` and, only when `installed`, no version mismatch and `service != active`, a primary **Start server** (shown by the same rule as §4.4: `service` inactive/failed; P21).
 - **Empty and failed reads**: a missing value renders `—`; a failed `devices list` / `terminal status` read leaves the last good data and shows `—` where none exists.
 
 ### 4.3 Status (default view)
 
-Layout: sr-only `h1` (`nav_status`), state row (headline + sub, Start server primary when `service != active`, not installed → no button, no mismatch), then the two columns.
+Layout: sr-only `h1` (`nav_status`), state row (headline + sub, Start server primary when the §4.4 rule allows Start — `service` inactive/failed, installed, no mismatch (P21) — else no button), then the two columns.
 - Not installed: a group `install_cmd` with code block `./install.sh` + tonal small **Copy** (`copy`); **no install button** (P3). Status then lists the same Server group with "—" values.
 - Left column, group `g_server`: `k_service` (`svc_*` word), `k_enabled` (`en_enabled` / `en_disabled` / `en_not-found` / `en_unknown`), `k_version` (version + tag `app_expects` in `err` when mismatched), `k_port` (mono `tnum`, `—` when absent), `k_hermes` (state light + `hs_*` word; reason below).
 - Right column: group `g_listen` — one row per `result.listeners[]`: key `kind_<kind>`; value `<ip>:<port>` mono nowrap and below it mono 12 `<iface>[ · <subnet>][ · default route]` (`default_route` from the `addresses[]` entry with the same `iface`); no listener → one row `no_listen` (stopped) or `no_listen_up` (running but `listeners` absent). Then group `g_phones` (only when running): `k_paired` = `paired_summary` (`{n}`, `{t}` = last seen of the most recent device) or `none_paired`, with text button `open_devices`; `k_terminal` = `term_summary_on` (`{open}`, `{granted}`) or `term_summary_off`, with `open_terminal`.
@@ -267,7 +267,7 @@ Layout: sr-only `h1` (`nav_status`), state row (headline + sub, Start server pri
 ### 4.4 Service
 
 Layout: `h1` `svc_title` + sub `svc_sub`; state row (state light + headline, no action); group `svc_state`: `svc_unit` = mono `aristotle-server.service` + ` · systemd --user`, `k_service`, `k_enabled`; button row: **Start server** (primary when it is the available action, else default), **Stop server** (outline danger → stop dialog), **Restart server** (tonal → restart dialog); under them the reason hint (12/16, margin-top 10).
-Which buttons are on: `service == active` → Stop and Restart on, Start off (`dis_running`); `service` inactive/failed → Start on, Stop and Restart off (`dis_stopped`); any other word (`activating`, `unknown`, …), `installed == false` (`dis_notinst`), mismatch (`dis_mismatch`) or a running command → all off. With `server == no-answer` and `service == active`, Stop and Restart stay on (recovery).
+Which buttons are on: `service == active` → Stop and Restart on, Start off (`dis_running`); `service` inactive/failed → Start on, Stop and Restart off (`dis_stopped`); any other word (`activating`, `unknown`, …: `dis_other` with the word), `installed == false` (`dis_notinst`), mismatch (`dis_mismatch`) or a running command → all off. With `server == no-answer` and `service == active`, Stop and Restart stay on (recovery).
 States: running · stop confirm · restart confirm · working (§4.2) · stopped · not installed · server not answering. Drivers: `service`, `installed`, `server`, the command's own `service` word (`start|stop|restart --json`).
 
 ### 4.5 Logs
@@ -295,7 +295,7 @@ Rules: the code, QR payload and fingerprint exist in memory and DOM only while t
 Layout: `h1` `dev_title` + sub `dev_sub`, tonal **Pair a phone** (`b_pair`, opens Pair state 1) at the right; table (§3.5): `c_name` (name 600 + id mono 12/16 below), `c_paired` (`dmy`), `c_seen` (relative, `title` = ISO), `c_term` (tag `granted` when the id is in `terminal status` `granted`, else `—`), and **Revoke…** (`revoke` + "…", outline danger small → revoke dialog). Rows in the order the CLI returns.
 - Empty (`devices == []`): empty state `empty_dev_t` + `empty_dev_b` + primary **Pair a phone** (`b_pair`).
 - Server stopped: needs-server state. Mismatch: Revoke… off, `dis_mismatch` hint under the table.
-- Time text: `now` under 1 min; `ago_min` under 60 min; same calendar day `today` (`HH:MM`, 24 h, local); otherwise `<date> HH:MM` where date is `Mon D` (EN) or `D Mon` (ID, `MON.id`: Jan Feb Mar Apr Mei Jun Jul Agu Sep Okt Nov Des). Drivers: `devices[].{id,name,created_at,last_seen_at}`.
+- Time text: `now` under 1 min; `ago_min` under 60 min; same calendar day `today` (`HH:MM`, 24 h, local); otherwise `<date> HH:MM` where date is `Mon D` (EN) or `D Mon` (ID, `MON.id`: Jan Feb Mar Apr Mei Jun Jul Agu Sep Okt Nov Des). Paired column `dmy`: `Mon D, YYYY` (EN, e.g. Oct 3, 2026) / `D Mon YYYY` (ID, e.g. 3 Okt 2026). Drivers: `devices[].{id,name,created_at,last_seen_at}`.
 
 ### 4.8 Terminal
 
@@ -305,7 +305,7 @@ Layout: `h1` `t_title` + sub `t_sub`; state row with the switch (label `t_on`/`t
 - Right column (only when `enabled`), group `t_open`: one row per `open[]`: title = device name from `device_id` (else the raw id), sub `kind_<listener> · HH:MM · dur_min · c_pid <pid>` (`since`), end = terminal `id` mono 12; none → `t_open_empty`.
 - `warning` present (after a change): `role="status"` banner, warn light, title `t_warn_t`, code block `warning: <text>`; content stays usable.
 - `problem` present: only `role="alert"` banner (err light, `t_prob_t`, `t_prob_b`, code block `problem: <text>`, tonal **Check again** `t_check` re-reads `terminal status`) and the state row with the switch **disabled**; no lists. The app never edits `terminal.json`.
-- After a successful enable or grant the window sends the D7 notification (`n_d7_t`/`n_d7_b`).
+- The D7 notification (`n_d7_t`/`n_d7_b`) is sent by the **tray** when its poll sees `enabled` false→true or a new id in `granted` (P20); the window sends none.
 - Server stopped: needs-server state. Mismatch: switch, Turn on…, Grant…, Remove grant off. Drivers: `enabled`, `granted[]`, `open[]`, `changed`, `warning`, `problem`, `devices list` names.
 
 ## 5. Strings (EN + ID)
@@ -382,6 +382,7 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 | `dis_running` | Start is off: the server is already running. | Tombol Nyalakan mati: server sudah berjalan. | UI |
 | `dis_stopped` | Stop and Restart are off: the server isn’t running. | Tombol Hentikan dan Mulai ulang mati: server tidak berjalan. | UI |
 | `dis_mismatch` | Actions are off until the server is updated. | Tombol aksi mati sampai server diperbarui. | UI |
+| `dis_other` | Start, Stop and Restart are off while the service is {word}. | Nyalakan, Hentikan dan Mulai ulang mati selama layanan {word}. | UI |
 | `dis_notinst` | Nothing to control: the service isn’t installed. | Tidak ada yang bisa dikendalikan: layanan belum terpasang. | UI |
 | `working_restart` | Restarting… | Memulai ulang… | UI |
 | `working_stop` | Stopping… | Menghentikan… | UI |
