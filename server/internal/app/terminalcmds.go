@@ -155,6 +155,7 @@ func (s *server) terminalStatus(changed bool, dev *devices.Public) terminalStatu
 const terminalUsage = "usage: aristotle-server terminal enable | disable | status"
 
 func runTerminal(args []string, stdout, stderr io.Writer) int {
+	args, asJSON := stripJSON(args)
 	cmds := map[string]string{"enable": cmdTerminalEnable, "disable": cmdTerminalDisable, "status": cmdTerminalStatus}
 	if len(args) != 1 || cmds[args[0]] == "" {
 		fmt.Fprintln(stderr, terminalUsage)
@@ -162,8 +163,10 @@ func runTerminal(args []string, stdout, stderr io.Writer) int {
 	}
 	var res terminalStatusResult
 	if err := callServer(cmds[args[0]], nil, &res); err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+		return failCmd(stdout, stderr, asJSON, err)
+	}
+	if asJSON {
+		return emitJSON(stdout, jsonTerminal(res))
 	}
 	switch args[0] {
 	case "enable":
@@ -178,6 +181,13 @@ func runTerminal(args []string, stdout, stderr io.Writer) int {
 	printTerminalStatus(stdout, res)
 	printWarning(stderr, res.Warning)
 	return 0
+}
+
+// jsonTerminal makes the lists arrays (never null) for --json; the warning stays in the object.
+func jsonTerminal(res terminalStatusResult) terminalStatusResult {
+	res.Granted = nonNil(res.Granted)
+	res.Open = nonNil(res.Open)
+	return res
 }
 
 func printTerminalStatus(w io.Writer, res terminalStatusResult) {
@@ -222,15 +232,17 @@ func printWarning(w io.Writer, warning string) {
 	}
 }
 
-func devicesGrant(id string, grant bool, stdout, stderr io.Writer) int {
+func devicesGrant(id string, grant, asJSON bool, stdout, stderr io.Writer) int {
 	cmd := cmdGrantTerminal
 	if !grant {
 		cmd = cmdUngrantTerminal
 	}
 	var res terminalStatusResult
 	if err := callServer(cmd, revokeArgs{ID: id}, &res); err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+		return failCmd(stdout, stderr, asJSON, err)
+	}
+	if asJSON {
+		return emitJSON(stdout, jsonTerminal(res))
 	}
 	switch {
 	case grant && !res.Changed:

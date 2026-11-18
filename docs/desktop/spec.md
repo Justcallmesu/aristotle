@@ -41,7 +41,7 @@ terminal; a desktop UI and a tray app."
 | D6 | A: tray autostarts at login, hidden; closing the window hides to the tray. | User 2026-11-15. |
 | D7 | A: terminal enable and grant allowed in the UI behind a confirm dialog with the CLI's full-access warning, red button, no "don't ask again", notification after the change. | User 2026-11-15. The server's remote-terminal `Authorize` guard stays. |
 | D8 | A: Linux only, tested on KDE; GNOME best effort (AppIndicator extension). | User 2026-11-15. Matches Q128. |
-| D9 | A: one process. The tray app stays resident; clicking it shows the window; closing destroys the webview (memory freed) and the next click recreates it. | User 2026-11-15. |
+| D9 | ~~A: one process.~~ **Superseded by D18 (2026-11-18)**: DS2 showed the webview keeps ~290 MB after close. | User 2026-11-15. |
 | D10 | A: the server CLI is the app's API. `status`, `devices list`, `terminal status`, `pair` (and the action commands) gain `--json`; the Tauri app runs `aristotle-server <cmd> --json` and parses it. Go stays the only owner of the shapes. | User 2026-11-15. Server tickets come first; the JSON output is a stable contract with Go tests. |
 | D11 | A: the user runs `sudo pacman -Syu` on the dev PC to fix the rust/llvm partial upgrade. Only the dev PC needs Rust. | User 2026-11-15. **Blocks the first desktop ticket until done** (server `--json` tickets can start). |
 | D12 | A: the app binary ships in the release bundle; the root installer adds an app-menu entry and an XDG autostart entry only when webkit2gtk-4.1 is present; otherwise server only + a one-line note. | User 2026-11-15. |
@@ -49,6 +49,8 @@ terminal; a desktop UI and a tray app."
 | D14 | A: name "Aristotle Server", the Android app icon; tray variants tinted green/amber/red. | User 2026-11-15. |
 | D15 | A: simple confirm dialog for revoke device ("the phone must pair again") and stop / restart server ("phones disconnect"); none for start, pair, refresh. | User 2026-11-15. Applies to the tray menu's Stop too. |
 | D16 | A: English + Indonesian, following the system language (like the Android app's `values-in`). | User 2026-11-15. Covers the window, tray menu and notifications (P10). |
+| D17 | A: own StatusNotifierItem tray with the `ksni` crate; left click opens the UI; right click shows the D4 menu. | User 2026-11-18 after DS2 (Tauri's Linux tray has no left click). Plasma calling `Activate` ASSUMED until DS2b. |
+| D18 | A: two processes. `aristotle-tray` (Rust, ksni, notifications, the core poller, no webview) is autostarted and resident; left click / "Open" launches the Tauri window app `aristotle-desktop` (single instance: a second launch focuses the open window), which exits when its window closes. Both share one Rust core crate. | User 2026-11-18 ("D19. A", PM interpretation D18). Supersedes D9. Consequences: two binaries in the bundle (D12/DS7), the autostart entry starts the tray only (D6), the window app polls only while open. |
 | D0 | Design diagram (closing round, below) confirmed: user answered D15/D16 without objecting to it. | 2026-11-15, logged in `docs/desktop/decisions.md`. |
 
 ## PM technical decisions (override welcome)
@@ -94,3 +96,19 @@ not active without an app-issued stop.
 - **Polling cost**: `status` probes Hermes on every call (`server/internal/app/controlcmds.go:183`); ASSUMED cheap (local
   socket, short timeout). DS3 measures one call and records it; if heavy, poll Hermes less often.
 - **Gate time**: a Tauri release build adds minutes to the gate; DS2 records it.
+
+## DS2 spike findings (2026-11-18, `docs/spikes/desktop-tray.md`) — open questions D17-D18
+- Tauri's Linux tray (tray-icon 0.25.1 over libappindicator) exposes no SNI `Activate`: a left click cannot reach the app;
+  only the menu works (reported by DS2 via `busctl`; real mouse click not tested). Tray icon visibility in the panel NOT
+  confirmed (maybe in the overflow); user check pending.
+- Destroying the window leaks a WebKit WebProcess (~245 MB each) unless `terminate_web_process()` is called; even with the fix the
+  process stays at ~290 MB after the first window (69 MB tray-only, ~520 MB window open). D9's "memory freed" does not hold.
+- `ksni` (pure-Rust StatusNotifierItem) has an `activate` callback for left click (VERIFIED: docs.rs `ksni::Tray::activate`);
+  that Plasma calls it on left click is ASSUMED until a spike.
+| Id | Open question | Options (recommended first) |
+|---|---|---|
+| D17 | How the tray opens the UI | A: own SNI tray via `ksni` (left click opens the UI); B: accept Tauri's tray, menu only ("Open" first item) |
+| D18 | Process model (revisits D9) | A: two processes: small resident tray (ksni + notifications + core poller, no webview) launches the Tauri window app on click, which exits on close; B: one Tauri process as decided, ~290 MB after first open |
+
+Decided 2026-11-18: **D17 = A** (user). **D18 = A** (user wrote "D19. A"; no D19 exists, PM interpretation = D18, flagged in
+chat). Rows added to the Decisions table; D9 superseded.

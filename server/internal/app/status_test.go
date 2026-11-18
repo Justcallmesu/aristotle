@@ -89,7 +89,7 @@ func TestStatusHermesErrorStillExitsZero(t *testing.T) {
 }
 
 func TestStatusBadArgs(t *testing.T) {
-	for _, a := range [][]string{{"--json"}, {"--porcelain", "x"}, {"x"}} {
+	for _, a := range [][]string{{"--json", "--porcelain"}, {"--porcelain", "x"}, {"x"}, {"--json", "x"}} {
 		if code, _ := runStatusWith(t, "active", nil, nil, a...); code != 2 {
 			t.Errorf("%v: code %d", a, code)
 		}

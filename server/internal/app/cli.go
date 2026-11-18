@@ -16,8 +16,8 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/termqr"
 )
 
-// callServer sends one control command to the running server.
-func callServer(cmd string, args, out any) error {
+// callServer sends one control command to the running server (a seam for tests).
+var callServer = func(cmd string, args, out any) error {
 	dir, err := config.StateDir()
 	if err != nil {
 		return err
@@ -30,6 +30,7 @@ func runPair(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	name := fs.String("name", "", "name for the paired device (default: the name the phone sends)")
 	noQR := fs.Bool("no-qr", false, "print only the code, addresses and fingerprint, no QR code")
+	asJSON := fs.Bool("json", false, "print the result as one JSON object (with qr_payload) instead of text")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -39,8 +40,10 @@ func runPair(args []string, stdout, stderr io.Writer) int {
 	}
 	var res pairStartResult
 	if err := callServer(cmdPairStart, pairStartArgs{Name: *name}, &res); err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+		return failCmd(stdout, stderr, *asJSON, err)
+	}
+	if *asJSON {
+		return emitJSON(stdout, newPairJSON(res))
 	}
 	printPairing(stdout, res, time.Now(), !*noQR)
 	return 0
@@ -132,25 +135,33 @@ func addrNote(a pairAddr) string {
 const devicesUsage = "usage: aristotle-server devices list | revoke <id> | grant-terminal <id> | ungrant-terminal <id>"
 
 func runDevices(args []string, stdout, stderr io.Writer) int {
+	args, asJSON := stripJSON(args)
 	switch {
 	case len(args) == 1 && args[0] == "list":
-		return devicesList(stdout, stderr)
+		return devicesList(asJSON, stdout, stderr)
 	case len(args) == 2 && args[0] == "revoke":
-		return devicesRevoke(args[1], stdout, stderr)
+		return devicesRevoke(args[1], asJSON, stdout, stderr)
 	case len(args) == 2 && args[0] == "grant-terminal":
-		return devicesGrant(args[1], true, stdout, stderr)
+		return devicesGrant(args[1], true, asJSON, stdout, stderr)
 	case len(args) == 2 && args[0] == "ungrant-terminal":
-		return devicesGrant(args[1], false, stdout, stderr)
+		return devicesGrant(args[1], false, asJSON, stdout, stderr)
 	}
 	fmt.Fprintln(stderr, devicesUsage)
 	return 2
 }
 
-func devicesList(stdout, stderr io.Writer) int {
+// devicesListJSON is `devices list --json`: an object, so fields can be added later.
+type devicesListJSON struct {
+	Devices []devices.Public `json:"devices"`
+}
+
+func devicesList(asJSON bool, stdout, stderr io.Writer) int {
 	var list []devices.Public
 	if err := callServer(cmdDevicesList, nil, &list); err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+		return failCmd(stdout, stderr, asJSON, err)
+	}
+	if asJSON {
+		return emitJSON(stdout, devicesListJSON{Devices: nonNil(list)})
 	}
 	if len(list) == 0 {
 		fmt.Fprintln(stdout, "No paired devices.")
@@ -165,14 +176,49 @@ func devicesList(stdout, stderr io.Writer) int {
 	return 0
 }
 
-func devicesRevoke(id string, stdout, stderr io.Writer) int {
+func devicesRevoke(id string, asJSON bool, stdout, stderr io.Writer) int {
 	var dev devices.Public
 	if err := callServer(cmdDevicesRevoke, revokeArgs{ID: id}, &dev); err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+		return failCmd(stdout, stderr, asJSON, err)
+	}
+	if asJSON {
+		return emitJSON(stdout, dev)
 	}
 	fmt.Fprintf(stdout, "Revoked %s (%s). Its token stops working on the next request; its relays and terminals were closed.\n", dev.ID, sanitize(dev.Name))
 	return 0
+}
+
+// nonNil makes a nil slice print as [] in JSON.
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
+// pairJSON is `pair --json`: the control result plus the text of the QR code (pairing.Payload with every
+// address, up to pairing.MaxPayloadAddresses), so the app draws the code and the QR rules stay in Go.
+// QRError says why QRPayload is empty (no address up, bad fingerprint); it never holds the code.
+type pairJSON struct {
+	pairStartResult
+	QRPayload string `json:"qr_payload"`
+	QRError   string `json:"qr_error,omitempty"`
+}
+
+func newPairJSON(res pairStartResult) pairJSON {
+	res.Addresses = nonNil(res.Addresses)
+	out := pairJSON{pairStartResult: res}
+	urls := make([]string, len(res.Addresses))
+	for i, a := range res.Addresses {
+		urls[i] = a.URL
+	}
+	text, err := pairing.Payload(res.Code, res.Fingerprint, urls)
+	if err != nil {
+		out.QRError = err.Error()
+		return out
+	}
+	out.QRPayload = text
+	return out
 }
 
 func stamp(t time.Time) string { return t.Local().Format("2006-01-02 15:04") }

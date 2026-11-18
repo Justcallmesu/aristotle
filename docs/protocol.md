@@ -1675,3 +1675,28 @@ Served with `http.ServeContent`, so `Range` (`206`), `If-Range` and `If-None-Mat
 
 Codes: `200`, `204`, `206`, `304`, `401` (no/revoked token), `403` (peer gate, §11.2). The updater never offers a lower
 `version_code` than the phone's own (P20).
+
+## 22. CLI JSON output (desktop app) (DS1, desktop spec D10, P9, P11, P12)
+
+The desktop app controls the server only by running `aristotle-server <command> --json` and parsing stdout. Go owns the shapes; the
+fixtures in `server/internal/app/testdata/json/` are the exact success output of each command and are asserted by the Go tests.
+
+**Rules.** Success: exactly one JSON object and a newline on stdout, nothing else on stdout, exit code identical to the plain command.
+Failure: `{"error":"<text>"}` on stdout, same non-zero exit code as the plain command, nothing on stderr. A usage error (exit 2)
+keeps the text usage message on stderr and prints nothing on stdout. `--json` may sit anywhere after the command name. Field names are
+snake_case; times are RFC 3339. Plain (no `--json`) output is unchanged. The shapes are the control results the server already returns
+(`statusResult`, `terminalStatusResult`, `devices.Public`, `pairStartResult`), so a field added there appears here; parse leniently.
+
+| Command | stdout object |
+|---|---|
+| `version --json` | `{"version","commit","protocol"}` |
+| `status --json` | `{"service":"<systemctl is-active>","enabled":"<is-enabled>","server":"running\|not-running\|no-answer","result":{...}}`; `result` (version, addresses, port, listeners, hermes) only when `server` is `running`. Answers when the server is down; `server` is the word `status --porcelain` prints after `server`; exit 1 unless the service is `active` and the server answered, like plain `status` |
+| `devices list --json` | `{"devices":[{"id","name","created_at","last_seen_at"}]}` (`[]` when empty) |
+| `devices revoke <id> --json` | `{"id","name","created_at","last_seen_at"}` of the revoked device |
+| `terminal status\|enable\|disable --json`, `devices grant-terminal\|ungrant-terminal <id> --json` | `{"enabled","granted":[{"id","name"}],"open":[{"id","device_id","listener","since","pid"}],"changed","warning"?,"problem"?,"device"?}`; `granted` and `open` are always arrays; a warning that plain output prints on stderr is the `warning` field |
+| `pair [--name NAME] --json` | `{"code","expires_at","fingerprint","addresses":[{"url","kind","iface","default_route"}],"qr_payload","qr_error"?}`; `qr_payload` is `pairing.Payload(code, fingerprint, urls)` over every address (the first 8 are encoded, §11.4); empty with `qr_error` set when none can be built (no listener up). The pairing code appears only on stdout |
+| `start\|stop\|restart --json` | `{"ok":true,"service":"<systemctl is-active after the verb>"}` |
+
+`start`, `stop` and `restart` run `systemctl --user <verb> aristotle-server`. `stop` and `restart` refuse (exit 1, error text starting
+`refused:`) inside an Aristotle remote terminal: the environment variable `ARISTOTLE_TERMINAL` is set, or `/proc/self/cgroup` names
+`aristotle-server.service` (same test as `scripts/install.sh`). `start` is allowed. An accident guard, not a security boundary.

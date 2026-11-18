@@ -134,6 +134,32 @@ func (m *Manager) ctl(args ...string) error {
 	return m.Runner.Run(m.Out, m.Err, "systemctl", append([]string{"--user"}, args...)...)
 }
 
+// unitArg names the unit for start, stop and restart.
+const unitArg = "aristotle-server"
+
+// Start runs `systemctl --user start aristotle-server`.
+func (m *Manager) Start() error { return m.ctl("start", unitArg) }
+
+// Stop runs `systemctl --user stop aristotle-server`.
+func (m *Manager) Stop() error { return m.ctl("stop", unitArg) }
+
+// Restart runs `systemctl --user restart aristotle-server`.
+func (m *Manager) Restart() error { return m.ctl("restart", unitArg) }
+
+// terminalMarkerEnv is set in every shell the remote terminal opens (terminal.markerEnv).
+const terminalMarkerEnv = "ARISTOTLE_TERMINAL"
+
+// InRemoteTerminal reports whether the calling process runs inside an Aristotle remote terminal: the
+// marker variable is set, or its cgroup file (/proc/self/cgroup) names the service unit. Same test as
+// scripts/install.sh refuse_in_app_terminal. An accident guard, not a security boundary.
+func InRemoteTerminal(getenv func(string) string, cgroupFile string) bool {
+	if getenv(terminalMarkerEnv) != "" {
+		return true
+	}
+	data, err := os.ReadFile(cgroupFile)
+	return err == nil && strings.Contains(string(data), UnitName)
+}
+
 // Install writes the unit, reloads systemd, enables it and optionally starts it.
 func (m *Manager) Install(force, start bool) error {
 	want, err := UnitText(m.Bin)

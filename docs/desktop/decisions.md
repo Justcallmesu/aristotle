@@ -16,3 +16,5 @@
   Wave 1 = DS1 (server) + DS2 (Tauri spike) in parallel (disjoint dirs). Spec docs committed first.
 - 2026-11-18 P12 (PM technical): `stop` and `restart` refuse inside an Aristotle remote terminal (the restart would kill the
   caller's own shell mid-command), reusing the existing detection; `start` is allowed. Accident guard, not a security boundary.
+- 2026-11-18 D17 A, D18 A (user wrote "D19. A": PM interpretation D18, flagged in chat). Wave 2 dispatched in parallel: DS2b
+  (ksni tray spike) + DSD (design board); DS1 deep review still running. DS3 waits for DS1 commit + DS2b.

@@ -1,0 +1,21 @@
+=== M1 qr_payload dropped
+NOT COMPILED: the mutant broke the build, no test ran; not a kill (keep type narrowing, redo)
+exit=4
+=== M2 remote-terminal refusal disabled
+--- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/env_marker/stop/json=false (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/env_marker/stop/json=true (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/env_marker/restart/json=false (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/env_marker/restart/json=true (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/cgroup_names_the_unit/stop/json=false (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/cgroup_names_the_unit/stop/json=true (0.00s)
+    --- FAIL: TestStopAndRestartRefusedInsideARemoteTerminal/cgroup_names_the_unit/restart/json=false (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== M3 stop runs start
+--- FAIL: TestStartStopRestartRunSystemctlUser (0.00s)
+--- FAIL: TestStopReturnsTheRunnerError (0.00s)
+--- FAIL: TestLifecycleRunsSystemctlWithExactArgs (0.00s)
+--- FAIL: TestLifecycleJSON (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0

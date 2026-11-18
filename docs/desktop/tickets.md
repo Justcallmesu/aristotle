@@ -6,10 +6,12 @@ Routes: build `std` unless noted; every review `deep`, fresh context, never the 
 | Id | Title | Depends | Side | Route | Status |
 |---|---|---|---|---|---|
 | DS0 | **User:** `sudo pacman -Syu` (fixes rust 1.99.1 vs llvm-libs 22, D11); PM then checks `rustc --version` | - | user | - | DONE (2026-11-18: kernel 7.3.4, rustc 1.100.0) |
-| DS1 | Server: `--json` on the read commands and the action commands; new `start` / `stop` / `restart` (P9) | - | server | std | IN PROGRESS |
-| DS2 | Spike: Tauri v2 tray + window on KDE (throwaway, `spikes/tauri-tray/`) | DS0 | spike | std | IN PROGRESS |
-| DSD | Design pass: mockups of every view (real states, light/dark, EN/ID), tray icon set, tokens; user picks; then consolidated into `docs/desktop/design.md` | - | design | std | TODO (after wave 1) |
-| DS3 | Desktop core: `desktop/` skeleton, CLI runner, poller, tray state, notification diff, strings, desktop gate | DS1, DS2 | desktop | std | TODO |
+| DS1 | Server: `--json` on the read commands and the action commands; new `start` / `stop` / `restart` (P9) | - | server | std | DONE (gate GREEN 883, PM mutants 3/3 killed, deep review APPROVED-WITH-FINDINGS; minors -> DS1b) |
+| DS1b | DS1 review minors before DS3 parses the contract: MINOR-1 one unit spelling (`UnitName`), MINOR-2 optional status fields marked in §22 + old-server fixture, MINOR-3 one terminal marker constant; NITs (URL loop dup, stub helper x3, `pair --name --json`, usage lines, `service:"unknown"` in §22, dead `_ = srv`) | DS1 | server | std | TODO |
+| DS2 | Spike: Tauri v2 tray + window on KDE (throwaway, `spikes/tauri-tray/`) | DS0 | spike | std | BUILT, stop condition hit: no tray left click, window memory not freed -> D17/D18 to the user; tray visibility check by the user |
+| DSD | Design pass: mockups of every view (real states, light/dark, EN/ID), tray icon set, tokens; user picks; then consolidated into `docs/desktop/design.md` | - | design | std | IN PROGRESS |
+| DS2b | Spike: `ksni` tray, left click launches the window app (D17/D18); memory, single instance, real-click check | DS2 | spike | std | IN PROGRESS |
+| DS3 | Desktop core: `desktop/` skeleton, CLI runner, poller, tray state, notification diff, strings, desktop gate | DS1b, DS2b | desktop | std | TODO (scope changes for D18: workspace core + tray + window app) |
 | DS4 | UI: Status, Service, Logs | DS3, DSD | desktop | std | TODO |
 | DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3, DSD | desktop | std | TODO |
 | DS6 | UI: Terminal (on/off, grants, open terminals; D7 confirms) | DS3, DSD | desktop | std | TODO |
@@ -99,3 +101,8 @@ states, `id` strings present for every `en` key; screenshots light + dark in the
 | DL1 | Settings editor (port, LAN interfaces) | D3 |
 | DL2 | Stocks view/settings on the desktop | D3 |
 | DL3 | Server push channel instead of polling | P1 |
+
+## Log
+- 2026-11-18 Spec + tickets committed (f9213fe). Baseline `runs/baseline` GREEN (server, 805 Go tests). Wave 1 dispatched in
+  parallel: DS1 (std, `runs/DS1/build-brief.md`), DS2 (std, `runs/DS2/build-brief.md`); `pre.txt` snapshots saved.
+  Project-local npm/cargo dependencies allowed for DS2; no system installs.

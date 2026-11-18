@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,6 +29,10 @@ var (
 		return filepath.EvalSymlinks(p)
 	}
 	stdin io.Reader = os.Stdin
+
+	// The remote-terminal test of stop and restart reads this environment and cgroup file.
+	getenv     = os.Getenv
+	cgroupFile = "/proc/self/cgroup"
 )
 
 func newManager(stdout, stderr io.Writer) (*service.Manager, error) {
@@ -133,28 +138,60 @@ func confirm(w io.Writer, prompt string) bool {
 }
 
 func runStatus(args []string, stdout, stderr io.Writer) int {
+	args, asJSON := stripJSON(args)
 	porcelain := len(args) == 1 && args[0] == "--porcelain"
-	if len(args) != 0 && !porcelain {
+	if (len(args) != 0 && !porcelain) || (asJSON && porcelain) {
 		fmt.Fprintln(stderr, "usage: aristotle-server status [--porcelain]")
 		return 2
 	}
 	m, err := newManager(stdout, stderr)
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+		return failCmd(stdout, stderr, asJSON, err)
 	}
 	active, enabled := m.State("is-active"), m.State("is-enabled")
 	var res statusResult
 	err = queryStatus(&res)
-	if porcelain {
+	switch {
+	case asJSON:
+		printJSON(stdout, newStatusJSON(active, enabled, res, err))
+	case porcelain:
 		printPorcelain(stdout, active, enabled, res, err)
-	} else {
+	default:
 		printStatus(stdout, active, enabled, res, err)
 	}
 	if active != "active" || err != nil {
 		return 1
 	}
 	return 0
+}
+
+// statusJSON is `status --json`: the service facts from systemd, how the server answered (the word
+// `status --porcelain` prints after "server"), and the control result when it did.
+type statusJSON struct {
+	Service string        `json:"service"`
+	Enabled string        `json:"enabled"`
+	Server  string        `json:"server"`
+	Result  *statusResult `json:"result,omitempty"`
+}
+
+func newStatusJSON(active, enabled string, res statusResult, err error) statusJSON {
+	out := statusJSON{Service: active, Enabled: enabled, Server: serverState(err)}
+	if err == nil {
+		res.Addresses = nonNil(res.Addresses)
+		out.Result = &res
+	}
+	return out
+}
+
+// serverState is how the server answered the status query: the word after "server" in --porcelain.
+func serverState(err error) string {
+	switch {
+	case errors.Is(err, control.ErrNotRunning):
+		return "not-running"
+	case err != nil:
+		return "no-answer"
+	}
+	return "running"
 }
 
 func printStatus(w io.Writer, active, enabled string, res statusResult, err error) {
@@ -191,15 +228,11 @@ func printHermesLine(w io.Writer, h *hermesStatus) {
 func printPorcelain(w io.Writer, active, enabled string, res statusResult, err error) {
 	fmt.Fprintf(w, "service %s\n", porcelainWord(active))
 	fmt.Fprintf(w, "enabled %s\n", porcelainWord(enabled))
-	switch {
-	case errors.Is(err, control.ErrNotRunning):
-		fmt.Fprintln(w, "server not-running")
-		return
-	case err != nil:
-		fmt.Fprintln(w, "server no-answer")
+	state := serverState(err)
+	fmt.Fprintf(w, "server %s\n", state)
+	if err != nil {
 		return
 	}
-	fmt.Fprintln(w, "server running")
 	fmt.Fprintf(w, "version %s\n", porcelainWord(res.Version))
 	if res.Port > 0 {
 		fmt.Fprintf(w, "port %d\n", res.Port)
@@ -249,5 +282,48 @@ func runLogs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
+	return 0
+}
+
+// lifecycle maps the start, stop and restart commands to their Manager method.
+var lifecycle = map[string]func(*service.Manager) error{
+	"start":   (*service.Manager).Start,
+	"stop":    (*service.Manager).Stop,
+	"restart": (*service.Manager).Restart,
+}
+
+// lifecycleJSON is `start|stop|restart --json`: the service state after the verb ran.
+type lifecycleJSON struct {
+	OK      bool   `json:"ok"`
+	Service string `json:"service"`
+}
+
+// runLifecycle runs `systemctl --user <verb> aristotle-server`. stop and restart refuse inside an Aristotle
+// remote terminal: the shell would die with the service mid-command. start is allowed.
+func runLifecycle(verb string, args []string, stdout, stderr io.Writer) int {
+	args, asJSON := stripJSON(args)
+	if len(args) != 0 {
+		fmt.Fprintf(stderr, "usage: aristotle-server %s [--json]\n", verb)
+		return 2
+	}
+	if verb != "start" && service.InRemoteTerminal(getenv, cgroupFile) {
+		return failCmd(stdout, stderr, asJSON, fmt.Errorf("refused: %s cannot be run from an Aristotle remote terminal "+
+			"(it would end this shell mid-command); run it in a terminal opened on the PC itself", verb))
+	}
+	var detail bytes.Buffer
+	m := &service.Manager{Runner: serviceRunner, Out: io.Discard, Err: &detail}
+	if err := lifecycle[verb](m); err != nil {
+		if msg := strings.TrimSpace(detail.String()); msg != "" {
+			err = fmt.Errorf("systemctl --user %s: %w: %s", verb, err, msg)
+		} else {
+			err = fmt.Errorf("systemctl --user %s: %w", verb, err)
+		}
+		return failCmd(stdout, stderr, asJSON, err)
+	}
+	active := m.State("is-active")
+	if asJSON {
+		return emitJSON(stdout, lifecycleJSON{OK: true, Service: active})
+	}
+	fmt.Fprintf(stdout, "Service %s done; it is now %s.\n", verb, active)
 	return 0
 }

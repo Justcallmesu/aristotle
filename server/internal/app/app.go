@@ -17,8 +17,8 @@ const usage = `usage: aristotle-server <command>
 
 commands:
   serve                 run the server (loopback health check; LAN and Tailscale over HTTPS)
-  pair [--name NAME] [--no-qr]
-                        get a one-time pairing code (and its QR code) from the running server
+  pair [--name NAME] [--no-qr] [--json]
+                        get a one-time pairing code (and its QR code) from the running server; --json adds qr_payload
   devices list          list paired devices
   devices revoke <id>   revoke a paired device (closes its relays and terminals)
   devices grant-terminal <id>
@@ -31,10 +31,15 @@ commands:
                         install as a systemd user service (starts at login)
   uninstall [--purge [--yes]]
                         remove the service; --purge also deletes devices and certificate
+  start | stop | restart
+                        start, stop or restart the systemd user service (stop and restart are refused in a remote terminal)
   status [--porcelain]  service state, the listener URLs and Hermes reachability; --porcelain is the stable one-fact-per-line form
   logs [-f]             show the service log (journalctl)
   version               print the server version, commit and protocol version
   help                  show this help
+
+--json (status, version, pair, devices list|revoke|grant-terminal|ungrant-terminal, terminal enable|disable|status,
+start, stop, restart) prints one JSON object on stdout instead of text; errors are {"error":"..."} with the same exit code.
 `
 
 // Run dispatches a subcommand and returns the process exit code.
@@ -45,8 +50,9 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintln(stdout, appversion.Line(version))
-		return 0
+		return runVersion(args[1:], version, stdout)
+	case "start", "stop", "restart":
+		return runLifecycle(args[0], args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -70,6 +76,21 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unknown command %q\n\n%s", args[0], usage)
 		return 2
 	}
+}
+
+// versionJSON is `version --json`.
+type versionJSON struct {
+	Version  string `json:"version"`
+	Commit   string `json:"commit"`
+	Protocol int    `json:"protocol"`
+}
+
+func runVersion(args []string, version string, stdout io.Writer) int {
+	if _, asJSON := stripJSON(args); asJSON {
+		return emitJSON(stdout, versionJSON{Version: version, Commit: appversion.Commit, Protocol: appversion.ProtocolVersion})
+	}
+	fmt.Fprintln(stdout, appversion.Line(version))
+	return 0
 }
 
 func runServe(version string, stderr io.Writer) int {
