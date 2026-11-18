@@ -1,0 +1,325 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+import { createClient, type Device, type SnapshotDto, type TerminalStatus } from "../../ipc";
+import { fakeTransport, renderWithApp, snapshotOf } from "../../test/fakes";
+import { TerminalView } from "./TerminalView";
+
+const phone = (id: string, name: string): Device => ({ id, name, created_at: "2026-11-01T08:00:00Z", last_seen_at: "2026-11-18T08:00:00Z" });
+const pixel = phone("dev-1", "pixel");
+const tab = phone("dev-2", "tablet");
+
+function status(overrides: Partial<TerminalStatus> = {}): TerminalStatus {
+  return { enabled: true, granted: [], open: [], changed: false, warning: null, problem: null, device: null, ...overrides };
+}
+
+function stopped(server: string, installed = true): SnapshotDto {
+  const base = snapshotOf();
+  if (base.status.kind !== "answered") throw new Error("fixture");
+  return { ...base, status: { kind: "answered", status: { ...base.status.status, server, installed, service: "inactive", result: null } } };
+}
+
+interface Setup {
+  snapshot?: SnapshotDto;
+  terminal?: TerminalStatus;
+  replies?: Record<string, unknown>;
+}
+
+async function setup({ snapshot = snapshotOf({ devices: [pixel, tab] }), terminal = status(), replies = {} }: Setup = {}) {
+  const fake = fakeTransport({ snapshot, start_intent: { kind: "status" }, terminal_status: terminal, ...replies });
+  renderWithApp(<TerminalView />, { client: createClient(fake.transport) });
+  await screen.findByRole("heading", { name: "Remote terminal", level: 1 });
+  return fake;
+}
+
+const sent = (fake: { calls: { command: string; args?: Record<string, unknown> }[] }, command: string) => fake.calls.filter((c) => c.command === command);
+const terminalCommands = (fake: { calls: { command: string }[] }) =>
+  fake.calls.map((c) => c.command).filter((c) => /^terminal_(enable|disable|grant|ungrant)$/.test(c));
+
+describe("Terminal view states", () => {
+  it("loading: says so until the first poll", async () => {
+    const never = { ...fakeTransport({}).transport, invoke: () => new Promise<never>(() => undefined) };
+    renderWithApp(<TerminalView />, { client: createClient(never) });
+    expect(await screen.findByRole("status")).toHaveTextContent("Checking the server…");
+  });
+
+  it("needs-server: stopped server shows the cause and Start server", async () => {
+    await setup({ snapshot: stopped("not-running") });
+    expect(await screen.findByText("Needs the running server")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start server" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("not-installed: needs-server without a Start button", async () => {
+    await setup({ snapshot: stopped("not-running", false) });
+    expect(await screen.findByText("Needs the running server")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start server" })).toBeNull();
+  });
+
+  it("off: switch off, description, Turn on… and no open group", async () => {
+    await setup({ terminal: status({ enabled: false }) });
+    expect(await screen.findByRole("switch", { name: "Off" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("No phone can open a shell.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Turn on…" })).toBeEnabled();
+    expect(screen.queryByText("Open terminals")).toBeNull();
+    expect(screen.getByText("Granted phones")).toBeInTheDocument();
+  });
+
+  it("on: switch on, hint, grants and open terminals with the device name", async () => {
+    const since = new Date(Date.now() - 12 * 60_000).toISOString();
+    await setup({
+      terminal: status({
+        granted: [{ id: "dev-1", name: "pixel" }],
+        open: [{ id: "term-9", device_id: "dev-1", listener: "tailscale", since, pid: 4242 }],
+      }),
+      snapshot: snapshotOf({ devices: [pixel, tab], terminals: [{ id: "term-9", device_id: "dev-1", listener: "tailscale", since, pid: 4242 }] }),
+    });
+    expect(await screen.findByRole("switch", { name: "On" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Turning off closes open terminals and ends their processes.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Turn on…" })).toBeNull();
+    const open = screen.getByRole("region", { name: "Open terminals" });
+    expect(within(open).getByText("pixel")).toBeInTheDocument();
+    expect(within(open).getByText(/Tailscale · \d\d:\d\d · 12 min · PID 4242/)).toBeInTheDocument();
+    expect(within(open).getByText("term-9")).toBeInTheDocument();
+  });
+
+  it("on with nothing open and nothing granted: both empty rows", async () => {
+    await setup();
+    expect(await screen.findByText("No terminal is open.")).toBeInTheDocument();
+    expect(screen.getByText("No phone holds a grant. Grant one below.")).toBeInTheDocument();
+  });
+
+  it("an open terminal of an unknown device shows the raw id", async () => {
+    const since = new Date().toISOString();
+    const open = [{ id: "t1", device_id: "ghost-id", listener: "lan", since, pid: 1 }];
+    await setup({ terminal: status({ open }), snapshot: snapshotOf({ devices: [pixel], terminals: open }) });
+    expect(await screen.findByText("ghost-id")).toBeInTheDocument();
+  });
+
+  it("a grant without a name falls back to the devices list, then to 'no longer paired'", async () => {
+    await setup({ terminal: status({ granted: [{ id: "dev-1", name: "" }, { id: "dev-x", name: "" }] }) });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("pixel")).toBeInTheDocument();
+    expect(within(grants).getByText("(no longer paired)")).toBeInTheDocument();
+  });
+
+  it("add row lists only phones without a grant; none left shows the all-granted line", async () => {
+    await setup({ terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }) });
+    const select = await screen.findByRole("combobox", { name: "Grant to" });
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["tablet"]);
+  });
+
+  it("every phone granted: the add row is a sentence", async () => {
+    await setup({ terminal: status({ granted: [{ id: "dev-1", name: "pixel" }, { id: "dev-2", name: "tablet" }] }) });
+    expect(await screen.findByText("Every paired phone already has a grant.")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("no paired phone: no add row", async () => {
+    await setup({ snapshot: snapshotOf({ devices: [] }) });
+    await screen.findByText("Granted phones");
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByText("Every paired phone already has a grant.")).toBeNull();
+  });
+
+  it("warning: a status banner, content stays usable", async () => {
+    await setup({ terminal: status({ warning: "file mode is 0644" }) });
+    const banner = await screen.findByText("Saved, with a warning").then((el) => el.closest("[role=status]") as HTMLElement);
+    expect(banner).toHaveTextContent("Saved, with a warning");
+    expect(banner).toHaveTextContent("warning: file mode is 0644");
+    expect(screen.getByRole("switch")).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("problem: only the alert, switch disabled, no lists, Check again re-reads", async () => {
+    const fake = await setup({ terminal: status({ enabled: false, problem: "bad json at line 3" }) });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("terminal.json can’t be read");
+    expect(alert).toHaveTextContent("problem: bad json at line 3");
+    expect(screen.getByRole("switch")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Granted phones")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Turn on…" })).toBeNull();
+    const before = sent(fake, "terminal_status").length;
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(sent(fake, "terminal_status").length).toBe(before + 1));
+  });
+
+  it("mismatch: switch, Turn on…, Grant… and Remove grant are off, with the written reason", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: [pixel, tab], version: { kind: "mismatch", server: "1.0.0", desktop: "1.2.3" } }),
+      terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }),
+    });
+    expect(await screen.findByRole("switch")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Grant…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove grant" })).toBeDisabled();
+    expect(screen.getByText("Actions are off until the server is updated.")).toBeInTheDocument();
+  });
+
+  it("mismatch with the switch off: Turn on… is off", async () => {
+    await setup({
+      snapshot: snapshotOf({ version: { kind: "mismatch", server: "1.0.0", desktop: "1.2.3" } }),
+      terminal: status({ enabled: false }),
+    });
+    expect(await screen.findByRole("button", { name: "Turn on…" })).toBeDisabled();
+  });
+
+  it("a failed read keeps the view usable and shows — where there is no data", async () => {
+    const fake = fakeTransport({ snapshot: snapshotOf({ devices: [pixel] }), start_intent: { kind: "status" } });
+    renderWithApp(<TerminalView />, { client: createClient(fake.transport) });
+    expect(await screen.findByText("Granted phones")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getByRole("switch")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("command failed: alert with the server's text; the dialog was confirmed once", async () => {
+    const fake = await setup({ terminal: status({ enabled: false }) });
+    fake.transport.invoke = async (command, args) => {
+      fake.calls.push({ command, args });
+      if (command === "terminal_enable") throw { kind: "cli-error", message: "disk full", exit_code: 1 };
+      if (command === "snapshot") return snapshotOf({ devices: [pixel] });
+      if (command === "terminal_status") return status({ enabled: false });
+      return { kind: "status" };
+    };
+    await userEvent.click(await screen.findByRole("button", { name: "Turn on…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Turn on remote terminal" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("That did not work");
+    expect(alert).toHaveTextContent("error: disk full");
+    expect(sent(fake, "terminal_enable")).toHaveLength(1);
+  });
+});
+
+describe("Terminal view: D7 enable dialog", () => {
+  it("has the warning, a red confirm, no remember option, focus on Cancel", async () => {
+    await setup({ terminal: status({ enabled: false }) });
+    await userEvent.click(await screen.findByRole("button", { name: "Turn on…" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Turn on the remote terminal?" });
+    expect(within(dialog).getByText(/FULL access to your account/)).toBeInTheDocument();
+    expect(within(dialog).getByText("No phone holds a grant yet. You grant phones one by one.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Turn on remote terminal" })).toHaveClass("btn-danger");
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
+    expect(within(dialog).queryByText(/ask again|remember/i)).toBeNull();
+    expect(within(dialog).getAllByRole("button").map((b) => b.textContent)).toEqual(["Cancel", "Turn on remote terminal"]);
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+
+  it("leaves out the no-grant line when a phone already holds a grant", async () => {
+    await setup({ terminal: status({ enabled: false, granted: [{ id: "dev-1", name: "pixel" }] }) });
+    await userEvent.click(await screen.findByRole("button", { name: "Turn on…" }));
+    expect(screen.queryByText(/No phone holds a grant yet/)).toBeNull();
+  });
+
+  it("Cancel and Esc send nothing", async () => {
+    const fake = await setup({ terminal: status({ enabled: false }) });
+    const opener = await screen.findByRole("button", { name: "Turn on…" });
+    await userEvent.click(opener);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await userEvent.click(opener);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(terminalCommands(fake)).toEqual([]);
+  });
+
+  it("the switch off→on opens the same dialog; confirm runs terminal_enable and shows the result", async () => {
+    const fake = await setup({
+      terminal: status({ enabled: false }),
+      replies: {},
+    });
+    fake.transport.invoke = async (command, args) => {
+      fake.calls.push({ command, args });
+      if (command === "terminal_enable") return status({ enabled: true, warning: "heads up" });
+      if (command === "snapshot") return snapshotOf({ devices: [pixel], terminal_enabled: false });
+      if (command === "terminal_status") return status({ enabled: false });
+      return { kind: "status" };
+    };
+    await userEvent.click(await screen.findByRole("switch", { name: "Off" }));
+    expect(screen.getByRole("alertdialog", { name: "Turn on the remote terminal?" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Turn on remote terminal" }));
+    expect(await screen.findByRole("switch", { name: "On" })).toBeInTheDocument();
+    expect(sent(fake, "terminal_enable")).toHaveLength(1);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("warning: heads up");
+  });
+});
+
+describe("Terminal view: D7 grant dialog", () => {
+  const granted = status({ granted: [{ id: "dev-1", name: "pixel" }] });
+
+  it("names the phone, warns, red confirm, no remember; Cancel sends nothing", async () => {
+    const fake = await setup({ terminal: granted });
+    await userEvent.click(await screen.findByRole("button", { name: "Grant…" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Give tablet a terminal?" });
+    expect(within(dialog).getByText(/FULL access/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Grant full access" })).toHaveClass("btn-danger");
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(terminalCommands(fake)).toEqual([]);
+  });
+
+  it("confirm grants the selected phone's id", async () => {
+    const fake = await setup({
+      terminal: status({ granted: [] }),
+      replies: { terminal_grant: status({ granted: [{ id: "dev-2", name: "tablet" }] }) },
+    });
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Grant to" }), "dev-2");
+    await userEvent.click(screen.getByRole("button", { name: "Grant…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Grant full access" }));
+    await waitFor(() => expect(sent(fake, "terminal_grant")).toHaveLength(1));
+    expect(sent(fake, "terminal_grant")[0].args).toEqual({ id: "dev-2" });
+    expect(await within(await screen.findByRole("region", { name: "Granted phones" })).findByText("tablet")).toBeInTheDocument();
+  });
+});
+
+describe("Terminal view: turn off and remove grant", () => {
+  const open = [{ id: "t1", device_id: "dev-1", listener: "lan", since: new Date().toISOString(), pid: 7 }];
+  const snapshot = snapshotOf({ devices: [pixel], terminals: open });
+
+  it("with open terminals it confirms; Cancel sends nothing", async () => {
+    const fake = await setup({ snapshot, terminal: status({ open }) });
+    await userEvent.click(await screen.findByRole("switch", { name: "On" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Turn off the remote terminal?" });
+    expect(within(dialog).getByText("Open terminals: 1. Turning off closes them and ends their processes.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Turn off" })).toHaveClass("btn-danger");
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(terminalCommands(fake)).toEqual([]);
+    expect(screen.getByRole("switch", { name: "On" })).toBeInTheDocument();
+  });
+
+  it("with open terminals, confirm runs terminal_disable once", async () => {
+    const fake = await setup({ snapshot, terminal: status({ open }), replies: { terminal_disable: status({ enabled: false }) } });
+    await userEvent.click(await screen.findByRole("switch", { name: "On" }));
+    await userEvent.click(screen.getByRole("button", { name: "Turn off" }));
+    expect(await screen.findByRole("switch", { name: "Off" })).toBeInTheDocument();
+    expect(sent(fake, "terminal_disable")).toHaveLength(1);
+  });
+
+  it("with none open it runs at once, no dialog", async () => {
+    const fake = await setup({ terminal: status(), replies: { terminal_disable: status({ enabled: false }) } });
+    await userEvent.click(await screen.findByRole("switch", { name: "On" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(await screen.findByRole("switch", { name: "Off" })).toBeInTheDocument();
+    expect(sent(fake, "terminal_disable")).toHaveLength(1);
+  });
+
+  it("Remove grant runs directly with the id", async () => {
+    const fake = await setup({
+      terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }),
+      replies: { terminal_ungrant: status({ granted: [] }) },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Remove grant" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(await screen.findByText("No phone holds a grant. Grant one below.")).toBeInTheDocument();
+    expect(sent(fake, "terminal_ungrant")[0].args).toEqual({ id: "dev-1" });
+  });
+});
+
+describe("Terminal view in Indonesian", () => {
+  it("uses the ID catalog", async () => {
+    const fake = fakeTransport({ snapshot: snapshotOf({ devices: [pixel] }), start_intent: { kind: "status" }, terminal_status: status({ enabled: false }) });
+    renderWithApp(<TerminalView />, { client: createClient(fake.transport), locale: "id" });
+    expect(await screen.findByRole("button", { name: /^Aktifkan/ })).toBeInTheDocument();
+  });
+});

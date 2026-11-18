@@ -1,0 +1,1667 @@
+npm notice run aristotle-desktop-ui@0.0.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ✓ src/views/status/StatusView.test.tsx (32 tests) 1108ms
+ ✓ src/views/pair/PairView.test.tsx (20 tests) 1340ms
+ ✓ src/views/terminal/TerminalView.test.tsx (28 tests) 1495ms
+ ✓ src/views/devices/DevicesView.test.tsx (17 tests) 930ms
+ ✓ src/views/logs/logs.test.tsx (21 tests) 1299ms
+   ✓ Logs: lines > caps the view at 2,000 lines and says so  517ms
+ ✓ src/views/service/ServiceView.test.tsx (29 tests) 1641ms
+ ✓ src/state/useCommand.test.tsx (14 tests) 99ms
+ ✓ src/components/shared.test.tsx (8 tests) 314ms
+ ✓ src/ipc/ipc.test.ts (5 tests) 8ms
+ ✓ src/state/world.test.ts (17 tests) 13ms
+ ❯ src/components/components.test.tsx (19 tests | 1 failed) 2004ms
+   ✓ shell > renders the 6 nav items in two groups 194ms
+   ✓ shell > marks the open view with aria-current and switches views 187ms
+   ✓ shell > shows the live state in the footer 31ms
+   × shell > updates the footer from a snapshot event 1027ms
+     → Found multiple elements with the text: Server running
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m<span>[39m
+  [0mServer running[0m
+[36m</span>[39m
+
+Ignored nodes: comments, script, style
+[36m<h2[39m
+  [33mclass[39m=[32m"state-title"[39m
+[36m>[39m
+  [36m<svg[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33mclass[39m=[32m"light light-ok"[39m
+    [33mfocusable[39m=[32m"false"[39m
+    [33mheight[39m=[32m"14"[39m
+    [33mviewBox[39m=[32m"0 0 12 12"[39m
+    [33mwidth[39m=[32m"14"[39m
+  [36m>[39m
+    [36m<circle[39m
+      [33mcx[39m=[32m"6"[39m
+      [33mcy[39m=[32m"6"[39m
+      [33mr[39m=[32m"5"[39m
+    [36m/>[39m
+  [36m</svg>[39m
+  [0mServer running[0m
+[36m</h2>[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"side"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-brand"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"wordmark"[39m
+          [36m>[39m
+            [0mAristotle[0m
+          [36m</span>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"side-brand-sub"[39m
+          [36m>[39m
+            [0mServer[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Views"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mServer[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mStatus[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mService[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mLogs[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mPhones[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mPair[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mDevices[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0m0[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mTerminal[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0mOn[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-footer"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"light light-ok"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"12"[39m
+              [33mviewBox[39m=[32m"0 0 12 12"[39m
+              [33mwidth[39m=[32m"12"[39m
+            [36m>[39m
+              [36m<circle[39m
+                [33mcx[39m=[32m"6"[39m
+                [33mcy[39m=[32m"6"[39m
+                [33mr[39m=[32m"5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<span>[39m
+              [0mServer running[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-detail"[39m
+          [36m>[39m
+            [0m1.2.3 · Hermes reachable[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"content"[39m
+        [36m>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"sr-only"[39m
+          [36m>[39m
+            [0mStatus[0m
+          [36m</h1>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"kv-state"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"kv-state-text"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"state-title"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"light light-ok"[39m
+                  [33mfocusable[39m=[32m"false"[39m
+                  [33mheight[39m=[32m"14"[39m
+                  [33mviewBox[39m=[32m"0 0 12 12"[39m
+                  [33mwidth[39m=[32m"14"[39m
+                [36m>[39m
+                  [36m<circle[39m
+                    [33mcx[39m=[32m"6"[39m
+                    [33mcy[39m=[32m"6"[39m
+                    [33mr[39m=[32m"5"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mServer running[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"kv-state-sub"[39m
+              [36m>[39m
+                [0mHermes is reachable. Phones can connect.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"columns"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-labelledby[39m=[32m"_r_b_"[39m
+              [33mclass[39m=[32m"kv-group"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"group-title"[39m
+                [33mid[39m=[32m"_r_b_"[39m
+              [36m>[39m
+                [0mServer[0m
+              [36m</h2>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"kv-rows"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mService[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mactive[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mStarts at login[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mYes[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mServer version[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0m1.2.3[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mPort[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"mono tnum"[39m
+                    [36m>[39m
+                      [0m8760[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mHermes[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-val-light"[39m
+                    [36m>[39m
+                      [36m<svg[39m
+                        [33maria-hidden[39m=[32m"true"[39m
+                        [33mclass[39m=[32m"light light-ok"[39m
+                        [33mfocusable[39m=[32m"false"[39m
+                        [33mheight[39m=[32m"14"[39m
+                        [33mviewBox[39m=[32m"0 0 12 12"[39m
+                        [33mwidth[39m=[32m"14"[39m
+                      [36m>[39m
+                        [36m<circle[39m
+                          [33mcx[39m=[32m"6"[39m
+                          [33mcy[39m=[32m"6"[39m
+                          [33mr[39m=[32m"5"[39m
+                        [36m/>[39m
+                      [36m</svg>[39m
+                      [0mReachable[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_c_"[39m
+                [33mclass[39m=[32m"kv-group kv-listen"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_c_"[39m
+                [36m>[39m
+                  [0mListening on[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNo network listener is up.[0m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_d_"[39m
+                [33mclass[39m=[32m"kv-group"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_d_"[39m
+                [36m>[39m
+                  [0mPhones[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mPaired phones[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNone[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Devices[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mRemote terminal[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mOn · 0 open · — granted[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Terminal[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"side"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-brand"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"wordmark"[39m
+          [36m>[39m
+            [0mAristotle[0m
+          [36m</span>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"side-brand-sub"[39m
+          [36m>[39m
+            [0mServer[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Views"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mServer[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mStatus[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mService[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mLogs[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mPhones[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mPair[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mDevices[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0m0[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mTerminal[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0mOn[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-footer"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"light light-ok"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"12"[39m
+              [33mviewBox[39m=[32m"0 0 12 12"[39m
+              [33mwidth[39m=[32m"12"[39m
+            [36m>[39m
+              [36m<circle[39m
+                [33mcx[39m=[32m"6"[39m
+                [33mcy[39m=[32m"6"[39m
+                [33mr[39m=[32m"5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<span>[39m
+              [0mServer running[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-detail"[39m
+          [36m>[39m
+            [0m1.2.3 · Hermes reachable[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"content"[39m
+        [36m>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"sr-only"[39m
+          [36m>[39m
+            [0mStatus[0m
+          [36m</h1>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"kv-state"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"kv-state-text"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"state-title"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"light light-ok"[39m
+                  [33mfocusable[39m=[32m"false"[39m
+                  [33mheight[39m=[32m"14"[39m
+                  [33mviewBox[39m=[32m"0 0 12 12"[39m
+                  [33mwidth[39m=[32m"14"[39m
+                [36m>[39m
+                  [36m<circle[39m
+                    [33mcx[39m=[32m"6"[39m
+                    [33mcy[39m=[32m"6"[39m
+                    [33mr[39m=[32m"5"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mServer running[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"kv-state-sub"[39m
+              [36m>[39m
+                [0mHermes is reachable. Phones can connect.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"columns"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-labelledby[39m=[32m"_r_b_"[39m
+              [33mclass[39m=[32m"kv-group"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"group-title"[39m
+                [33mid[39m=[32m"_r_b_"[39m
+              [36m>[39m
+                [0mServer[0m
+              [36m</h2>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"kv-rows"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mService[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mactive[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mStarts at login[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mYes[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mServer version[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0m1.2.3[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mPort[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"mono tnum"[39m
+                    [36m>[39m
+                      [0m8760[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mHermes[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-val-light"[39m
+                    [36m>[39m
+                      [36m<svg[39m
+                        [33maria-hidden[39m=[32m"true"[39m
+                        [33mclass[39m=[32m"light light-ok"[39m
+                        [33mfocusable[39m=[32m"false"[39m
+                        [33mheight[39m=[32m"14"[39m
+                        [33mviewBox[39m=[32m"0 0 12 12"[39m
+                        [33mwidth[39m=[32m"14"[39m
+                      [36m>[39m
+                        [36m<circle[39m
+                          [33mcx[39m=[32m"6"[39m
+                          [33mcy[39m=[32m"6"[39m
+                          [33mr[39m=[32m"5"[39m
+                        [36m/>[39m
+                      [36m</svg>[39m
+                      [0mReachable[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_c_"[39m
+                [33mclass[39m=[32m"kv-group kv-listen"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_c_"[39m
+                [36m>[39m
+                  [0mListening on[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNo network listener is up.[0m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_d_"[39m
+                [33mclass[39m=[32m"kv-group"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_d_"[39m
+                [36m>[39m
+                  [0mPhones[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mPaired phones[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNone[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Devices[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mRemote terminal[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mOn · 0 open · — granted[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Terminal[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+   ✓ shell > shows the nav counts while running 55ms
+   ✓ shell > takes the Terminal count from the snapshot and asks nothing extra 54ms
+   ✓ shell > shows no Terminal count when the switch is unknown 53ms
+   ✓ shell > shows the not-installed state with no install button 32ms
+   ✓ shell > shows the no-CLI state 21ms
+   ✓ shell > opens the Pair view for a --pair hand-off and the Service view for --confirm stop 70ms
+   ✓ version mismatch > shows the banner above the view 21ms
+   ✓ version mismatch > turns the status footer red with the mismatch word (P18) 34ms
+   ✓ version mismatch > disables action buttons but not plain ones 23ms
+   ✓ version mismatch > leaves action buttons on when the versions match 7ms
+   ✓ confirm dialog > is an alertdialog named by its title, with focus on Cancel 49ms
+   ✓ confirm dialog > closes on Escape without confirming and returns focus to the opener 28ms
+   ✓ confirm dialog > keeps Tab and Shift+Tab inside 57ms
+   ✓ confirm dialog > confirms once and cancels on the scrim 56ms
+   ✓ styles > keep hex colours in tokens.css only 2ms
+ ✓ src/i18n/i18n.test.ts (8 tests) 38ms
+ ✓ src/state/snapshot.test.tsx (2 tests) 150ms
+ ✓ src/views/devices/time.test.ts (5 tests) 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/components.test.tsx > shell > updates the footer from a snapshot event
+TestingLibraryElementError: Found multiple elements with the text: Server running
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m<span>[39m
+  [0mServer running[0m
+[36m</span>[39m
+
+Ignored nodes: comments, script, style
+[36m<h2[39m
+  [33mclass[39m=[32m"state-title"[39m
+[36m>[39m
+  [36m<svg[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33mclass[39m=[32m"light light-ok"[39m
+    [33mfocusable[39m=[32m"false"[39m
+    [33mheight[39m=[32m"14"[39m
+    [33mviewBox[39m=[32m"0 0 12 12"[39m
+    [33mwidth[39m=[32m"14"[39m
+  [36m>[39m
+    [36m<circle[39m
+      [33mcx[39m=[32m"6"[39m
+      [33mcy[39m=[32m"6"[39m
+      [33mr[39m=[32m"5"[39m
+    [36m/>[39m
+  [36m</svg>[39m
+  [0mServer running[0m
+[36m</h2>[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"side"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-brand"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"wordmark"[39m
+          [36m>[39m
+            [0mAristotle[0m
+          [36m</span>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"side-brand-sub"[39m
+          [36m>[39m
+            [0mServer[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Views"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mServer[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mStatus[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mService[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mLogs[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mPhones[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mPair[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mDevices[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0m0[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mTerminal[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0mOn[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-footer"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"light light-ok"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"12"[39m
+              [33mviewBox[39m=[32m"0 0 12 12"[39m
+              [33mwidth[39m=[32m"12"[39m
+            [36m>[39m
+              [36m<circle[39m
+                [33mcx[39m=[32m"6"[39m
+                [33mcy[39m=[32m"6"[39m
+                [33mr[39m=[32m"5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<span>[39m
+              [0mServer running[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-detail"[39m
+          [36m>[39m
+            [0m1.2.3 · Hermes reachable[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"content"[39m
+        [36m>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"sr-only"[39m
+          [36m>[39m
+            [0mStatus[0m
+          [36m</h1>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"kv-state"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"kv-state-text"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"state-title"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"light light-ok"[39m
+                  [33mfocusable[39m=[32m"false"[39m
+                  [33mheight[39m=[32m"14"[39m
+                  [33mviewBox[39m=[32m"0 0 12 12"[39m
+                  [33mwidth[39m=[32m"14"[39m
+                [36m>[39m
+                  [36m<circle[39m
+                    [33mcx[39m=[32m"6"[39m
+                    [33mcy[39m=[32m"6"[39m
+                    [33mr[39m=[32m"5"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mServer running[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"kv-state-sub"[39m
+              [36m>[39m
+                [0mHermes is reachable. Phones can connect.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"columns"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-labelledby[39m=[32m"_r_b_"[39m
+              [33mclass[39m=[32m"kv-group"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"group-title"[39m
+                [33mid[39m=[32m"_r_b_"[39m
+              [36m>[39m
+                [0mServer[0m
+              [36m</h2>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"kv-rows"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mService[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mactive[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mStarts at login[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mYes[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mServer version[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0m1.2.3[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mPort[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"mono tnum"[39m
+                    [36m>[39m
+                      [0m8760[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mHermes[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-val-light"[39m
+                    [36m>[39m
+                      [36m<svg[39m
+                        [33maria-hidden[39m=[32m"true"[39m
+                        [33mclass[39m=[32m"light light-ok"[39m
+                        [33mfocusable[39m=[32m"false"[39m
+                        [33mheight[39m=[32m"14"[39m
+                        [33mviewBox[39m=[32m"0 0 12 12"[39m
+                        [33mwidth[39m=[32m"14"[39m
+                      [36m>[39m
+                        [36m<circle[39m
+                          [33mcx[39m=[32m"6"[39m
+                          [33mcy[39m=[32m"6"[39m
+                          [33mr[39m=[32m"5"[39m
+                        [36m/>[39m
+                      [36m</svg>[39m
+                      [0mReachable[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_c_"[39m
+                [33mclass[39m=[32m"kv-group kv-listen"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_c_"[39m
+                [36m>[39m
+                  [0mListening on[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNo network listener is up.[0m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_d_"[39m
+                [33mclass[39m=[32m"kv-group"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_d_"[39m
+                [36m>[39m
+                  [0mPhones[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mPaired phones[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNone[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Devices[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mRemote terminal[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mOn · 0 open · — granted[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Terminal[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"side"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-brand"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"wordmark"[39m
+          [36m>[39m
+            [0mAristotle[0m
+          [36m</span>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"side-brand-sub"[39m
+          [36m>[39m
+            [0mServer[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Views"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mServer[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mStatus[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mService[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mLogs[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"nav-group"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"nav-group-title"[39m
+            [36m>[39m
+              [0mPhones[0m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mPair[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mDevices[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0m0[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"nav-item"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mTerminal[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"nav-count"[39m
+              [36m>[39m
+                [0mOn[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"side-footer"[39m
+          [33mrole[39m=[32m"status"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-state"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"light light-ok"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"12"[39m
+              [33mviewBox[39m=[32m"0 0 12 12"[39m
+              [33mwidth[39m=[32m"12"[39m
+            [36m>[39m
+              [36m<circle[39m
+                [33mcx[39m=[32m"6"[39m
+                [33mcy[39m=[32m"6"[39m
+                [33mr[39m=[32m"5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<span>[39m
+              [0mServer running[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"side-footer-detail"[39m
+          [36m>[39m
+            [0m1.2.3 · Hermes reachable[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"content"[39m
+        [36m>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"sr-only"[39m
+          [36m>[39m
+            [0mStatus[0m
+          [36m</h1>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"kv-state"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"kv-state-text"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"state-title"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"light light-ok"[39m
+                  [33mfocusable[39m=[32m"false"[39m
+                  [33mheight[39m=[32m"14"[39m
+                  [33mviewBox[39m=[32m"0 0 12 12"[39m
+                  [33mwidth[39m=[32m"14"[39m
+                [36m>[39m
+                  [36m<circle[39m
+                    [33mcx[39m=[32m"6"[39m
+                    [33mcy[39m=[32m"6"[39m
+                    [33mr[39m=[32m"5"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [0mServer running[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"kv-state-sub"[39m
+              [36m>[39m
+                [0mHermes is reachable. Phones can connect.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"columns"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-labelledby[39m=[32m"_r_b_"[39m
+              [33mclass[39m=[32m"kv-group"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"group-title"[39m
+                [33mid[39m=[32m"_r_b_"[39m
+              [36m>[39m
+                [0mServer[0m
+              [36m</h2>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"kv-rows"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mService[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mactive[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mStarts at login[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0mYes[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mServer version[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [0m1.2.3[0m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mPort[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"mono tnum"[39m
+                    [36m>[39m
+                      [0m8760[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-row"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"kv-key"[39m
+                  [36m>[39m
+                    [0mHermes[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-val"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-val-light"[39m
+                    [36m>[39m
+                      [36m<svg[39m
+                        [33maria-hidden[39m=[32m"true"[39m
+                        [33mclass[39m=[32m"light light-ok"[39m
+                        [33mfocusable[39m=[32m"false"[39m
+                        [33mheight[39m=[32m"14"[39m
+                        [33mviewBox[39m=[32m"0 0 12 12"[39m
+                        [33mwidth[39m=[32m"14"[39m
+                      [36m>[39m
+                        [36m<circle[39m
+                          [33mcx[39m=[32m"6"[39m
+                          [33mcy[39m=[32m"6"[39m
+                          [33mr[39m=[32m"5"[39m
+                        [36m/>[39m
+                      [36m</svg>[39m
+                      [0mReachable[0m
+                    [36m</span>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_c_"[39m
+                [33mclass[39m=[32m"kv-group kv-listen"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_c_"[39m
+                [36m>[39m
+                  [0mListening on[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNo network listener is up.[0m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33maria-labelledby[39m=[32m"_r_d_"[39m
+                [33mclass[39m=[32m"kv-group"[39m
+                [33mrole[39m=[32m"group"[39m
+              [36m>[39m
+                [36m<h2[39m
+                  [33mclass[39m=[32m"group-title"[39m
+                  [33mid[39m=[32m"_r_d_"[39m
+                [36m>[39m
+                  [0mPhones[0m
+                [36m</h2>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"kv-rows"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mPaired phones[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mNone[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Devices[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"kv-row"[39m
+                  [36m>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"kv-key"[39m
+                    [36m>[39m
+                      [0mRemote terminal[0m
+                    [36m</span>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-val"[39m
+                    [36m>[39m
+                      [0mOn · 0 open · — granted[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"kv-end"[39m
+                    [36m>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"btn btn-text btn-small"[39m
+                        [33mtype[39m=[32m"button"[39m
+                      [36m>[39m
+                        [0mOpen Terminal[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/components/components.test.tsx:56:18
+     54|   it("updates the footer from a snapshot event", async () => {
+     55|     const fake = renderApp();
+     56|     await screen.findByText("Server running");
+       |                  ^
+     57|     act(() =>
+     58|       fake.emit("snapshot", snapshotOf({ status: { kind: "failed" }, s…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 13 passed (14)
+      Tests  1 failed | 224 passed (225)
+   Start at  20:45:59
+   Duration  9.12s (transform 725ms, setup 1.81s, collect 2.05s, tests 10.45s, environment 7.75s, prepare 1.42s)
+

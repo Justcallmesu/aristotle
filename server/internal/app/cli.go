@@ -208,11 +208,14 @@ func nonNil[T any](s []T) []T {
 
 // pairJSON is `pair --json`: the control result plus the text of the QR code (pairing.Payload with every
 // address, up to pairing.MaxPayloadAddresses), so the app draws the code and the QR rules stay in Go.
-// QRError says why QRPayload is empty (no address up, bad fingerprint); it never holds the code.
+// QRModules is that same text as a module matrix (termqr.Code.Modules: equal-length rows of 0/1, no quiet
+// zone), absent when QRPayload is empty or cannot be encoded. QRError says why QRPayload or QRModules is
+// missing (no address up, bad fingerprint, text too long); it never holds the code.
 type pairJSON struct {
 	pairStartResult
-	QRPayload string `json:"qr_payload"`
-	QRError   string `json:"qr_error,omitempty"`
+	QRPayload string   `json:"qr_payload"`
+	QRModules []string `json:"qr_modules,omitempty"`
+	QRError   string   `json:"qr_error,omitempty"`
 }
 
 func newPairJSON(res pairStartResult) pairJSON {
@@ -224,6 +227,12 @@ func newPairJSON(res pairStartResult) pairJSON {
 		return out
 	}
 	out.QRPayload = text
+	code, err := termqr.Encode(text)
+	if err != nil {
+		out.QRError = "QR code: " + err.Error()
+		return out
+	}
+	out.QRModules = code.Modules()
 	return out
 }
 

@@ -1,0 +1,26 @@
+npm notice run aristotle-desktop-ui@0.0.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ✓ src/views/status/StatusView.test.tsx (32 tests) 989ms
+ ✓ src/views/pair/PairView.test.tsx (20 tests) 1214ms
+ ✓ src/views/terminal/TerminalView.test.tsx (28 tests) 1421ms
+ ✓ src/views/devices/DevicesView.test.tsx (17 tests) 881ms
+ ✓ src/views/logs/logs.test.tsx (21 tests) 1227ms
+   ✓ Logs: lines > caps the view at 2,000 lines and says so  511ms
+ ✓ src/views/service/ServiceView.test.tsx (29 tests) 1530ms
+ ✓ src/state/useCommand.test.tsx (14 tests) 79ms
+ ✓ src/components/shared.test.tsx (8 tests) 550ms
+ ✓ src/components/components.test.tsx (19 tests) 1235ms
+ ✓ src/ipc/ipc.test.ts (5 tests) 13ms
+ ✓ src/state/world.test.ts (17 tests) 12ms
+ ✓ src/i18n/i18n.test.ts (8 tests) 34ms
+ ✓ src/state/snapshot.test.tsx (2 tests) 149ms
+ ✓ src/views/devices/time.test.ts (5 tests) 6ms
+
+ Test Files  14 passed (14)
+      Tests  225 passed (225)
+   Start at  20:50:03
+   Duration  8.64s (transform 705ms, setup 1.88s, collect 2.03s, tests 9.34s, environment 7.48s, prepare 1.46s)
+

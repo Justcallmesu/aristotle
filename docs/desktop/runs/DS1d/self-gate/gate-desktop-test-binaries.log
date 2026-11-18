@@ -1,0 +1,9 @@
+test binary diff (tests/diff.rs): 20 tests
+test binary fixtures (tests/fixtures.rs): 11 tests
+test binary poller_stamp (tests/poller_stamp.rs): 11 tests
+test binary runner (tests/runner.rs): 14 tests
+test binary state (tests/state.rs): 17 tests
+test binary strings (tests/strings.rs): 10 tests
+test binary capabilities (tests/capabilities.rs): 6 tests
+test binary aristotle_desktop (unittests src/lib.rs): 40 tests
+test binary aristotle_tray (unittests src/main.rs): 19 tests

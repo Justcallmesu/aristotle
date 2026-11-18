@@ -1,0 +1,4 @@
+.status-working { margin-bottom: var(--gap); }
+.status-working .progress { margin-top: 0; }
+.status-working-hint { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--on-surface-v); }
+.status-install { margin-bottom: var(--gap); max-width: 560px; }

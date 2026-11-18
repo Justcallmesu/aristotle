@@ -18,7 +18,7 @@ const usage = `usage: aristotle-server <command>
 commands:
   serve                 run the server (loopback health check; LAN and Tailscale over HTTPS)
   pair [--name NAME] [--no-qr] [--json]
-                        get a one-time pairing code (and its QR code) from the running server; --json adds qr_payload
+                        get a one-time pairing code (and its QR code) from the running server; --json adds qr_payload and qr_modules
   devices list          list paired devices
   devices revoke <id>   revoke a paired device (closes its relays and terminals)
   devices grant-terminal <id>

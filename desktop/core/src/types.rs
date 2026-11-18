@@ -168,6 +168,10 @@ pub struct Pair {
     #[serde(default)]
     pub addresses: Vec<PairAddress>,
     pub qr_payload: String,
+    /// The QR matrix of `qr_payload`, one `0`/`1` string per row, no quiet zone (P19). Absent when
+    /// the server could not encode it; left out of the IPC reply then, so the UI sees `undefined`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qr_modules: Option<Vec<String>>,
     #[serde(default)]
     pub qr_error: Option<String>,
 }
@@ -178,6 +182,7 @@ impl fmt::Debug for Pair {
             .field("code", &"<hidden>")
             .field("expires_at", &self.expires_at)
             .field("qr_payload", &"<hidden>")
+            .field("qr_modules", &"<hidden>")
             .finish_non_exhaustive()
     }
 }

@@ -84,3 +84,27 @@ func TestEncodeRefusesTooLongText(t *testing.T) {
 		t.Fatal("want an error for text over a version 40 code")
 	}
 }
+
+// Modules is the bare matrix: square, 0/1, no quiet zone, every module as the encoder's Black says.
+func TestModulesAreTheBareMatrix(t *testing.T) {
+	text := "aristotle://pair?v=1&c=K7Q2M9XD"
+	c, err := Encode(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, _ := qr.Encode(text, qr.L)
+	rows := c.Modules()
+	if len(rows) != ref.Size || ref.Size != 25 {
+		t.Fatalf("%d rows, size %d", len(rows), ref.Size)
+	}
+	for y, row := range rows {
+		if len(row) != ref.Size {
+			t.Fatalf("row %d is %d wide", y, len(row))
+		}
+		for x := range row {
+			if (row[x] == '1') != ref.Black(x, y) || (row[x] != '0' && row[x] != '1') {
+				t.Fatalf("module (%d,%d) = %q, want black %v", x, y, row[x], ref.Black(x, y))
+			}
+		}
+	}
+}

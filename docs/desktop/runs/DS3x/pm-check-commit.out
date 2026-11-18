@@ -23,3 +23,5 @@ KILLED: tests failed (exit 101); restored sha256 match
 rc=0
 === M4 ok:false counted as success
 KILLED: tests failed (exit 1); restored sha256 match
+staged: 74 files
+56ad86a desktop DS3x + DS3y: bounded log-stream stop + gate timeouts, concurrent logs_start, stamp kept on CLI timeout, shared NeedsServer/CommandFailed/useCommand (ok:false = failure), terminal_enabled in snapshot, P18 footer, pinned single-instance, queued hand-off, snapshot seq. PM gate GREEN, PM mutants killed (log-kill now fails instead of hanging)

@@ -81,6 +81,8 @@ export interface Pair {
   fingerprint: string;
   addresses: PairAddress[];
   qr_payload: string;
+  /** QR matrix of qr_payload: equal-length "0"/"1" rows, no quiet zone (P19). Absent when not encodable. */
+  qr_modules?: string[];
   qr_error: string | null;
 }
 

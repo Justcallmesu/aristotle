@@ -39,6 +39,23 @@ func Encode(text string) (*Code, error) {
 // Columns is the printed width in character cells, quiet zone included.
 func (c *Code) Columns() int { return c.qr.Size + 2*QuietZone }
 
+// Modules is the bare module matrix, quiet zone excluded: one string per row, all Size long,
+// '1' for a dark module and '0' for a light one. The window draws it and adds its own margin.
+func (c *Code) Modules() []string {
+	rows := make([]string, c.qr.Size)
+	for y := range rows {
+		row := make([]byte, c.qr.Size)
+		for x := range row {
+			row[x] = '0'
+			if c.qr.Black(x, y) {
+				row[x] = '1'
+			}
+		}
+		rows[y] = string(row)
+	}
+	return rows
+}
+
 // Write prints the code, quiet zone included.
 func (c *Code) Write(w io.Writer) error {
 	var b strings.Builder

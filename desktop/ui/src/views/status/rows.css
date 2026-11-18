@@ -1,0 +1,30 @@
+/* Grouped rows and the state row (design.md 3.5). Shared by Status and Service. */
+.kv-group { margin-bottom: var(--gap); min-width: 0; }
+.kv-rows { display: flex; flex-direction: column; gap: 2px; }
+.kv-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--gap); min-height: var(--row); padding: 6px 16px;
+  border-radius: var(--r-xs); background: var(--c-low);
+}
+.kv-row:first-child { border-top-left-radius: var(--r-l); border-top-right-radius: var(--r-l); }
+.kv-row:last-child { border-bottom-left-radius: var(--r-l); border-bottom-right-radius: var(--r-l); }
+.kv-key { flex: none; width: 120px; color: var(--on-surface-v); }
+.kv-listen .kv-key { width: 84px; }
+@container (max-width: 599px) { .kv-key { width: 104px; } }
+.kv-val { flex: 1 1 120px; min-width: 0; overflow-wrap: anywhere; }
+.kv-end { flex: none; margin-left: auto; }
+.kv-val .mono, .mono { font: 400 13px/18px var(--font-mono); }
+.kv-val .tnum { font-variant-numeric: tabular-nums; }
+.kv-nowrap { white-space: nowrap; }
+.kv-sub { font: 400 12px/16px var(--font-mono); color: var(--on-surface-v); }
+.kv-val-light { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.kv-val .tag { margin-left: var(--sp-2); }
+
+.kv-state {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-5); margin-bottom: var(--gap);
+  padding: 14px 16px; border-radius: var(--r-l); background: var(--c-low);
+}
+.kv-state-text { flex: 1; min-width: 220px; }
+.kv-state-sub { margin-top: 2px; color: var(--on-surface-v); max-width: 62ch; }
+.kv-state-action { flex: none; }
+
+.kv-failed .banner-slot { margin: 0; }

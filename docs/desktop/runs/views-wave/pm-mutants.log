@@ -1,0 +1,32 @@
+=== V1 confirm sends revoke twice
+SURVIVED: tests passed with the mutation (test guards nothing)
+exit=1
+=== V2 pair code kept after expiry
+TestingLibraryElementError: Unable to find an element with the text: Code expired. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+TestingLibraryElementError: Unable to find an element with the text: Code expired. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== V3 turn-off never confirms
+TestingLibraryElementError: Unable to find an accessible element with the role "alertdialog" and name "Turn off the remote terminal?"
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name "Turn off"
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== V4 Start allowed on any non-active word
+AssertionError: expected { start: 'on', stop: 'off', …(1) } to deeply equal { start: 'off', stop: 'off', …(1) }
+AssertionError: expected { start: 'on', stop: 'off', …(1) } to deeply equal { start: 'off', stop: 'off', …(1) }
+AssertionError: expected { start: true, stop: false, …(2) } to match object { start: false, stop: false, …(1) }
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== V5 mismatch no longer disables service buttons
+AssertionError: expected { start: 'off', stop: 'on', …(1) } to deeply equal { start: 'off', stop: 'off', …(1) }
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== G1 qr_modules built from a different payload
+--- FAIL: TestJSONFixtures (0.00s)
+    --- FAIL: TestJSONFixtures/pair.json (0.00s)
+--- FAIL: TestJSONPairQRModulesMatchThePayload (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0

@@ -53,11 +53,12 @@ describe("shell", () => {
 
   it("updates the footer from a snapshot event", async () => {
     const fake = renderApp();
-    await screen.findByText("Server running");
+    const footer = await screen.findByRole("status");
+    await waitFor(() => expect(footer).toHaveTextContent("Server running"));
     act(() =>
       fake.emit("snapshot", snapshotOf({ status: { kind: "failed" }, seq: 2 })),
     );
-    expect(await screen.findByText("Server not answering")).toBeInTheDocument();
+    await waitFor(() => expect(footer).toHaveTextContent("Server not answering"));
   });
 
   it("shows the nav counts while running", async () => {

@@ -153,3 +153,29 @@ fn pair_debug_hides_the_code_and_payload() {
         "{shown}"
     );
 }
+
+#[test]
+fn pair_fixture_carries_the_qr_matrix() {
+    let p: Pair = decode(&fixture("pair.json"));
+    let rows = p.qr_modules.clone().expect("qr_modules in pair.json");
+    assert!(rows.len() >= 21);
+    assert!(rows
+        .iter()
+        .all(|r| r.len() == rows.len() && r.chars().all(|c| c == '0' || c == '1')));
+    let shown = format!("{p:?}");
+    assert!(!shown.contains(&rows[0]), "{shown}");
+    let sent = serde_json::to_value(&p).unwrap();
+    assert!(sent["qr_modules"].is_array());
+}
+
+#[test]
+fn pair_without_modules_decodes_and_omits_them() {
+    let p: Pair = decode(
+        r#"{"code":"K7Q2M9XD","expires_at":"x","fingerprint":"f","qr_payload":"","qr_error":"no address"}"#,
+    );
+    assert!(p.qr_modules.is_none());
+    assert!(serde_json::to_value(&p)
+        .unwrap()
+        .get("qr_modules")
+        .is_none());
+}

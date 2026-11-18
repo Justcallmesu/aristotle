@@ -33,6 +33,15 @@ mod tests {
     }
 
     #[test]
+    fn the_ipc_reply_carries_the_qr_modules() {
+        let (_cli, backend) = pair_rig();
+        let pair = issue_code(&backend, None).unwrap();
+        let reply = serde_json::to_value(&pair).unwrap();
+        let rows = reply["qr_modules"].as_array().expect("qr_modules array");
+        assert!(rows.len() >= 21 && rows.iter().all(|r| r.as_str().unwrap().len() == rows.len()));
+    }
+
+    #[test]
     fn pair_without_a_name_runs_plain_pair() {
         let (cli, backend) = pair_rig();
         let pair = issue_code(&backend, None).unwrap();

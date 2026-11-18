@@ -16,6 +16,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
 	"github.com/justcallmesu/aristotle/server/internal/terminal"
+	"github.com/justcallmesu/aristotle/server/internal/termqr"
 )
 
 // The --json contract (docs/protocol.md "CLI JSON output (desktop app)"). The fixtures under
@@ -226,6 +227,40 @@ func TestJSONUsageErrorStaysOnStderr(t *testing.T) {
 	}
 }
 
+// qr_modules is the matrix of exactly the qr_payload next to it: equal-length 0/1 rows, no quiet zone,
+// identical to a fresh encode of that payload (rsc.io/qr has no decoder, so equality is the inverse check).
+func TestJSONPairQRModulesMatchThePayload(t *testing.T) {
+	res := jsonPairResult()
+	for i := 0; i < 9; i++ {
+		res.Addresses = append(res.Addresses, pairAddr{Address: httpapi.Address{URL: fmt.Sprintf("https://10.0.0.%d:8760", i), Kind: "lan", Iface: "eth0"}})
+	}
+	stubControl(t, map[string]ctlAnswer{cmdPairStart: {res: res}})
+	code, out, errOut := runJSON(t, "pair", "--json")
+	if code != 0 || errOut != "" {
+		t.Fatalf("exit %d stderr %q", code, errOut)
+	}
+	var got pairJSON
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	ref, err := termqr.Encode(got.QRPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := ref.Modules()
+	if len(got.QRModules) != len(want) || len(want) < 21 {
+		t.Fatalf("%d rows, want %d", len(got.QRModules), len(want))
+	}
+	for i, row := range got.QRModules {
+		if len(row) != len(got.QRModules) || strings.Trim(row, "01") != "" {
+			t.Fatalf("row %d %q: not %d chars of 0/1", i, row, len(got.QRModules))
+		}
+		if row != want[i] {
+			t.Fatalf("row %d differs from the payload's encoding", i)
+		}
+	}
+}
+
 func TestJSONPairHasQRPayloadForEveryAddress(t *testing.T) {
 	res := jsonPairResult()
 	for i := 0; i < 9; i++ { // more than pairing.MaxPayloadAddresses
@@ -255,7 +290,7 @@ func TestJSONPairHasQRPayloadForEveryAddress(t *testing.T) {
 		t.Errorf("result fields lost: %+v", got)
 	}
 	m := oneObject(t, out)
-	for _, k := range []string{"code", "expires_at", "fingerprint", "addresses", "qr_payload"} {
+	for _, k := range []string{"code", "expires_at", "fingerprint", "addresses", "qr_payload", "qr_modules"} {
 		if _, ok := m[k]; !ok {
 			t.Errorf("missing %q", k)
 		}
@@ -279,6 +314,9 @@ func TestJSONPairWithoutAddressesExplainsTheMissingPayload(t *testing.T) {
 	}
 	if strings.Contains(m["qr_error"].(string), res.Code) {
 		t.Error("qr_error holds the code")
+	}
+	if _, ok := m["qr_modules"]; ok {
+		t.Error("qr_modules with an empty payload")
 	}
 }
 

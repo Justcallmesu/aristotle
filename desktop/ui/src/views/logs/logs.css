@@ -1,0 +1,21 @@
+.log-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-5); margin-bottom: var(--sp-3); min-height: 28px; }
+.log-live { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--tert); }
+.log-paused { font-weight: 600; color: var(--on-surface); font-variant-numeric: tabular-nums; }
+.log-ended { display: inline-flex; align-items: center; gap: var(--sp-3); }
+
+.log-wrap { position: relative; }
+.log-box {
+  min-height: 240px; height: max(240px, calc(100vh - 340px)); overflow: auto; padding: 8px 0;
+  border-radius: var(--r-m); background: var(--c-highest); color: var(--on-surface);
+  font: 400 12.5px/18px var(--font-mono);
+}
+.log-line { padding: 1px 14px 1px 28px; text-indent: -14px; overflow-wrap: anywhere; }
+.log-nowrap .log-line { white-space: pre; padding-left: 14px; text-indent: 0; overflow-wrap: normal; width: max-content; min-width: 100%; }
+.log-prefix { color: var(--on-surface-v); }
+.log-level { font-weight: 600; }
+.log-error { background: var(--err-c); color: var(--on-err-c); }
+.log-error .log-prefix { color: inherit; }
+.log-warn { background: var(--warn-c); color: var(--on-warn-c); }
+.log-warn .log-prefix { color: inherit; }
+.log-jump { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); }
+.log-note { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--on-surface-v); }

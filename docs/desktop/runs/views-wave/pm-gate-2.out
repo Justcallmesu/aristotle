@@ -1,0 +1,37 @@
+desktop gate exit=0
+PASS ui-ci (0)
+PASS ui-lint (0)
+PASS ui-typecheck (0)
+PASS ui-test (0)
+ui-tests passed=225
+PASS ui-test-count (225)
+PASS ui-build (0)
+PASS desktop-fmt (0)
+PASS desktop-clippy (0)
+PASS desktop-test (0)
+rust-tests passed=148 failed=0
+PASS desktop-test-count (148)
+PASS desktop-test-binaries (0)
+PASS desktop-tray-build (0)
+PASS desktop-tray-ldd (0)
+PASS desktop-app-build (0)
+PASS desktop-app-binary (0)
+no markers left
+=== V1 confirm sends revoke twice
+SURVIVED: tests passed with the mutation (test guards nothing)
+exit=1
+=== V2 pair code kept after expiry
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== V3 turn-off never confirms
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== V4 Start allowed on any non-active word
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== V5 mismatch no longer disables service buttons
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== G1 qr_modules built from a different payload
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
