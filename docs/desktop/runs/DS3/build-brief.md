@@ -21,9 +21,11 @@ code `spikes/ksni-tray/` (copy patterns, not the throwaway code shape). Load the
    `tray_state(&Snapshot) -> Green | Amber | Red`: Green = installed && service active && server running && hermes reachable;
    Amber = server running && hermes not reachable (or hermes absent); Red = everything else (not installed P13, stopped, no
    answer, CLI missing, version mismatch). Tooltip text per state (P10 strings).
-4. **Version check (P5)**: `version --json` once per poller start and after the server (re)starts; `protocol` must equal the
-   constant the core is built for (read the server's current protocol number from `server/internal/version/version.go`); mismatch
-   -> Red with a distinct reason.
+4. **Version check (P5)**: `version --json` once per poller start and after the server (re)starts. Compare the server's
+   `version` string with the desktop build's own version (compile-time env `ARISTOTLE_VERSION`, stamped by the release script
+   from the same source as the server; DS7 wires it). If either side is a dev build (unset, empty or `dev`), skip the check.
+   Mismatch -> Red with a distinct reason. Do NOT use `protocol`: it is the phone API version
+   (`server/internal/version/version.go:13-14`), unrelated to the CLI JSON contract.
 5. **Notification diff** (pure, D5): `diff(prev: Option<&Snapshot>, next: &Snapshot, expected_stop: Option<SystemTime>, now) ->
    Vec<Notice>`: new device id paired; new open terminal id (name the device from the devices list, fall back to "a device");
    Hermes reachable -> not reachable (once per transition, not every poll); server running -> not running unless an expected-stop

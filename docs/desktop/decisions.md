@@ -18,3 +18,7 @@
   caller's own shell mid-command), reusing the existing detection; `start` is allowed. Accident guard, not a security boundary.
 - 2026-11-18 D17 A, D18 A (user wrote "D19. A": PM interpretation D18, flagged in chat). Wave 2 dispatched in parallel: DS2b
   (ksni tray spike) + DSD (design board); DS1 deep review still running. DS3 waits for DS1 commit + DS2b.
+- 2026-11-18 User "i think good enough" after the design picks table: PM reading = all recommended (D19), stated in chat for
+  confirmation; the real tray click was not run (no /tmp/ksni.log), so it stays a user check (the tray also offers "Open" in its
+  menu, so DS3 does not depend on it). P5 corrected (compare versions, not the phone protocol). DS3 split into DS3 (core + tray),
+  DSDc (design.md), DS3w (window skeleton), DSI (icons). DS3 + DSDc dispatched in parallel.
