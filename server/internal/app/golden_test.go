@@ -177,19 +177,7 @@ func TestPlainVersionGolden(t *testing.T) {
 func TestPlainStatusGolden(t *testing.T) {
 	runIt := func(t *testing.T, active string, answer *statusResult, qerr error, args ...string) (int, string, string) {
 		t.Helper()
-		f, _, _ := useFakes(t)
-		f.out = map[string]string{isActiveCmd: active + "\n", isEnabledCmd: "enabled\n"}
-		old := queryStatus
-		queryStatus = func(res *statusResult) error {
-			if answer != nil {
-				*res = *answer
-			}
-			return qerr
-		}
-		t.Cleanup(func() { queryStatus = old })
-		var out, errOut bytes.Buffer
-		code := Run(append([]string{"status"}, args...), "v1", &out, &errOut)
-		return code, out.String(), errOut.String()
+		return runStatusCmd(t, active, answer, qerr, args...)
 	}
 	t.Run("running", func(t *testing.T) {
 		code, out, errOut := runIt(t, "active", goldenStatus(), nil)
@@ -213,7 +201,7 @@ func TestPlainStatusGolden(t *testing.T) {
 	})
 	t.Run("usage", func(t *testing.T) {
 		code, out, errOut := runIt(t, "active", nil, nil, "--bogus")
-		if code != 2 || out != "" || errOut != "usage: aristotle-server status [--porcelain]\n" {
+		if code != 2 || out != "" || errOut != "usage: aristotle-server status [--porcelain | --json]\n" {
 			t.Fatalf("exit %d %q %q", code, out, errOut)
 		}
 	})
@@ -254,7 +242,7 @@ func TestPlainPairErrorGolden(t *testing.T) {
 	out.Reset()
 	errOut.Reset()
 	if code := Run([]string{"pair", "extra"}, "v", &out, &errOut); code != 2 ||
-		errOut.String() != "usage: aristotle-server pair [--name NAME] [--no-qr]\n" {
+		errOut.String() != "usage: aristotle-server pair [--name NAME] [--no-qr] [--json]\n" {
 		t.Fatalf("usage: exit %d err %q", code, errOut.String())
 	}
 }

@@ -15,7 +15,7 @@ func TestStartStopRestartRunSystemctlUser(t *testing.T) {
 		if err := call(m); err != nil {
 			t.Fatal(err)
 		}
-		if got := f.list(); len(got) != 1 || got[0] != "systemctl --user "+verb+" aristotle-server" {
+		if got := f.list(); len(got) != 1 || got[0] != "systemctl --user "+verb+" "+UnitName {
 			t.Errorf("%s ran %v", verb, got)
 		}
 	}
@@ -23,7 +23,7 @@ func TestStartStopRestartRunSystemctlUser(t *testing.T) {
 
 func TestStopReturnsTheRunnerError(t *testing.T) {
 	m, f := newMgr(t, "/opt/aristotle-server")
-	f.fail = map[string]bool{"--user stop aristotle-server": true}
+	f.fail = map[string]bool{"--user stop " + UnitName: true}
 	if err := m.Stop(); err == nil {
 		t.Fatal("no error")
 	}
@@ -42,7 +42,7 @@ func TestInRemoteTerminal(t *testing.T) {
 	inUnit := write("unit", "0::/user.slice/user-1000.slice/user@1000.service/app.slice/aristotle-server.service\n")
 	none := func(string) string { return "" }
 	marked := func(k string) string {
-		if k == "ARISTOTLE_TERMINAL" {
+		if k == "MARKER_X" {
 			return "term_1"
 		}
 		return ""
@@ -60,8 +60,22 @@ func TestInRemoteTerminal(t *testing.T) {
 		{"marker without cgroup file", marked, filepath.Join(dir, "missing"), true},
 	}
 	for _, c := range cases {
-		if got := InRemoteTerminal(c.env, c.cgroup); got != c.want {
+		if got := InRemoteTerminal("MARKER_X", c.env, c.cgroup); got != c.want {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// The marker name is the caller's: a variable with another name does not count.
+func TestInRemoteTerminalUsesTheGivenMarkerName(t *testing.T) {
+	env := func(k string) string {
+		if k == "MARKER_X" {
+			return "t1"
+		}
+		return ""
+	}
+	missing := filepath.Join(t.TempDir(), "missing")
+	if !InRemoteTerminal("MARKER_X", env, missing) || InRemoteTerminal("MARKER_Y", env, missing) {
+		t.Error("the check does not follow the marker name it is given")
 	}
 }

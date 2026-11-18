@@ -16,6 +16,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/listen"
 	"github.com/justcallmesu/aristotle/server/internal/service"
+	"github.com/justcallmesu/aristotle/server/internal/terminal"
 )
 
 // Seams for tests: the command runner, the running binary's path and stdin.
@@ -141,7 +142,7 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 	args, asJSON := stripJSON(args)
 	porcelain := len(args) == 1 && args[0] == "--porcelain"
 	if (len(args) != 0 && !porcelain) || (asJSON && porcelain) {
-		fmt.Fprintln(stderr, "usage: aristotle-server status [--porcelain]")
+		fmt.Fprintln(stderr, "usage: aristotle-server status [--porcelain | --json]")
 		return 2
 	}
 	m, err := newManager(stdout, stderr)
@@ -298,7 +299,7 @@ type lifecycleJSON struct {
 	Service string `json:"service"`
 }
 
-// runLifecycle runs `systemctl --user <verb> aristotle-server`. stop and restart refuse inside an Aristotle
+// runLifecycle runs `systemctl --user <verb> aristotle-server.service`. stop and restart refuse inside an Aristotle
 // remote terminal: the shell would die with the service mid-command. start is allowed.
 func runLifecycle(verb string, args []string, stdout, stderr io.Writer) int {
 	args, asJSON := stripJSON(args)
@@ -306,7 +307,7 @@ func runLifecycle(verb string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: aristotle-server %s [--json]\n", verb)
 		return 2
 	}
-	if verb != "start" && service.InRemoteTerminal(getenv, cgroupFile) {
+	if verb != "start" && service.InRemoteTerminal(terminal.MarkerEnv, getenv, cgroupFile) {
 		return failCmd(stdout, stderr, asJSON, fmt.Errorf("refused: %s cannot be run from an Aristotle remote terminal "+
 			"(it would end this shell mid-command); run it in a terminal opened on the PC itself", verb))
 	}

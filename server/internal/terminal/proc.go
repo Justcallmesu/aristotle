@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// markerEnv marks every terminal process (its value is the terminal id). It is one of two checks the
+// MarkerEnv marks every terminal process (its value is the terminal id). It is one of two checks the
 // control socket makes (hub.go InTerminal): a shell can unset it, so ancestry and cgroup count too.
-const markerEnv = "ARISTOTLE_TERMINAL"
+const MarkerEnv = "ARISTOTLE_TERMINAL"
 
 const (
 	fallbackShell = "/bin/bash"
@@ -128,7 +128,7 @@ func shellEnv(base, keep []string, termID, shell, home string) []string {
 		out = append(out, kv)
 	}
 	return append(out, "TERM=xterm-256color", "COLORTERM=truecolor", "SHELL="+shell, "HOME="+home,
-		"PWD="+home, markerEnv+"="+termID)
+		"PWD="+home, MarkerEnv+"="+termID)
 }
 
 // listed reports whether key is one of names or starts with one of prefixes.

@@ -28,21 +28,25 @@ var callServer = func(cmd string, args, out any) error {
 func runPair(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("pair", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	args, asJSON := stripJSON(args) // like every command: `--json` is never taken as a flag value
 	name := fs.String("name", "", "name for the paired device (default: the name the phone sends)")
 	noQR := fs.Bool("no-qr", false, "print only the code, addresses and fingerprint, no QR code")
-	asJSON := fs.Bool("json", false, "print the result as one JSON object (with qr_payload) instead of text")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	if strings.HasPrefix(*name, "-") { // `pair --name --porcelain`: the name is missing, not a flag
+		fmt.Fprintf(stderr, "error: --name %q looks like a flag; give the device a name\n", *name)
+		return 2
+	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(stderr, "usage: aristotle-server pair [--name NAME] [--no-qr]")
+		fmt.Fprintln(stderr, "usage: aristotle-server pair [--name NAME] [--no-qr] [--json]")
 		return 2
 	}
 	var res pairStartResult
 	if err := callServer(cmdPairStart, pairStartArgs{Name: *name}, &res); err != nil {
-		return failCmd(stdout, stderr, *asJSON, err)
+		return failCmd(stdout, stderr, asJSON, err)
 	}
-	if *asJSON {
+	if asJSON {
 		return emitJSON(stdout, newPairJSON(res))
 	}
 	printPairing(stdout, res, time.Now(), !*noQR)
@@ -76,10 +80,7 @@ func printQR(w io.Writer, res pairStartResult) {
 	if len(res.Addresses) == 0 {
 		return // the address list below says why
 	}
-	urls := make([]string, len(res.Addresses))
-	for i, a := range res.Addresses {
-		urls[i] = a.URL
-	}
+	urls := addrURLs(res.Addresses)
 	for n := min(len(urls), pairing.MaxPayloadAddresses); n > 0; n-- {
 		code, err := qrFor(res, urls[:n])
 		if err != nil {
@@ -98,6 +99,15 @@ func printQR(w io.Writer, res pairStartResult) {
 		return
 	}
 	fmt.Fprintf(w, "No QR code (it would not fit %d columns); type the code in the app.\n\n", qrMaxColumns)
+}
+
+// addrURLs lists the URL of each address, in order.
+func addrURLs(addrs []pairAddr) []string {
+	urls := make([]string, len(addrs))
+	for i, a := range addrs {
+		urls[i] = a.URL
+	}
+	return urls
 }
 
 func qrFor(res pairStartResult, urls []string) (*termqr.Code, error) {
@@ -132,7 +142,7 @@ func addrNote(a pairAddr) string {
 	return "LAN, HTTPS"
 }
 
-const devicesUsage = "usage: aristotle-server devices list | revoke <id> | grant-terminal <id> | ungrant-terminal <id>"
+const devicesUsage = "usage: aristotle-server devices list | revoke <id> | grant-terminal <id> | ungrant-terminal <id> [--json]"
 
 func runDevices(args []string, stdout, stderr io.Writer) int {
 	args, asJSON := stripJSON(args)
@@ -208,11 +218,7 @@ type pairJSON struct {
 func newPairJSON(res pairStartResult) pairJSON {
 	res.Addresses = nonNil(res.Addresses)
 	out := pairJSON{pairStartResult: res}
-	urls := make([]string, len(res.Addresses))
-	for i, a := range res.Addresses {
-		urls[i] = a.URL
-	}
-	text, err := pairing.Payload(res.Code, res.Fingerprint, urls)
+	text, err := pairing.Payload(res.Code, res.Fingerprint, addrURLs(res.Addresses))
 	if err != nil {
 		out.QRError = err.Error()
 		return out

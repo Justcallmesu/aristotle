@@ -152,7 +152,7 @@ func (s *server) terminalStatus(changed bool, dev *devices.Public) terminalStatu
 	return res
 }
 
-const terminalUsage = "usage: aristotle-server terminal enable | disable | status"
+const terminalUsage = "usage: aristotle-server terminal enable | disable | status [--json]"
 
 func runTerminal(args []string, stdout, stderr io.Writer) int {
 	args, asJSON := stripJSON(args)

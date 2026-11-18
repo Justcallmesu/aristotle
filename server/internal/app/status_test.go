@@ -21,8 +21,16 @@ const (
 	isEnabledCmd = "systemctl --user is-enabled aristotle-server.service"
 )
 
-// runStatusWith runs `status args...` with a fake systemd and a canned control answer.
+// runStatusWith runs `status args...` and returns the exit code and stdout+stderr joined.
 func runStatusWith(t *testing.T, active string, answer *statusResult, qerr error, args ...string) (int, string) {
+	t.Helper()
+	code, out, errOut := runStatusCmd(t, active, answer, qerr, args...)
+	return code, out + errOut
+}
+
+// runStatusCmd runs `status args...` with a fake systemd and a canned control answer. It is the one
+// status stub: runStatusWith, the JSON tests and the golden tests all use it.
+func runStatusCmd(t *testing.T, active string, answer *statusResult, qerr error, args ...string) (int, string, string) {
 	t.Helper()
 	f, _, _ := useFakes(t)
 	f.out = map[string]string{isActiveCmd: active + "\n", isEnabledCmd: "enabled\n"}
@@ -36,7 +44,7 @@ func runStatusWith(t *testing.T, active string, answer *statusResult, qerr error
 	t.Cleanup(func() { queryStatus = old })
 	var out, errOut bytes.Buffer
 	code := Run(append([]string{"status"}, args...), "v1", &out, &errOut)
-	return code, out.String() + errOut.String()
+	return code, out.String(), errOut.String()
 }
 
 func fullAnswer(h *hermesStatus) *statusResult {

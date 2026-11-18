@@ -15,6 +15,7 @@ import (
 	"github.com/justcallmesu/aristotle/server/internal/devices"
 	"github.com/justcallmesu/aristotle/server/internal/httpapi"
 	"github.com/justcallmesu/aristotle/server/internal/pairing"
+	"github.com/justcallmesu/aristotle/server/internal/terminal"
 )
 
 // The --json contract (docs/protocol.md "CLI JSON output (desktop app)"). The fixtures under
@@ -283,8 +284,7 @@ func TestJSONPairWithoutAddressesExplainsTheMissingPayload(t *testing.T) {
 
 // pair --json prints the code on stdout only: not on stderr, not in the server log, not in an error.
 func TestJSONPairNeverLeaksTheCodeElsewhere(t *testing.T) {
-	srv, logs := startTestServer(t)
-	_ = srv
+	_, logs := startTestServer(t)
 	code, out, errOut := runJSON(t, "pair", "--json")
 	if code != 0 || errOut != "" {
 		t.Fatalf("exit %d stderr %q", code, errOut)
@@ -330,17 +330,7 @@ func TestJSONRevokeEndToEnd(t *testing.T) {
 
 func runStatusJSON(t *testing.T, active string, answer *statusResult, qerr error) (int, string, string) {
 	t.Helper()
-	f, _, _ := useFakes(t)
-	f.out = map[string]string{isActiveCmd: active + "\n", isEnabledCmd: "enabled\n"}
-	old := queryStatus
-	queryStatus = func(res *statusResult) error {
-		if answer != nil {
-			*res = *answer
-		}
-		return qerr
-	}
-	t.Cleanup(func() { queryStatus = old })
-	return runJSON(t, "status", "--json")
+	return runStatusCmd(t, active, answer, qerr, "--json")
 }
 
 func TestJSONStatusRunning(t *testing.T) {
@@ -409,7 +399,7 @@ func TestLifecycleRunsSystemctlWithExactArgs(t *testing.T) {
 		if code != 0 || errOut != "" || out != "Service "+verb+" done; it is now active.\n" {
 			t.Fatalf("%s: exit %d out %q err %q", verb, code, out, errOut)
 		}
-		if len(f.calls) != 2 || f.calls[0] != "systemctl --user "+verb+" aristotle-server" || f.calls[1] != isActiveCmd {
+		if len(f.calls) != 2 || f.calls[0] != "systemctl --user "+verb+" aristotle-server.service" || f.calls[1] != isActiveCmd {
 			t.Fatalf("%s: calls %v", verb, f.calls)
 		}
 	}
@@ -424,7 +414,7 @@ func TestLifecycleJSON(t *testing.T) {
 		if code != 0 || errOut != "" || out != `{"ok":true,"service":"`+c.after+`"}`+"\n" {
 			t.Fatalf("%s: exit %d out %q err %q", c.verb, code, out, errOut)
 		}
-		if f.calls[0] != "systemctl --user "+c.verb+" aristotle-server" {
+		if f.calls[0] != "systemctl --user "+c.verb+" aristotle-server.service" {
 			t.Fatalf("%s: calls %v", c.verb, f.calls)
 		}
 		checkFixture(t, c.verb+".json", out)
@@ -435,7 +425,7 @@ func TestLifecycleFailure(t *testing.T) {
 	for _, asJSON := range []bool{false, true} {
 		f, _, _ := useFakes(t)
 		noTerminal(t)
-		f.fail = map[string]bool{"systemctl --user restart aristotle-server": true}
+		f.fail = map[string]bool{"systemctl --user restart aristotle-server.service": true}
 		args := []string{"restart"}
 		if asJSON {
 			args = append(args, "--json")
@@ -481,7 +471,7 @@ func TestStopAndRestartRefusedInsideARemoteTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	marked := func(k string) string {
-		if k == "ARISTOTLE_TERMINAL" {
+		if k == terminal.MarkerEnv {
 			return "term_0001"
 		}
 		return ""
@@ -523,7 +513,7 @@ func TestStopAndRestartRefusedInsideARemoteTerminal(t *testing.T) {
 			if code, out, errOut := runJSON(t, "start", "--json"); code != 0 || errOut != "" || !strings.Contains(out, `"ok":true`) {
 				t.Fatalf("exit %d out %q err %q", code, out, errOut)
 			}
-			if f.calls[0] != "systemctl --user start aristotle-server" {
+			if f.calls[0] != "systemctl --user start aristotle-server.service" {
 				t.Fatal(f.calls)
 			}
 		})
@@ -536,5 +526,109 @@ func TestUsageListsTheNewCommandsAndFlag(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("usage lacks %q:\n%s", want, out)
 		}
+	}
+}
+
+// ---- MINOR-2: a status answer with the optional fields absent (an older server, or one that has not
+// finished its first scan). A parser must treat port, listeners and hermes as optional.
+
+func TestJSONStatusWithOptionalFieldsAbsent(t *testing.T) {
+	old := &statusResult{Version: "0.9", Addresses: []httpapi.Address{}}
+	code, out, errOut := runStatusJSON(t, "active", old, nil)
+	if code != 0 || errOut != "" {
+		t.Fatalf("exit %d stderr %q", code, errOut)
+	}
+	checkFixture(t, "status_sparse.json", out)
+	var got struct {
+		Service string `json:"service"`
+		Server  string `json:"server"`
+		Result  *struct {
+			Version   string            `json:"version"`
+			Addresses []httpapi.Address `json:"addresses"`
+			Port      *int              `json:"port"`
+			Listeners *[]statusListener `json:"listeners"`
+			Hermes    *hermesStatus     `json:"hermes"`
+		} `json:"result"`
+	}
+	data, err := os.ReadFile(filepath.Join(fixtureDir, "status_sparse.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &got); err != nil || got.Result == nil {
+		t.Fatalf("decode the fixture: %v %+v", err, got)
+	}
+	if got.Result.Version != "0.9" || got.Result.Addresses == nil || len(got.Result.Addresses) != 0 {
+		t.Errorf("version/addresses: %+v", got.Result)
+	}
+	if got.Result.Port != nil || got.Result.Listeners != nil || got.Result.Hermes != nil {
+		t.Errorf("optional fields were not absent: %+v", got.Result)
+	}
+	for _, key := range []string{"port", "listeners", "hermes"} {
+		if _, ok := oneObject(t, out)["result"].(map[string]any)[key]; ok {
+			t.Errorf("result has %q", key)
+		}
+	}
+}
+
+// NIT-5: `service` is "unknown" when systemctl prints nothing.
+func TestJSONStatusServiceUnknown(t *testing.T) {
+	code, out, _ := runStatusJSON(t, "", nil, control.ErrNotRunning)
+	if m := oneObject(t, out); code != 1 || m["service"] != "unknown" {
+		t.Fatalf("exit %d %v", code, m)
+	}
+}
+
+// ---- NIT-3: --json is one removed token on every command, pair included.
+
+func TestPairJSONIsNotTakenAsTheName(t *testing.T) {
+	called := false
+	old := callServer
+	callServer = func(string, any, any) error { called = true; return nil }
+	t.Cleanup(func() { callServer = old })
+	for _, args := range [][]string{{"pair", "--name", "--json"}, {"pair", "--json", "--name"}, {"pair", "--name", "-x"},
+		{"pair", "--name", "--no-qr"}, {"pair", "-json"}, {"pair", "--json=true"}} {
+		code, out, errOut := runJSON(t, args...)
+		if code != 2 || out != "" || errOut == "" {
+			t.Errorf("%v: exit %d out %q err %q", args, code, out, errOut)
+		}
+	}
+	if called {
+		t.Error("a bad pair command still called the server")
+	}
+}
+
+func TestPairJSONAnywhere(t *testing.T) {
+	for _, args := range [][]string{{"pair", "--json", "--name", "x"}, {"pair", "--name", "x", "--json"}, {"pair", "--no-qr", "--json"}} {
+		stubControl(t, map[string]ctlAnswer{cmdPairStart: {res: jsonPairResult()}})
+		code, out, errOut := runJSON(t, args...)
+		if code != 0 || errOut != "" {
+			t.Fatalf("%v: exit %d err %q", args, code, errOut)
+		}
+		oneObject(t, out)
+	}
+}
+
+// ---- NIT-4: every per-command usage line mentions --json.
+
+func TestUsageLinesMentionJSON(t *testing.T) {
+	for _, args := range [][]string{{"pair", "x"}, {"status", "x"}, {"devices"}, {"terminal"}, {"start", "x"}, {"stop", "x"}, {"restart", "x"}} {
+		code, out, errOut := runJSON(t, args...)
+		if code != 2 || out != "" || !strings.Contains(errOut, "--json") {
+			t.Errorf("%v: exit %d out %q err %q", args, code, out, errOut)
+		}
+	}
+}
+
+// MINOR-3: the lifecycle guard watches the terminal package's own marker variable.
+func TestLifecycleGuardUsesTheTerminalMarker(t *testing.T) {
+	f, _, _ := useFakes(t)
+	useTerminalEnv(t, func(k string) string {
+		if k == terminal.MarkerEnv {
+			return "term_1"
+		}
+		return ""
+	}, filepath.Join(t.TempDir(), "missing"))
+	if code, _, _ := runJSON(t, "stop", "--json"); code != 1 || len(f.calls) != 0 {
+		t.Fatalf("exit %d calls %v", code, f.calls)
 	}
 }

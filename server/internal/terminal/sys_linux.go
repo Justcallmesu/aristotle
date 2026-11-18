@@ -172,7 +172,7 @@ func envMarker(pid int) (string, bool, error) {
 		return "", false, err
 	}
 	for kv := range bytes.SplitSeq(b, []byte{0}) {
-		if v, ok := bytes.CutPrefix(kv, []byte(markerEnv+"=")); ok {
+		if v, ok := bytes.CutPrefix(kv, []byte(MarkerEnv+"=")); ok {
 			return string(v), true, nil
 		}
 	}
