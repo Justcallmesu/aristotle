@@ -1,0 +1,8 @@
+find library=libayatana-appindicator3.so.1 [0]; searching
+trying file=/usr/lib/glibc-hwcaps/x86-64-v4/libayatana-appindicator3.so.1
+trying file=/usr/lib/glibc-hwcaps/x86-64-v3/libayatana-appindicator3.so.1
+trying file=/usr/lib/glibc-hwcaps/x86-64-v2/libayatana-appindicator3.so.1
+trying file=/usr/lib/libayatana-appindicator3.so.1
+find library=libappindicator3.so.1 [0]; searching
+trying file=/usr/lib/libappindicator3.so.1
+calling init: /usr/lib/libappindicator3.so.1

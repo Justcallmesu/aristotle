@@ -1,0 +1,18 @@
+signal time=1794971731.899999 sender=org.freedesktop.DBus -> destination=:1.286 serial=4294967295 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameAcquired
+   string ":1.286"
+signal time=1794971731.900055 sender=org.freedesktop.DBus -> destination=:1.286 serial=4294967295 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameLost
+   string ":1.286"
+method call time=1794971732.902274 sender=:1.288 -> destination=org.freedesktop.Notifications serial=2 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
+   string "ksni-tray"
+   uint32 0
+   string ""
+   string "DS2b spike"
+   string "hello from the tray process"
+   array [
+      string "open"
+      string "Open"
+   ]
+   array [
+   ]
+   int32 -1
+method call time=1794971733.936173 sender=:1.289 -> destination=org.freedesktop.Notifications serial=2 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=GetCapabilities

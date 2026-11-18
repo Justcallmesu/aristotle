@@ -1,0 +1,10 @@
+f9213fec68d75ea48727260b36f13b7aeb1df0dc
+?? docs/desktop/runs/
+d2621c548397a6dcefbee674e2921d51ca8f8a42d3572c2de81586b5ece74588  docs/desktop/runs/DS2/build-brief.md
+0c6936044b34f44da798e81777f92a7852b0e46639ec13507c53e5852988d268  docs/desktop/runs/DS1/build-brief.md
+788dca41f554aeb9f0e04bb1f9fb9ea9eac7521e4031dc77bcc208edbd0adff5  docs/desktop/runs/DS1/pre.txt
+49dc6f730211cd57626311a677cfe01c3404ffedbd76f776687b7a01413c0f17  docs/desktop/runs/baseline/gate-server-test.log
+c9450de30d0ea9d4eb7008c905c1130e6cbee592c0103e9cdce1c6895346d55c  docs/desktop/runs/baseline/gate-summary.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/desktop/runs/baseline/gate-server-vet.log
+c9450de30d0ea9d4eb7008c905c1130e6cbee592c0103e9cdce1c6895346d55c  docs/desktop/runs/baseline/gate-run.log
+e68281e0a45db3d391966b90b024aec2e718fd8c8f26f3d36cd3fe8ef97de508  docs/desktop/runs/baseline/gate-server-gofmt.log

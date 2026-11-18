@@ -9,8 +9,9 @@ Routes: build `std` unless noted; every review `deep`, fresh context, never the 
 | DS1 | Server: `--json` on the read commands and the action commands; new `start` / `stop` / `restart` (P9) | - | server | std | DONE (gate GREEN 883, PM mutants 3/3 killed, deep review APPROVED-WITH-FINDINGS; minors -> DS1b) |
 | DS1b | DS1 review minors before DS3 parses the contract: MINOR-1 one unit spelling (`UnitName`), MINOR-2 optional status fields marked in §22 + old-server fixture, MINOR-3 one terminal marker constant; NITs (URL loop dup, stub helper x3, `pair --name --json`, usage lines, `service:"unknown"` in §22, dead `_ = srv`) | DS1 | server | std | DONE (gate GREEN 890, PM mutants 2/2 killed; no own review: the DS3 review re-checks this diff) |
 | DS2 | Spike: Tauri v2 tray + window on KDE (throwaway, `spikes/tauri-tray/`) | DS0 | spike | std | BUILT, stop condition hit: no tray left click, window memory not freed -> D17/D18 to the user; tray visibility check by the user |
-| DSD | Design pass: mockups of every view (real states, light/dark, EN/ID), tray icon set, tokens; user picks; then consolidated into `docs/desktop/design.md` | - | design | std | IN PROGRESS |
-| DS2b | Spike: `ksni` tray, left click launches the window app (D17/D18); memory, single instance, real-click check | DS2 | spike | std | IN PROGRESS |
+| DSD | Design pass: mockups of every view (real states, light/dark, EN/ID), tray icon set, tokens; user picks; then consolidated into `docs/desktop/design.md` | - | design | std | BUILT (board + notes, slop 0/10); waiting on the user's picks (design-notes §9, 1-12; 11 settled by P13) |
+| DS2b | Spike: `ksni` tray, left click launches the window app (D17/D18); memory, single instance, real-click check | DS2 | spike | std | BUILT (icon visible, Activate via D-Bus launches the child, tray ~7 MB, single instance, reaped); **real left click: user check pending** |
+| DS1c | Server: `status --json` `installed` field (P13) + fixture + §22 | DS1b | server | std | TODO |
 | DS3 | Desktop core: `desktop/` skeleton, CLI runner, poller, tray state, notification diff, strings, desktop gate | DS1b, DS2b | desktop | std | TODO (scope changes for D18: workspace core + tray + window app) |
 | DS4 | UI: Status, Service, Logs | DS3, DSD | desktop | std | TODO |
 | DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3, DSD | desktop | std | TODO |

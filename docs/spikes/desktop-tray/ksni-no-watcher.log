@@ -1,0 +1,2 @@
+KSNI 1794971762.047 start pid 199919 child bin /home/justcallmesu/project/personal/Aristotle/spikes/ksni-tray/../tauri-tray/src-tauri/target/release/tauri-tray
+KSNI 1794971762.052 spawn failed: failed to register to the StatusNotifierWatcher: org.freedesktop.DBus.Error.ServiceUnknown: The name org.kde.StatusNotifierWatcher was not provided by any .service files

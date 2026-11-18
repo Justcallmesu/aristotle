@@ -68,6 +68,7 @@ terminal; a desktop UI and a tray app."
 | P10 | Strings: the frontend keeps `en` + `id` message files; the Rust side (tray menu, notifications) keeps its own small `en`/`id` table. Language = system locale (`LANG`/`LC_MESSAGES` starting with `id` → Indonesian), else English. | Tray and notifications exist without a window (D9), so they cannot read frontend strings. |
 | P11 | Secrets: the pairing code and QR payload appear only in the Pair view; never in a notification, the tray, a log line or a panic message. The app never logs CLI output. `pair --json` returns the QR payload text (`pairing.Payload`) and the frontend renders it with a QR library, so the QR rules stay in Go. | Same rule as PROJECT.md "logs never contain tokens". |
 | P12 | `stop` and `restart` refuse inside an Aristotle remote terminal (reusing the existing detection); `start` is allowed. | A restart from the phone's shell kills that shell mid-command. Accident guard, not a security boundary (the shell can still run systemctl). |
+| P13 | `status --json` gains `installed` (bool: the unit file exists at `service.Manager.UnitPath()`); the app's "not installed" state reads it, never `enabled`. | VERIFIED 2026-11-18 on this PC: `systemctl --user is-enabled <absent unit>` prints `enabled`, exit 0, so `enabled` cannot detect a missing install (DSD choice 11 assumed `not-found`). |
 
 ## Design (confirmed 2026-11-15)
 ```

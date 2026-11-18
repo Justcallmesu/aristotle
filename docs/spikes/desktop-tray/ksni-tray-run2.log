@@ -1,0 +1,39 @@
+KSNI 1794971709.512 start pid 198465 child bin /home/justcallmesu/project/personal/Aristotle/spikes/ksni-tray/../tauri-tray/src-tauri/target/release/tauri-tray
+KSNI 1794971711.514 icon 1
+KSNI 1794971713.515 icon 2
+KSNI 1794971714.466 ACTIVATE (left click) at 0,0
+KSNI 1794971714.477 open: spawned child pid 199247
+SPIKE open: created window #1
+Gtk-Message: 10:15:14.845: Failed to load module "appmenu-gtk-module"
+KSNI 1794971715.515 icon 0
+KSNI 1794971717.515 icon 1
+KSNI 1794971719.516 icon 2
+KSNI 1794971720.842 child 199247 exited: Ok(ExitStatus(unix_wait_status(0))) (reaped)
+KSNI 1794971721.516 icon 0
+KSNI 1794971723.516 icon 1
+KSNI 1794971725.520 icon 2
+KSNI 1794971727.520 icon 0
+KSNI 1794971729.520 icon 1
+KSNI 1794971731.521 icon 2
+KSNI 1794971732.901 menu: Notify
+KSNI 1794971732.927 notify: shown
+KSNI 1794971733.521 icon 0
+KSNI 1794971735.522 icon 1
+KSNI 1794971737.522 icon 2
+KSNI 1794971739.522 icon 0
+KSNI 1794971741.523 icon 1
+KSNI 1794971743.523 icon 2
+KSNI 1794971745.523 icon 0
+KSNI 1794971746.147 menu: Open
+KSNI 1794971746.158 open: spawned child pid 199671
+SPIKE open: created window #1
+Gtk-Message: 10:15:46.472: Failed to load module "appmenu-gtk-module"
+KSNI 1794971747.524 icon 1
+KSNI 1794971749.524 icon 2
+KSNI 1794971751.524 icon 0
+KSNI 1794971752.453 child 199671 exited: Ok(ExitStatus(unix_wait_status(0))) (reaped)
+KSNI 1794971753.525 icon 1
+KSNI 1794971755.525 icon 2
+KSNI 1794971757.526 icon 0
+KSNI 1794971759.526 icon 1
+KSNI 1794971760.917 menu: Quit

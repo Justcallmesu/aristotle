@@ -1,0 +1,15 @@
+signal time=1794968367.632918 sender=org.freedesktop.DBus -> destination=:1.135 serial=4294967295 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameAcquired
+   string ":1.135"
+signal time=1794968367.633618 sender=org.freedesktop.DBus -> destination=:1.135 serial=4294967295 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameLost
+   string ":1.135"
+method call time=1794968368.648200 sender=:1.137 -> destination=org.freedesktop.Notifications serial=3 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify
+   string "tauri-tray"
+   uint32 0
+   string "tauri-tray"
+   string "Spike"
+   string "hello from tray"
+   array [
+   ]
+   array [
+   ]
+   int32 -1
