@@ -22,7 +22,8 @@ Routes: build `std` unless noted; every review `deep`, fresh context, never the 
 | DS4 | UI: Status, Service, Logs | DS3x | desktop | std | DONE (c04b8a9; views-wave gate GREEN 148+225, mutants 5 killed + 1 equivalent; review APPROVED-WITH-FINDINGS) |
 | DS5 | UI: Pair (QR + countdown), Devices (revoke) | DS3x, DS1d (contract) | desktop | std | DONE (c04b8a9; views-wave gate GREEN 148+225, mutants 5 killed + 1 equivalent; review APPROVED-WITH-FINDINGS) |
 | DS6 | UI: Terminal (on/off, grants, open terminals; D7 confirms) | DS3x | desktop | std | DONE (c04b8a9; views-wave gate GREEN 148+225, mutants 5 killed + 1 equivalent; review APPROVED-WITH-FINDINGS) |
-| DS8 | Views-wave review fixes before DS7: MAJOR-1 D7 notification from the tray (P20, granted ids in snapshot); MINOR-2 one Start rule (P21); MINOR-3 `dis_other`; MINOR-4 banner placement; MINOR-5 de-duplication (time, row CSS, helpers out of views, snapshot granted ids); MINOR-6 test; NITs 1-7, 11; `fakeTransport.setReply` | DS4-DS6 | desktop | std | IN PROGRESS |
+| DS8 | Views-wave review fixes before DS7: MAJOR-1 D7 notification from the tray (P20, granted ids in snapshot); MINOR-2 one Start rule (P21); MINOR-3 `dis_other`; MINOR-4 banner placement; MINOR-5 de-duplication (time, row CSS, helpers out of views, snapshot granted ids); MINOR-6 test; NITs 1-7, 11; `fakeTransport.setReply` | DS4-DS6 | desktop | std | DONE (4051790; PM gate GREEN 158+284, mutants 4/4; re-review APPROVED-WITH-FINDINGS) |
+| DS8b | Fix round 2 of 2: MINOR-1 grant-while-off notice (waits on user Q-D7b), MINOR-2 keep last good grants on a failed terminal read (Devices last good set; Terminal falls back to its own read) + one test per view; NITs (ID text for `{ok:false}`, dead `terminal_status` replies in shot pages, `.field-hint`/`.pair-hint` -> `.hint`, test for failed read then revoke + new grant) | DS8, Q-D7b | desktop | std | WAITING (user) |
 | DS7 | Bundle + installer + release + second PC | DS4-DS6 | scripts | std | TODO |
 
 DS1 and DS2 can run in parallel (disjoint dirs). DS4, DS5, DS6 can run in parallel after DS3 (disjoint view folders;
@@ -137,3 +138,11 @@ states, `id` strings present for every `en` key; screenshots light + dark in the
 - 2026-11-18 Spec + tickets committed (f9213fe). Baseline `runs/baseline` GREEN (server, 805 Go tests). Wave 1 dispatched in
   parallel: DS1 (std, `runs/DS1/build-brief.md`), DS2 (std, `runs/DS2/build-brief.md`); `pre.txt` snapshots saved.
   Project-local npm/cargo dependencies allowed for DS2; no system installs.
+
+## Resume point (2026-11-18 ~22:40)
+- Committed through 4051790 (DS8). Tree clean apart from this file.
+- Waiting on the user: **Q-D7b** (grant while the terminal is off: A own "access granted to <phone>" notice [rec] / B no notice /
+  C grant text always) and the **DS7 release version** (2.3.0 rec / 3.0.0). Asked 21:37, unanswered.
+- Then: DS8b brief (review `docs/desktop/runs/DS8/review-report.md` MINOR-1/2 + NITs), PM gate + mutants, commit; DF7/DF8 sweep
+  (also: Service shows "Server stopped" while `activating`); then DS7 (bundle, installer menu/autostart only with webkit2gtk-4.1,
+  uninstall removes them P8, release, user installs here + cachyos-asus-1, user live checks list in views-wave review report).
