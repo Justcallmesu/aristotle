@@ -108,8 +108,8 @@ export interface SnapshotDto {
   terminals: OpenTerminal[] | null;
   /** The terminal switch from the same poll; null when that read failed. */
   terminal_enabled: boolean | null;
-  /** Ids holding a terminal grant, from the same poll; empty when the read failed or the server is down. */
-  terminal_granted: string[];
+  /** Ids holding a terminal grant, from the same poll; null (unknown, not none) when that read failed or the server is down. */
+  terminal_granted: string[] | null;
   /** Grows with every poll; an older snapshot than the one shown is dropped. */
   seq: number;
   version: VersionDto;

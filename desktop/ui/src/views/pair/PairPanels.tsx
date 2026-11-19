@@ -47,7 +47,7 @@ export function CodePanel({ pair, expiresAt, onExpire, action }: CodePanelProps)
             </span>
             <CopyButton text={pair.code} />
           </div>
-          <p className="pair-hint">{t("pair_scan")}</p>
+          <p className="hint hint-tight">{t("pair_scan")}</p>
         </div>
         <div className="pair-section">
           <h2 className="pair-label">{t("pair_fp")}</h2>
@@ -56,7 +56,7 @@ export function CodePanel({ pair, expiresAt, onExpire, action }: CodePanelProps)
               <span key={i}>{group}</span>
             ))}
           </div>
-          <p className="pair-hint">{t("pair_fp_hint")}</p>
+          <p className="hint hint-tight">{t("pair_fp_hint")}</p>
         </div>
         <Addresses addresses={pair.addresses} />
         {pair.qr_error ? <QrDetails error={pair.qr_error} /> : null}

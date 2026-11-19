@@ -69,6 +69,16 @@ describe("Devices: list", () => {
     expect(fake.calls.filter((c) => c.command === "terminal_status")).toHaveLength(0);
   });
 
+  it("keeps the last good grants when a later poll could not read them", async () => {
+    const fake = setup(snap([PIXEL, TAB]));
+    expect(await screen.findByText("Granted")).toBeInTheDocument();
+    act(() => {
+      fake.emit("snapshot", snap([{ ...PIXEL, name: "pixel 2" }, TAB], { terminal_enabled: null, terminal_granted: null, seq: 2 }));
+    });
+    expect(await screen.findByText("pixel 2")).toBeInTheDocument();
+    expect(screen.getAllByText("Granted")).toHaveLength(1);
+  });
+
   it("keeps the CLI order", async () => {
     setup(snap([TAB, PIXEL]));
     const rows = await screen.findAllByRole("row");
@@ -84,7 +94,7 @@ describe("Devices: list", () => {
   });
 
   it("shows — for an unreadable last-seen and in the grant column when the poll has no grants", async () => {
-    setup(snap([{ ...PIXEL, last_seen_at: "" }], { terminal_enabled: null, terminal_granted: [] }));
+    setup(snap([{ ...PIXEL, last_seen_at: "" }], { terminal_enabled: null, terminal_granted: null }));
     const row = (await screen.findAllByRole("row"))[1];
     await act(async () => undefined);
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);

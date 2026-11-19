@@ -84,8 +84,6 @@ function transportFor(scene: Scene): Transport {
           return scene.snapshot ? Promise.resolve(scene.snapshot) : new Promise(() => undefined);
         case "start_intent":
           return Promise.resolve(scene.intent ?? { kind: "status" });
-        case "terminal_status":
-          return Promise.resolve({ enabled: true, granted: [{ id: "dev_a1b2c3d4e5f6", name: "pixel" }] });
         case "service_action":
           return scene.action === "fail"
             ? Promise.reject({ kind: "server-error", message: "Failed to start aristotle-server.service: Unit is masked.", exit_code: 1 })

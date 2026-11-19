@@ -40,8 +40,8 @@ pub struct SnapshotDto {
     pub terminals: Option<Vec<OpenTerminal>>,
     /// The terminal switch from the same poll (the sidebar count); `None` when that read failed.
     pub terminal_enabled: Option<bool>,
-    /// Ids granted terminal access, from the same poll (empty when that read failed).
-    pub terminal_granted: Vec<String>,
+    /// Ids granted terminal access, from the same poll; `None` when that read failed (unknown, not none).
+    pub terminal_granted: Option<Vec<String>>,
     /// Grows with every poll; the frontend drops a snapshot older than the one it shows.
     pub seq: u64,
     pub version: VersionDto,

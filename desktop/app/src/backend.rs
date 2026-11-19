@@ -165,7 +165,7 @@ mod tests {
         let cli = FakeCli::new(running_poll());
         let dto = backend(&cli, "1.2.3").refresh();
         assert_eq!(dto.terminal_enabled, Some(true));
-        assert_eq!(dto.terminal_granted, vec!["dev_a1".to_string()]);
+        assert_eq!(dto.terminal_granted, Some(vec!["dev_a1".to_string()]));
     }
 
     #[test]

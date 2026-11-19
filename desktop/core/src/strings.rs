@@ -79,6 +79,9 @@ pub enum Key {
     /// Sent by the tray when its poll sees the terminal switched on or a new grant (D7, P20).
     TermOnTitle,
     TermOnBody,
+    /// P22: a newly granted device, whether the switch is on or off.
+    GrantTitle,
+    GrantBody,
     /// Added in DS3: the window app binary is missing.
     NoAppTitle,
     NoAppBody,
@@ -89,7 +92,7 @@ pub enum Key {
 }
 
 impl Key {
-    pub const ALL: [Key; 29] = [
+    pub const ALL: [Key; 31] = [
         Key::MenuOpen,
         Key::MenuPair,
         Key::MenuStart,
@@ -115,6 +118,8 @@ impl Key {
         Key::StopBody,
         Key::TermOnTitle,
         Key::TermOnBody,
+        Key::GrantTitle,
+        Key::GrantBody,
         Key::NoAppTitle,
         Key::NoAppBody,
         Key::ADevice,
@@ -159,6 +164,10 @@ fn en(key: Key) -> &'static str {
         Key::StopBody => "It was not stopped from this app. Open the app to start it again.",
         Key::TermOnTitle => "Remote terminal turned on",
         Key::TermOnBody => "Granted phones can open a shell with full access to your account.",
+        Key::GrantTitle => "Terminal access granted",
+        Key::GrantBody => {
+            "{name} can open a shell with full access to your account while the remote terminal is on."
+        }
         Key::NoAppTitle => "Window app not found",
         Key::NoAppBody => "aristotle-desktop is not installed next to the tray.",
         Key::ADevice => "A device",
@@ -192,6 +201,10 @@ fn id(key: Key) -> &'static str {
         Key::StopTitle => "Server Aristotle berhenti",
         Key::StopBody => {
             "Bukan dihentikan dari aplikasi ini. Buka aplikasi untuk menyalakannya lagi."
+        }
+        Key::GrantTitle => "Akses terminal diberikan",
+        Key::GrantBody => {
+            "{name} bisa membuka shell dengan akses penuh ke akunmu selama terminal jarak jauh aktif."
         }
         Key::TermOnTitle => "Terminal jarak jauh diaktifkan",
         Key::TermOnBody => {
@@ -241,11 +254,19 @@ pub fn notice_text(lang: Lang, notice: &Notice) -> (String, String) {
                 .replace("{via}", &listener_label(listener));
             (text(lang, Key::TermTitle).to_owned(), body)
         }
-        // The D7 text is the same for both: the warning is about full access, not about who.
-        Notice::TerminalTurnedOn | Notice::TerminalGranted { .. } => (
+        Notice::TerminalTurnedOn => (
             text(lang, Key::TermOnTitle).to_owned(),
             text(lang, Key::TermOnBody).to_owned(),
         ),
+        Notice::TerminalGranted { device_name } => {
+            let name = device_name
+                .as_deref()
+                .unwrap_or_else(|| text(lang, Key::ADevice));
+            (
+                text(lang, Key::GrantTitle).to_owned(),
+                text(lang, Key::GrantBody).replace("{name}", name),
+            )
+        }
         Notice::HermesUnreachable => (
             text(lang, Key::HermesTitle).to_owned(),
             text(lang, Key::HermesBody).to_owned(),

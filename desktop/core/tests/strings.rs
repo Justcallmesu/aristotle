@@ -222,12 +222,8 @@ fn every_reason_has_a_tooltip() {
 
 #[test]
 fn the_d7_notice_uses_the_design_text_and_no_name() {
-    for notice in [
-        Notice::TerminalTurnedOn,
-        Notice::TerminalGranted {
-            device_name: Some("pixel".into()),
-        },
-    ] {
+    {
+        let notice = Notice::TerminalTurnedOn;
         let (t, b) = notice_text(Lang::En, &notice);
         assert_eq!(t, "Remote terminal turned on");
         assert_eq!(
@@ -241,4 +237,30 @@ fn the_d7_notice_uses_the_design_text_and_no_name() {
             "Ponsel yang diberi izin bisa membuka shell dengan akses penuh ke akunmu."
         );
     }
+}
+
+#[test]
+fn the_grant_notice_uses_the_design_text_with_the_device_name() {
+    let named = Notice::TerminalGranted {
+        device_name: Some("pixel".into()),
+    };
+    let (t, b) = notice_text(Lang::En, &named);
+    assert_eq!(t, "Terminal access granted");
+    assert_eq!(
+        b,
+        "pixel can open a shell with full access to your account while the remote terminal is on."
+    );
+    let (t, b) = notice_text(Lang::Id, &named);
+    assert_eq!(t, "Akses terminal diberikan");
+    assert_eq!(
+        b,
+        "pixel bisa membuka shell dengan akses penuh ke akunmu selama terminal jarak jauh aktif."
+    );
+    let anon = Notice::TerminalGranted { device_name: None };
+    assert!(notice_text(Lang::En, &anon)
+        .1
+        .starts_with("A device can open"));
+    assert!(notice_text(Lang::Id, &anon)
+        .1
+        .starts_with("Sebuah perangkat bisa"));
 }

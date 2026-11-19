@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActionButton, Button } from "../../components/Button";
 import { CommandFailed } from "../../components/CommandFailed";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -18,6 +18,7 @@ import "./devices.css";
 export function DevicesView() {
   const { t } = useI18n();
   const { snapshot, world } = useSnapshot();
+  const granted = useLastGoodGrants(snapshot?.terminal_granted ?? null);
   if (!snapshot) {
     return (
       <>
@@ -34,7 +35,14 @@ export function DevicesView() {
       </>
     );
   }
-  return <DeviceList devices={snapshot.devices} granted={snapshot.terminal_granted} />;
+  return <DeviceList devices={snapshot.devices} granted={granted} />;
+}
+
+/** design.md 4.2: a poll that could not read the grants (null) leaves the last good set. */
+function useLastGoodGrants(polled: string[] | null): string[] {
+  const last = useRef<string[]>([]);
+  if (polled !== null) last.current = polled;
+  return last.current;
 }
 
 function DeviceList({ devices, granted }: { devices: Device[] | null; granted: string[] }) {

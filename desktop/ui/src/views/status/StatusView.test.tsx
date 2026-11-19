@@ -229,7 +229,7 @@ describe("Status: Start server", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Start server" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("That did not work");
-    expect(alert).toHaveTextContent("error: service is failed");
+    expect(alert).toHaveTextContent("error: failed");
     expect(screen.getByRole("button", { name: "Start server" })).toBeEnabled();
   });
 

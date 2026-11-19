@@ -126,7 +126,7 @@ function PairFlow() {
           {nameInvalid ? (
             <p id="pair-name-err" className="field-error">{t("pair_name_err")}</p>
           ) : (
-            <p id="pair-name-hint" className="field-hint">{t("pair_name_hint")}</p>
+            <p id="pair-name-hint" className="hint hint-field">{t("pair_name_hint")}</p>
           )}
           <ActionButton type="submit" variant="primary" disabled={disabled}>
             {label ?? t("pair_show")}

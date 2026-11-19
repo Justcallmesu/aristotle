@@ -9,13 +9,15 @@ interface GrantsProps {
   /** Null when the poll could not read the list. */
   granted: GrantedDevice[] | null;
   devices: Device[];
+  /** False when the device list could not be read: an unnamed grant shows its id, not "(no longer paired)". */
+  devicesKnown: boolean;
   busy: boolean;
   onRemove: (id: string) => void;
   onGrant: (id: string, name: string) => void;
 }
 
 /** Left column: who holds a grant, and the add row. Shown whether the switch is on or off. */
-export function GrantsGroup({ granted: list, devices, busy, onRemove, onGrant }: GrantsProps) {
+export function GrantsGroup({ granted: list, devices, devicesKnown, busy, onRemove, onGrant }: GrantsProps) {
   const { t } = useI18n();
   const [chosen, setChosen] = useState("");
   const granted = list ?? [];
@@ -38,7 +40,7 @@ export function GrantsGroup({ granted: list, devices, busy, onRemove, onGrant }:
           return (
             <div className="kv-row" key={g.id}>
               <div className="kv-val">
-                <strong>{name || t("t_gone")}</strong>
+                <strong>{name || (devicesKnown ? t("t_gone") : g.id)}</strong>
                 <div className="kv-sub">{g.id}</div>
               </div>
               <ActionButton variant="text-danger" small disabled={busy} onClick={() => onRemove(g.id)}>

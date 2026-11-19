@@ -26,7 +26,7 @@ fn with_terminals(mut s: Snapshot, t: Vec<aristotle_core::types::OpenTerminal>) 
 
 fn with_terminal_access(mut s: Snapshot, enabled: bool, granted: &[&str]) -> Snapshot {
     s.terminal_enabled = Some(enabled);
-    s.terminal_granted = granted.iter().map(|g| g.to_string()).collect();
+    s.terminal_granted = Some(granted.iter().map(|g| g.to_string()).collect());
     s
 }
 
@@ -336,4 +336,43 @@ fn only_the_d7_notices_have_no_open_action() {
     assert!(Notice::ServerStopped.has_open_action());
     assert!(Notice::HermesUnreachable.has_open_action());
     assert!(Notice::DevicePaired { name: "x".into() }.has_open_action());
+}
+
+#[test]
+fn a_grant_while_the_switch_is_off_is_its_own_notice() {
+    let devices = vec![device("d1", "pixel")];
+    let prev = with_terminal_access(with_devices(up("reachable"), devices.clone()), false, &[]);
+    let next = with_terminal_access(with_devices(up("reachable"), devices), false, &["d1"]);
+    assert_eq!(
+        diff(Some(&prev), &next, None, now()),
+        vec![Notice::TerminalGranted {
+            device_name: Some("pixel".into())
+        }]
+    );
+}
+
+#[test]
+fn enable_and_grant_in_one_tick_is_two_different_notices() {
+    let devices = vec![device("d1", "pixel")];
+    let prev = with_terminal_access(with_devices(up("reachable"), devices.clone()), false, &[]);
+    let next = with_terminal_access(with_devices(up("reachable"), devices), true, &["d1"]);
+    assert_eq!(
+        diff(Some(&prev), &next, None, now()),
+        vec![
+            Notice::TerminalTurnedOn,
+            Notice::TerminalGranted {
+                device_name: Some("pixel".into())
+            }
+        ]
+    );
+}
+
+#[test]
+fn an_unknown_grant_list_is_no_information() {
+    let known = with_terminal_access(up("reachable"), true, &["d1"]);
+    let mut unknown = up("reachable");
+    unknown.terminal_enabled = Some(true);
+    unknown.terminal_granted = None;
+    assert!(diff(Some(&known), &unknown, None, now()).is_empty());
+    assert!(diff(Some(&unknown), &known, None, now()).is_empty());
 }

@@ -1,0 +1,11 @@
+=== B1 grant notice uses the D7 title
+test the_grant_notice_uses_the_design_text_with_the_device_name ... FAILED
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== B2 failed grant read treated as empty list
+test a_failed_terminal_read_is_not_a_transition ... FAILED
+test an_unknown_grant_list_is_no_information ... FAILED
+test result: FAILED. 29 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0

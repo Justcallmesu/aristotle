@@ -1,0 +1,6 @@
+	linux-vdso.so.1 (0x00007f3e1a896000)
+	libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007f3e1a81b000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x00007f3e1a6e4000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x00007f3e19c00000)
+	/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007f3e1a898000)
+ldd: only linux-vdso, libc, libm, libgcc_s, ld-linux

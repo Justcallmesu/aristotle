@@ -138,8 +138,6 @@ const transport: Transport = {
         return sc.snap;
       case "start_intent":
         return { kind: "status" };
-      case "terminal_status":
-        return { enabled: true, granted: [{ id: "d-5f3a91c2", name: "pixel" }], open: [], changed: false, warning: null, problem: null, device: null };
       case "pair":
         return sc.pair ? sc.pair() : pairReply();
       case "devices_revoke":

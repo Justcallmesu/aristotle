@@ -3,6 +3,7 @@
 mod common;
 use aristotle_core::diff::Notice;
 use aristotle_core::poller::Poller;
+use aristotle_core::runner::{CliError, RawOutput};
 use aristotle_core::stamp::ExpectedStop;
 use common::*;
 use std::fs;
@@ -324,4 +325,75 @@ fn a_failed_terminal_read_keeps_the_granted_baseline_so_a_new_grant_notifies_onc
     let t = p.tick(&FakeCli::new(vec![status(), devices(), two]), now);
     assert_eq!(t.notices.len(), 1);
     assert!(matches!(t.notices[0], Notice::TerminalGranted { .. }));
+}
+
+fn terminal_json(ids: &[&str]) -> String {
+    let granted: Vec<String> = ids
+        .iter()
+        .map(|id| format!(r#"{{"id":"{id}","name":"n"}}"#))
+        .collect();
+    format!(
+        r#"{{"enabled":true,"granted":[{}],"open":[],"changed":false}}"#,
+        granted.join(",")
+    )
+}
+
+fn terminal_tick(
+    p: &mut Poller,
+    reply: Result<RawOutput, CliError>,
+    first: bool,
+) -> aristotle_core::poller::Tick {
+    let mut replies = vec![ok(&fixture("status.json"), 0)];
+    if first {
+        replies.push(ok(&fixture("version.json"), 0));
+    }
+    replies.push(ok(&fixture("devices_list.json"), 0));
+    replies.push(reply);
+    p.tick(&FakeCli::new(replies), at(1_800_000_000))
+}
+
+#[test]
+fn a_failed_read_then_a_revoke_and_a_new_grant_notifies_the_new_grant_only() {
+    let mut p = Poller::new(None, None);
+    let base = terminal_tick(&mut p, ok(&terminal_json(&["dev_a1"]), 0), true);
+    assert!(base.notices.is_empty());
+    let failed = terminal_tick(&mut p, Err(CliError::Timeout), false);
+    assert!(failed.notices.is_empty());
+    assert_eq!(failed.snapshot.terminal_granted, None);
+    let t = terminal_tick(&mut p, ok(&terminal_json(&["dev_b2"]), 0), false);
+    assert_eq!(
+        t.notices,
+        vec![Notice::TerminalGranted {
+            device_name: Some("tablet".into())
+        }]
+    );
+    assert!(
+        terminal_tick(&mut p, ok(&terminal_json(&["dev_b2"]), 0), false)
+            .notices
+            .is_empty()
+    );
+}
+
+#[test]
+fn existing_grants_after_a_tray_restart_are_the_baseline() {
+    let mut p = Poller::new(None, None);
+    let t = terminal_tick(&mut p, ok(&terminal_json(&["dev_a1", "dev_b2"]), 0), true);
+    assert!(t.notices.is_empty());
+    let t = terminal_tick(&mut p, ok(&terminal_json(&["dev_a1", "dev_b2"]), 0), false);
+    assert!(t.notices.is_empty());
+}
+
+#[test]
+fn a_grant_while_the_switch_is_off_notifies_once() {
+    let off = |ids: &[&str]| terminal_json(ids).replace("true", "false");
+    let mut p = Poller::new(None, None);
+    assert!(terminal_tick(&mut p, ok(&off(&[]), 0), true)
+        .notices
+        .is_empty());
+    let t = terminal_tick(&mut p, ok(&off(&["dev_a1"]), 0), false);
+    assert_eq!(t.notices.len(), 1);
+    assert!(matches!(t.notices[0], Notice::TerminalGranted { .. }));
+    assert!(terminal_tick(&mut p, ok(&off(&["dev_a1"]), 0), false)
+        .notices
+        .is_empty());
 }

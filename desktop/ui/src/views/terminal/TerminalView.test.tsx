@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { createClient, type Device, type SnapshotDto, type TerminalStatus } from "../../ipc";
@@ -28,7 +28,7 @@ interface Setup {
 /** The poll lists the same grants as the server's `terminal status`, unless the test sets its own. */
 async function setup({ snapshot = snapshotOf({ devices: [pixel, tab] }), terminal = status(), replies = {} }: Setup = {}) {
   const ids = terminal.granted.map((g) => g.id);
-  snapshot = { ...snapshot, terminal_granted: snapshot.terminal_granted.length > 0 ? snapshot.terminal_granted : ids };
+  if (snapshot.terminal_granted !== null && snapshot.terminal_granted.length === 0) snapshot = { ...snapshot, terminal_granted: ids };
   const fake = fakeTransport({ snapshot, start_intent: { kind: "status" }, terminal_status: terminal, ...replies });
   renderWithApp(<TerminalView />, { client: createClient(fake.transport) });
   await screen.findByRole("heading", { name: "Remote terminal", level: 1 });
@@ -339,10 +339,54 @@ describe("Terminal view: grants and banners", () => {
     expect(within(grants).queryByText("pixel", { selector: "strong" })).toBeNull();
   });
 
-  it("shows — for the grants when the poll could not read the terminal", async () => {
-    await setup({ snapshot: snapshotOf({ devices: [pixel], terminal_enabled: null, terminal_granted: [] }) });
+  it("shows — for the grants when neither the poll nor the view's own read could read them", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: [pixel], terminal_enabled: null, terminal_granted: null }),
+      replies: {
+        terminal_status: () => {
+          throw { kind: "timeout", message: null, exit_code: null };
+        },
+      },
+    });
     const grants = await screen.findByRole("region", { name: "Granted phones" });
     expect(within(grants).getByText("—")).toBeInTheDocument();
+  });
+
+  it("falls back to its own terminal status read when the poll could not read the grants", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: [pixel, tab], terminal_enabled: null, terminal_granted: null }),
+      terminal: status({ enabled: false, granted: [{ id: "dev-1", name: "pixel" }] }),
+    });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("pixel", { selector: "strong" })).toBeInTheDocument();
+    expect(within(grants).queryByText("No phone holds a grant. Grant one below.")).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "Turn on…" }));
+    expect(screen.queryByText(/No phone holds a grant yet/)).toBeNull();
+  });
+
+  it("a poll that fails to read the grants after a good one keeps the grant rows", async () => {
+    const fake = await setup({
+      snapshot: snapshotOf({ devices: [pixel, tab], terminal_granted: ["dev-1"] }),
+      terminal: status({ granted: [{ id: "dev-1", name: "pixel" }] }),
+    });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("pixel", { selector: "strong" })).toBeInTheDocument();
+    act(() => {
+      fake.emit("snapshot", snapshotOf({ devices: [pixel, tab], terminal_enabled: null, terminal_granted: null, seq: 2 }));
+    });
+    await waitFor(() => expect(sent(fake, "terminal_status").length).toBeGreaterThan(1));
+    expect(within(grants).getByText("pixel", { selector: "strong" })).toBeInTheDocument();
+    expect(within(grants).queryByText("—")).toBeNull();
+  });
+
+  it("a failed devices read is not 'no longer paired': the id is shown instead", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: null, terminal_granted: ["dev-x"] }),
+      terminal: status({ granted: [{ id: "dev-x", name: "" }] }),
+    });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).queryByText("(no longer paired)")).toBeNull();
+    expect(within(grants).getAllByText("dev-x").length).toBeGreaterThan(0);
   });
 
   it("the failure banner comes right after the header, before the state row, with no margin wrapper", async () => {

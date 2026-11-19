@@ -46,7 +46,7 @@ pub fn snap(status: Status) -> Snapshot {
         devices: None,
         terminals: None,
         terminal_enabled: None,
-        terminal_granted: vec![],
+        terminal_granted: None,
         version: VersionCheck::Skipped,
     }
 }
@@ -57,7 +57,7 @@ pub fn failed() -> Snapshot {
         devices: None,
         terminals: None,
         terminal_enabled: None,
-        terminal_granted: vec![],
+        terminal_granted: None,
         version: VersionCheck::Skipped,
     }
 }

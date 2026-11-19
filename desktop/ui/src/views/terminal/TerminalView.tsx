@@ -39,7 +39,7 @@ function TerminalBody() {
   const client = useIpc();
   const guard = useActionGuard();
   const state = useTerminalData();
-  const { data, open, devices, granted } = state;
+  const { data, open, devices, devicesKnown, granted } = state;
   const [dialog, setDialog] = useState<TerminalDialog | null>(null);
   const [checking, setChecking] = useState(false);
   const act = useCommand((job: () => Promise<TerminalStatus>) => job());
@@ -121,6 +121,7 @@ function TerminalBody() {
           <GrantsGroup
             granted={granted}
             devices={devices}
+            devicesKnown={devicesKnown}
             busy={locked}
             onRemove={(id) => void perform(() => client.terminalUngrant(id))}
             onGrant={(id, name) => setDialog({ kind: "grant", id, name })}
@@ -132,7 +133,7 @@ function TerminalBody() {
       {dialog ? (
         <TerminalDialogs
           dialog={dialog}
-          noGrants={(granted?.length ?? 0) === 0}
+          noGrants={granted !== null && granted.length === 0}
           onConfirm={confirm}
           onCancel={() => setDialog(null)}
         />

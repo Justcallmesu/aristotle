@@ -161,7 +161,7 @@ function PhonesGroup({ snapshot }: { snapshot: SnapshotDto | null }) {
   const devices = snapshot?.devices ?? null;
   const enabled = snapshot?.terminal_enabled ?? null;
   const open = snapshot?.terminals?.length ?? null;
-  const granted = snapshot?.terminal_granted.length ?? null;
+  const granted = snapshot?.terminal_granted?.length ?? null;
   const latest = devices ? latestSeen(devices) : null;
   return (
     <KvGroup title={t("g_phones")}>

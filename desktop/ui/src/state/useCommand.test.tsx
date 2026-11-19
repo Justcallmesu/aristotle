@@ -47,7 +47,7 @@ describe("useCommand", () => {
     await act(async () => {
       await result.current.run();
     });
-    expect(result.current.error).toEqual({ kind: "not-ok", message: "service is failed", exit_code: null });
+    expect(result.current.error).toEqual({ kind: "not-ok", message: "failed", exit_code: null });
   });
 
   it.each([[{ ok: true }], [5], [null], ["s"], [undefined]])("treats resolved %j as succeeded", async (value) => {

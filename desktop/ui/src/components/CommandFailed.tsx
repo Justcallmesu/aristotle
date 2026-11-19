@@ -9,11 +9,13 @@ import { CodeBlock } from "./CodeBlock";
  * code block (shown, never logged); with no text the error kind stands in.
  */
 export function CommandFailed({ error }: { error: IpcError }) {
-  const { t } = useI18n();
+  const { t, word } = useI18n();
+  // A resolved `{ ok: false, service }` carries the raw §22 word: shown through the catalog, raw when missing.
+  const text = error.kind === "not-ok" && error.message ? word("svc_", error.message) : (error.message ?? error.kind);
   return (
     <Banner role="alert" light="err" title={t("act_failed_t")}>
       <p>{t("act_failed_b")}</p>
-      <CodeBlock>{`error: ${error.message ?? error.kind}`}</CodeBlock>
+      <CodeBlock>{`error: ${text}`}</CodeBlock>
     </Banner>
   );
 }

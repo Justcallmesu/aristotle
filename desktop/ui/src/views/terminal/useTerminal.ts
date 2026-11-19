@@ -5,6 +5,7 @@ import { useSnapshot } from "../../state/snapshot";
 /** The fields a view may rely on; the server's own shape is read defensively (§22). */
 export interface TerminalData {
   enabled: boolean;
+  granted: GrantedDevice[];
   open: OpenTerminal[];
   warning: string | null;
   problem: string | null;
@@ -13,6 +14,7 @@ export interface TerminalData {
 function normalise(status: TerminalStatus): TerminalData {
   return {
     enabled: status.enabled === true,
+    granted: status.granted ?? [],
     open: status.open ?? [],
     warning: status.warning || null,
     problem: status.problem || null,
@@ -24,9 +26,11 @@ export interface TerminalState {
   data: TerminalData | null;
   /** `data.open` is replaced by the live snapshot list when the poll has one. */
   open: OpenTerminal[];
-  /** Who holds a grant, from the poll (ids) and the device list (names); null when the poll could not read it. */
+  /** Who holds a grant: the poll's ids, else the view's own last read; null when neither is known. */
   granted: GrantedDevice[] | null;
   devices: Device[];
+  /** False when the poll could not read `devices list`: a missing name is then unknown, not unpaired. */
+  devicesKnown: boolean;
   loading: boolean;
   /** Takes the result of a change command (enable, disable, grant, ungrant). */
   apply: (status: TerminalStatus) => void;
@@ -87,8 +91,9 @@ export function useTerminalData(): TerminalState {
   return {
     data,
     open: snapshot?.terminals ?? data?.open ?? [],
-    granted: grantedFrom(snapshot?.terminal_granted, snapshot?.terminal_enabled ?? null, devices),
+    granted: grantedFrom(snapshot?.terminal_granted ?? null, data?.granted ?? null, devices),
     devices,
+    devicesKnown: snapshot?.devices != null,
     loading: world.row === 0 || (world.running && !settled),
     apply,
     reread,
@@ -96,8 +101,14 @@ export function useTerminalData(): TerminalState {
   };
 }
 
-/** Ids from the poll with the names the device list knows; `name` is empty for a device that is gone. */
-function grantedFrom(ids: string[] | undefined, enabled: boolean | null, devices: Device[]): GrantedDevice[] | null {
-  if (!ids || enabled === null) return null;
-  return ids.map((id) => ({ id, name: devices.find((d) => d.id === id)?.name ?? "" }));
+/**
+ * The poll's ids are the freshest; when it could not read them (null) the view's own `terminal status`
+ * read stands in. Names: the server's own, else the device list, else empty.
+ */
+function grantedFrom(ids: string[] | null, own: GrantedDevice[] | null, devices: Device[]): GrantedDevice[] | null {
+  if (ids === null) return own;
+  return ids.map((id) => ({
+    id,
+    name: own?.find((g) => g.id === id)?.name || devices.find((d) => d.id === id)?.name || "",
+  }));
 }

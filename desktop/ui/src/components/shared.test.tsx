@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n";
 import { createClient, type SnapshotDto, type Status } from "../ipc";
@@ -74,9 +74,9 @@ describe("NeedsServer", () => {
 });
 
 describe("CommandFailed", () => {
-  function show(error: { kind: string; message: string | null; exit_code: number | null }) {
+  function show(error: { kind: string; message: string | null; exit_code: number | null }, locale: "en" | "id" = "en") {
     render(
-      <I18nProvider locale="en">
+      <I18nProvider locale={locale}>
         <CommandFailed error={error} />
       </I18nProvider>,
     );
@@ -95,6 +95,18 @@ describe("CommandFailed", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveClass("banner");
     expect(document.querySelector(".banner-slot")).toBeNull();
+  });
+
+  it("a not-ok reply shows the service word through the catalog, in both languages", () => {
+    const error = { kind: "not-ok", message: "failed", exit_code: null };
+    show(error);
+    expect(screen.getByRole("alert").querySelector("pre.code")).toHaveTextContent("error: failed");
+    cleanup();
+    show(error, "id");
+    expect(screen.getByRole("alert").querySelector("pre.code")).toHaveTextContent("error: gagal");
+    cleanup();
+    show({ kind: "not-ok", message: "activating", exit_code: null }, "id");
+    expect(screen.getByRole("alert").querySelector("pre.code")).toHaveTextContent("error: activating");
   });
 
   it("falls back to the error kind when the server said nothing", () => {
