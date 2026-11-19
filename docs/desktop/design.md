@@ -305,7 +305,7 @@ Layout: `h1` `t_title` + sub `t_sub`; state row with the switch (label `t_on`/`t
 - Right column (only when `enabled`), group `t_open`: one row per `open[]`: title = device name from `device_id` (else the raw id), sub `kind_<listener> · HH:MM · dur_min · c_pid <pid>` (`since`), end = terminal `id` mono 12; none → `t_open_empty`.
 - `warning` present (after a change): `role="status"` banner, warn light, title `t_warn_t`, code block `warning: <text>`; content stays usable.
 - `problem` present: only `role="alert"` banner (err light, `t_prob_t`, `t_prob_b`, code block `problem: <text>`, tonal **Check again** `t_check` re-reads `terminal status`) and the state row with the switch **disabled**; no lists. The app never edits `terminal.json`.
-- The D7 notification (`n_d7_t`/`n_d7_b`) is sent by the **tray** when its poll sees `enabled` false→true or a new id in `granted` (P20); the window sends none.
+- The tray sends the notifications, the window none (P20, P22): `enabled` false→true → `n_d7_t`/`n_d7_b`; each new id in `granted` (switch on or off) → `n_grant_t`/`n_grant_b` with the device name.
 - Server stopped: needs-server state. Mismatch: switch, Turn on…, Grant…, Remove grant off. Drivers: `enabled`, `granted[]`, `open[]`, `changed`, `warning`, `problem`, `devices list` names.
 
 ## 5. Strings (EN + ID)
@@ -487,6 +487,8 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 | `n_stop_b` | It was not stopped from this app. Open the app to start it again. | Bukan dihentikan dari aplikasi ini. Buka aplikasi untuk menyalakannya lagi. | Rust |
 | `n_d7_t` | Remote terminal turned on | Terminal jarak jauh diaktifkan | Rust |
 | `n_d7_b` | Granted phones can open a shell with full access to your account. | Ponsel yang diberi izin bisa membuka shell dengan akses penuh ke akunmu. | Rust |
+| `n_grant_t` | Terminal access granted | Akses terminal diberikan | Rust |
+| `n_grant_b` | {name} can open a shell with full access to your account while the remote terminal is on. | {name} bisa membuka shell dengan akses penuh ke akunmu selama terminal jarak jauh aktif. | Rust |
 | `n_open` | Open | Buka | Rust |
 | `now_t` | now | baru saja | Rust |
 | `st_loading ★` | Checking the server… | Memeriksa server… | UI |
@@ -520,7 +522,7 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 
 - Icon: the monochrome glyph (`docs/design/icon/aristotle-b2-monochrome.svg`, the fold is a real hole) tinted by state + a badge top right in the state shape (circle / triangle / square). Colours (not app tokens, they sit on KDE's panel): green `#1F7A5F` / `#5FD1AE`, amber `#B26A00` / `#F2B33D`, red `#C8261C` / `#FF6B5E` (light panel `#EFF0F1` / dark `#31363B`). Contrast vs panel (non-text, needs 3): green 4.59 / 6.52, amber 3.71 / 6.56, red 4.91 / 4.37. At 16 px colour does the work and the shape cue is weak; DSI draws the heavier 16 px variant and the user approves it on the real panel (D19-5).
 - Menu: **Open** (bold, default) · **Pair a phone…** (disabled when the server is down) · separator · **Start server** (stopped) or **Stop server…** (running) · separator · **Quit** (UI only). Tooltip `tip_ok` / `tip_warn` / `tip_err` under the title "Aristotle Server". Left click = Open. Actions that need a dialog or a view launch the window app with an argument (P14); Start runs directly.
-- Notifications: app icon, "Aristotle Server", title, one-line body, **Open** button (`n_open`; none on the D7 one). Texts `n_paired_*`, `n_term_*`, `n_herm_*`, `n_stop_*` (D5), `n_d7_*` (D7). Bodies use only device names from `devices list` and the listener word; never a code, QR payload, fingerprint or token (P11).
+- Notifications: app icon, "Aristotle Server", title, one-line body, **Open** button (`n_open`; none on the D7 one). Texts `n_paired_*`, `n_term_*`, `n_herm_*`, `n_stop_*` (D5), `n_d7_*` (D7), `n_grant_*` (P22). Bodies use only device names from `devices list` and the listener word; never a code, QR payload, fingerprint or token (P11).
 
 ## 7. Accessibility
 
