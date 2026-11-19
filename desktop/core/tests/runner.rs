@@ -273,10 +273,19 @@ fn poll_with_hung(hung: &str) -> (aristotle_core::snapshot::Snapshot, Duration) 
     (snapshot, started.elapsed())
 }
 
+/// The read limit is 3 s: not shorter (the read really waited) and well under the runner's 10 s.
+fn assert_gave_up_after_3_s(took: Duration) {
+    assert!(
+        took >= Duration::from_millis(2900),
+        "gave up early: {took:?}"
+    );
+    assert!(took < Duration::from_secs(6), "took {took:?}");
+}
+
 #[test]
 fn a_hung_devices_read_times_out_after_3_s_and_is_a_failed_read() {
     let (snapshot, took) = poll_with_hung("devices");
-    assert!(took < Duration::from_secs(6), "took {took:?}");
+    assert_gave_up_after_3_s(took);
     assert!(snapshot.answered().is_some());
     assert_eq!(snapshot.devices, None);
     assert!(snapshot.terminals.is_some(), "the other reads still ran");
@@ -285,7 +294,7 @@ fn a_hung_devices_read_times_out_after_3_s_and_is_a_failed_read() {
 #[test]
 fn a_hung_terminal_status_read_times_out_after_3_s_and_is_a_failed_read() {
     let (snapshot, took) = poll_with_hung("terminal");
-    assert!(took < Duration::from_secs(6), "took {took:?}");
+    assert_gave_up_after_3_s(took);
     assert_eq!(snapshot.terminals, None);
     assert_eq!(snapshot.terminal_enabled, None);
     assert_eq!(snapshot.terminal_granted, None);
@@ -295,7 +304,7 @@ fn a_hung_terminal_status_read_times_out_after_3_s_and_is_a_failed_read() {
 #[test]
 fn a_hung_version_read_times_out_after_3_s_and_leaves_the_check_unchecked() {
     let (snapshot, took) = poll_with_hung("version");
-    assert!(took < Duration::from_secs(6), "took {took:?}");
+    assert_gave_up_after_3_s(took);
     assert_eq!(
         snapshot.version,
         aristotle_core::snapshot::VersionCheck::Unchecked
@@ -311,4 +320,53 @@ fn a_hung_status_keeps_the_runner_limit() {
     let err = query::<Status>(&cli(&bin, 5), &["status"]).unwrap_err();
     assert_eq!(err, CliError::Timeout);
     assert!(started.elapsed() >= Duration::from_secs(5));
+}
+
+/// A fake server whose `status` takes 4 s (a slow but healthy machine) and answers everything.
+fn slow_status_script(s: &Scratch) -> PathBuf {
+    s.script(&format!(
+        "case \"$1\" in\n\
+         status) sleep 4; cat <<'EOF'\n{}EOF\n;;\n\
+         version) cat <<'EOF'\n{}EOF\n;;\n\
+         devices) cat <<'EOF'\n{}EOF\n;;\n\
+         terminal) cat <<'EOF'\n{}EOF\n;;\n\
+         esac",
+        common::fixture("status.json"),
+        common::fixture("version.json"),
+        common::fixture("devices_list.json"),
+        common::fixture("terminal_status.json"),
+    ))
+}
+
+#[test]
+fn the_poll_keeps_the_runner_limit_for_status_so_a_4_s_status_still_answers() {
+    let s = Scratch::new("slow-status");
+    let bin = slow_status_script(&s);
+    let mut snapshotter = aristotle_core::snapshot::Snapshotter::new(Some("1.2.3"));
+    let snapshot = snapshotter.poll(&cli(&bin, 10));
+    assert!(
+        snapshot.answered().is_some(),
+        "status was cut at the 3 s read limit"
+    );
+    assert!(snapshot.devices.is_some());
+}
+
+#[test]
+fn a_read_never_outlasts_the_runners_own_shorter_timeout() {
+    let s = Scratch::new("short-runner");
+    let bin = hanging_read_script(&s, "devices");
+    let started = Instant::now();
+    let err = cli(&bin, 1)
+        .run_within(&["devices", "list", "--json"], Duration::from_secs(3))
+        .unwrap_err();
+    let took = started.elapsed();
+    assert_eq!(err, CliError::Timeout);
+    assert!(
+        took >= Duration::from_millis(900),
+        "gave up early: {took:?}"
+    );
+    assert!(
+        took < Duration::from_secs(3),
+        "waited the read limit: {took:?}"
+    );
 }

@@ -58,8 +58,9 @@ impl ExpectedStop {
         fs::rename(&tmp, &self.path)
     }
 
-    /// Deletes the stamp only while it still holds `seen`. A stamp the window app wrote after the
-    /// poller read `seen` is a new one and stays.
+    /// Deletes the stamp when a fresh read still gives `seen`. A stamp written before that re-read stays.
+    /// Not atomic: the re-read and the `remove_file` are two steps, so a stamp renamed into place between
+    /// them is still deleted (microseconds wide; the cost is one false "stopped unexpectedly" notice).
     pub fn delete_if(&self, seen: SystemTime) -> io::Result<()> {
         if self.read() == Some(seen) {
             return self.delete();

@@ -164,3 +164,111 @@ impl Tray for AristotleTray {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aristotle_core::runner::{CliError, RawOutput};
+    use aristotle_core::snapshot::{StatusPoll, VersionCheck};
+    use aristotle_core::types::{ServerState, Status};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{mpsc, Mutex};
+    use std::time::{Duration, Instant};
+
+    /// A CLI whose `run` blocks until the test sends the reply, and counts its calls.
+    struct BlockedCli {
+        calls: AtomicUsize,
+        release: Mutex<mpsc::Receiver<Result<RawOutput, CliError>>>,
+    }
+
+    impl ServerCli for BlockedCli {
+        fn run(&self, _args: &[&str]) -> Result<RawOutput, CliError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.release.lock().unwrap().recv().unwrap()
+        }
+    }
+
+    fn stopped() -> Snapshot {
+        Snapshot {
+            status: StatusPoll::Answered(Box::new(Status {
+                service: "inactive".into(),
+                enabled: "enabled".into(),
+                installed: true,
+                server: ServerState::NotRunning,
+                result: None,
+            })),
+            devices: None,
+            terminals: None,
+            terminal_enabled: None,
+            terminal_granted: None,
+            version: VersionCheck::Skipped,
+        }
+    }
+
+    fn tray_with_blocked_cli() -> (
+        AristotleTray,
+        Arc<BlockedCli>,
+        mpsc::Sender<Result<RawOutput, CliError>>,
+    ) {
+        let (tx, rx) = mpsc::channel();
+        let cli = Arc::new(BlockedCli {
+            calls: AtomicUsize::new(0),
+            release: Mutex::new(rx),
+        });
+        let tray = AristotleTray::new(
+            &stopped(),
+            Lang::from_env(),
+            Launcher::from_env(),
+            cli.clone(),
+        );
+        (tray, cli, tx)
+    }
+
+    fn start_enabled(tray: &AristotleTray) -> bool {
+        match tray.item(Entry::Start) {
+            MenuItem::Standard(item) => item.enabled,
+            _ => panic!("Start is a standard item"),
+        }
+    }
+
+    fn wait_until(what: &str, mut ok: impl FnMut() -> bool) {
+        let end = Instant::now() + Duration::from_secs(5);
+        while !ok() {
+            assert!(Instant::now() < end, "timed out waiting for {what}");
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn reply_ok() -> Result<RawOutput, CliError> {
+        Ok(RawOutput {
+            exit_code: 0,
+            stdout: r#"{"ok":true,"service":"active"}"#.into(),
+        })
+    }
+
+    fn start_and_release(reply: Result<RawOutput, CliError>) {
+        let (tray, cli, release) = tray_with_blocked_cli();
+        assert!(start_enabled(&tray), "Start is enabled before a start");
+        tray.start_server();
+        wait_until("the start call", || cli.calls.load(Ordering::SeqCst) == 1);
+        assert!(
+            !start_enabled(&tray),
+            "Start is disabled while a start runs"
+        );
+        tray.start_server();
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(cli.calls.load(Ordering::SeqCst), 1, "no second start call");
+        release.send(reply).unwrap();
+        wait_until("Start to be enabled again", || start_enabled(&tray));
+    }
+
+    #[test]
+    fn start_is_disabled_while_a_start_runs_and_enabled_again_after_success() {
+        start_and_release(reply_ok());
+    }
+
+    #[test]
+    fn start_is_enabled_again_after_a_failed_start() {
+        start_and_release(Err(CliError::Timeout));
+    }
+}

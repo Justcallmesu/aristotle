@@ -15,8 +15,8 @@ FAILED=0
 export CARGO_TARGET_DIR="$ROOT/desktop/target"
 # Floors for the Rust and Vitest test counts (0 tests = FAIL). Set to the real total; each ticket that adds
 # tests raises them, so a deleted test cannot pass silently.
-MIN_TESTS=184
-MIN_UI_TESTS=300
+MIN_TESTS=187
+MIN_UI_TESTS=301
 # A step that runs past this many seconds is killed and recorded as FAIL (exit 124), never left hanging.
 STEP_TIMEOUT=900
 

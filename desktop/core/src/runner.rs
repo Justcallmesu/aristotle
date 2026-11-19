@@ -231,7 +231,7 @@ impl RealCli {
                 }
                 Ok(None) => thread::sleep(POLL_STEP),
                 Err(e) => {
-                    // Not reaped yet: kill the group and wait, so the child is not left a zombie.
+                    // Best effort: if the child is still ours, kill its group and reap it.
                     kill_group(&child);
                     let _ = child.wait();
                     return Err(CliError::Io(format!("{:?}", e.kind())));

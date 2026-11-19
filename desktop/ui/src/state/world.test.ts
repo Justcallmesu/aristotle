@@ -26,6 +26,7 @@ describe("deriveWorld follows design.md 4.1", () => {
     ["stopped", withStatus({ server: "not-running", service: "inactive", result: null }), 4, "err"],
     ["changing: activating", withStatus({ server: "not-running", service: "activating", result: null }), "4b", "err"],
     ["changing: deactivating", withStatus({ server: "not-running", service: "deactivating", result: null }), "4b", "err"],
+    ["stopped: unknown (systemctl printed nothing)", withStatus({ server: "not-running", service: "unknown", result: null }), 4, "err"],
     ["stopped: failed", withStatus({ server: "not-running", service: "failed", result: null }), 4, "err"],
     ["stopped: service word absent", withStatus({ server: "not-running", service: "", result: null }), 4, "err"],
     ["a word a newer server adds (core sends \"other\")", withStatus({ server: "other", result: null }), 4, "err"],

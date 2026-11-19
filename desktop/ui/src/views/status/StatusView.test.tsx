@@ -245,8 +245,9 @@ describe("Status: Start server", () => {
     "service %s (server not running): Start only for inactive and failed (P21)",
     async (service) => {
       renderView(<StatusView />, { snapshot: stoppedSnapshot({ service }) });
-      const settled = service === "inactive" || service === "failed";
-      await screen.findByRole("heading", { name: settled ? "Server stopped" : "Server is changing state" });
+      // `unknown` (systemctl printed nothing) is row 4, not a transition (P23).
+      const stopped = ["inactive", "failed", "unknown"].includes(service);
+      await screen.findByRole("heading", { name: stopped ? "Server stopped" : "Server is changing state" });
       const start = screen.queryByRole("button", { name: "Start server" });
       if (service === "inactive" || service === "failed") expect(start).toBeEnabled();
       else expect(start).toBeNull();

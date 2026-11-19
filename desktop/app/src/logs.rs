@@ -10,7 +10,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -39,6 +39,7 @@ extern "C" {
     fn killpg(pgrp: i32, sig: i32) -> i32;
     #[cfg(test)]
     fn kill(pid: i32, sig: i32) -> i32;
+    fn getppid() -> i32;
     fn prctl(option: i32, arg2: u64, arg3: u64, arg4: u64, arg5: u64) -> i32;
 }
 
@@ -96,23 +97,34 @@ type SpawnJob = (PathBuf, mpsc::Sender<std::io::Result<Child>>);
 /// thread would kill the stream early; spawning from this one means it dies with the app, also on a crash
 /// (a journalctl it started ends on its next write, when the pipe is closed).
 fn spawn_child(bin: &Path) -> std::io::Result<Child> {
-    static SPAWNER: OnceLock<Mutex<mpsc::Sender<SpawnJob>>> = OnceLock::new();
-    let jobs = SPAWNER.get_or_init(|| {
-        let (tx, rx) = mpsc::channel::<SpawnJob>();
-        thread::spawn(move || {
-            for (bin, reply) in rx {
-                let _ = reply.send(spawn_logs(&bin));
-            }
-        });
-        Mutex::new(tx)
-    });
+    static SPAWNER: Mutex<Option<mpsc::Sender<SpawnJob>>> = Mutex::new(None);
     let (reply, child) = mpsc::channel();
-    lock(jobs)
-        .send((bin.to_path_buf(), reply))
-        .map_err(|_| std::io::Error::other("log spawner is gone"))?;
+    {
+        let mut jobs = lock(&SPAWNER);
+        if jobs.is_none() {
+            // A refused thread is an `io` error for this call (and the next call tries again).
+            *jobs = Some(start_spawner()?);
+        }
+        jobs.as_ref()
+            .ok_or_else(|| std::io::Error::other("log spawner is gone"))?
+            .send((bin.to_path_buf(), reply))
+            .map_err(|_| std::io::Error::other("log spawner is gone"))?;
+    }
     child
         .recv()
         .unwrap_or_else(|_| Err(std::io::Error::other("log spawner is gone")))
+}
+
+fn start_spawner() -> std::io::Result<mpsc::Sender<SpawnJob>> {
+    let (tx, rx) = mpsc::channel::<SpawnJob>();
+    thread::Builder::new()
+        .name("log-spawner".into())
+        .spawn(move || {
+            for (bin, reply) in rx {
+                let _ = reply.send(spawn_logs(&bin));
+            }
+        })?;
+    Ok(tx)
 }
 
 fn spawn_logs(bin: &Path) -> std::io::Result<Child> {
@@ -123,14 +135,18 @@ fn spawn_logs(bin: &Path) -> std::io::Result<Child> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .process_group(0);
-    // SAFETY: the hook runs between fork and exec and only calls `prctl` with plain integers.
+    let parent = std::process::id() as i32;
+    // SAFETY: the hook runs between fork and exec and only calls `prctl` and `getppid` with plain integers.
     unsafe {
-        command.pre_exec(|| {
-            if prctl(PR_SET_PDEATHSIG, SIGKILL as u64, 0, 0, 0) == 0 {
-                Ok(())
-            } else {
-                Err(std::io::Error::last_os_error())
+        command.pre_exec(move || {
+            if prctl(PR_SET_PDEATHSIG, SIGKILL as u64, 0, 0, 0) != 0 {
+                return Err(std::io::Error::last_os_error());
             }
+            // The app may have died between fork and the prctl above: no signal would come then.
+            if getppid() != parent {
+                return Err(std::io::Error::other("parent exited before spawn"));
+            }
+            Ok(())
         });
     }
     command.spawn()
@@ -274,12 +290,12 @@ mod tests {
     const ENDLESS: &str =
         "echo $$ > \"$(dirname \"$0\")/pid\"\nsleep 60 &\necho $! > \"$(dirname \"$0\")/child-pid\"\nwhile true; do echo \"line $$\"; sleep 0.05; done";
 
-    /// Runs only inside the process the next test starts (see `a_killed_app_does_not_leave_the_log_child`).
+    /// Runs only inside the process the next test starts, with `--ignored --exact`, so it is not counted
+    /// as a test (see `a_killed_app_does_not_leave_the_log_child`).
     #[test]
+    #[ignore = "helper process for a_killed_app_does_not_leave_the_log_child"]
     fn orphan_helper() {
-        let Ok(dir) = std::env::var("ARISTOTLE_ORPHAN_HELPER") else {
-            return;
-        };
+        let dir = std::env::var("ARISTOTLE_ORPHAN_HELPER").expect("started by the parent test");
         let bin = PathBuf::from(dir).join("fake-server");
         let stream = LogStream::new();
         stream.start(Some(&bin), |_| {}).unwrap();
@@ -296,6 +312,7 @@ mod tests {
         let mut app = Command::new(std::env::current_exe().unwrap())
             .args([
                 "logs::tests::orphan_helper",
+                "--ignored",
                 "--exact",
                 "--nocapture",
                 "--test-threads=1",

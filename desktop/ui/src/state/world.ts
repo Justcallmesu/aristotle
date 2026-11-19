@@ -40,9 +40,9 @@ const rows: Record<Row, { title: MessageKey; sub: MessageKey | null; light: Ligh
   9: { title: "st_running", sub: "sub_hermunk", light: "warn" },
 };
 
-/** P23: a systemd word that is neither a settled stop (`inactive`, `failed`) nor absent. */
+/** P23: a systemd word that is neither a settled stop (`inactive`, `failed`), nor absent, nor `unknown` (systemctl printed nothing). */
 function isChanging(service: string): boolean {
-  return service !== "" && service !== "inactive" && service !== "failed";
+  return service !== "" && service !== "inactive" && service !== "failed" && service !== "unknown";
 }
 
 function rowOf(snapshot: SnapshotDto | null): Row {
