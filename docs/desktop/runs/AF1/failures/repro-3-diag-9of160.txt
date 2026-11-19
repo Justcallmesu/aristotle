@@ -1,0 +1,37 @@
+runs=160 fails=9
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)
+FAIL java.lang.AssertionError: DIAG vmOnlineBeforeRefresh=false retries=2 reads=1 refreshing=false
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:216)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at kotlin.concurrent.ThreadsKt$thread$thread$1.run(Thread.kt:30)

@@ -208,6 +208,8 @@ class RunningViewModelTest {
         assertFalse(vm.uiState.value.refreshing)
         online(link)
         eventually(what = "first read") { link.reads == 1 }
+        // The ViewModel mirrors the link state on its own collector; refresh() reads that mirror, so wait for it.
+        eventually(what = "the page showing online") { vm.uiState.value.online }
         vm.refresh()
         eventually(what = "refresh read") { link.reads == 2 && !vm.uiState.value.refreshing }
     }
@@ -223,6 +225,7 @@ class RunningViewModelTest {
         assertEquals("profiles.list failed: 5000", vm.uiState.value.problem)
         assertNull(vm.uiState.value.snapshot)
         link.answer = ::hermes
+        eventually(what = "the page showing online") { vm.uiState.value.online } // retry() reads the ViewModel's mirror of the link state
         vm.retry()
         eventually(what = "recovered") { vm.uiState.value.problem == null && vm.uiState.value.snapshot != null }
     }

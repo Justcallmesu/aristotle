@@ -1,0 +1,41 @@
+runs=160 fails=8
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)
+FAIL java.lang.AssertionError: timed out waiting for refresh read
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.pull to refresh reads at once, offline it retries the link instead(RunningViewModelTest.kt:212)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:25)

@@ -1,0 +1,31 @@
+runs=160 fails=6
+FAIL java.lang.AssertionError: timed out waiting for recovered
+FAIL java.lang.AssertionError: timed out waiting for recovered
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.a profiles_list failure is the page's problem, the next good read clears it(RunningViewModelTest.kt:229)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:26)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.a profiles_list failure is the page's problem, the next good read clears it(RunningViewModelTest.kt:229)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:26)
+FAIL java.lang.AssertionError: timed out waiting for recovered
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.a profiles_list failure is the page's problem, the next good read clears it(RunningViewModelTest.kt:229)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:26)
+FAIL java.lang.AssertionError: timed out waiting for recovered
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.a profiles_list failure is the page's problem, the next good read clears it(RunningViewModelTest.kt:229)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:26)
+FAIL java.lang.AssertionError: timed out waiting for recovered
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.a profiles_list failure is the page's problem, the next good read clears it(RunningViewModelTest.kt:229)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:26)
+FAIL java.lang.AssertionError: timed out waiting for recovered
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually(RunningViewModelTest.kt:78)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.eventually$default(RunningViewModelTest.kt:75)
+   at io.github.justcallmesu.aristotle.ui.running.RunningViewModelTest.a profiles_list failure is the page's problem, the next good read clears it(RunningViewModelTest.kt:229)
+   at io.github.justcallmesu.aristotle.ui.running.Af1RepeatProbe.repeat$lambda$0$0(Af1RepeatProbe.kt:26)
