@@ -17,3 +17,5 @@ PASS desktop-tray-ldd (0)
 PASS desktop-app-build (0)
 PASS desktop-app-binary (0)
 KILLED: tests failed (exit 1); restored sha256 match
+staged: 42 files
+2f31ac1 desktop DFS3: status keeps 10 s in the poll (test), unknown = row 4, log child getppid check + spawner thread io error, honest stamp/runner comments, tray Start guard tests, runner limit tests, orphan_helper not counted; floors 187/301. PM gate GREEN, mutant killed
