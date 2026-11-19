@@ -379,14 +379,38 @@ describe("Terminal view: grants and banners", () => {
     expect(within(grants).queryByText("—")).toBeNull();
   });
 
-  it("a failed devices read is not 'no longer paired': the id is shown instead", async () => {
+  it("the server's own empty name is 'no longer paired', even when the devices read failed", async () => {
     await setup({
       snapshot: snapshotOf({ devices: null, terminal_granted: ["dev-x"] }),
       terminal: status({ granted: [{ id: "dev-x", name: "" }] }),
     });
     const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("(no longer paired)")).toBeInTheDocument();
+    expect(within(grants).getAllByText("dev-x")).toHaveLength(1);
+  });
+
+  it("the server's own name wins, also when the devices read failed", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: null, terminal_granted: ["dev-x"] }),
+      terminal: status({ granted: [{ id: "dev-x", name: "pixel" }] }),
+    });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).getByText("pixel", { selector: "strong" })).toBeInTheDocument();
     expect(within(grants).queryByText("(no longer paired)")).toBeNull();
-    expect(within(grants).getAllByText("dev-x").length).toBeGreaterThan(0);
+  });
+
+  it("a failed devices read and no own read: the id is shown once, not 'no longer paired'", async () => {
+    await setup({
+      snapshot: snapshotOf({ devices: null, terminal_granted: ["dev-x"] }),
+      replies: {
+        terminal_status: () => {
+          throw { kind: "timeout", message: null, exit_code: null };
+        },
+      },
+    });
+    const grants = await screen.findByRole("region", { name: "Granted phones" });
+    expect(within(grants).queryByText("(no longer paired)")).toBeNull();
+    expect(within(grants).getAllByText("dev-x")).toHaveLength(1);
   });
 
   it("the failure banner comes right after the header, before the state row, with no margin wrapper", async () => {

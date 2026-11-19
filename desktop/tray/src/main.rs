@@ -4,12 +4,14 @@ mod icons;
 mod launcher;
 mod menu;
 mod notifier;
+mod starting;
 mod tray;
 
 use aristotle_core::poller::Poller;
 use aristotle_core::runner::{MissingCli, RealCli, ServerCli};
-use aristotle_core::snapshot::{desktop_version, Assessment, Snapshot};
+use aristotle_core::snapshot::{desktop_version, Snapshot};
 use aristotle_core::stamp::ExpectedStop;
+use aristotle_core::state::Assessment;
 use aristotle_core::strings::Lang;
 use aristotle_core::POLL_INTERVAL;
 use ksni::blocking::{Handle, TrayMethods};

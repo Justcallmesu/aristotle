@@ -21,6 +21,14 @@ async function open(snapshot: unknown, replies: Record<string, unknown> = {}) {
   return view;
 }
 
+describe("Service: row 4b state row (P23)", () => {
+  it("shows the changing headline with the raw word", async () => {
+    await open(stoppedSnapshot({ service: "activating" }));
+    expect(screen.getByRole("heading", { name: "Server is changing state" })).toBeInTheDocument();
+    expect(screen.getByText("systemd reports the service as activating.")).toBeInTheDocument();
+  });
+});
+
 describe("Service: which buttons are on (design.md 4.4)", () => {
   it("running: Stop and Restart on, Start off with the reason", async () => {
     await open(snapshotOf());

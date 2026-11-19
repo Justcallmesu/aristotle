@@ -32,31 +32,16 @@ impl Poller {
         let expected = self.stamp.as_ref().and_then(ExpectedStop::read);
         let notices = diff(self.last_good.as_ref(), &snapshot, expected, now);
         // Single-use: the stop it announced has happened. Outside the window it is a leftover (P17).
-        let stale = expected.is_some_and(|at| !stamp_in_window(at, now));
-        if stale || self.saw_stop(&snapshot) {
-            if let Some(stamp) = &self.stamp {
-                let _ = stamp.delete();
+        // Only the value that was read is deleted: a stamp written since then is a new one.
+        if let (Some(stamp), Some(at)) = (&self.stamp, expected) {
+            if !stamp_in_window(at, now) || self.saw_stop(&snapshot) {
+                let _ = stamp.delete_if(at);
             }
         }
         if snapshot.answered().is_some() {
-            self.last_good = Some(self.baseline_for(&snapshot));
+            self.last_good = Some(snapshot.keeping_last_good(self.last_good.as_ref()));
         }
         Tick { snapshot, notices }
-    }
-
-    /// The snapshot to diff against next time. A failed `devices list` / `terminal status` read keeps the
-    /// previous list, so a change during the failed poll still notifies once.
-    fn baseline_for(&self, snapshot: &Snapshot) -> Snapshot {
-        let mut base = snapshot.clone();
-        if let (true, Some(prev)) = (snapshot.server_running(), &self.last_good) {
-            base.devices = base.devices.or_else(|| prev.devices.clone());
-            base.terminals = base.terminals.or_else(|| prev.terminals.clone());
-            base.terminal_enabled = base.terminal_enabled.or(prev.terminal_enabled);
-            base.terminal_granted = base
-                .terminal_granted
-                .or_else(|| prev.terminal_granted.clone());
-        }
-        base
     }
 
     fn saw_stop(&self, next: &Snapshot) -> bool {

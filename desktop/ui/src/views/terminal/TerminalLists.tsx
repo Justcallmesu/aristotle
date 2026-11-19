@@ -3,21 +3,20 @@ import { ActionButton } from "../../components/Button";
 import { useI18n } from "../../i18n";
 import { DASH } from "../../format/dash";
 import { clockText, minutesSince } from "../../format/time";
-import type { Device, GrantedDevice, OpenTerminal } from "../../ipc";
+import type { Device, OpenTerminal } from "../../ipc";
+import type { GrantRow } from "./useTerminal";
 
 interface GrantsProps {
-  /** Null when the poll could not read the list. */
-  granted: GrantedDevice[] | null;
+  /** Null when neither the poll nor the view's own read knows the grants. */
+  granted: GrantRow[] | null;
   devices: Device[];
-  /** False when the device list could not be read: an unnamed grant shows its id, not "(no longer paired)". */
-  devicesKnown: boolean;
   busy: boolean;
   onRemove: (id: string) => void;
   onGrant: (id: string, name: string) => void;
 }
 
 /** Left column: who holds a grant, and the add row. Shown whether the switch is on or off. */
-export function GrantsGroup({ granted: list, devices, devicesKnown, busy, onRemove, onGrant }: GrantsProps) {
+export function GrantsGroup({ granted: list, devices, busy, onRemove, onGrant }: GrantsProps) {
   const { t } = useI18n();
   const [chosen, setChosen] = useState("");
   const granted = list ?? [];
@@ -36,12 +35,13 @@ export function GrantsGroup({ granted: list, devices, devicesKnown, busy, onRemo
         <div className="kv-row">{t("t_grants_empty")}</div>
       ) : (
         granted.map((g) => {
-          const name = g.name || devices.find((d) => d.id === g.id)?.name || "";
+          // No name from any source that knows: "(no longer paired)", or just the id when nothing knows.
+          const title = g.name || (g.unpaired ? t("t_gone") : g.id);
           return (
             <div className="kv-row" key={g.id}>
               <div className="kv-val">
-                <strong>{name || (devicesKnown ? t("t_gone") : g.id)}</strong>
-                <div className="kv-sub">{g.id}</div>
+                <strong>{title}</strong>
+                {title !== g.id ? <div className="kv-sub">{g.id}</div> : null}
               </div>
               <ActionButton variant="text-danger" small disabled={busy} onClick={() => onRemove(g.id)}>
                 {t("t_remove")}

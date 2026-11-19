@@ -19,9 +19,9 @@ pub enum Notice {
         device_name: Option<String>,
         listener: String,
     },
-    /// D7/P20: the remote terminal switch went off to on.
+    /// P20: the remote terminal switch went off to on.
     TerminalTurnedOn,
-    /// D7/P20: a device was newly granted terminal access. `device_name` is `None` for an unknown id.
+    /// P22: a device was newly granted terminal access. `device_name` is `None` for an unknown id.
     TerminalGranted {
         device_name: Option<String>,
     },
@@ -30,7 +30,7 @@ pub enum Notice {
 }
 
 impl Notice {
-    /// design.md 4.8 and the notification list: the D7 notice has no **Open** button.
+    /// design.md section 6: the switch-on and the grant notices have no **Open** button.
     pub fn has_open_action(&self) -> bool {
         !matches!(
             self,
@@ -55,8 +55,15 @@ pub fn diff(
     }
     let mut notices = Vec::new();
     notices.extend(new_devices(prev, next));
-    notices.extend(new_terminals(prev, next));
-    notices.extend(terminal_access_widened(prev, next));
+    // A device name comes from this poll's list, else the last good one (a failed `devices list` read
+    // is not "no such device").
+    let devices = next
+        .devices
+        .as_deref()
+        .or(prev.devices.as_deref())
+        .unwrap_or(&[]);
+    notices.extend(new_terminals(prev, next, devices));
+    notices.extend(terminal_access_widened(prev, next, devices));
     if hermes_went_down(prev, next) {
         notices.push(Notice::HermesUnreachable);
     }
@@ -100,12 +107,11 @@ fn new_devices(prev: &Snapshot, next: &Snapshot) -> Vec<Notice> {
         .collect()
 }
 
-fn new_terminals(prev: &Snapshot, next: &Snapshot) -> Vec<Notice> {
+fn new_terminals(prev: &Snapshot, next: &Snapshot, devices: &[Device]) -> Vec<Notice> {
     let (Some(before), Some(after)) = (&prev.terminals, &next.terminals) else {
         return Vec::new();
     };
     let known: HashSet<&str> = before.iter().map(|t| t.id.as_str()).collect();
-    let devices = next.devices.as_deref().unwrap_or(&[]);
     after
         .iter()
         .filter(|t| !known.contains(t.id.as_str()))
@@ -118,14 +124,13 @@ fn new_terminals(prev: &Snapshot, next: &Snapshot) -> Vec<Notice> {
 
 /// D7/P20/P22: the switch went off to on, and, separately, each newly granted id (switch on or off).
 /// `None` on either side is "no information" (the `terminal status` read failed): silent.
-fn terminal_access_widened(prev: &Snapshot, next: &Snapshot) -> Vec<Notice> {
+fn terminal_access_widened(prev: &Snapshot, next: &Snapshot, devices: &[Device]) -> Vec<Notice> {
     let mut notices = Vec::new();
     if let (Some(false), Some(true)) = (prev.terminal_enabled, next.terminal_enabled) {
         notices.push(Notice::TerminalTurnedOn);
     }
     if let (Some(before), Some(after)) = (&prev.terminal_granted, &next.terminal_granted) {
         let known: HashSet<&str> = before.iter().map(String::as_str).collect();
-        let devices = next.devices.as_deref().unwrap_or(&[]);
         notices.extend(
             after
                 .iter()
@@ -142,7 +147,8 @@ fn device_name(devices: &[Device], id: &str) -> Option<String> {
     devices.iter().find(|d| d.id == id).map(|d| d.name.clone())
 }
 
-/// Reachable -> not reachable while the server stays up (a stop is `ServerStopped`'s job).
+/// Reachable -> reported but not reachable while the server stays up (a stop is `ServerStopped`'s job).
+/// A server that omits `hermes` is silent (P23): absent is unknown, not unreachable.
 fn hermes_went_down(prev: &Snapshot, next: &Snapshot) -> bool {
     let (Some(before), Some(after)) = (prev.answered(), next.answered()) else {
         return false;
@@ -150,5 +156,6 @@ fn hermes_went_down(prev: &Snapshot, next: &Snapshot) -> bool {
     before.is_running()
         && after.is_running()
         && before.hermes_reachable()
+        && after.hermes_reported()
         && !after.hermes_reachable()
 }

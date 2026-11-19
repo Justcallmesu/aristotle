@@ -159,6 +159,8 @@
   "hs_unknown": "Unknown",
   "st_outside": "Running outside the service",
   "sub_outside": "The server answers, but not as the aristotle-server service, so start, stop and restart may not reach it.",
+  "st_changing": "Server is changing state",
+  "sub_changing": "systemd reports the service as {word}.",
   "sub_hermunk": "This server does not report Hermes. Update it with the installer.",
   "no_listen_up": "No network listener is up.",
   "working_start": "Starting…",

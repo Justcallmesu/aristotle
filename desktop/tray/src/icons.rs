@@ -1,8 +1,9 @@
 //! Tray icons: PNGs rendered from `assets/*.svg` by `tools/make_icons.py`, embedded at build time and
 //! converted to the ARGB32 pixmaps StatusNotifierItem wants. 16 px is the heavier head-and-hand variant.
 
-use aristotle_core::snapshot::TrayState;
+use aristotle_core::state::TrayState;
 use ksni::Icon;
+use std::sync::OnceLock;
 
 /// Sizes offered to the panel; it picks the closest.
 pub const SIZES: [i32; 4] = [16, 22, 24, 32];
@@ -72,9 +73,15 @@ fn decode(bytes: &[u8]) -> Icon {
     }
 }
 
-/// One pixmap per size in [`SIZES`].
-pub fn pixmaps(state: TrayState) -> Vec<Icon> {
-    SIZES.iter().map(|&s| decode(png_bytes(state, s))).collect()
+/// One pixmap per size in [`SIZES`], decoded on first use and kept for the life of the process.
+pub fn pixmaps(state: TrayState) -> &'static [Icon] {
+    static CACHE: [OnceLock<Vec<Icon>>; 3] = [OnceLock::new(), OnceLock::new(), OnceLock::new()];
+    let slot = match state {
+        TrayState::Green => 0,
+        TrayState::Amber => 1,
+        TrayState::Red => 2,
+    };
+    CACHE[slot].get_or_init(|| SIZES.iter().map(|&s| decode(png_bytes(state, s))).collect())
 }
 
 #[cfg(test)]
@@ -126,6 +133,16 @@ mod tests {
     }
 
     #[test]
+    fn the_pixmaps_are_decoded_once_per_state() {
+        for state in STATES {
+            assert!(
+                std::ptr::eq(pixmaps(state).as_ptr(), pixmaps(state).as_ptr()),
+                "{state:?} is decoded on every call"
+            );
+        }
+    }
+
+    #[test]
     fn opaque_pixels_carry_the_state_colour() {
         for state in STATES {
             let [r, g, b] = colour(state);
@@ -145,7 +162,7 @@ mod tests {
     #[test]
     fn the_three_states_differ_in_shape_not_only_colour() {
         for (i, size) in SIZES.iter().enumerate() {
-            let [g, a, r] = STATES.map(|s| pixmaps(s).swap_remove(i));
+            let [g, a, r] = STATES.map(|s| pixmaps(s)[i].clone());
             for (x, y, n) in [
                 (&g, &a, "green/amber"),
                 (&a, &r, "amber/red"),

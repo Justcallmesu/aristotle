@@ -1,10 +1,7 @@
-//! One poll of the server (`Snapshot`), the tray state derived from it, and the version check (P5).
+//! One poll of the server (`Snapshot`) and the version check (P5). The state derived from it is in `state`.
 
-use crate::runner::{query, CliError, ServerCli};
-use crate::types::{
-    Device, DevicesList, OpenTerminal, ServerState, Status, TerminalStatus, VersionInfo,
-    HERMES_REACHABLE,
-};
+use crate::runner::{query, query_read, CliError, ServerCli};
+use crate::types::{Device, DevicesList, OpenTerminal, Status, TerminalStatus, VersionInfo};
 
 /// The desktop build's own version, stamped by the release script (DS7). `None` for dev builds.
 pub fn desktop_version() -> Option<&'static str> {
@@ -67,12 +64,28 @@ pub struct Snapshot {
     pub terminals: Option<Vec<OpenTerminal>>,
     /// The terminal switch, from the same `terminal status` call; `None` when that read failed.
     pub terminal_enabled: Option<bool>,
-    /// Ids granted terminal access, from the same `terminal status` call (empty when that read failed).
+    /// Ids granted terminal access, from the same `terminal status` call; `None` when that read failed.
     pub terminal_granted: Option<Vec<String>>,
     pub version: VersionCheck,
 }
 
 impl Snapshot {
+    /// This snapshot, with every list and the terminal switch that this poll could not read filled in
+    /// from `prev` (the last good one) while the server runs (design.md 4.2: a failed read keeps the last
+    /// good data). A stopped server keeps nothing: its lists are unknown, not stale.
+    pub fn keeping_last_good(&self, prev: Option<&Snapshot>) -> Snapshot {
+        let mut kept = self.clone();
+        if let (true, Some(prev)) = (self.server_running(), prev) {
+            kept.devices = kept.devices.or_else(|| prev.devices.clone());
+            kept.terminals = kept.terminals.or_else(|| prev.terminals.clone());
+            kept.terminal_enabled = kept.terminal_enabled.or(prev.terminal_enabled);
+            kept.terminal_granted = kept
+                .terminal_granted
+                .or_else(|| prev.terminal_granted.clone());
+        }
+        kept
+    }
+
     pub fn answered(&self) -> Option<&Status> {
         match &self.status {
             StatusPoll::Answered(s) => Some(s),
@@ -88,73 +101,6 @@ impl Snapshot {
     pub fn installed(&self) -> bool {
         self.answered().is_some_and(|s| s.installed)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrayState {
-    Green,
-    Amber,
-    Red,
-}
-
-/// Why the tray has its state; picks the tooltip.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Reason {
-    AllOk,
-    HermesDown,
-    /// `hermes` absent from the status (older server): unknown is not healthy (P17).
-    HermesUnknown,
-    ServerStopped,
-    /// Server answers but `service` is not `active`: started by hand, or `unknown` (P17).
-    RunningOutsideService,
-    NotInstalled,
-    NoAnswer,
-    CliMissing,
-    VersionMismatch,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Assessment {
-    pub state: TrayState,
-    pub reason: Reason,
-}
-
-/// Pure mapping from a snapshot to the tray state and its reason.
-pub fn assess(snapshot: &Snapshot) -> Assessment {
-    let (state, reason) = match &snapshot.status {
-        StatusPoll::CliMissing => (TrayState::Red, Reason::CliMissing),
-        StatusPoll::Failed => (TrayState::Red, Reason::NoAnswer),
-        StatusPoll::Answered(status) => assess_status(status, &snapshot.version),
-    };
-    Assessment { state, reason }
-}
-
-/// design.md section 4.1 rows 2-9, first match wins (row 1 and the failed poll are in `assess`).
-fn assess_status(status: &Status, version: &VersionCheck) -> (TrayState, Reason) {
-    if matches!(version, VersionCheck::Mismatch { .. }) {
-        return (TrayState::Red, Reason::VersionMismatch);
-    }
-    if !status.installed {
-        return (TrayState::Red, Reason::NotInstalled);
-    }
-    if status.server == ServerState::NoAnswer {
-        return (TrayState::Red, Reason::NoAnswer);
-    }
-    if !status.is_running() {
-        return (TrayState::Red, Reason::ServerStopped);
-    }
-    if !status.service_active() {
-        return (TrayState::Red, Reason::RunningOutsideService);
-    }
-    match status.result.as_ref().and_then(|r| r.hermes.as_ref()) {
-        Some(h) if h.state == HERMES_REACHABLE => (TrayState::Green, Reason::AllOk),
-        Some(_) => (TrayState::Amber, Reason::HermesDown),
-        None => (TrayState::Amber, Reason::HermesUnknown),
-    }
-}
-
-pub fn tray_state(snapshot: &Snapshot) -> TrayState {
-    assess(snapshot).state
 }
 
 /// Polls through a [`ServerCli`] and remembers when the version must be asked again.
@@ -245,7 +191,7 @@ impl Snapshotter {
     }
 
     fn refresh_version(&mut self, cli: &dyn ServerCli) {
-        if let Ok(reply) = query::<VersionInfo>(cli, &["version"]) {
+        if let Ok(reply) = query_read::<VersionInfo>(cli, &["version"]) {
             self.polls_since_version = 0;
             self.version = compare_versions(&reply.value.version, self.desktop_version.as_deref());
         }
@@ -262,13 +208,13 @@ fn combine_checks(cli: &VersionCheck, running: &VersionCheck) -> VersionCheck {
 }
 
 fn fetch_devices(cli: &dyn ServerCli) -> Option<Vec<Device>> {
-    query::<DevicesList>(cli, &["devices", "list"])
+    query_read::<DevicesList>(cli, &["devices", "list"])
         .ok()
         .map(|r| r.value.devices)
 }
 
 fn fetch_terminal(cli: &dyn ServerCli) -> Option<TerminalStatus> {
-    query::<TerminalStatus>(cli, &["terminal", "status"])
+    query_read::<TerminalStatus>(cli, &["terminal", "status"])
         .ok()
         .map(|r| r.value)
 }

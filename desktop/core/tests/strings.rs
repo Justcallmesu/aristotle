@@ -1,7 +1,7 @@
 //! Locale selection and string table parity (P10).
 
 use aristotle_core::diff::Notice;
-use aristotle_core::snapshot::Reason;
+use aristotle_core::state::Reason;
 use aristotle_core::strings::*;
 use std::collections::BTreeSet;
 
@@ -222,20 +222,41 @@ fn every_reason_has_a_tooltip() {
 
 #[test]
 fn the_d7_notice_uses_the_design_text_and_no_name() {
-    {
-        let notice = Notice::TerminalTurnedOn;
-        let (t, b) = notice_text(Lang::En, &notice);
-        assert_eq!(t, "Remote terminal turned on");
-        assert_eq!(
-            b,
-            "Granted phones can open a shell with full access to your account."
-        );
-        let (t, b) = notice_text(Lang::Id, &notice);
-        assert_eq!(t, "Terminal jarak jauh diaktifkan");
-        assert_eq!(
-            b,
-            "Ponsel yang diberi izin bisa membuka shell dengan akses penuh ke akunmu."
-        );
+    let notice = Notice::TerminalTurnedOn;
+    let (t, b) = notice_text(Lang::En, &notice);
+    assert_eq!(t, "Remote terminal turned on");
+    assert_eq!(
+        b,
+        "Granted phones can open a shell with full access to your account."
+    );
+    let (t, b) = notice_text(Lang::Id, &notice);
+    assert_eq!(t, "Terminal jarak jauh diaktifkan");
+    assert_eq!(
+        b,
+        "Ponsel yang diberi izin bisa membuka shell dengan akses penuh ke akunmu."
+    );
+}
+
+#[test]
+fn device_names_are_escaped_for_the_notification_markup() {
+    let name = "A&B <b>x</b>".to_string();
+    let escaped = "A&amp;B &lt;b&gt;x&lt;/b&gt;";
+    let notices = [
+        Notice::DevicePaired { name: name.clone() },
+        Notice::TerminalOpened {
+            device_name: Some(name.clone()),
+            listener: "lan".into(),
+        },
+        Notice::TerminalGranted {
+            device_name: Some(name.clone()),
+        },
+    ];
+    for notice in &notices {
+        for lang in [Lang::En, Lang::Id] {
+            let (_, body) = notice_text(lang, notice);
+            assert!(body.contains(escaped), "{body}");
+            assert!(!body.contains("<b>"), "{body}");
+        }
     }
 }
 

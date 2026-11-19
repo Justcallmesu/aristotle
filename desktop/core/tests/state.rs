@@ -3,6 +3,7 @@
 mod common;
 use aristotle_core::runner::CliError;
 use aristotle_core::snapshot::*;
+use aristotle_core::state::*;
 use aristotle_core::types::ServerState::*;
 use common::*;
 
@@ -458,4 +459,31 @@ fn a_failed_terminal_read_makes_the_grants_unknown_not_empty() {
     let snap = Snapshotter::new(None).poll(&cli);
     assert_eq!(snap.terminal_enabled, None);
     assert_eq!(snap.terminal_granted, None);
+}
+
+#[test]
+fn a_failed_read_keeps_the_last_good_lists_only_while_the_server_runs() {
+    let mut good = snap(running(Some("reachable")));
+    good.devices = Some(vec![device("d1", "pixel")]);
+    good.terminals = Some(vec![]);
+    good.terminal_enabled = Some(true);
+    good.terminal_granted = Some(vec!["d1".into()]);
+
+    let nothing = snap(running(Some("reachable")));
+    let kept = nothing.keeping_last_good(Some(&good));
+    assert_eq!(kept.devices, good.devices);
+    assert_eq!(kept.terminal_enabled, Some(true));
+    assert_eq!(kept.terminal_granted, good.terminal_granted);
+
+    let mut fresh = snap(running(Some("reachable")));
+    fresh.terminal_granted = Some(vec![]);
+    assert_eq!(
+        fresh.keeping_last_good(Some(&good)).terminal_granted,
+        Some(vec![]),
+        "a good read wins over the old one"
+    );
+
+    let stopped = snap(status("inactive", true, NotRunning, None));
+    assert_eq!(stopped.keeping_last_good(Some(&good)), stopped);
+    assert_eq!(nothing.keeping_last_good(None), nothing);
 }

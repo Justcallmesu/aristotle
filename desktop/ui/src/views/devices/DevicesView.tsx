@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ActionButton, Button } from "../../components/Button";
 import { CommandFailed } from "../../components/CommandFailed";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -18,7 +18,7 @@ import "./devices.css";
 export function DevicesView() {
   const { t } = useI18n();
   const { snapshot, world } = useSnapshot();
-  const granted = useLastGoodGrants(snapshot?.terminal_granted ?? null);
+  const granted = snapshot?.terminal_granted ?? null;
   if (!snapshot) {
     return (
       <>
@@ -38,14 +38,7 @@ export function DevicesView() {
   return <DeviceList devices={snapshot.devices} granted={granted} />;
 }
 
-/** design.md 4.2: a poll that could not read the grants (null) leaves the last good set. */
-function useLastGoodGrants(polled: string[] | null): string[] {
-  const last = useRef<string[]>([]);
-  if (polled !== null) last.current = polled;
-  return last.current;
-}
-
-function DeviceList({ devices, granted }: { devices: Device[] | null; granted: string[] }) {
+function DeviceList({ devices, granted }: { devices: Device[] | null; granted: string[] | null }) {
   const tr = useI18n();
   const { t } = tr;
   const client = useIpc();
@@ -97,7 +90,7 @@ function DeviceList({ devices, granted }: { devices: Device[] | null; granted: s
                     </td>
                     <td className="col-paired">{dmyText(tr, device.created_at)}</td>
                     <td className="col-seen" title={device.last_seen_at}>{relativeText(tr, device.last_seen_at)}</td>
-                    <td className="col-term">{granted.includes(device.id) ? <Tag tone="ok">{t("granted")}</Tag> : DASH}</td>
+                    <td className="col-term">{granted?.includes(device.id) ? <Tag tone="ok">{t("granted")}</Tag> : DASH}</td>
                     <td>
                       <ActionButton
                         variant="outline-danger"

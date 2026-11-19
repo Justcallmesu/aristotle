@@ -2,12 +2,12 @@
 
 use crate::backend::{plain_arg, Backend};
 use crate::dto::IpcResult;
-use aristotle_core::runner::query;
+use aristotle_core::runner::{query, query_read};
 use aristotle_core::types::TerminalStatus;
 
 /// A read: not guarded, it also serves "Check again" while the versions differ.
 pub fn status(backend: &Backend) -> IpcResult<TerminalStatus> {
-    Ok(query::<TerminalStatus>(backend.cli(), &["terminal", "status"])?.value)
+    Ok(query_read::<TerminalStatus>(backend.cli(), &["terminal", "status"])?.value)
 }
 
 pub fn enable(backend: &Backend) -> IpcResult<TerminalStatus> {
@@ -62,6 +62,14 @@ mod tests {
             run(|b| ungrant(b, "dev-1"), "devices_ungrant_terminal.json"),
             "devices ungrant-terminal dev-1 --json"
         );
+    }
+
+    #[test]
+    fn the_status_read_has_the_3_s_limit_and_a_timeout_is_an_error() {
+        let cli = FakeCli::new(vec![Err(aristotle_core::runner::CliError::Timeout)]);
+        let err = status(&backend(&cli, "1.2.3")).unwrap_err();
+        assert_eq!(err.kind, "timeout");
+        assert_eq!(cli.limits(), vec![std::time::Duration::from_secs(3)]);
     }
 
     #[test]

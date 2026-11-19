@@ -4,7 +4,8 @@
 //! core variant fails to compile until the frontend contract is updated.
 
 use aristotle_core::runner::CliError;
-use aristotle_core::snapshot::{Assessment, Reason, Snapshot, StatusPoll, TrayState, VersionCheck};
+use aristotle_core::snapshot::{Snapshot, StatusPoll, VersionCheck};
+use aristotle_core::state::{Assessment, Reason, TrayState};
 use aristotle_core::types::{Device, OpenTerminal, Status};
 use serde::Serialize;
 

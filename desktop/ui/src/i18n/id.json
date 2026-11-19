@@ -159,6 +159,8 @@
   "hs_unknown": "Tidak diketahui",
   "st_outside": "Berjalan di luar layanan",
   "sub_outside": "Server menjawab, tetapi bukan sebagai layanan aristotle-server, jadi nyalakan, matikan, dan mulai ulang mungkin tidak berpengaruh.",
+  "st_changing": "Server sedang berganti status",
+  "sub_changing": "systemd melaporkan layanan sebagai {word}.",
   "sub_hermunk": "Server ini tidak melaporkan Hermes. Perbarui dengan installer.",
   "no_listen_up": "Tidak ada listener jaringan yang aktif.",
   "working_start": "Menyalakan…",

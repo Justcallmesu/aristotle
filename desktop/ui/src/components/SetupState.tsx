@@ -16,7 +16,7 @@ export function SetupState({ world }: { world: World }) {
         {world.light ? <StateLight light={world.light} /> : null}
         {t(world.titleKey)}
       </h1>
-      {world.subKey ? <p>{t(world.subKey)}</p> : null}
+      {world.subKey ? <p>{t(world.subKey, world.subParams)}</p> : null}
       {world.row === 2 ? (
         <div className="setup-install">
           <h2 className="group-title">{t("install_cmd")}</h2>

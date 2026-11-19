@@ -5,10 +5,9 @@
 
 use crate::dto::{IpcError, IpcResult, SnapshotDto};
 use aristotle_core::runner::{MissingCli, RealCli, ServerCli};
-use aristotle_core::snapshot::{
-    assess, desktop_version, Reason, Snapshot, Snapshotter, VersionCheck,
-};
+use aristotle_core::snapshot::{desktop_version, Snapshot, Snapshotter, VersionCheck};
 use aristotle_core::stamp::ExpectedStop;
+use aristotle_core::state::{assess, Reason};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -20,6 +19,9 @@ pub struct Backend {
     pub(crate) stamp: Option<ExpectedStop>,
     app_version: Option<String>,
     snapshotter: Mutex<Snapshotter>,
+    /// The last poll where `status` answered: a later poll that could not read a list or the terminal
+    /// switch keeps that one (design.md 4.2). The only place the app keeps "last good" data.
+    last_good: Mutex<Option<Snapshot>>,
     latest: Mutex<Option<Latest>>,
     next_seq: AtomicU64,
 }
@@ -48,6 +50,7 @@ impl Backend {
             stamp,
             app_version: app_version.map(str::to_owned),
             snapshotter: Mutex::new(Snapshotter::new(app_version)),
+            last_good: Mutex::new(None),
             latest: Mutex::new(None),
             next_seq: AtomicU64::new(0),
         }
@@ -72,7 +75,15 @@ impl Backend {
         // The sequence number is taken under the snapshotter lock, so it follows the poll order even
         // when the poller and an action thread publish at the same time.
         let mut snapshotter = lock(&self.snapshotter);
-        let snapshot = snapshotter.poll(self.cli.as_ref());
+        let polled = snapshotter.poll(self.cli.as_ref());
+        let snapshot = {
+            let mut last_good = lock(&self.last_good);
+            let snapshot = polled.keeping_last_good(last_good.as_ref());
+            if snapshot.answered().is_some() {
+                *last_good = Some(snapshot.clone());
+            }
+            snapshot
+        };
         let seq = self.next_seq.fetch_add(1, Ordering::SeqCst) + 1;
         let dto = self.dto(&snapshot, seq);
         // Stored before the snapshotter lock is released, so `latest` never goes back to an older poll.
@@ -166,6 +177,35 @@ mod tests {
         let dto = backend(&cli, "1.2.3").refresh();
         assert_eq!(dto.terminal_enabled, Some(true));
         assert_eq!(dto.terminal_granted, Some(vec!["dev_a1".to_string()]));
+    }
+
+    #[test]
+    fn a_failed_terminal_read_keeps_the_last_good_grants_once_here() {
+        let mut replies = running_poll();
+        // Second poll: `terminal status` times out.
+        replies.extend([
+            json("status.json"),
+            json("devices_list.json"),
+            Err(aristotle_core::runner::CliError::Timeout),
+        ]);
+        let cli = FakeCli::new(replies);
+        let b = backend(&cli, "1.2.3");
+        b.refresh();
+        let dto = b.refresh();
+        assert_eq!(dto.terminal_enabled, Some(true));
+        assert_eq!(dto.terminal_granted, Some(vec!["dev_a1".to_string()]));
+    }
+
+    #[test]
+    fn a_stopped_server_has_no_grants_not_old_ones() {
+        let mut replies = running_poll();
+        replies.push(json("status_not_running.json"));
+        let cli = FakeCli::new(replies);
+        let b = backend(&cli, "1.2.3");
+        b.refresh();
+        let dto = b.refresh();
+        assert_eq!(dto.terminal_granted, None);
+        assert_eq!(dto.terminal_enabled, None);
     }
 
     #[test]

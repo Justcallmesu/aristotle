@@ -21,16 +21,19 @@ function normalise(status: TerminalStatus): TerminalData {
   };
 }
 
+/** A grant with the name to show; `unpaired` when a source that knows says the phone is gone. */
+export interface GrantRow extends GrantedDevice {
+  unpaired: boolean;
+}
+
 export interface TerminalState {
   /** Last good `terminal status`; null before the first read, or when every read failed. */
   data: TerminalData | null;
   /** `data.open` is replaced by the live snapshot list when the poll has one. */
   open: OpenTerminal[];
   /** Who holds a grant: the poll's ids, else the view's own last read; null when neither is known. */
-  granted: GrantedDevice[] | null;
+  granted: GrantRow[] | null;
   devices: Device[];
-  /** False when the poll could not read `devices list`: a missing name is then unknown, not unpaired. */
-  devicesKnown: boolean;
   loading: boolean;
   /** Takes the result of a change command (enable, disable, grant, ungrant). */
   apply: (status: TerminalStatus) => void;
@@ -91,9 +94,8 @@ export function useTerminalData(): TerminalState {
   return {
     data,
     open: snapshot?.terminals ?? data?.open ?? [],
-    granted: grantedFrom(snapshot?.terminal_granted ?? null, data?.granted ?? null, devices),
+    granted: grantedFrom(snapshot?.terminal_granted ?? null, data?.granted ?? null, devices, snapshot?.devices != null),
     devices,
-    devicesKnown: snapshot?.devices != null,
     loading: world.row === 0 || (world.running && !settled),
     apply,
     reread,
@@ -103,12 +105,22 @@ export function useTerminalData(): TerminalState {
 
 /**
  * The poll's ids are the freshest; when it could not read them (null) the view's own `terminal status`
- * read stands in. Names: the server's own, else the device list, else empty.
+ * read stands in. Names: the server's own, else the device list, else empty. An empty name is "no longer
+ * paired" when the server's own read lists the id (its documented meaning) or when the device list is known
+ * and lacks it; when neither source knows, the id is shown instead.
  */
-function grantedFrom(ids: string[] | null, own: GrantedDevice[] | null, devices: Device[]): GrantedDevice[] | null {
-  if (ids === null) return own;
-  return ids.map((id) => ({
-    id,
-    name: own?.find((g) => g.id === id)?.name || devices.find((d) => d.id === id)?.name || "",
-  }));
+function grantedFrom(
+  ids: string[] | null,
+  own: GrantedDevice[] | null,
+  devices: Device[],
+  devicesKnown: boolean,
+): GrantRow[] | null {
+  const listed = ids ?? own?.map((g) => g.id) ?? null;
+  return listed?.map((id) => row(id, own, devices, devicesKnown)) ?? null;
+}
+
+function row(id: string, own: GrantedDevice[] | null, devices: Device[], devicesKnown: boolean): GrantRow {
+  const listed = own?.find((g) => g.id === id);
+  const name = listed?.name || devices.find((d) => d.id === id)?.name || "";
+  return { id, name, unpaired: name === "" && (listed !== undefined || devicesKnown) };
 }

@@ -34,7 +34,7 @@ export function StatusView() {
         busy={world.row === 0}
         light={world.light ? <StateLight light={world.light} /> : null}
         title={t(world.titleKey)}
-        sub={world.subKey ? t(world.subKey) : undefined}
+        sub={world.subKey ? t(world.subKey, world.subParams) : undefined}
         action={
           startable ? (
             <ActionButton variant="primary" disabled={start.busy} onClick={() => void start.run("start")}>

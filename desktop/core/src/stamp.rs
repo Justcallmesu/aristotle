@@ -3,6 +3,7 @@
 //! The window app writes it just before it runs `stop` or `restart`; the tray reads it to tell an
 //! app-issued stop from a crash, and deletes it once it has seen the stop.
 
+use crate::runner::non_empty_env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -26,20 +27,21 @@ impl ExpectedStop {
 
     /// From `$XDG_RUNTIME_DIR`. `None` when it is unset or empty: stops then notify.
     pub fn from_env() -> Option<Self> {
-        let dir = std::env::var("XDG_RUNTIME_DIR")
-            .ok()
-            .filter(|v| !v.is_empty())?;
-        Some(Self::in_runtime_dir(dir))
+        Some(Self::in_runtime_dir(non_empty_env("XDG_RUNTIME_DIR")?))
     }
 
     pub fn path(&self) -> &std::path::Path {
         &self.path
     }
 
-    /// The stamped time, or `None` when missing or unreadable.
+    /// The stamped time, or `None` when missing. A file that holds no number is deleted (and reads as
+    /// `None`): it can never count, and nothing else would clear it.
     pub fn read(&self) -> Option<SystemTime> {
         let text = fs::read_to_string(&self.path).ok()?;
-        let secs: u64 = text.trim().parse().ok()?;
+        let Some(secs) = text.trim().parse::<u64>().ok() else {
+            let _ = self.delete();
+            return None;
+        };
         Some(UNIX_EPOCH + Duration::from_secs(secs))
     }
 
@@ -54,6 +56,15 @@ impl ExpectedStop {
         let tmp = self.path.with_extension("tmp");
         fs::write(&tmp, format!("{secs}\n"))?;
         fs::rename(&tmp, &self.path)
+    }
+
+    /// Deletes the stamp only while it still holds `seen`. A stamp the window app wrote after the
+    /// poller read `seen` is a new one and stays.
+    pub fn delete_if(&self, seen: SystemTime) -> io::Result<()> {
+        if self.read() == Some(seen) {
+            return self.delete();
+        }
+        Ok(())
     }
 
     /// Deletes the stamp; a missing file is fine.

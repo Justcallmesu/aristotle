@@ -1,0 +1,23 @@
+=== H1 read timeout 3 s -> 10 s
+test a_hung_devices_read_times_out_after_3_s_and_is_a_failed_read ... FAILED
+test a_hung_terminal_status_read_times_out_after_3_s_and_is_a_failed_read ... FAILED
+test a_hung_version_read_times_out_after_3_s_and_leaves_the_check_unchecked ... FAILED
+test result: FAILED. 15 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.42s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== H2 hermes absent notifies again
+test hermes_going_absent_is_silent ... FAILED
+test result: FAILED. 31 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== H3 row 4b uses the stopped headline
+Error: [2mexpect([22m[31melement[39m[2m).toHaveTextContent()[22m
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+AssertionError: expected 'st_stopped' to be 'st_changing' // Object.is equality
+TestingLibraryElementError: Unable to find an accessible element with the role "heading" and name "Server is changing state"
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+TestingLibraryElementError: Unable to find role="heading" and name "Server is changing state"
+TestingLibraryElementError: Unable to find role="heading" and name "Server is changing state"
+TestingLibraryElementError: Unable to find role="heading" and name "Server is changing state"
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0

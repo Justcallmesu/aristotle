@@ -133,9 +133,17 @@ fn hermes_flap_notifies_once_per_transition() {
 }
 
 #[test]
-fn hermes_going_absent_counts_as_unreachable() {
+fn hermes_going_absent_is_silent() {
+    // P23 (b): absent means "this server does not report Hermes": unknown, not unreachable.
     let prev = up("reachable");
     let next = snap(running(None));
+    assert!(diff(Some(&prev), &next, None, now()).is_empty());
+}
+
+#[test]
+fn hermes_going_not_running_notifies() {
+    let prev = up("reachable");
+    let next = up("not-running");
     assert_eq!(
         diff(Some(&prev), &next, None, now()),
         vec![Notice::HermesUnreachable]

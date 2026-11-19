@@ -1,0 +1,12 @@
+=== F1 last-good drops granted ids
+test a_failed_terminal_poll_keeps_the_baseline_so_a_new_terminal_still_notifies_once ... FAILED
+test a_failed_terminal_read_keeps_the_granted_baseline_so_a_new_grant_notifies_once ... FAILED
+test a_failed_read_then_a_revoke_and_a_new_grant_notifies_the_new_grant_only ... FAILED
+test result: FAILED. 16 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0
+=== F2 second Start not refused
+test starting::tests::a_second_start_is_refused_until_the_first_ends ... FAILED
+test result: FAILED. 20 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0

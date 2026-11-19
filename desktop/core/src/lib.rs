@@ -2,7 +2,8 @@
 //!
 //! - [`types`]: the CLI JSON shapes (protocol section 22)
 //! - [`runner`]: runs `aristotle-server <cmd> --json`
-//! - [`snapshot`]: one poll, tray state, version check
+//! - [`snapshot`]: one poll, version check
+//! - [`state`]: tray state and reason from a snapshot
 //! - [`diff`]: notification diff
 //! - [`stamp`]: expected-stop stamp
 //! - [`strings`]: English and Indonesian texts
@@ -13,6 +14,7 @@ pub mod poller;
 pub mod runner;
 pub mod snapshot;
 pub mod stamp;
+pub mod state;
 pub mod strings;
 pub mod types;
 

@@ -139,9 +139,15 @@ fn unknown_fields_are_ignored() {
 }
 
 #[test]
-fn error_body_decodes() {
-    let e: ErrorBody = decode(r#"{"error":"boom"}"#);
-    assert_eq!(e.error, "boom");
+fn a_server_word_a_newer_server_adds_serialises_as_other() {
+    assert_eq!(
+        serde_json::to_string(&ServerState::Other).unwrap(),
+        r#""other""#
+    );
+    assert_eq!(
+        serde_json::to_string(&ServerState::NotRunning).unwrap(),
+        r#""not-running""#
+    );
 }
 
 #[test]

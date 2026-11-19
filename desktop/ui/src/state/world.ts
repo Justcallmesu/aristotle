@@ -4,7 +4,7 @@ import type { MessageKey, Translator } from "../i18n";
 export type Light = "ok" | "warn" | "err";
 
 /** design.md 4.1 row numbers; 0 = no poll finished yet. */
-export type Row = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type Row = 0 | 1 | 2 | 3 | 4 | "4b" | 5 | 6 | 7 | 8 | 9;
 
 export interface Mismatch {
   server: string;
@@ -15,6 +15,8 @@ export interface World {
   row: Row;
   titleKey: MessageKey;
   subKey: MessageKey | null;
+  /** Values for `{param}` in the sub line (row 4b: the raw systemd word). */
+  subParams?: Record<string, string>;
   light: Light | null;
   /** P5/P17: set separately from the row; disables every action. */
   mismatch: Mismatch | null;
@@ -30,12 +32,18 @@ const rows: Record<Row, { title: MessageKey; sub: MessageKey | null; light: Ligh
   2: { title: "st_notinst", sub: "sub_notinst", light: "err" },
   3: { title: "st_noanswer", sub: "sub_noanswer", light: "err" },
   4: { title: "st_stopped", sub: "sub_stopped", light: "err" },
+  "4b": { title: "st_changing", sub: "sub_changing", light: "err" },
   5: { title: "st_outside", sub: "sub_outside", light: "err" },
   6: { title: "st_running", sub: "sub_ok", light: "ok" },
   7: { title: "st_running", sub: "sub_herm", light: "warn" },
   8: { title: "st_running", sub: "sub_hermerr", light: "warn" },
   9: { title: "st_running", sub: "sub_hermunk", light: "warn" },
 };
+
+/** P23: a systemd word that is neither a settled stop (`inactive`, `failed`) nor absent. */
+function isChanging(service: string): boolean {
+  return service !== "" && service !== "inactive" && service !== "failed";
+}
 
 function rowOf(snapshot: SnapshotDto | null): Row {
   if (!snapshot) return 0;
@@ -46,6 +54,7 @@ function rowOf(snapshot: SnapshotDto | null): Row {
   const s = status.status;
   if (!s.installed) return 2;
   if (s.server === "no-answer") return 3;
+  if (s.server === "not-running" && isChanging(s.service)) return "4b";
   if (s.server !== "running") return 4;
   if (s.service !== "active") return 5;
   const hermes = s.result?.hermes;
@@ -63,6 +72,7 @@ export function deriveWorld(snapshot: SnapshotDto | null): World {
     row,
     titleKey: title,
     subKey: sub,
+    subParams: row === "4b" && status ? { word: status.service } : undefined,
     light,
     mismatch: mismatch && { server: mismatch.server, desktop: mismatch.desktop },
     installed: status?.installed ?? false,

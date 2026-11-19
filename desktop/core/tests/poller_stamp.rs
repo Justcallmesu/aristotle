@@ -328,12 +328,16 @@ fn a_failed_terminal_read_keeps_the_granted_baseline_so_a_new_grant_notifies_onc
 }
 
 fn terminal_json(ids: &[&str]) -> String {
+    terminal_json_with(true, ids)
+}
+
+fn terminal_json_with(enabled: bool, ids: &[&str]) -> String {
     let granted: Vec<String> = ids
         .iter()
         .map(|id| format!(r#"{{"id":"{id}","name":"n"}}"#))
         .collect();
     format!(
-        r#"{{"enabled":true,"granted":[{}],"open":[],"changed":false}}"#,
+        r#"{{"enabled":{enabled},"granted":[{}],"open":[],"changed":false}}"#,
         granted.join(",")
     )
 }
@@ -385,7 +389,7 @@ fn existing_grants_after_a_tray_restart_are_the_baseline() {
 
 #[test]
 fn a_grant_while_the_switch_is_off_notifies_once() {
-    let off = |ids: &[&str]| terminal_json(ids).replace("true", "false");
+    let off = |ids: &[&str]| terminal_json_with(false, ids);
     let mut p = Poller::new(None, None);
     assert!(terminal_tick(&mut p, ok(&off(&[]), 0), true)
         .notices
@@ -396,4 +400,109 @@ fn a_grant_while_the_switch_is_off_notifies_once() {
     assert!(terminal_tick(&mut p, ok(&off(&["dev_a1"]), 0), false)
         .notices
         .is_empty());
+}
+
+#[test]
+fn a_grant_in_a_tick_whose_devices_read_failed_still_has_the_known_name() {
+    let mut p = Poller::new(None, None);
+    let now = at(1_800_000_000);
+    let status = || ok(&fixture("status.json"), 0);
+    let devices = || ok(&fixture("devices_list.json"), 0);
+    p.tick(
+        &FakeCli::new(vec![
+            status(),
+            ok(&fixture("version.json"), 0),
+            devices(),
+            ok(&terminal_json(&[]), 0),
+        ]),
+        now,
+    );
+    // `devices list` fails in the very tick that carries the grant.
+    let t = p.tick(
+        &FakeCli::new(vec![
+            status(),
+            Err(CliError::Timeout),
+            ok(&terminal_json(&["dev_a1"]), 0),
+        ]),
+        now,
+    );
+    assert_eq!(
+        t.notices,
+        vec![Notice::TerminalGranted {
+            device_name: Some("pixel".into())
+        }]
+    );
+}
+
+#[test]
+fn a_terminal_opened_in_a_tick_whose_devices_read_failed_still_has_the_known_name() {
+    let mut p = Poller::new(None, None);
+    let now = at(1_800_000_000);
+    let status = || ok(&fixture("status.json"), 0);
+    let devices = || ok(&fixture("devices_list.json"), 0);
+    p.tick(
+        &FakeCli::new(vec![
+            status(),
+            ok(&fixture("version.json"), 0),
+            devices(),
+            ok(&fixture("terminal_status_empty.json"), 0),
+        ]),
+        now,
+    );
+    let t = p.tick(
+        &FakeCli::new(vec![
+            status(),
+            Err(CliError::Timeout),
+            ok(&fixture("terminal_status.json"), 0),
+        ]),
+        now,
+    );
+    let named = |n: &&Notice| {
+        matches!(
+            n,
+            Notice::TerminalOpened {
+                device_name: Some(_),
+                ..
+            }
+        )
+    };
+    assert_eq!(t.notices.iter().filter(named).count(), 1, "{:?}", t.notices);
+}
+
+#[test]
+fn an_unparsable_stamp_is_deleted_by_the_next_tick() {
+    let dir = tempdir("garbage-tick");
+    let stamp = ExpectedStop::in_runtime_dir(&dir);
+    stamp.write(at(5)).unwrap();
+    fs::write(stamp.path(), "soon").unwrap();
+    let mut p = Poller::new(None, Some(stamp.clone()));
+    p.tick(
+        &FakeCli::new(vec![
+            ok(&fixture("status.json"), 0),
+            ok(&fixture("version.json"), 0),
+            ok(&fixture("devices_list.json"), 0),
+            ok(&fixture("terminal_status_empty.json"), 0),
+        ]),
+        at(1_800_000_000),
+    );
+    assert!(!stamp.path().exists(), "garbage stamp is removed");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn delete_if_leaves_a_stamp_written_after_the_read() {
+    let dir = tempdir("delete-if");
+    let stamp = ExpectedStop::in_runtime_dir(&dir);
+    stamp.write(at(1_800_000_000)).unwrap();
+    let seen = stamp.read().unwrap();
+    stamp.write(at(1_800_000_030)).unwrap(); // the window app stamps again
+    stamp.delete_if(seen).unwrap();
+    assert_eq!(
+        stamp.read(),
+        Some(at(1_800_000_030)),
+        "the newer stamp stays"
+    );
+    stamp.delete_if(at(1_800_000_030)).unwrap();
+    assert_eq!(stamp.read(), None, "the stamp that was read is deleted");
+    let _ = fs::remove_dir_all(dir);
 }

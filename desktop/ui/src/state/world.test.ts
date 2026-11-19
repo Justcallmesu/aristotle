@@ -24,7 +24,11 @@ describe("deriveWorld follows design.md 4.1", () => {
     ["no answer", withStatus({ server: "no-answer", result: null }), 3, "err"],
     ["failed poll", snapshotOf({ status: { kind: "failed" } }), 3, "err"],
     ["stopped", withStatus({ server: "not-running", service: "inactive", result: null }), 4, "err"],
-    ["a word a newer server adds", withStatus({ server: "paused", result: null }), 4, "err"],
+    ["changing: activating", withStatus({ server: "not-running", service: "activating", result: null }), "4b", "err"],
+    ["changing: deactivating", withStatus({ server: "not-running", service: "deactivating", result: null }), "4b", "err"],
+    ["stopped: failed", withStatus({ server: "not-running", service: "failed", result: null }), 4, "err"],
+    ["stopped: service word absent", withStatus({ server: "not-running", service: "", result: null }), 4, "err"],
+    ["a word a newer server adds (core sends \"other\")", withStatus({ server: "other", result: null }), 4, "err"],
     ["running outside the service", withStatus({ service: "unknown" }), 5, "err"],
     ["running, hermes reachable", hermes("reachable"), 6, "ok"],
     ["running, hermes not running", hermes("not-running"), 7, "warn"],
@@ -46,6 +50,15 @@ describe("deriveWorld follows design.md 4.1", () => {
     const world = deriveWorld(snapshotOf({ version: { kind: "mismatch", server: "1.2.2", desktop: "1.2.3" } }));
     expect(world.mismatch).toEqual({ server: "1.2.2", desktop: "1.2.3" });
     expect(world.row).toBe(6);
+  });
+});
+
+describe("row 4b (P23)", () => {
+  it("carries the raw systemd word for the sub line", () => {
+    const world = deriveWorld(withStatus({ server: "not-running", service: "reloading", result: null }));
+    expect(world.titleKey).toBe("st_changing");
+    expect(world.subKey).toBe("sub_changing");
+    expect(world.subParams).toEqual({ word: "reloading" });
   });
 });
 

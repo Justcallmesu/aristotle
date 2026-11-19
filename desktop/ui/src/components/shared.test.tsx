@@ -97,16 +97,20 @@ describe("CommandFailed", () => {
     expect(document.querySelector(".banner-slot")).toBeNull();
   });
 
-  it("a not-ok reply shows the service word through the catalog, in both languages", () => {
-    const error = { kind: "not-ok", message: "failed", exit_code: null };
-    show(error);
-    expect(screen.getByRole("alert").querySelector("pre.code")).toHaveTextContent("error: failed");
-    cleanup();
-    show(error, "id");
-    expect(screen.getByRole("alert").querySelector("pre.code")).toHaveTextContent("error: gagal");
-    cleanup();
-    show({ kind: "not-ok", message: "activating", exit_code: null }, "id");
-    expect(screen.getByRole("alert").querySelector("pre.code")).toHaveTextContent("error: activating");
+  it("a not-ok reply shows the raw service word as `service: <word>`, untranslated, in both languages", () => {
+    const code = () => screen.getByRole("alert").querySelector("pre.code");
+    for (const word of ["failed", "activating"]) {
+      for (const locale of ["en", "id"] as const) {
+        show({ kind: "not-ok", message: word, exit_code: null }, locale);
+        expect(code()?.textContent).toBe(`service: ${word}`);
+        cleanup();
+      }
+    }
+  });
+
+  it("a not-ok reply without a service word falls back to the error kind", () => {
+    show({ kind: "not-ok", message: null, exit_code: null });
+    expect(screen.getByRole("alert").querySelector("pre.code")?.textContent).toBe("error: not-ok");
   });
 
   it("falls back to the error kind when the server said nothing", () => {

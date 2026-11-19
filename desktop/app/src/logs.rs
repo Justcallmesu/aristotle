@@ -1,15 +1,16 @@
 //! `aristotle-server logs -f` as a child process, streamed to the frontend in batches of lines.
 //!
-//! The child leads its own process group, so killing the group also stops the journalctl it spawns.
+//! The child leads its own process group, so killing the group also stops the journalctl it spawns, and
+//! it dies with the app when the app is killed (`PR_SET_PDEATHSIG`, see `spawn_child`).
 //! Line content is never logged (P11); the frontend keeps the capped buffer.
 
 use crate::dto::{IpcError, IpcResult};
 use std::io::{BufRead, BufReader};
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -36,7 +37,12 @@ pub struct LogStream {
 
 extern "C" {
     fn killpg(pgrp: i32, sig: i32) -> i32;
+    #[cfg(test)]
+    fn kill(pid: i32, sig: i32) -> i32;
+    fn prctl(option: i32, arg2: u64, arg3: u64, arg4: u64, arg5: u64) -> i32;
 }
+
+const PR_SET_PDEATHSIG: i32 = 1;
 
 const SIGKILL: i32 = 9;
 
@@ -53,14 +59,7 @@ impl LogStream {
     ) -> IpcResult<()> {
         self.stop();
         let bin = bin.ok_or_else(IpcError::not_installed)?;
-        let mut child = Command::new(bin)
-            .args(["logs", "-f"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .process_group(0)
-            .spawn()
-            .map_err(spawn_error)?;
+        let mut child = spawn_child(bin).map_err(spawn_error)?;
         let stdout = child.stdout.take().ok_or_else(IpcError::internal)?;
         let stopped = Arc::new(AtomicBool::new(false));
         let reader = thread::spawn({
@@ -87,6 +86,54 @@ impl LogStream {
             stop_running(running);
         }
     }
+}
+
+/// A spawn request for the long-lived spawner thread: the binary and where to send the child.
+type SpawnJob = (PathBuf, mpsc::Sender<std::io::Result<Child>>);
+
+/// Spawns `logs -f` from one thread that lives as long as the process. The child gets `SIGKILL` when its
+/// parent *thread* exits (`PR_SET_PDEATHSIG` is per thread), so spawning from a short-lived blocking-pool
+/// thread would kill the stream early; spawning from this one means it dies with the app, also on a crash
+/// (a journalctl it started ends on its next write, when the pipe is closed).
+fn spawn_child(bin: &Path) -> std::io::Result<Child> {
+    static SPAWNER: OnceLock<Mutex<mpsc::Sender<SpawnJob>>> = OnceLock::new();
+    let jobs = SPAWNER.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<SpawnJob>();
+        thread::spawn(move || {
+            for (bin, reply) in rx {
+                let _ = reply.send(spawn_logs(&bin));
+            }
+        });
+        Mutex::new(tx)
+    });
+    let (reply, child) = mpsc::channel();
+    lock(jobs)
+        .send((bin.to_path_buf(), reply))
+        .map_err(|_| std::io::Error::other("log spawner is gone"))?;
+    child
+        .recv()
+        .unwrap_or_else(|_| Err(std::io::Error::other("log spawner is gone")))
+}
+
+fn spawn_logs(bin: &Path) -> std::io::Result<Child> {
+    let mut command = Command::new(bin);
+    command
+        .args(["logs", "-f"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0);
+    // SAFETY: the hook runs between fork and exec and only calls `prctl` with plain integers.
+    unsafe {
+        command.pre_exec(|| {
+            if prctl(PR_SET_PDEATHSIG, SIGKILL as u64, 0, 0, 0) == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        });
+    }
+    command.spawn()
 }
 
 /// How long `stop` may wait for the child to exit and the reader to finish.
@@ -226,6 +273,65 @@ mod tests {
 
     const ENDLESS: &str =
         "echo $$ > \"$(dirname \"$0\")/pid\"\nsleep 60 &\necho $! > \"$(dirname \"$0\")/child-pid\"\nwhile true; do echo \"line $$\"; sleep 0.05; done";
+
+    /// Runs only inside the process the next test starts (see `a_killed_app_does_not_leave_the_log_child`).
+    #[test]
+    fn orphan_helper() {
+        let Ok(dir) = std::env::var("ARISTOTLE_ORPHAN_HELPER") else {
+            return;
+        };
+        let bin = PathBuf::from(dir).join("fake-server");
+        let stream = LogStream::new();
+        stream.start(Some(&bin), |_| {}).unwrap();
+        thread::sleep(Duration::from_secs(60)); // killed by the parent test long before this ends
+    }
+
+    #[test]
+    fn a_killed_app_does_not_leave_the_log_child() {
+        let _g = fork_lock();
+        let (dir, _bin) = script(
+            "orphan",
+            "echo $$ > \"$(dirname \"$0\")/pid\"\nexec sleep 300",
+        );
+        let mut app = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "logs::tests::orphan_helper",
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("ARISTOTLE_ORPHAN_HELPER", &dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        wait_for("the log child to start", || dir.join("pid").exists());
+        let pid = fs::read_to_string(dir.join("pid"))
+            .unwrap()
+            .trim()
+            .to_owned();
+        assert!(alive(&pid));
+        app.kill().unwrap(); // a crash: no destructor, no `stop`
+        let _ = app.wait();
+        let gone = |pid: &str| {
+            fs::read_to_string(format!("/proc/{pid}/stat"))
+                .map_or(true, |stat| stat.contains(") Z "))
+        };
+        let end = Instant::now() + Duration::from_secs(3);
+        while !gone(&pid) && Instant::now() < end {
+            thread::sleep(Duration::from_millis(20));
+        }
+        let survived = !gone(&pid);
+        if survived {
+            if let Ok(n) = pid.parse::<i32>() {
+                // SAFETY: plain integers; cleans up the leaked child before the assert.
+                unsafe { killpg(n, SIGKILL) };
+                unsafe { kill(n, SIGKILL) };
+            }
+        }
+        assert!(!survived, "log child {pid} outlived the app");
+        let _ = fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn stop_kills_the_child_and_its_group_and_reaps_it() {

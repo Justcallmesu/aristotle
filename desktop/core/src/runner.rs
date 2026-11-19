@@ -14,6 +14,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+/// P23 (c): the limit for the quick reads (`devices list`, `terminal status`, `version`). `status` keeps
+/// [`DEFAULT_TIMEOUT`]: it holds the server's own 2 s Hermes probe.
+pub const READ_TIMEOUT: Duration = Duration::from_secs(3);
 /// Development override for the binary path.
 pub const BIN_ENV: &str = "ARISTOTLE_SERVER_BIN";
 const MAX_STDOUT: u64 = 4 * 1024 * 1024;
@@ -79,6 +82,12 @@ impl std::error::Error for CliError {}
 pub trait ServerCli: Send + Sync {
     /// Runs the server binary with exactly `args` (the caller adds `--json`).
     fn run(&self, args: &[&str]) -> Result<RawOutput, CliError>;
+
+    /// Like [`run`](Self::run), giving up after `limit` when that is shorter than the runner's own
+    /// timeout. A runner without a clock (a fake) ignores `limit`.
+    fn run_within(&self, args: &[&str], _limit: Duration) -> Result<RawOutput, CliError> {
+        self.run(args)
+    }
 }
 
 /// A parsed success object plus the process exit code (`status` exits 1 on success output too).
@@ -96,6 +105,16 @@ pub fn query<T: DeserializeOwned>(
     let mut argv: Vec<&str> = args.to_vec();
     argv.push("--json");
     parse_output(&cli.run(&argv)?)
+}
+
+/// [`query`] for a quick read: gives up after [`READ_TIMEOUT`]. A timeout is a failed read.
+pub fn query_read<T: DeserializeOwned>(
+    cli: &dyn ServerCli,
+    args: &[&str],
+) -> Result<Reply<T>, CliError> {
+    let mut argv: Vec<&str> = args.to_vec();
+    argv.push("--json");
+    parse_output(&cli.run_within(&argv, READ_TIMEOUT)?)
 }
 
 /// Success object vs `{"error"}`, per section 22.
@@ -159,12 +178,23 @@ pub fn absolute_env_path(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn non_empty_env(name: &str) -> Option<String> {
+/// The value of an environment variable, `None` when it is unset or empty.
+pub fn non_empty_env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
 }
 
 impl ServerCli for RealCli {
     fn run(&self, args: &[&str]) -> Result<RawOutput, CliError> {
+        self.run_for(args, self.timeout)
+    }
+
+    fn run_within(&self, args: &[&str], limit: Duration) -> Result<RawOutput, CliError> {
+        self.run_for(args, limit.min(self.timeout))
+    }
+}
+
+impl RealCli {
+    fn run_for(&self, args: &[&str], timeout: Duration) -> Result<RawOutput, CliError> {
         let mut child = Command::new(&self.bin)
             .args(args)
             .stdin(Stdio::null())
@@ -185,7 +215,7 @@ impl ServerCli for RealCli {
             let _ = tx.send(result.map(|_| text));
         });
 
-        let deadline = Instant::now() + self.timeout;
+        let deadline = Instant::now() + timeout;
         let status = loop {
             match child.try_wait() {
                 Ok(Some(status)) => break status,
@@ -200,7 +230,12 @@ impl ServerCli for RealCli {
                     return Err(CliError::Timeout);
                 }
                 Ok(None) => thread::sleep(POLL_STEP),
-                Err(e) => return Err(CliError::Io(format!("{:?}", e.kind()))),
+                Err(e) => {
+                    // Not reaped yet: kill the group and wait, so the child is not left a zombie.
+                    kill_group(&child);
+                    let _ = child.wait();
+                    return Err(CliError::Io(format!("{:?}", e.kind())));
+                }
             }
         };
         // The child is gone. A grandchild that kept the pipe open would block the reader: kill the

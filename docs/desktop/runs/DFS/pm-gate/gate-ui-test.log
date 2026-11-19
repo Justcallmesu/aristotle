@@ -1,0 +1,41 @@
+npm notice run aristotle-desktop-ui@0.0.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ✓ src/views/pair/PairView.test.tsx (22 tests) 1781ms
+ ✓ src/views/status/StatusView.test.tsx (40 tests) 1783ms
+ ✓ src/views/terminal/TerminalView.test.tsx (38 tests) 2479ms
+ ✓ src/views/logs/logs.test.tsx (22 tests) 1724ms
+   ✓ Logs: lines > caps the view at 2,000 lines and says so  738ms
+ ✓ src/components/components.test.tsx (20 tests) 1402ms
+   ✓ shell > renders the 6 nav items in two groups  346ms
+ ✓ src/views/service/ServiceView.test.tsx (33 tests) 2416ms
+ ✓ src/state/useCommand.test.tsx (15 tests) 121ms
+ ✓ src/views/devices/DevicesView.test.tsx (18 tests) 1020ms
+ ✓ src/components/shared.test.tsx (19 tests) 681ms
+ ✓ src/ipc/ipc.test.ts (5 tests) 18ms
+ ✓ src/format/time.test.ts (8 tests) 15ms
+ ✓ src/state/world.test.ts (17 tests) 18ms
+ ✓ src/state/serviceButtons.test.ts (23 tests) 34ms
+ ✓ src/i18n/i18n.test.ts (8 tests) 59ms
+ ✓ src/state/intent.test.tsx (2 tests) 72ms
+stderr | src/state/snapshot.test.tsx > snapshot sequence numbers > does not let the first read replace a newer event
+An update to SnapshotProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/state/snapshot.test.tsx (2 tests) 110ms
+
+ Test Files  16 passed (16)
+      Tests  292 passed (292)
+   Start at  09:31:55
+   Duration  13.37s (transform 989ms, setup 2.70s, collect 3.14s, tests 13.73s, environment 11.82s, prepare 2.39s)
+

@@ -9,6 +9,7 @@ import { createClient, IpcProvider } from "../ipc";
 import { fakeTransport, renderWithApp, snapshotOf } from "../test/fakes";
 import { ActionButton } from "./Button";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { withStatus } from "../test/views";
 
 function renderApp(snapshot = snapshotOf(), intent: unknown = { kind: "status" }) {
   const fake = fakeTransport({ snapshot, start_intent: intent, terminal_status: { enabled: true } });
@@ -119,6 +120,14 @@ describe("version mismatch", () => {
     expect(alert).toHaveTextContent("The server is version 1.2.2, this app is version 1.2.3.");
   });
 
+  it("shows the changing headline in a red footer for a transitional service word (P23)", async () => {
+    renderApp(withStatus({ server: "not-running", service: "deactivating", result: null }));
+    const footer = await screen.findByRole("status");
+    await waitFor(() => expect(footer).toHaveTextContent("Server is changing state"));
+    expect(footer).toHaveTextContent("deactivating");
+    expect(footer.querySelector(".light-err")).not.toBeNull();
+  });
+
   it("turns the status footer red with the mismatch word (P18)", async () => {
     renderApp(mismatch);
     const footer = await screen.findByRole("status");
@@ -216,6 +225,23 @@ describe("confirm dialog", () => {
     await userEvent.click(screen.getByText("Opener"));
     fireEvent.click(document.querySelector(".scrim")!);
     expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("confirm dialog guard", () => {
+  it("calls onConfirm once for a double click while the dialog stays mounted", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <I18nProvider locale="en">
+        <ConfirmDialog title="Stop the server?" confirmLabel="Stop server" onConfirm={onConfirm} onCancel={() => undefined}>
+          <p>Phones disconnect.</p>
+        </ConfirmDialog>
+      </I18nProvider>,
+    );
+    const confirm = screen.getByRole("button", { name: "Stop server" });
+    await userEvent.dblClick(confirm);
+    await userEvent.click(confirm);
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });

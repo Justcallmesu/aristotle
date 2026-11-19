@@ -69,16 +69,6 @@ describe("Devices: list", () => {
     expect(fake.calls.filter((c) => c.command === "terminal_status")).toHaveLength(0);
   });
 
-  it("keeps the last good grants when a later poll could not read them", async () => {
-    const fake = setup(snap([PIXEL, TAB]));
-    expect(await screen.findByText("Granted")).toBeInTheDocument();
-    act(() => {
-      fake.emit("snapshot", snap([{ ...PIXEL, name: "pixel 2" }, TAB], { terminal_enabled: null, terminal_granted: null, seq: 2 }));
-    });
-    expect(await screen.findByText("pixel 2")).toBeInTheDocument();
-    expect(screen.getAllByText("Granted")).toHaveLength(1);
-  });
-
   it("keeps the CLI order", async () => {
     setup(snap([TAB, PIXEL]));
     const rows = await screen.findAllByRole("row");

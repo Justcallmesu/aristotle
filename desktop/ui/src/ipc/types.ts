@@ -36,7 +36,7 @@ export interface Status {
   service: string;
   enabled: string;
   installed: boolean;
-  /** "running" | "not-running" | "no-answer"; a newer server may add words. */
+  /** "running" | "not-running" | "no-answer" | "other" (a word a newer server adds: core maps it to "other"). */
   server: string;
   result: StatusResult | null;
 }

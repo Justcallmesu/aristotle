@@ -23,6 +23,13 @@ describe("Status: headline rows of design.md 4.1", () => {
     ["row 9 absent", hermes(null), "Server running", "This server does not report Hermes. Update it with the installer.", "Unknown"],
     ["row 4 stopped", stoppedSnapshot(), "Server stopped", "The service is inactive. Phones can’t connect until you start it.", "Unknown while stopped"],
     [
+      "row 4b changing",
+      stoppedSnapshot({ service: "activating" }),
+      "Server is changing state",
+      "systemd reports the service as activating.",
+      "Unknown while stopped",
+    ],
+    [
       "row 5 outside the service",
       withStatus({ service: "unknown" }),
       "Running outside the service",
@@ -229,7 +236,8 @@ describe("Status: Start server", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Start server" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("That did not work");
-    expect(alert).toHaveTextContent("error: failed");
+    expect(alert).toHaveTextContent("service: failed");
+    expect(alert).not.toHaveTextContent("error: failed");
     expect(screen.getByRole("button", { name: "Start server" })).toBeEnabled();
   });
 
@@ -237,7 +245,8 @@ describe("Status: Start server", () => {
     "service %s (server not running): Start only for inactive and failed (P21)",
     async (service) => {
       renderView(<StatusView />, { snapshot: stoppedSnapshot({ service }) });
-      await screen.findByRole("heading", { name: "Server stopped" });
+      const settled = service === "inactive" || service === "failed";
+      await screen.findByRole("heading", { name: settled ? "Server stopped" : "Server is changing state" });
       const start = screen.queryByRole("button", { name: "Start server" });
       if (service === "inactive" || service === "failed") expect(start).toBeEnabled();
       else expect(start).toBeNull();

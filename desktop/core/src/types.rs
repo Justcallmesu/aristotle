@@ -24,8 +24,9 @@ pub enum ServerState {
     NotRunning,
     #[serde(rename = "no-answer")]
     NoAnswer,
-    /// A word a newer server may add; treated as "not running" everywhere.
-    #[serde(other)]
+    /// A word a newer server may add; treated as "not running" everywhere. Serialises as `"other"`:
+    /// the frontend never sees the newer word itself.
+    #[serde(rename = "other", other)]
     Other,
 }
 
@@ -91,6 +92,11 @@ impl Status {
     /// `systemctl --user is-active` said `active`.
     pub fn service_active(&self) -> bool {
         self.service == "active"
+    }
+
+    /// True when the server's status carries a `hermes` object at all (an older server omits it).
+    pub fn hermes_reported(&self) -> bool {
+        self.result.as_ref().is_some_and(|r| r.hermes.is_some())
     }
 
     /// True only when the server answered and reports Hermes as reachable.
@@ -193,10 +199,4 @@ pub struct ActionResult {
     pub ok: bool,
     /// systemctl `is-active` word after the verb.
     pub service: String,
-}
-
-/// `{"error":"<text>"}` printed on failure.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
 }

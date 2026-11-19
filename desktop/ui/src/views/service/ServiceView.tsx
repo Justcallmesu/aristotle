@@ -40,7 +40,7 @@ export function ServiceView() {
         busy={world.row === 0}
         light={world.light ? <StateLight light={world.light} /> : null}
         title={t(world.titleKey)}
-        sub={world.subKey ? t(world.subKey) : undefined}
+        sub={world.subKey ? t(world.subKey, world.subParams) : undefined}
       />
       <KvGroup title={t("svc_state")}>
         <KvRow label={t("svc_unit")}>

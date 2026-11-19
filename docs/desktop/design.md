@@ -237,7 +237,8 @@ One derived `world` from `status --json` (§22) plus the CLI itself, evaluated i
 | 1 | the `aristotle-server` binary cannot be run | `st_nocli` / `sub_nocli` | err | red |
 | 2 | `installed == false` | `st_notinst` / `sub_notinst` | err | red |
 | 3 | `server == "no-answer"` | `st_noanswer` / `sub_noanswer` | err | red |
-| 4 | `server == "not-running"` | `st_stopped` / `sub_stopped` | err | red |
+| 4 | `server == "not-running"`, `service` inactive/failed/unknown (or absent) | `st_stopped` / `sub_stopped` | err | red |
+| 4b | `server == "not-running"`, any other `service` word except `unknown` (`activating`, `deactivating`, `reloading`, …) (P23) | `st_changing` / `sub_changing` | err | red |
 | 5 | `server == "running"` and `service != "active"` (`unknown`, or a server started by hand) | `st_outside` / `sub_outside` | err | red |
 | 6 | `server == "running"`, `result.hermes.state == "reachable"` | `st_running` / `sub_ok` | ok | green |
 | 7 | `server == "running"`, `hermes.state == "not-running"` | `st_running` / `sub_herm` | warn | amber |
@@ -314,7 +315,7 @@ Source: the board's `I18N` (`en` and `id`, 170 keys each, parity checked) plus *
 Frontend message files take every key except those prefixed `m_`, `tip_`, `n_` and `now_t`, which are the Rust-side table (tray menu, tooltip, notifications; P10).
 Params in `{braces}`. Technical field names (`qr_error`, `problem`, `warning`, `error`) are shown raw on purpose. Indonesian is written for reading, second person "kamu". Brand names and "Hermes", "Tailscale", "LAN", "PID" stay as is.
 
-Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** in the files. ⚠ = changed from the board (reason in the report), ★ = new. Surface UI = frontend `en`/`id` files, Rust = tray/notification table.
+Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** in the files at DSDc (later additions: `dis_other`, `n_grant_*`, `st_changing`, `sub_changing`; Rust-only code names `NoAppTitle`, `NoAppBody`, `ADevice`, `Tip*` are in §5/§6 but not in this count). ⚠ = changed from the board (reason in the report), ★ = new. Surface UI = frontend `en`/`id` files, Rust = tray/notification table.
 
 | Key | EN | ID | Surface |
 |---|---|---|---|
@@ -383,6 +384,8 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 | `dis_stopped` | Stop and Restart are off: the server isn’t running. | Tombol Hentikan dan Mulai ulang mati: server tidak berjalan. | UI |
 | `dis_mismatch` | Actions are off until the server is updated. | Tombol aksi mati sampai server diperbarui. | UI |
 | `dis_other` | Start, Stop and Restart are off while the service is {word}. | Nyalakan, Hentikan dan Mulai ulang mati selama layanan {word}. | UI |
+| `st_changing` | Server is changing state | Server sedang berganti status | UI |
+| `sub_changing` | systemd reports the service as {word}. | systemd melaporkan layanan sebagai {word}. | UI |
 | `dis_notinst` | Nothing to control: the service isn’t installed. | Tidak ada yang bisa dikendalikan: layanan belum terpasang. | UI |
 | `working_restart` | Restarting… | Memulai ulang… | UI |
 | `working_stop` | Stopping… | Menghentikan… | UI |
@@ -521,7 +524,7 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 ## 6. Tray and notifications (D4, D5, D14, D17, P14)
 
 - Icon: the monochrome glyph (`docs/design/icon/aristotle-b2-monochrome.svg`, the fold is a real hole) tinted by state + a badge top right in the state shape (circle / triangle / square). Colours (not app tokens, they sit on KDE's panel): green `#1F7A5F` / `#5FD1AE`, amber `#B26A00` / `#F2B33D`, red `#C8261C` / `#FF6B5E` (light panel `#EFF0F1` / dark `#31363B`). Contrast vs panel (non-text, needs 3): green 4.59 / 6.52, amber 3.71 / 6.56, red 4.91 / 4.37. At 16 px colour does the work and the shape cue is weak; DSI draws the heavier 16 px variant and the user approves it on the real panel (D19-5).
-- Menu: **Open** (bold, default) · **Pair a phone…** (disabled when the server is down) · separator · **Start server** (stopped) or **Stop server…** (running) · separator · **Quit** (UI only). Tooltip `tip_ok` / `tip_warn` / `tip_err` under the title "Aristotle Server". Left click = Open. Actions that need a dialog or a view launch the window app with an argument (P14); Start runs directly.
+- Menu: **Open** (bold, default) · **Pair a phone…** (disabled when the server is down) · separator · **Start server** or **Stop server…** by the service word, same rule as §4.4 (P21; other words: neither) · separator · **Quit** (UI only). Tooltip `tip_ok` / `tip_warn` / `tip_err` (plus the Rust-only `TipNotInstalled`, `TipNoAnswer`, `TipMismatch`, which reuse the texts of `st_notinst`, `st_noanswer`, `mm_title`) under the title "Aristotle Server". Left click = Open. Actions that need a dialog or a view launch the window app with an argument (P14); Start runs directly.
 - Notifications: app icon, "Aristotle Server", title, one-line body, **Open** button (`n_open`; none on the D7 and grant notices: security notices, not shortcuts — PM 2026-11-19, DS8b NIT-3). Texts `n_paired_*`, `n_term_*`, `n_herm_*`, `n_stop_*` (D5), `n_d7_*` (D7), `n_grant_*` (P22). Bodies use only device names from `devices list` and the listener word; never a code, QR payload, fingerprint or token (P11).
 
 ## 7. Accessibility

@@ -1,10 +1,11 @@
 //! Rust-side strings (P10): tray menu, tooltips, notifications. English and Indonesian.
 //!
-//! Texts come from `docs/desktop/design.md` section 5 (`m_*`, `tip_*`, `n_*`, `now_t`, and the tray
-//! tooltips `st_*` / `sub_hermunk`). Keys marked "added in DS3" are code-only: they are not in design.md yet.
+//! Texts come from `docs/desktop/design.md` section 5 (`m_*`, `tip_*`, `n_*`, `now_t`, the tray tooltips
+//! `st_*` / `mm_title` / `sub_hermunk`, and the three Rust rows `NoAppTitle`, `NoAppBody`, `ADevice`).
+//! Each `Key` variant names its design key in its doc comment.
 
 use crate::diff::Notice;
-use crate::snapshot::Reason;
+use crate::state::Reason;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -49,18 +50,29 @@ fn is_indonesian(locale: &str) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Key {
+    /// `m_open`.
     MenuOpen,
+    /// `m_pair`.
     MenuPair,
+    /// `m_start`.
     MenuStart,
+    /// `m_stop`.
     MenuStop,
+    /// `m_quit`.
     MenuQuit,
+    /// `tip_ok`.
     TipOk,
+    /// `tip_warn`.
     TipWarn,
+    /// `tip_err`.
     TipErr,
-    /// Added in DS3.
+    /// `st_notinst`.
     TipNotInstalled,
+    /// `st_nocli`.
     TipNoCli,
+    /// `st_noanswer`.
     TipNoAnswer,
+    /// `mm_title`.
     TipMismatch,
     /// `st_outside` (P17).
     TipOutside,
@@ -68,26 +80,37 @@ pub enum Key {
     TipHermesUnknown,
     /// `now_t`.
     Now,
+    /// `n_paired_t`.
     PairedTitle,
+    /// `n_paired_b`.
     PairedBody,
+    /// `n_term_t`.
     TermTitle,
+    /// `n_term_b`.
     TermBody,
+    /// `n_herm_t`.
     HermesTitle,
+    /// `n_herm_b`.
     HermesBody,
+    /// `n_stop_t`.
     StopTitle,
+    /// `n_stop_b`.
     StopBody,
-    /// Sent by the tray when its poll sees the terminal switched on or a new grant (D7, P20).
+    /// `n_d7_t`: the terminal switch went off to on (D7, P20).
     TermOnTitle,
+    /// `n_d7_b`.
     TermOnBody,
-    /// P22: a newly granted device, whether the switch is on or off.
+    /// `n_grant_t`: a newly granted device, whether the switch is on or off (P22).
     GrantTitle,
+    /// `n_grant_b`.
     GrantBody,
-    /// Added in DS3: the window app binary is missing.
+    /// `NoAppTitle` (design.md section 5): the window app binary is missing.
     NoAppTitle,
+    /// `NoAppBody`.
     NoAppBody,
-    /// Added in DS3: the name used when the devices list has no such device.
+    /// `ADevice`: the name used when the devices list has no such device.
     ADevice,
-    /// The notification action label.
+    /// `n_open`: the notification action label.
     OpenAction,
 }
 
@@ -235,22 +258,27 @@ pub fn tooltip(lang: Lang, reason: Reason) -> &'static str {
     text(lang, key)
 }
 
+/// A phone-sent name for a notification body: the body is markup on KDE, so `&`, `<` and `>` are escaped.
+fn markup_safe(name: &str) -> String {
+    name.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 /// Title and body for a notice. Uses only device names and listener words.
 pub fn notice_text(lang: Lang, notice: &Notice) -> (String, String) {
     match notice {
         Notice::DevicePaired { name } => (
             text(lang, Key::PairedTitle).to_owned(),
-            text(lang, Key::PairedBody).replace("{name}", name),
+            text(lang, Key::PairedBody).replace("{name}", &markup_safe(name)),
         ),
         Notice::TerminalOpened {
             device_name,
             listener,
         } => {
-            let name = device_name
-                .as_deref()
-                .unwrap_or_else(|| text(lang, Key::ADevice));
+            let name = named(lang, device_name.as_deref());
             let body = text(lang, Key::TermBody)
-                .replace("{name}", name)
+                .replace("{name}", &name)
                 .replace("{via}", &listener_label(listener));
             (text(lang, Key::TermTitle).to_owned(), body)
         }
@@ -259,12 +287,10 @@ pub fn notice_text(lang: Lang, notice: &Notice) -> (String, String) {
             text(lang, Key::TermOnBody).to_owned(),
         ),
         Notice::TerminalGranted { device_name } => {
-            let name = device_name
-                .as_deref()
-                .unwrap_or_else(|| text(lang, Key::ADevice));
+            let name = named(lang, device_name.as_deref());
             (
                 text(lang, Key::GrantTitle).to_owned(),
-                text(lang, Key::GrantBody).replace("{name}", name),
+                text(lang, Key::GrantBody).replace("{name}", &name),
             )
         }
         Notice::HermesUnreachable => (
@@ -276,6 +302,11 @@ pub fn notice_text(lang: Lang, notice: &Notice) -> (String, String) {
             text(lang, Key::StopBody).to_owned(),
         ),
     }
+}
+
+/// The device name for a body, escaped; the fixed `ADevice` text when no name is known.
+fn named(lang: Lang, device_name: Option<&str>) -> String {
+    device_name.map_or_else(|| text(lang, Key::ADevice).to_owned(), markup_safe)
 }
 
 /// The board's example says `(LAN)`: the listener kind is shown, `lan` and `tailscale` prettified.

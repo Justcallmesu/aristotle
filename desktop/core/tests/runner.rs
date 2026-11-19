@@ -244,3 +244,71 @@ fn a_binary_without_execute_permission_is_not_installed() {
     let err = cli(&bin, 5).run(&["status", "--json"]).unwrap_err();
     assert_eq!(err, CliError::NotInstalled);
 }
+
+/// A fake server that answers `status` at once and hangs on `hung` (the first CLI word of a read).
+fn hanging_read_script(s: &Scratch, hung: &str) -> PathBuf {
+    s.script(&format!(
+        "if [ \"$1\" = \"{hung}\" ]; then exec sleep 30; fi\n\
+         case \"$1\" in\n\
+         status) cat <<'EOF'\n{}EOF\n;;\n\
+         version) cat <<'EOF'\n{}EOF\n;;\n\
+         devices) cat <<'EOF'\n{}EOF\n;;\n\
+         terminal) cat <<'EOF'\n{}EOF\n;;\n\
+         esac",
+        common::fixture("status.json"),
+        common::fixture("version.json"),
+        common::fixture("devices_list.json"),
+        common::fixture("terminal_status.json"),
+    ))
+}
+
+/// P23 (c): `devices list`, `terminal status` and `version` give up after 3 s, `status` keeps the
+/// runner's own limit (10 s here, so a hang in a read costs 3 s, not 10).
+fn poll_with_hung(hung: &str) -> (aristotle_core::snapshot::Snapshot, Duration) {
+    let s = Scratch::new(&format!("hung-{hung}"));
+    let bin = hanging_read_script(&s, hung);
+    let mut snapshotter = aristotle_core::snapshot::Snapshotter::new(Some("1.2.3"));
+    let started = Instant::now();
+    let snapshot = snapshotter.poll(&cli(&bin, 10));
+    (snapshot, started.elapsed())
+}
+
+#[test]
+fn a_hung_devices_read_times_out_after_3_s_and_is_a_failed_read() {
+    let (snapshot, took) = poll_with_hung("devices");
+    assert!(took < Duration::from_secs(6), "took {took:?}");
+    assert!(snapshot.answered().is_some());
+    assert_eq!(snapshot.devices, None);
+    assert!(snapshot.terminals.is_some(), "the other reads still ran");
+}
+
+#[test]
+fn a_hung_terminal_status_read_times_out_after_3_s_and_is_a_failed_read() {
+    let (snapshot, took) = poll_with_hung("terminal");
+    assert!(took < Duration::from_secs(6), "took {took:?}");
+    assert_eq!(snapshot.terminals, None);
+    assert_eq!(snapshot.terminal_enabled, None);
+    assert_eq!(snapshot.terminal_granted, None);
+    assert!(snapshot.devices.is_some());
+}
+
+#[test]
+fn a_hung_version_read_times_out_after_3_s_and_leaves_the_check_unchecked() {
+    let (snapshot, took) = poll_with_hung("version");
+    assert!(took < Duration::from_secs(6), "took {took:?}");
+    assert_eq!(
+        snapshot.version,
+        aristotle_core::snapshot::VersionCheck::Unchecked
+    );
+    assert!(snapshot.devices.is_some());
+}
+
+#[test]
+fn a_hung_status_keeps_the_runner_limit() {
+    let s = Scratch::new("hung-status");
+    let bin = hanging_read_script(&s, "status");
+    let started = Instant::now();
+    let err = query::<Status>(&cli(&bin, 5), &["status"]).unwrap_err();
+    assert_eq!(err, CliError::Timeout);
+    assert!(started.elapsed() >= Duration::from_secs(5));
+}

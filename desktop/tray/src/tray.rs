@@ -4,8 +4,10 @@ use crate::icons;
 use crate::launcher::{Launch, Launcher};
 use crate::menu::{self, Entry, MenuInput};
 use crate::notifier;
+use crate::starting::Starting;
 use aristotle_core::runner::{query, ServerCli};
-use aristotle_core::snapshot::{assess, Assessment, Reason, Snapshot, TrayState};
+use aristotle_core::snapshot::Snapshot;
+use aristotle_core::state::{assess, Assessment, Reason, TrayState};
 use aristotle_core::strings::{text, tooltip, Key, Lang, APP_NAME};
 use aristotle_core::types::ActionResult;
 use ksni::menu::StandardItem;
@@ -19,6 +21,7 @@ pub struct AristotleTray {
     pub lang: Lang,
     pub launcher: Arc<Launcher>,
     pub cli: Arc<dyn ServerCli>,
+    starting: Starting,
 }
 
 impl AristotleTray {
@@ -37,6 +40,7 @@ impl AristotleTray {
             lang,
             launcher,
             cli,
+            starting: Starting::default(),
         };
         tray.apply(snapshot);
         tray
@@ -61,14 +65,19 @@ impl AristotleTray {
     }
 
     fn start_server(&self) {
+        // One start at a time; the entry is disabled meanwhile (see `item`).
+        let Some(token) = self.starting.try_begin() else {
+            return;
+        };
         let cli = Arc::clone(&self.cli);
-        thread::spawn(
-            move || match query::<ActionResult>(cli.as_ref(), &["start"]) {
+        thread::spawn(move || {
+            match query::<ActionResult>(cli.as_ref(), &["start"]) {
                 // P11: the app never logs CLI output, so only a fixed reason code is written.
                 Ok(_) => eprintln!("aristotle-tray: start ok"),
                 Err(e) => eprintln!("aristotle-tray: start failed: {}", e.kind()),
-            },
-        );
+            }
+            drop(token);
+        });
     }
 
     fn item(&self, entry: Entry) -> MenuItem<Self> {
@@ -88,6 +97,7 @@ impl AristotleTray {
             },
             Entry::Start => StandardItem {
                 label: label(Key::MenuStart),
+                enabled: !self.starting.active(),
                 activate: Box::new(|t: &mut Self| t.start_server()),
                 ..Default::default()
             },
@@ -117,7 +127,7 @@ impl Tray for AristotleTray {
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
-        icons::pixmaps(self.assessment.state)
+        icons::pixmaps(self.assessment.state).to_vec()
     }
 
     fn tool_tip(&self) -> ToolTip {

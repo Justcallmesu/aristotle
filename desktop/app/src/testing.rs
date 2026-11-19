@@ -5,6 +5,7 @@ use aristotle_core::runner::{CliError, RawOutput, ServerCli};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 type CallHook = Box<dyn FnMut(&[&str]) + Send>;
 
@@ -31,6 +32,8 @@ pub fn json(name: &str) -> Reply {
 pub struct FakeCli {
     replies: Mutex<VecDeque<Reply>>,
     calls: Mutex<Vec<Vec<String>>>,
+    /// The `limit` of each `run_within` call, in order (a plain `run` records nothing).
+    limits: Mutex<Vec<Duration>>,
     /// Runs on every call before the reply (to look at a file the app wrote).
     on_call: Mutex<Option<CallHook>>,
 }
@@ -40,6 +43,7 @@ impl FakeCli {
         Arc::new(Self {
             replies: Mutex::new(replies.into()),
             calls: Mutex::new(vec![]),
+            limits: Mutex::new(vec![]),
             on_call: Mutex::new(None),
         })
     }
@@ -51,6 +55,10 @@ impl FakeCli {
             .iter()
             .map(|c| c.join(" "))
             .collect()
+    }
+
+    pub fn limits(&self) -> Vec<Duration> {
+        self.limits.lock().unwrap().clone()
     }
 
     pub fn on_call(&self, f: impl FnMut(&[&str]) + Send + 'static) {
@@ -72,6 +80,11 @@ impl ServerCli for FakeCli {
             .unwrap()
             .pop_front()
             .expect("unexpected extra CLI call")
+    }
+
+    fn run_within(&self, args: &[&str], limit: Duration) -> Result<RawOutput, CliError> {
+        self.limits.lock().unwrap().push(limit);
+        self.run(args)
     }
 }
 
