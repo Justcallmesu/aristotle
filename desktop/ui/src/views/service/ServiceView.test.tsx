@@ -231,7 +231,8 @@ describe("Service: --confirm stop start intent (P14)", () => {
   it("opens the stop dialog once the first poll says Stop is available", async () => {
     const { fake } = renderView(<ServiceView />, { snapshot: snapshotOf(), start_intent: { kind: "confirm-stop" } });
     expect(await screen.findByRole("alertdialog", { name: "Stop the server?" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    // The dialog opens from an effect outside act(); focus lands in the dialog's own effect, which can flush after findByRole resolves.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus());
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(called(fake, "service_action")).toHaveLength(0);

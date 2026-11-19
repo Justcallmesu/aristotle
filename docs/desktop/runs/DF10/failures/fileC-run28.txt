@@ -1,0 +1,439 @@
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ❯ src/views/service/ServiceView.test.tsx (33 tests | 1 failed) 3454ms
+   ✓ Service: which buttons are on (design.md 4.4) > running: Stop and Restart on, Start off with the reason 270ms
+   ✓ Service: which buttons are on (design.md 4.4) > service inactive: Start on and primary, Stop and Restart off with the reason 58ms
+   ✓ Service: which buttons are on (design.md 4.4) > service failed: Start on and primary, Stop and Restart off with the reason 46ms
+   ✓ Service: which buttons are on (design.md 4.4) > service activating: all off, with the written reason naming the word (the tray's rule, dis_other) 53ms
+   ✓ Service: which buttons are on (design.md 4.4) > service deactivating: all off, with the written reason naming the word (the tray's rule, dis_other) 46ms
+   ✓ Service: which buttons are on (design.md 4.4) > service reloading: all off, with the written reason naming the word (the tray's rule, dis_other) 51ms
+   ✓ Service: which buttons are on (design.md 4.4) > service unknown: all off, with the written reason naming the word (the tray's rule, dis_other) 49ms
+   ✓ Service: which buttons are on (design.md 4.4) > service maintenance: all off, with the written reason naming the word (the tray's rule, dis_other) 74ms
+   ✓ Service: which buttons are on (design.md 4.4) > dis_other in Indonesian 58ms
+   ✓ Service: which buttons are on (design.md 4.4) > the failure banner is right after the header with no margin wrapper 205ms
+   ✓ Service: which buttons are on (design.md 4.4) > running but service unknown (started by hand): all off, dis_other with the word 118ms
+   ✓ Service: which buttons are on (design.md 4.4) > server not answering with the service active: Stop and Restart stay on (recovery) 113ms
+   ✓ Service: which buttons are on (design.md 4.4) > not installed: all off with the reason 52ms
+   ✓ Service: which buttons are on (design.md 4.4) > version mismatch: all off with the reason 108ms
+   ✓ Service: which buttons are on (design.md 4.4) > no CLI: all off 86ms
+   ✓ Service: which buttons are on (design.md 4.4) > loading: all off and the loading headline 40ms
+   ✓ Service: which buttons are on (design.md 4.4) > serviceButtons agrees with the tray menu rule for every service word 4ms
+   ✓ Service: Stop and Restart confirm (D15) > Stop opens the dialog with the D15 text, focus on Cancel, and Cancel sends nothing 198ms
+   ✓ Service: Stop and Restart confirm (D15) > Esc on the stop dialog sends nothing 157ms
+   ✓ Service: Stop and Restart confirm (D15) > clicking the scrim on the stop dialog sends nothing 135ms
+   ✓ Service: Stop and Restart confirm (D15) > confirming Stop runs stop once, shows working, all off, until the next poll 223ms
+   ✓ Service: Stop and Restart confirm (D15) > Restart: dialog text, Cancel sends nothing, confirm runs restart  348ms
+   ✓ Service: Stop and Restart confirm (D15) > Esc on the restart dialog sends nothing 120ms
+   ✓ Service: Start and failures > Start runs at once with no dialog and shows Starting… 152ms
+   ✓ Service: Start and failures > a failed command shows the banner with the server's message and re-enables the buttons 138ms
+   ✓ Service: Start and failures > a resolved { ok: false } is a failure too 113ms
+   ✓ Service: state rows and Indonesian > lists the unit, the service word and starts at login 29ms
+   ✓ Service: state rows and Indonesian > renders in Indonesian 32ms
+   × Service: --confirm stop start intent (P14) > opens the stop dialog once the first poll says Stop is available 49ms
+     → [2mexpect([22m[31melement[39m[2m).toHaveFocus()[22m
+
+Expected element with focus:
+  [32m<button
+  class="btn btn-outline"
+  type="button"
+>
+  Cancel
+</button>[39m
+Received element with focus:
+  [31m<body>
+  <div>
+    <header
+      class="view-header"
+    >
+      <div>
+        <h1>
+          Service
+        </h1>
+        <p
+          class="view-sub"
+        >
+          aristotle-server.service, a systemd user unit. It starts at login and keeps running when this window closes.
+        </p>
+      </div>
+    </header>
+    <section
+      class="kv-state"
+    >
+      <div
+        class="kv-state-text"
+      >
+        <h2
+          class="state-title"
+        >
+          <svg
+            aria-hidden="true"
+            class="light light-ok"
+            focusable="false"
+            height="14"
+            viewBox="0 0 12 12"
+            width="14"
+          >
+            <circle
+              cx="6"
+              cy="6"
+              r="5"
+            />
+          </svg>
+          Server running
+        </h2>
+        <p
+          class="kv-state-sub"
+        >
+          Hermes is reachable. Phones can connect.
+        </p>
+      </div>
+    </section>
+    <div
+      aria-labelledby="_r_1f_"
+      class="kv-group"
+      role="group"
+    >
+      <h2
+        class="group-title"
+        id="_r_1f_"
+      >
+        State
+      </h2>
+      <div
+        class="kv-rows"
+      >
+        <div
+          class="kv-row"
+        >
+          <span
+            class="kv-key"
+          >
+            Unit
+          </span>
+          <div
+            class="kv-val"
+          >
+            <span
+              class="mono"
+            >
+              aristotle-server.service · systemd --user
+            </span>
+          </div>
+        </div>
+        <div
+          class="kv-row"
+        >
+          <span
+            class="kv-key"
+          >
+            Service
+          </span>
+          <div
+            class="kv-val"
+          >
+            active
+          </div>
+        </div>
+        <div
+          class="kv-row"
+        >
+          <span
+            class="kv-key"
+          >
+            Starts at login
+          </span>
+          <div
+            class="kv-val"
+          >
+            Yes
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="svc-buttons"
+    >
+      <button
+        class="btn btn-default"
+        disabled=""
+        type="button"
+      >
+        Start server
+      </button>
+      <button
+        class="btn btn-outline-danger"
+        type="button"
+      >
+        Stop server
+      </button>
+      <button
+        class="btn btn-tonal"
+        type="button"
+      >
+        Restart server
+      </button>
+    </div>
+    <p
+      class="hint svc-reason"
+    >
+      Start is off: the server is already running.
+    </p>
+    <div
+      class="scrim"
+    >
+      <div
+        aria-describedby="_r_1h_"
+        aria-labelledby="_r_1g_"
+        aria-modal="true"
+        class="dialog"
+        role="alertdialog"
+      >
+        <h2
+          id="_r_1g_"
+        >
+          Stop the server?
+        </h2>
+        <div
+          class="dialog-body"
+          id="_r_1h_"
+        >
+          <p>
+            Phones disconnect and can’t reconnect until the server starts again.
+          </p>
+        </div>
+        <div
+          class="dialog-actions"
+        >
+          <button
+            class="btn btn-outline"
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            class="btn btn-danger"
+            type="button"
+          >
+            Stop server
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>[39m
+   ✓ Service: --confirm stop start intent (P14) > does not reopen the dialog after Cancel on the next poll 99ms
+   ✓ Service: --confirm stop start intent (P14) > confirming from the intent dialog runs stop 73ms
+   ✓ Service: --confirm stop start intent (P14) > opens no dialog when the server is already stopped 67ms
+   ✓ Service: --confirm stop start intent (P14) > a plain status intent opens no dialog 83ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/views/service/ServiceView.test.tsx > Service: --confirm stop start intent (P14) > opens the stop dialog once the first poll says Stop is available
+Error: [2mexpect([22m[31melement[39m[2m).toHaveFocus()[22m
+
+Expected element with focus:
+  [32m<button
+  class="btn btn-outline"
+  type="button"
+>
+  Cancel
+</button>[39m
+Received element with focus:
+  [31m<body>
+  <div>
+    <header
+      class="view-header"
+    >
+      <div>
+        <h1>
+          Service
+        </h1>
+        <p
+          class="view-sub"
+        >
+          aristotle-server.service, a systemd user unit. It starts at login and keeps running when this window closes.
+        </p>
+      </div>
+    </header>
+    <section
+      class="kv-state"
+    >
+      <div
+        class="kv-state-text"
+      >
+        <h2
+          class="state-title"
+        >
+          <svg
+            aria-hidden="true"
+            class="light light-ok"
+            focusable="false"
+            height="14"
+            viewBox="0 0 12 12"
+            width="14"
+          >
+            <circle
+              cx="6"
+              cy="6"
+              r="5"
+            />
+          </svg>
+          Server running
+        </h2>
+        <p
+          class="kv-state-sub"
+        >
+          Hermes is reachable. Phones can connect.
+        </p>
+      </div>
+    </section>
+    <div
+      aria-labelledby="_r_1f_"
+      class="kv-group"
+      role="group"
+    >
+      <h2
+        class="group-title"
+        id="_r_1f_"
+      >
+        State
+      </h2>
+      <div
+        class="kv-rows"
+      >
+        <div
+          class="kv-row"
+        >
+          <span
+            class="kv-key"
+          >
+            Unit
+          </span>
+          <div
+            class="kv-val"
+          >
+            <span
+              class="mono"
+            >
+              aristotle-server.service · systemd --user
+            </span>
+          </div>
+        </div>
+        <div
+          class="kv-row"
+        >
+          <span
+            class="kv-key"
+          >
+            Service
+          </span>
+          <div
+            class="kv-val"
+          >
+            active
+          </div>
+        </div>
+        <div
+          class="kv-row"
+        >
+          <span
+            class="kv-key"
+          >
+            Starts at login
+          </span>
+          <div
+            class="kv-val"
+          >
+            Yes
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="svc-buttons"
+    >
+      <button
+        class="btn btn-default"
+        disabled=""
+        type="button"
+      >
+        Start server
+      </button>
+      <button
+        class="btn btn-outline-danger"
+        type="button"
+      >
+        Stop server
+      </button>
+      <button
+        class="btn btn-tonal"
+        type="button"
+      >
+        Restart server
+      </button>
+    </div>
+    <p
+      class="hint svc-reason"
+    >
+      Start is off: the server is already running.
+    </p>
+    <div
+      class="scrim"
+    >
+      <div
+        aria-describedby="_r_1h_"
+        aria-labelledby="_r_1g_"
+        aria-modal="true"
+        class="dialog"
+        role="alertdialog"
+      >
+        <h2
+          id="_r_1g_"
+        >
+          Stop the server?
+        </h2>
+        <div
+          class="dialog-body"
+          id="_r_1h_"
+        >
+          <p>
+            Phones disconnect and can’t reconnect until the server starts again.
+          </p>
+        </div>
+        <div
+          class="dialog-actions"
+        >
+          <button
+            class="btn btn-outline"
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            class="btn btn-danger"
+            type="button"
+          >
+            Stop server
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>[39m
+ ❯ src/views/service/ServiceView.test.tsx:234:60
+    232|     const { fake } = renderView(<ServiceView />, { snapshot: snapshotO…
+    233|     expect(await screen.findByRole("alertdialog", { name: "Stop the se…
+    234|     expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus…
+       |                                                            ^
+    235|     await userEvent.click(screen.getByRole("button", { name: "Cancel" …
+    236|     expect(screen.queryByRole("alertdialog")).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 32 passed (33)
+   Start at  08:57:17
+   Duration  7.14s (transform 502ms, setup 348ms, collect 710ms, tests 3.45s, environment 1.36s, prepare 259ms)
+
