@@ -28,3 +28,6 @@ loop 1: runs=13 failed=0
 loop 3: runs=13 failed=0
 loop 2: runs=13 failed=0
 loop 4: runs=13 failed=0
+staged: 207 files
+c38caf7 desktop DS7 + DF11 + DS7b + DS7c: release bundle with aristotle-tray/aristotle-desktop (build-desktop.sh, version-stamped, --version checked), installer desktop step (webkit check, atomic + .prev, entries, tray replace/start, truthful output), uninstall removes entries and stops only installed programs, desktop licence notices (linked crates + std + npm + fonts), tray single instance + exits when the panel host is gone (P26/P27), window-failed notice (DF11). PM gates GREEN (full + desktop), tray 52 loop runs 0 failures; reviews: DS7 + DS7b changes-required -> fixed in DS7b/DS7c
+ M docs/desktop/runs/DS7c/pm-check-commit.out
