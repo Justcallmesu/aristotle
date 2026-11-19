@@ -28,6 +28,18 @@ pub fn parse_args<S: AsRef<str>>(argv: &[S]) -> StartIntent {
     StartIntent::Status
 }
 
+/// `--version` as the first argument: the process prints [`version_line`] and exits before any GTK or Tauri
+/// initialisation (P24).
+pub fn version_requested<S: AsRef<str>>(argv: &[S]) -> bool {
+    argv.get(1).map(AsRef::as_ref) == Some("--version")
+}
+
+/// `aristotle-desktop <x.y.z>`, the version stamped by the release build (`ARISTOTLE_VERSION`); a dev build says
+/// `0.0.0-dev`.
+pub fn version_line(stamped: Option<&str>) -> String {
+    format!("aristotle-desktop {}", stamped.unwrap_or("0.0.0-dev"))
+}
+
 /// The intent for a window that cannot listen yet, until its frontend has read it.
 ///
 /// A second launch while the first window is still loading would otherwise emit an event nobody
@@ -94,6 +106,25 @@ mod tests {
             StartIntent::Status,
             "nothing replays on a reload"
         );
+    }
+
+    #[test]
+    fn version_flag_is_recognised_only_as_the_first_argument() {
+        assert!(version_requested(&["aristotle-desktop", "--version"]));
+        assert!(!version_requested(&["aristotle-desktop"]));
+        assert!(!version_requested(&["aristotle-desktop", "--pair"]));
+        assert!(!version_requested(&[
+            "aristotle-desktop",
+            "--pair",
+            "--version"
+        ]));
+        assert!(!version_requested::<&str>(&[]));
+    }
+
+    #[test]
+    fn version_line_names_the_binary_and_the_stamped_version() {
+        assert_eq!(version_line(Some("9.9.9")), "aristotle-desktop 9.9.9");
+        assert_eq!(version_line(None), "aristotle-desktop 0.0.0-dev");
     }
 
     #[test]

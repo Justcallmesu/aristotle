@@ -1,0 +1,70 @@
+npm notice run aristotle-desktop-ui@0.0.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ✓ src/views/status/StatusView.test.tsx (41 tests) 2803ms
+   ✓ Status: headline rows of design.md 4.1 > row 0: loading, no columns and no Start  348ms
+   ✓ Status: headline rows of design.md 4.1 > row 6 reachable  731ms
+ ✓ src/views/terminal/TerminalView.test.tsx (38 tests) 4583ms
+   ✓ Terminal view: D7 enable dialog > Cancel and Esc send nothing  324ms
+   ✓ Terminal view: D7 enable dialog > the switch off→on opens the same dialog; confirm runs terminal_enable and shows the result  521ms
+   ✓ Terminal view: D7 grant dialog > names the phone, warns, red confirm, no remember; Cancel sends nothing  461ms
+   ✓ Terminal view: D7 grant dialog > confirm grants the selected phone's id  343ms
+ ✓ src/views/service/ServiceView.test.tsx (34 tests) 7162ms
+   ✓ Service: row 4b state row (P23) > shows the changing headline with the raw word  555ms
+   ✓ Service: which buttons are on (design.md 4.4) > running: Stop and Restart on, Start off with the reason  587ms
+   ✓ Service: which buttons are on (design.md 4.4) > service inactive: Start on and primary, Stop and Restart off with the reason  441ms
+   ✓ Service: which buttons are on (design.md 4.4) > service unknown: all off, with the written reason naming the word (the tray's rule, dis_other)  345ms
+   ✓ Service: Stop and Restart confirm (D15) > Stop opens the dialog with the D15 text, focus on Cancel, and Cancel sends nothing  436ms
+   ✓ Service: Stop and Restart confirm (D15) > confirming Stop runs stop once, shows working, all off, until the next poll  316ms
+   ✓ Service: Stop and Restart confirm (D15) > Restart: dialog text, Cancel sends nothing, confirm runs restart  388ms
+   ✓ Service: Stop and Restart confirm (D15) > Esc on the restart dialog sends nothing  330ms
+ ✓ src/views/logs/logs.test.tsx (22 tests) 3672ms
+   ✓ Logs: stream lifecycle > calls logs_start on open, after subscribing to the line events  508ms
+   ✓ Logs: lines > caps the view at 2,000 lines and says so  1553ms
+ ✓ src/views/pair/PairView.test.tsx (22 tests) 4356ms
+   ✓ Pair: before a code > opening the view shows the button and issues nothing  416ms
+   ✓ Pair: before a code > sends the optional name, trimmed, or none  304ms
+   ✓ Pair: making a code > shows the busy label and turns the button off until the reply  586ms
+   ✓ Pair: code > copies the raw 8-character code  440ms
+   ✓ Pair: code > Make a new code issues another code  529ms
+   ✓ Pair: code > draws no QR tile when qr_modules is absent but still shows the code  509ms
+   ✓ Pair: expired (P11) > drops code, QR and fingerprint from the DOM at expires_at and offers a new code  411ms
+ ✓ src/components/components.test.tsx (21 tests) 3489ms
+   ✓ shell > renders the 6 nav items in two groups  306ms
+   ✓ confirm dialog > keeps Tab and Shift+Tab inside  479ms
+   ✓ confirm dialog > confirms once and cancels on the scrim  546ms
+   ✓ confirm dialog guard > calls onConfirm once for a double click while the dialog stays mounted  324ms
+ ✓ src/state/useCommand.test.tsx (15 tests) 208ms
+ ✓ src/views/devices/DevicesView.test.tsx (18 tests) 3239ms
+   ✓ Devices: list > shows name, id, paired date, relative last seen with the ISO on hover, and the grant tag  1039ms
+   ✓ Devices: states > empty: cause, then the one action, which opens Pair  572ms
+   ✓ Devices: revoke > opens the D15 dialog on Cancel focus; Cancel sends nothing  307ms
+ ✓ src/components/shared.test.tsx (19 tests) 2120ms
+   ✓ NeedsServer > names the cause and offers Start when the service can be started  1284ms
+ ✓ src/state/world.test.ts (23 tests) 26ms
+ ✓ src/ipc/ipc.test.ts (5 tests) 19ms
+ ✓ src/format/time.test.ts (8 tests) 29ms
+ ✓ src/state/serviceButtons.test.ts (23 tests) 27ms
+ ✓ src/i18n/i18n.test.ts (8 tests) 81ms
+ ✓ src/state/intent.test.tsx (2 tests) 99ms
+stderr | src/state/snapshot.test.tsx > snapshot sequence numbers > does not let the first read replace a newer event
+An update to SnapshotProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/state/snapshot.test.tsx (2 tests) 118ms
+
+ Test Files  16 passed (16)
+      Tests  301 passed (301)
+   Start at  14:30:57
+   Duration  30.22s (transform 2.69s, setup 7.39s, collect 9.35s, tests 32.03s, environment 21.14s, prepare 5.32s)
+

@@ -2,9 +2,9 @@
 Type=Application
 Name=Aristotle Server
 Comment=Tray icon and notifications for aristotle-server
-# The installer (DS7) replaces @BIN_DIR@ with the absolute install directory.
+# The installer (DS7) puts the quoted absolute path of the installed program in Exec (it replaces the placeholder directory on the next line).
 Exec=@BIN_DIR@/aristotle-tray
-Icon=network-server
+Icon=aristotle-server
 Terminal=false
 NoDisplay=true
 X-GNOME-Autostart-enabled=true

@@ -31,6 +31,9 @@ var (
 	}
 	stdin io.Reader = os.Stdin
 
+	// The desktop app's running processes from the installed directory (found through /proc) are stopped by uninstall.
+	desktop = service.NewDesktop()
+
 	// The remote-terminal test of stop and restart reads this environment and cgroup file.
 	getenv     = os.Getenv
 	cgroupFile = "/proc/self/cgroup"
@@ -107,6 +110,13 @@ func runUninstall(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
+	// The entries go first, so a failing step below never leaves an autostart entry for a tray the user saw stopped. Then
+	// the tray and the window: a tray that polls while the service stops would show a false "server stopped".
+	if err := removeDesktopEntries(stdout); err != nil {
+		fmt.Fprintln(stderr, "error:", err)
+		return 1
+	}
+	desktop.StopProcesses(stdout)
 	m, err := newManager(stdout, stderr)
 	if err == nil {
 		err = m.Uninstall()
@@ -116,6 +126,7 @@ func runUninstall(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintln(stdout, "Service removed.")
+	reportKeptPrograms(stdout)
 	if *purge {
 		if err := os.RemoveAll(stateDir); err != nil {
 			fmt.Fprintln(stderr, "error:", err)
@@ -126,6 +137,28 @@ func runUninstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "Paired devices and the certificate were kept (use --purge to delete them).")
 	}
 	return 0
+}
+
+// removeDesktopEntries undoes the installer's desktop step (P24, P8): removes the menu entry, the autostart entry and the
+// icon. It runs before the tray and the service are stopped (P27). The programs themselves stay, like aristotle-server.
+func removeDesktopEntries(stdout io.Writer) error {
+	files, err := service.DesktopPaths()
+	if err != nil {
+		return err
+	}
+	return service.RemoveDesktopFiles(files, stdout)
+}
+
+// reportKeptPrograms says which desktop programs next to this executable stay on disk.
+func reportKeptPrograms(stdout io.Writer) {
+	bin, err := executable()
+	if err != nil {
+		return
+	}
+	if kept := service.KeptPrograms(filepath.Dir(bin)); len(kept) > 0 {
+		fmt.Fprintf(stdout, "Kept the programs in %s (%s), like aristotle-server; delete them yourself to remove them.\n",
+			filepath.Dir(bin), strings.Join(kept, ", "))
+	}
 }
 
 func confirm(w io.Writer, prompt string) bool {

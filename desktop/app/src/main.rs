@@ -1,7 +1,8 @@
 //! `aristotle-desktop`: one window; the process ends when the window closes (D18).
 
+use aristotle_core::snapshot::desktop_version;
 use aristotle_core::POLL_INTERVAL;
-use aristotle_desktop::args::{parse_args, PendingIntent};
+use aristotle_desktop::args::{parse_args, version_line, version_requested, PendingIntent};
 use aristotle_desktop::backend::Backend;
 use aristotle_desktop::ipc;
 use aristotle_desktop::logs::LogStream;
@@ -11,9 +12,13 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 const WINDOW: &str = "main";
 
 fn main() {
-    let pending = Arc::new(PendingIntent::new(parse_args(
-        &std::env::args().collect::<Vec<_>>(),
-    )));
+    let argv = std::env::args().collect::<Vec<_>>();
+    // Before any GTK or Tauri initialisation: the installer and release script run this on a PC without a display.
+    if version_requested(&argv) {
+        println!("{}", version_line(desktop_version()));
+        return;
+    }
+    let pending = Arc::new(PendingIntent::new(parse_args(&argv)));
     let backend = Arc::new(Backend::from_env());
     let logs = Arc::new(LogStream::new());
 

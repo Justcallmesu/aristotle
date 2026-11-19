@@ -1,0 +1,23 @@
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm --prefix ../ui run build`
+npm notice run aristotle-desktop-ui@0.0.0 build
+npm notice run tsc --noEmit && vite build
+vite v7.3.8 building client environment for production...
+transforming...
+✓ 91 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                    0.40 kB │ gzip:  0.27 kB
+dist/assets/atkinson_mono_regular-ST0J4L3U.ttf    52.02 kB
+dist/assets/atkinson_mono_medium-BfGxXDHb.ttf     53.33 kB
+dist/assets/atkinson_mono_semibold-Bq__OlAR.ttf   53.60 kB
+dist/assets/atkinson_next_regular-Db_W5Ovg.ttf    65.07 kB
+dist/assets/atkinson_next_semibold-OC6ufw_z.ttf   66.68 kB
+dist/assets/atkinson_next_medium-BY0OjAxG.ttf     67.08 kB
+dist/assets/Literata-variable-Di9Y-kl9.ttf       955.13 kB
+dist/assets/index-bxruhsrP.css                    16.36 kB │ gzip:  4.28 kB
+dist/assets/index-CGvnrf6c.js                    281.45 kB │ gzip: 89.00 kB
+✓ built in 1.64s
+   Compiling aristotle-desktop v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/app)
+    Finished `release` profile [optimized] target(s) in 1m 27s
+       Built application at: /home/justcallmesu/project/personal/Aristotle/desktop/target/release/aristotle-desktop

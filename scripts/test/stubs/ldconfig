@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Test stub of ldconfig for scripts/test/install_test.sh: `-p` lists a few libraries, and libwebkit2gtk-4.1 only when STUB_WEBKIT is set.
+[[ "${1:-}" == -p ]] || { echo "stub: unexpected ldconfig command: $*" >&2; exit 99; }
+echo '2 libs found in cache /etc/ld.so.cache'
+printf '\tlibz.so.1 (libc6,x86-64) => /usr/lib/libz.so.1\n'
+[[ -z "${STUB_WEBKIT:-}" ]] || printf '\tlibwebkit2gtk-4.1.so.0 (libc6,x86-64) => /usr/lib/libwebkit2gtk-4.1.so.0\n'
+exit 0

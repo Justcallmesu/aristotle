@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # D45 licence notices. Usage: scripts/licences.sh [--check]
-#   (no flag)  regenerate android/app/src/main/assets/licences.json + licences/*.txt and server/THIRD_PARTY_NOTICES.txt
+#   (no flag)  regenerate android/app/src/main/assets/licences.json + licences/*.txt, server/THIRD_PARTY_NOTICES.txt and
+#              desktop/THIRD_PARTY_NOTICES.txt
 #   --check    change nothing; exit 1 when the dependency set changed and a generated file is stale
 # Android inventory: releaseRuntimeClasspath (Gradle tasks :app:licencesWrite / :app:licencesCheck, android/licences/licences.gradle.kts).
 # Server inventory: `go list -deps` of the linked binary; each module's LICENSE file is copied verbatim.
+# Desktop inventory (P24): the Rust crates linked into aristotle-tray and aristotle-desktop (`cargo tree -e normal`), the Rust
+# standard library, the npm runtime dependencies of desktop/ui and the bundled fonts' OFL texts; see scripts/licences_desktop.py.
+# It runs `npm ci` / `cargo fetch --locked` itself when node_modules / the crate sources are missing (a fresh clone works).
+# A package without a licence file gets the standard text of its declared licence (scripts/licence-texts/); an undeclared or
+# unknown licence is an error: stderr names it and this script exits non-zero (write and --check), nothing is guessed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,6 +20,7 @@ case "${1:-}" in
   *) echo "usage: licences.sh [--check]" >&2; exit 2 ;;
 esac
 NOTICES="$ROOT/server/THIRD_PARTY_NOTICES.txt"
+DESKTOP_NOTICES="$ROOT/desktop/THIRD_PARTY_NOTICES.txt"
 RULE="================================================================"
 
 licence_id() { # file -> SPDX id, or fail (an unknown licence is never guessed)
@@ -58,19 +65,28 @@ android_tasks() {
   (cd "$ROOT/android" && ./gradlew --no-daemon -q "$task")
 }
 
-TMP="$(mktemp "${TMPDIR:-/tmp}/third-party-notices.XXXXXX")"
-trap 'rm -f "$TMP"' EXIT
-server_notices > "$TMP"
-if [[ "$MODE" == check ]]; then
-  if ! cmp -s "$TMP" "$NOTICES"; then
-    echo "server/THIRD_PARTY_NOTICES.txt is stale (run scripts/licences.sh)" >&2
-    diff "$NOTICES" "$TMP" | head -n 20 >&2 || true
-    exit 1
+# write_or_check regenerates one notices file ($2) from the command in $3.. (stdout), or in check mode compares it.
+write_or_check() { # label file command...
+  local label="$1" file="$2" tmp
+  shift 2
+  tmp="$(mktemp "${TMPDIR:-/tmp}/third-party-notices.XXXXXX")"
+  "$@" > "$tmp" || { rm -f "$tmp"; return 1; }
+  if [[ "$MODE" == check ]]; then
+    if ! cmp -s "$tmp" "$file"; then
+      echo "${file#"$ROOT"/} is stale (run scripts/licences.sh)" >&2
+      diff "$file" "$tmp" | head -n 20 >&2 || true
+      rm -f "$tmp"
+      exit 1
+    fi
+    echo "$label notices: up to date"
+  else
+    cp "$tmp" "$file"
+    echo "$label notices: wrote $file"
   fi
-  echo "server notices: up to date"
-else
-  cp "$TMP" "$NOTICES"
-  echo "server notices: wrote $NOTICES"
-fi
+  rm -f "$tmp"
+}
+
+write_or_check server "$NOTICES" server_notices
+write_or_check desktop "$DESKTOP_NOTICES" python3 "$ROOT/scripts/licences_desktop.py"
 android_tasks
 echo "licences: OK ($MODE)"

@@ -8,6 +8,16 @@ file at build time and shows the `Phone:` entries only.
 
 ## [Unreleased]
 
+### Added
+
+- Server: A desktop app for the PC. A small tray icon (green, amber or red for the server's state) starts with your desktop session, shows a notification when a phone pairs, a remote terminal opens, Hermes becomes unreachable or the server stops, and has a menu to open the window, pair a phone, and start or stop the server. The window shows the status and the Hermes link, a pairing QR code with a countdown, the paired phones (revoke with a confirmation), the remote terminal switch and its grants, start, stop and restart of the service, and the live log, in English or Indonesian. It closes completely when you close it.
+- Server: `./install.sh` also installs the desktop app (`aristotle-tray`, `aristotle-desktop`, an app-menu entry, an autostart entry and the icon) when `libwebkit2gtk-4.1` is installed, and closes an open window and replaces a running tray with the new one (the new tray starts at once when you are in a desktop session, otherwise at your next login). Without webkit2gtk-4.1 it prints one line and installs the server only. A problem with the desktop part only warns; the server install is never affected.
+- Server: `aristotle-server uninstall` also removes the app-menu and autostart entries and the icon and stops a running tray and window from `~/.local/bin` (never a copy started from elsewhere); the programs in `~/.local/bin` stay, like `aristotle-server`.
+- Server: `aristotle-server start`, `stop` and `restart` control the service from a terminal (`stop` and `restart` are refused in the phone's remote terminal).
+- Server: `--json` for `status`, `version`, `pair`, `devices`, `terminal`, `start`, `stop` and `restart` prints one JSON object for scripts and the desktop app; `pair --json` includes the QR code as a grid of modules.
+- Server: The release folder carries the desktop app's licence notices (`DESKTOP_THIRD_PARTY_NOTICES.txt`), including the Rust standard library and the standard text of every licence a bundled crate declares but does not ship.
+- Server: The tray is single-instance: starting it a second time does nothing, so an update, autostart and a manual start never leave two icons.
+
 ## [2.2.0] - 2026-11-12
 
 ### Added

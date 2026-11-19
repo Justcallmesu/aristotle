@@ -1,0 +1,9 @@
+=== S1 webkit check inverted
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== S2 replaced tray (deleted exe) not found
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== S3 release skips the desktop version check
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0

@@ -28,6 +28,16 @@ pub fn show_window_missing(lang: Lang) {
     );
 }
 
+/// The window app died right after launch (P11: no child output in the text).
+pub fn show_window_failed(lang: Lang) {
+    show(
+        lang,
+        text(lang, Key::WindowFailedTitle),
+        text(lang, Key::WindowFailedBody),
+        None,
+    );
+}
+
 fn show(lang: Lang, title: &str, body: &str, open_on_click: Option<&Arc<Launcher>>) {
     let mut notification = notify_rust::Notification::new();
     notification

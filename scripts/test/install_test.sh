@@ -7,7 +7,19 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 source "$HERE/lib.sh"
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/install-test.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
+# A stub tray the installer started (pid file in each case's state dir) must not outlive the test.
+cleanup() {
+  local file pid
+  for file in "$WORK"/*/state/tray.pid; do
+    [[ -f "$file" ]] || continue
+    pid="$(cat "$file")"
+    [[ "$(readlink "/proc/$pid/exe" 2> /dev/null)" == */sleep ]] && kill "$pid" 2> /dev/null
+  done
+  [[ -z "${OLDPID:-}" ]] || kill "$OLDPID" 2> /dev/null || true
+  [[ -z "${OTHERPID:-}" ]] || kill "$OTHERPID" 2> /dev/null || true
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
 
 # new_case: a fresh temp HOME, stub dir and bundle (install.sh + stub binary + a dummy APK + SHA256SUMS).
 new_case() {
@@ -19,7 +31,7 @@ new_case() {
   : > "$CASE/calls.log"
   echo "0::/user.slice/user-1000.slice/session-1.scope" > "$CASE/cgroup"
   cp "$HERE/stubs/journalctl" "$HERE/stubs/systemctl" "$HERE/stubs/hermes" "$HERE/stubs/loginctl" \
-    "$HERE/stubs/sudo" "$HERE/stubs/ufw" "$HERE/stubs/firewall-cmd" "$STUBS/"
+    "$HERE/stubs/sudo" "$HERE/stubs/ufw" "$HERE/stubs/firewall-cmd" "$HERE/stubs/ldconfig" "$STUBS/"
   chmod +x "$STUBS"/*
   cp "${INSTALL_SH:-$ROOT/scripts/install.sh}" "$BUNDLE/install.sh"
   cp "$HERE/stubs/aristotle-server" "$BUNDLE/aristotle-server"
@@ -56,7 +68,7 @@ clean_path() {
 
 run_install() { # args... ; sets CODE, OUT, CALLS (STUB_* variables given as prefix assignments reach the stubs)
   CODE=0
-  OUT="$(env -u ARISTOTLE_TERMINAL -u XDG_DATA_HOME HOME="$T_HOME" XDG_CONFIG_HOME="$T_HOME/.config" PATH="$STUBS:$(clean_path)" \
+  OUT="$(env -u ARISTOTLE_TERMINAL -u XDG_DATA_HOME -u XDG_STATE_HOME -u DISPLAY -u WAYLAND_DISPLAY HOME="$T_HOME" XDG_CONFIG_HOME="$T_HOME/.config" PATH="$STUBS:$(clean_path)" \
     ARISTOTLE_CGROUP_FILE="${CGROUP_FILE_FOR_TEST:-$CASE/cgroup}" ARISTOTLE_SBIN_DIRS= ${EXTRA_ENV:-} \
     STUB_INSTALL_FAILS="${INSTALL_FAILS:-}" \
     STUB_LOG="$CASE/calls.log" STUB_STATE="$CASE/state" STUB_STATUS_FAILS="${STATUS_FAILS:-0}" \
@@ -70,7 +82,7 @@ run_install_pty() { # args...
   local wrapper="$CASE/pty-run.sh" var
   {
     echo "#!/usr/bin/env bash"
-    printf 'exec env -u ARISTOTLE_TERMINAL -u XDG_DATA_HOME HOME=%q XDG_CONFIG_HOME=%q PATH=%q ARISTOTLE_CGROUP_FILE=%q ARISTOTLE_SBIN_DIRS= \\\n' \
+    printf 'exec env -u ARISTOTLE_TERMINAL -u XDG_DATA_HOME -u XDG_STATE_HOME -u DISPLAY -u WAYLAND_DISPLAY HOME=%q XDG_CONFIG_HOME=%q PATH=%q ARISTOTLE_CGROUP_FILE=%q ARISTOTLE_SBIN_DIRS= \\\n' \
       "$T_HOME" "$T_HOME/.config" "$STUBS:$(clean_path)" "$CASE/cgroup"
     for var in $(compgen -v STUB_); do printf '  %s=%q \\\n' "$var" "${!var}"; done
     printf '  STUB_LOG=%q STUB_STATE=%q ARISTOTLE_INSTALL_TIMEOUT=%q ARISTOTLE_GATEWAY_TIMEOUT=%q bash %q' "$CASE/calls.log" "$CASE/state" "${INSTALL_TIMEOUT:-5}" "${GATEWAY_TIMEOUT:-5}" "$BUNDLE/install.sh"
@@ -558,5 +570,297 @@ else
   expect_code 0 "$CODE" "interactive, sudo refuses"
   expect_contains "$OUT" "sudo ufw allow from 192.168.1.0/24" "printed the commands"
 fi
+
+# --- desktop app step (P24) ---------------------------------------------------------------------------------------------
+# add_desktop adds the desktop files to the bundle (stub binaries, the real .desktop templates and icon) and re-lists everything.
+add_desktop() {
+  cp "$HERE/stubs/aristotle-tray" "$BUNDLE/aristotle-tray"
+  cp "$HERE/stubs/aristotle-tray" "$BUNDLE/aristotle-desktop"
+  cp "$ROOT/desktop/packaging/aristotle-tray.desktop" "$ROOT/desktop/packaging/aristotle-desktop.desktop" "$BUNDLE/"
+  cp "$ROOT/desktop/app/icons/icon.png" "$BUNDLE/aristotle-server.png"
+  (cd "$BUNDLE" && sha256sum aristotle-9.9.9.apk aristotle-server install.sh aristotle-tray aristotle-desktop \
+    aristotle-tray.desktop aristotle-desktop.desktop aristotle-server.png > SHA256SUMS)
+}
+
+# wait_for_log waits (3 s at most) until the calls log has the line: the tray is started in the background.
+wait_for_log() {
+  local i
+  for ((i = 0; i < 30; i++)); do
+    grep -qF -- "$1" "$CASE/calls.log" && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# start_fake_tray runs a long-lived process whose executable is $1 (a copy of sleep, comm 'aristotle-tray'); sets FAKE_PID.
+start_fake_tray() {
+  mkdir -p "$(dirname "$1")"
+  cp "$(command -v sleep)" "$1"
+  "$1" 60 &
+  FAKE_PID=$!
+}
+
+proc_gone() { # pid: the process is gone (a killed child is reaped first, so it is not a zombie)
+  wait "$1" 2> /dev/null || true
+  [[ ! -d "/proc/$1" ]]
+}
+
+BIN="$T_HOME/.local/bin"
+echo "case: desktop step, webkit missing -> one skip line, nothing installed, exit 0"
+new_case dtnowebkit; add_desktop
+EXTRA_ENV="DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "webkit missing"
+expect_contains "$OUT" "desktop app skipped: webkit2gtk-4.1 not installed" "said the desktop app was skipped"
+expect_no_file "$T_HOME/.local/bin/aristotle-tray" "no tray binary"
+expect_no_file "$T_HOME/.local/bin/aristotle-desktop" "no window binary"
+expect_no_file "$T_HOME/.config/autostart" "no autostart entry"
+expect_no_file "$T_HOME/.local/share/applications" "no menu entry"
+expect_file "$T_HOME/.local/bin/aristotle-server" "the server was installed"
+expect_not_contains "$CALLS" "aristotle-tray start" "no tray started"
+
+echo "case: desktop step, webkit present -> files, entries with the right Exec and Icon, tray started"
+new_case dtfresh; add_desktop
+BIN="$T_HOME/.local/bin"
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "desktop install"
+expect_same "$BUNDLE/aristotle-tray" "$BIN/aristotle-tray" "tray binary installed"
+expect_same "$BUNDLE/aristotle-desktop" "$BIN/aristotle-desktop" "window binary installed"
+expect_eq "755" "$(stat -c %a "$BIN/aristotle-tray")" "tray mode 755"
+expect_eq "755" "$(stat -c %a "$BIN/aristotle-desktop")" "window mode 755"
+expect_no_file "$BIN/aristotle-tray.prev" "no .prev on a fresh install"
+expect_same "$BUNDLE/aristotle-server.png" "$T_HOME/.local/share/icons/hicolor/256x256/apps/aristotle-server.png" "icon installed"
+MENU="$(cat "$T_HOME/.local/share/applications/aristotle-desktop.desktop")"
+AUTO="$(cat "$T_HOME/.config/autostart/aristotle-tray.desktop")"
+expect_contains "$MENU" "Exec=\"$BIN/aristotle-desktop\"" "menu entry runs the window app by absolute (quoted) path"
+expect_contains "$MENU" "Icon=aristotle-server" "menu entry icon"
+expect_contains "$AUTO" "Exec=\"$BIN/aristotle-tray\"" "autostart entry runs the tray by absolute (quoted) path"
+expect_contains "$AUTO" "Icon=aristotle-server" "autostart entry icon"
+expect_not_contains "$MENU$AUTO" "@BIN_DIR@" "placeholder replaced"
+[[ -z "$(ls -A "$BIN" | grep -v -e '^aristotle-server$' -e '^aristotle-tray$' -e '^aristotle-desktop$' || true)" ]] && pass "no temp file left in ~/.local/bin" || fail "temp file left in ~/.local/bin"
+wait_for_log "aristotle-tray start" && pass "tray started" || fail "tray was not started"
+expect_not_contains "$(cat "$CASE/calls.log")" "aristotle-desktop start" "the window app is not started by the installer"
+expect_file "$T_HOME/.local/state/aristotle/tray.log" "tray log file"
+expect_contains "$OUT" "Started the tray" "said the tray was started"
+
+echo "case: an update replaces a running tray (found by its executable path), keeps .prev, starts the new one"
+new_case dtupdate; add_desktop
+BIN="$T_HOME/.local/bin"
+start_fake_tray "$BIN/aristotle-tray"; OLDPID=$FAKE_PID
+cp "$BIN/aristotle-tray" "$CASE/old-tray"
+start_fake_tray "$CASE/other/aristotle-tray"; OTHERPID=$FAKE_PID
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "update with a running tray"
+proc_gone "$OLDPID" && pass "the old tray exited" || fail "the old tray still runs"
+[[ -d "/proc/$OTHERPID" ]] && pass "a tray started from another path was left alone" || fail "a tray from another path was killed"
+expect_same "$CASE/old-tray" "$BIN/aristotle-tray.prev" "old tray kept as .prev"
+expect_same "$BUNDLE/aristotle-tray" "$BIN/aristotle-tray" "new tray installed"
+expect_contains "$OUT" "Stopped the old tray" "said the old tray was stopped"
+wait_for_log "aristotle-tray start" && pass "the new tray started" || fail "the new tray was not started"
+kill "$OTHERPID" 2> /dev/null; wait "$OTHERPID" 2> /dev/null || true; OTHERPID=""; OLDPID=""
+
+echo "case: no graphical session -> the files are installed and the tray is not started"
+new_case dtnodisplay; add_desktop
+BIN="$T_HOME/.local/bin"
+EXTRA_ENV="STUB_WEBKIT=1" run_install --no-pair
+expect_code 0 "$CODE" "no display"
+expect_same "$BUNDLE/aristotle-tray" "$BIN/aristotle-tray" "tray binary installed"
+expect_file "$T_HOME/.config/autostart/aristotle-tray.desktop" "autostart entry written"
+sleep 0.5
+expect_not_contains "$(cat "$CASE/calls.log")" "aristotle-tray start" "tray not started"
+expect_no_file "$T_HOME/.local/state/aristotle/tray.log" "no tray log"
+
+echo "case: a checksum mismatch on a desktop file refuses before any change"
+new_case dtbadsum; add_desktop
+BIN="$T_HOME/.local/bin"
+echo "# tampered" >> "$BUNDLE/aristotle-desktop"
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 1 "$CODE" "tampered desktop file"
+expect_contains "$OUT" "checksum mismatch" "said why"
+expect_no_file "$T_HOME/.local" "nothing installed (no ~/.local at all)"
+expect_no_file "$T_HOME/.config" "no entries written"
+[[ -z "$CALLS" ]] && pass "nothing was run" || fail "ran: $CALLS"
+
+echo "case: a desktop file missing from SHA256SUMS refuses before any change"
+new_case dtunlisted; add_desktop
+(cd "$BUNDLE" && sha256sum aristotle-9.9.9.apk aristotle-server install.sh aristotle-tray aristotle-tray.desktop aristotle-desktop.desktop aristotle-server.png > SHA256SUMS)
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 1 "$CODE" "unlisted desktop file"
+expect_contains "$OUT" "does not list aristotle-desktop" "said which file"
+expect_no_file "$T_HOME/.local" "nothing installed"
+
+echo "case: a bundle without desktop files (older bundle) skips the step silently"
+new_case dtold
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "older bundle"
+expect_not_contains "$OUT" "desktop" "no word about the desktop app"
+expect_no_file "$T_HOME/.config" "no entries"
+
+echo "case: a desktop-step failure warns and never fails the server install"
+new_case dtfail; add_desktop
+mkdir -p "$T_HOME/.config"; echo "a file where the autostart directory should be" > "$T_HOME/.config/autostart"
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "autostart directory cannot be made"
+expect_contains "$OUT" "warning: the desktop app was not fully installed" "warned"
+expect_contains "$OUT" "Running: aristotle-server 9.9.9" "the install finished"
+expect_not_contains "$CALLS" "aristotle-tray start" "tray not started after a failed step"
+
+# --- DS7b: quoting, resolved paths, the window app, a bounded wait, the detached tray ------------------------------------------
+# proc_dead pid: the process is gone or a zombie, checked without waiting for it (proc_gone would block on a live child).
+proc_dead() {
+  local state
+  state="$(awk '{ print $3 }' "/proc/$1/stat" 2> /dev/null)" || return 0
+  [[ -z "$state" || "$state" == Z ]]
+}
+
+# new_case_in_home <case> <home-dir-name>: like new_case, with the HOME directory named as given (spaces, quotes, ...).
+new_case_in_home() {
+  new_case "$1"
+  rm -rf "$T_HOME"
+  T_HOME="$CASE/$2"
+  mkdir -p "$T_HOME"
+  TARGET="$T_HOME/.local/bin/aristotle-server"
+}
+
+# exec_value <entry-file>: the Exec value decoded as the Desktop Entry spec says (key-file string escapes, then the quoted
+# argument), printed as the single program path; fails when it is not exactly one argument.
+exec_value() {
+  python3 - "$1" <<'PY'
+import sys
+
+line = [l for l in open(sys.argv[1]).read().splitlines() if l.startswith("Exec=")][0][5:]
+
+
+def unescape(text, escapes, what):
+    out, i = [], 0
+    while i < len(text):
+        if text[i] == "\\":
+            if i + 1 >= len(text) or text[i + 1] not in escapes:
+                sys.exit("bad %s escape in Exec: %s" % (what, line))
+            out.append(text[i + 1])
+            i += 2
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+value = unescape(line, "\\", "key-file")          # the file's string escapes (only \\ is ever written)
+if len(value) < 2 or value[0] != '"' or value[-1] != '"':
+    sys.exit("Exec value is not one quoted argument: " + value)
+body = value[1:-1]
+for c in '"`$':                                    # inside quotes these must be escaped
+    stripped = body.replace("\\" + c, "").replace("\\\\", "")
+    if c in stripped:
+        sys.exit("unescaped %s in Exec: %s" % (c, value))
+arg = unescape(body, '"`$\\', "quoted-argument")
+if arg.replace("%%", "").count("%"):
+    sys.exit("a lone percent sign in Exec: " + value)
+print(arg.replace("%%", "%"))
+PY
+}
+
+echo "case: Exec= is quoted per the Desktop Entry spec, HOME with a space and a dollar sign"
+new_case_in_home dtspace 'home a b$c'
+add_desktop
+BIN="$T_HOME/.local/bin"
+EXTRA_ENV="STUB_WEBKIT=1" run_install --no-pair
+expect_code 0 "$CODE" "install with a space and a \$ in HOME"
+AUTO_FILE="$T_HOME/.config/autostart/aristotle-tray.desktop"
+MENU_FILE="$T_HOME/.local/share/applications/aristotle-desktop.desktop"
+expect_contains "$(cat "$AUTO_FILE")" 'Exec="'"$CASE"'/home a b\\$c/.local/bin/aristotle-tray"' "exact Exec line of the autostart entry"
+expect_contains "$(cat "$MENU_FILE")" 'Exec="'"$CASE"'/home a b\\$c/.local/bin/aristotle-desktop"' "exact Exec line of the menu entry"
+expect_eq "$BIN/aristotle-tray" "$(exec_value "$AUTO_FILE")" "the autostart Exec decodes to the one program path"
+expect_eq "$BIN/aristotle-desktop" "$(exec_value "$MENU_FILE")" "the menu Exec decodes to the one program path"
+expect_same "$BUNDLE/aristotle-tray" "$BIN/aristotle-tray" "tray installed under a HOME with a space"
+
+echo "case: Exec= escapes a double quote, a backtick, a backslash and a percent sign"
+new_case_in_home dtquote 'h"q%r\s`t'
+add_desktop
+BIN="$T_HOME/.local/bin"
+EXTRA_ENV="STUB_WEBKIT=1" run_install --no-pair
+expect_code 0 "$CODE" "install with quote, percent, backslash and backtick in HOME"
+AUTO_FILE="$T_HOME/.config/autostart/aristotle-tray.desktop"
+expect_contains "$(cat "$AUTO_FILE")" 'Exec="'"$CASE"'/h\\"q%%r\\\\s\\`t/.local/bin/aristotle-tray"' "exact escaped Exec line"
+expect_eq "$BIN/aristotle-tray" "$(exec_value "$AUTO_FILE")" "the escaped Exec decodes to the one program path"
+
+echo "case: a symlinked HOME: the running tray is found by its resolved path (M2), no second tray"
+new_case dtlink; add_desktop
+rm -rf "$CASE/home"; mkdir -p "$CASE/real/.local"
+ln -s "$CASE/real" "$CASE/home"
+T_HOME="$CASE/home"; BIN="$T_HOME/.local/bin"
+start_fake_tray "$CASE/real/.local/bin/aristotle-tray"; OLDPID=$FAKE_PID
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "update through a symlinked HOME"
+proc_dead "$OLDPID" && pass "the old tray (resolved path) exited" || fail "the old tray still runs: not found through the symlink"
+kill "$OLDPID" 2> /dev/null || true; OLDPID=""
+expect_contains "$OUT" "Stopped the old tray" "said the old tray was stopped"
+
+echo "case: an open window app (aristotle-desktop) from the installed path is closed too (L9, P26 (2)); one elsewhere is not"
+new_case dtwindow; add_desktop
+BIN="$T_HOME/.local/bin"
+start_fake_tray "$BIN/aristotle-desktop"; WINPID=$FAKE_PID
+start_fake_tray "$CASE/other/aristotle-desktop"; OTHERPID=$FAKE_PID
+EXTRA_ENV="STUB_WEBKIT=1" run_install --no-pair
+expect_code 0 "$CODE" "update with an open window"
+proc_dead "$WINPID" && pass "the window app exited" || fail "the window app still runs"
+kill "$WINPID" 2> /dev/null || true
+[[ -d "/proc/$OTHERPID" ]] && pass "a window app from another path was left alone" || fail "a window app from another path was killed"
+expect_contains "$OUT" "Closed the open window" "said the window was closed"
+kill "$OTHERPID" 2> /dev/null; wait "$OTHERPID" 2> /dev/null || true; OTHERPID=""
+
+echo "case: a tray that ignores SIGTERM is killed after about 5 s, not after minutes (L1)"
+new_case dtstubborn; add_desktop
+BIN="$T_HOME/.local/bin"
+mkdir -p "$BIN"; cp "$(command -v sleep)" "$BIN/aristotle-tray"
+( trap '' TERM; exec "$BIN/aristotle-tray" 60 ) &
+OLDPID=$!
+sleep 0.2
+START=$SECONDS
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+ELAPSED=$((SECONDS - START))
+expect_code 0 "$CODE" "update with a tray that ignores SIGTERM"
+proc_dead "$OLDPID" && pass "the stubborn tray was killed" || fail "the stubborn tray still runs"
+kill "$OLDPID" 2> /dev/null || true; OLDPID=""
+if [[ $ELAPSED -le 9 ]]; then pass "the install took ${ELAPSED}s (bound ~5 s wait)"; else fail "the install took ${ELAPSED}s, want at most 9"; fi
+
+echo "case: the started tray is detached cleanly: cwd /, SIGINT and SIGQUIT at default (L3, N3)"
+new_case dtdetach; add_desktop
+BIN="$T_HOME/.local/bin"
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99" run_install --no-pair
+expect_code 0 "$CODE" "install that starts the tray"
+wait_for_log "aristotle-tray start" && pass "tray started" || fail "tray was not started"
+for _ in $(seq 1 30); do [[ -s "$CASE/state/tray.info" ]] && break; sleep 0.1; done
+INFO="$(cat "$CASE/state/tray.info" 2> /dev/null || true)"
+expect_contains "$INFO" "cwd=/ " "the tray runs in /"
+MASK="${INFO##*sigign=}"
+if [[ -n "$MASK" && $((16#$MASK & 6)) -eq 0 ]]; then pass "SIGINT and SIGQUIT are not ignored (SigIgn=$MASK)"; else fail "SIGINT/SIGQUIT ignored in the tray (SigIgn=$MASK)"; fi
+
+# --- DS7c: "Started the tray" only when the process is alive after ~1 s (P27 (3)) -----------------------------------------------
+echo "case: the new tray exits at once because another tray holds the lock -> the other tray's pid and path, not \"Started\""
+new_case dtother; add_desktop
+BIN="$T_HOME/.local/bin"
+start_fake_tray "$CASE/other/aristotle-tray"; OTHERPID=$FAKE_PID
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99 STUB_TRAY_EXITS=1" run_install --no-pair
+expect_code 0 "$CODE" "install while another tray runs"
+# Any running aristotle-tray qualifies (a real tray on this PC may be named first), so check the shape and that it is real.
+LINE="$(grep 'another aristotle-tray is running' <<< "$OUT" || true)"
+RE='^another aristotle-tray is running \(pid ([0-9]+), (/.*/aristotle-tray)\); the new one exits$'
+if [[ "$LINE" =~ $RE ]] && [[ -d "/proc/${BASH_REMATCH[1]}" ]]; then
+  pass "named a running other tray with its pid and path"
+else
+  fail "no other-tray line with a live pid and a path: $LINE"
+fi
+expect_not_contains "$OUT" "Started the tray" "did not claim the tray started"
+[[ -d "/proc/$OTHERPID" ]] && pass "the other tray was left alone" || fail "the other tray was killed"
+kill "$OTHERPID" 2> /dev/null || true; OTHERPID=
+
+echo "case: the new tray exits at once and no other tray is named -> no \"Started\" either, the install still succeeds"
+new_case dtdied; add_desktop
+BIN="$T_HOME/.local/bin"
+EXTRA_ENV="STUB_WEBKIT=1 DISPLAY=:99 STUB_TRAY_EXITS=1" run_install --no-pair
+expect_code 0 "$CODE" "install with a tray that exits at once"
+expect_not_contains "$OUT" "Started the tray" "did not claim the tray started"
+expect_file "$BIN/aristotle-tray" "the tray binary is installed"
+
 
 finish install_test

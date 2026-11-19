@@ -108,6 +108,10 @@ pub enum Key {
     NoAppTitle,
     /// `NoAppBody`.
     NoAppBody,
+    /// `WindowFailedTitle` (design.md section 5): the window app exited non-zero right after launch.
+    WindowFailedTitle,
+    /// `WindowFailedBody`.
+    WindowFailedBody,
     /// `ADevice`: the name used when the devices list has no such device.
     ADevice,
     /// `n_open`: the notification action label.
@@ -115,7 +119,7 @@ pub enum Key {
 }
 
 impl Key {
-    pub const ALL: [Key; 31] = [
+    pub const ALL: [Key; 33] = [
         Key::MenuOpen,
         Key::MenuPair,
         Key::MenuStart,
@@ -145,6 +149,8 @@ impl Key {
         Key::GrantBody,
         Key::NoAppTitle,
         Key::NoAppBody,
+        Key::WindowFailedTitle,
+        Key::WindowFailedBody,
         Key::ADevice,
         Key::OpenAction,
     ];
@@ -193,6 +199,10 @@ fn en(key: Key) -> &'static str {
         }
         Key::NoAppTitle => "Window app not found",
         Key::NoAppBody => "aristotle-desktop is not installed next to the tray.",
+        Key::WindowFailedTitle => "The window could not open",
+        Key::WindowFailedBody => {
+            "aristotle-desktop stopped at start. Run it from a terminal to see why."
+        }
         Key::ADevice => "A device",
         Key::OpenAction => "Open",
     }
@@ -235,6 +245,10 @@ fn id(key: Key) -> &'static str {
         }
         Key::NoAppTitle => "Aplikasi jendela tidak ditemukan",
         Key::NoAppBody => "aristotle-desktop tidak terpasang di samping tray.",
+        Key::WindowFailedTitle => "Jendela tidak bisa dibuka",
+        Key::WindowFailedBody => {
+            "aristotle-desktop berhenti saat mulai. Jalankan dari terminal untuk melihat penyebabnya."
+        }
         Key::ADevice => "Sebuah perangkat",
         Key::OpenAction => "Buka",
     }

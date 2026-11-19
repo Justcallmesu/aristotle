@@ -29,6 +29,7 @@ make_scratch() {
   (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard |
     tar --null --ignore-failed-read -T - -cf - 2> /dev/null) | tar -xf - -C "$S"
   printf '#!/usr/bin/env bash\necho "stub gate (release_test)"\nexit "${RELEASE_TEST_GATE_EXIT:-0}"\n' > "$S/docs/v1-tickets/gates.sh"
+  printf '#!/usr/bin/env bash\necho "stub desktop gate (release_test)"\nexit "${RELEASE_TEST_DESKTOP_GATE_EXIT:-0}"\n' > "$S/docs/desktop/gates.sh"
   git -C "$S" init -q
   git -C "$S" config user.email release-test@example.invalid
   git -C "$S" config user.name release-test
@@ -96,6 +97,7 @@ git -C "$S" tag v1.0.0
 refused "existing tag" "tag v1.0.0 already exists" 1.0.0
 git -C "$S" tag -d v1.0.0 > /dev/null
 RELEASE_TEST_GATE_EXIT=1 refused "gate fails" "the gate failed" 1.0.0
+RELEASE_TEST_DESKTOP_GATE_EXIT=1 refused "desktop gate fails" "the desktop gate failed" 1.0.0
 
 echo "case: wrong signer (throwaway key, real pin) is refused after the build"
 refused "wrong signer" "APK signer is not the release key: got '$THROWAWAY_SHA256'" 1.0.0
@@ -119,21 +121,26 @@ ANDROID_HOME="$REAL_SDK"
 
 # The scratch repo builds the server with a stub (see stubs/build-server.sh).
 cp "$HERE/stubs/build-server.sh" "$S/scripts/build-server.sh"
-commit "test: stub server build"
+# The desktop build is a stub for the rest of the test (the real one compiles the Tauri app: minutes).
+cp "$HERE/stubs/build-desktop.sh" "$S/scripts/build-desktop.sh"
+commit "test: stub server and desktop builds"
 BUILD_STUB_VERSION="aristotle-server 0.0.0 (abc) protocol 1" refused "wrong server version line" "aristotle-server version says 'aristotle-server 0.0.0 (abc) protocol 1'" 1.0.0
 SHORT_STUB="$(git -C "$S" rev-parse --short HEAD)"
 BUILD_STUB_VERSION="aristotle-server 1.0.0 ($SHORT_STUB) protocol 1" BUILD_STUB_DIRTY=1 refused "build dirtied the tree" "the git tree is not clean" 1.0.0
 cp "$ROOT/scripts/build-server.sh" "$S/scripts/build-server.sh"
 commit "test: real server build again"
 
+DESKTOP_STUB_VERSION=0.0.0-dev refused "wrong desktop version line" "aristotle-tray --version says 'aristotle-tray 0.0.0-dev', want 'aristotle-tray 1.0.0'" 1.0.0
+
 echo "case: a good run (throwaway pin) builds the bundle and tags"
 SHORT="$(git -C "$S" rev-parse --short HEAD)"
 run_release --tag 1.0.0
 expect_code 0 "$CODE" "good run"
 B="$S/dist/aristotle-1.0.0"
-expect_eq "RELEASE-NOTES.md SHA256SUMS THIRD_PARTY_NOTICES.txt aristotle-1.0.0.apk aristotle-server install.sh " \
-  "$(LC_ALL=C ls -A "$B" | tr '\n' ' ')" "bundle has exactly the six files"
-expect_eq 5 "$(wc -l < "$B/SHA256SUMS")" "SHA256SUMS lists the five other files"
+expect_eq "DESKTOP_THIRD_PARTY_NOTICES.txt RELEASE-NOTES.md SHA256SUMS THIRD_PARTY_NOTICES.txt aristotle-1.0.0.apk aristotle-desktop aristotle-desktop.desktop aristotle-server aristotle-server.png aristotle-tray aristotle-tray.desktop install.sh " \
+  "$(LC_ALL=C ls -A "$B" | tr '\n' ' ')" "bundle has exactly the twelve files"
+expect_eq 11 "$(wc -l < "$B/SHA256SUMS")" "SHA256SUMS lists the eleven other files"
+expect_eq "" "$(cd "$B" && ls -A | grep -v '^SHA256SUMS$' | while read -r f; do grep -q "  $f\$" SHA256SUMS || echo "$f"; done)" "every file but SHA256SUMS is listed"
 expect_contains "$(cd "$B" && sha256sum --check --strict SHA256SUMS 2>&1)" "aristotle-server: OK" "SHA256SUMS verifies"
 expect_contains "$("$B/aristotle-server" version)" "aristotle-server 1.0.0 ($SHORT) protocol " "binary carries version and commit"
 expect_contains "$(head -n 1 "$B/RELEASE-NOTES.md")" "## [1.0.0] - 2026-11-04" "release notes start at the version heading"
@@ -148,6 +155,14 @@ mode="$(stat -c '%a' "$B/THIRD_PARTY_NOTICES.txt")"; [[ "$mode" == "644" ]] && p
 mode="$(stat -c '%a' "$B/RELEASE-NOTES.md")"; [[ "$mode" == "644" ]] && pass "RELEASE-NOTES.md mode is 644" || fail "RELEASE-NOTES.md mode is $mode, want 644"
 mode="$(stat -c '%a' "$B/SHA256SUMS")"; [[ "$mode" == "644" ]] && pass "SHA256SUMS mode is 644" || fail "SHA256SUMS mode is $mode, want 644"
 expect_same "$S/server/THIRD_PARTY_NOTICES.txt" "$B/THIRD_PARTY_NOTICES.txt" "server notices shipped"
+expect_same "$S/desktop/THIRD_PARTY_NOTICES.txt" "$B/DESKTOP_THIRD_PARTY_NOTICES.txt" "desktop notices shipped"
+for f in aristotle-tray aristotle-desktop; do
+  mode="$(stat -c '%a' "$B/$f")"; [[ "$mode" == "755" ]] && pass "$f mode is 755" || fail "$f mode is $mode, want 755"
+  expect_eq "$f 1.0.0" "$("$B/$f" --version)" "$f --version"
+done
+for f in aristotle-tray.desktop aristotle-desktop.desktop aristotle-server.png DESKTOP_THIRD_PARTY_NOTICES.txt; do
+  mode="$(stat -c '%a' "$B/$f")"; [[ "$mode" == "644" ]] && pass "$f mode is 644" || fail "$f mode is $mode, want 644"
+done
 expect_contains "$(git -C "$S" cat-file -t v1.0.0 2>&1)" "tag" "annotated tag v1.0.0 created"
 [[ -z "$(git -C "$S" status --porcelain)" ]] && pass "tree still clean after the build" || fail "the build changed the tree"
 run_release 1.0.0

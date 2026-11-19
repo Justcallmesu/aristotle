@@ -285,3 +285,23 @@ fn the_grant_notice_uses_the_design_text_with_the_device_name() {
         .1
         .starts_with("Sebuah perangkat bisa"));
 }
+
+#[test]
+fn window_failed_texts_are_exact() {
+    assert_eq!(
+        text(Lang::En, Key::WindowFailedTitle),
+        "The window could not open"
+    );
+    assert_eq!(
+        text(Lang::En, Key::WindowFailedBody),
+        "aristotle-desktop stopped at start. Run it from a terminal to see why."
+    );
+    assert_eq!(
+        text(Lang::Id, Key::WindowFailedTitle),
+        "Jendela tidak bisa dibuka"
+    );
+    assert_eq!(
+        text(Lang::Id, Key::WindowFailedBody),
+        "aristotle-desktop berhenti saat mulai. Jalankan dari terminal untuk melihat penyebabnya."
+    );
+}

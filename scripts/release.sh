@@ -2,9 +2,12 @@
 # Build the release bundle dist/aristotle-<x.y.z>/. Usage: scripts/release.sh [--tag] <x.y.z>
 # Refuses unless: <x.y.z> is semver (minor and patch <= 99, see versionCode), the git tree is clean,
 # android/gradle.properties aristotle.version == <x.y.z>, CHANGELOG.md has `## [<x.y.z>] - YYYY-MM-DD`, tag v<x.y.z> does not exist.
-# Then: full gate (docs/v1-tickets/gates.sh, logs in dist/gate-<x.y.z>/), assembleRelease, server build (linux-amd64),
-# bundle = APK, aristotle-server, install.sh, THIRD_PARTY_NOTICES.txt, RELEASE-NOTES.md, SHA256SUMS.
-# Verifies the APK signer against the pinned certificate and the binary's `version` line, else refuses.
+# Then: full gate (docs/v1-tickets/gates.sh, logs in dist/gate-<x.y.z>/) and the desktop gate (docs/desktop/gates.sh, logs in
+# dist/gate-<x.y.z>/desktop/), assembleRelease, server build (linux-amd64), desktop build (scripts/build-desktop.sh).
+# bundle = aristotle-<x.y.z>.apk, aristotle-server, aristotle-tray, aristotle-desktop, aristotle-tray.desktop,
+#   aristotle-desktop.desktop (templates), aristotle-server.png (app icon), install.sh, THIRD_PARTY_NOTICES.txt,
+#   DESKTOP_THIRD_PARTY_NOTICES.txt, RELEASE-NOTES.md, SHA256SUMS (lists every file but itself).
+# Verifies the APK signer against the pinned certificate and the three binaries' `--version`/`version` lines, else refuses.
 # --tag: afterwards create the local annotated tag v<x.y.z>. Never pushes, publishes or installs anything.
 # Signing: Gradle reads ~/.config/aristotle/signing.properties, or the file named by ARISTOTLE_SIGNING.
 set -euo pipefail
@@ -69,6 +72,8 @@ find_apksigner() {
 run_gate() {
   echo "release: running the full gate (logs in $GATE_DIR)"
   bash "$ROOT/docs/v1-tickets/gates.sh" "$GATE_DIR" || die "the gate failed; see $GATE_DIR/gate-summary.txt"
+  echo "release: running the desktop gate (logs in $GATE_DIR/desktop)"
+  bash "$ROOT/docs/desktop/gates.sh" "$GATE_DIR/desktop" || die "the desktop gate failed; see $GATE_DIR/desktop/gate-summary.txt"
 }
 
 build_apk() {
@@ -78,6 +83,10 @@ build_apk() {
 
 build_server() {
   GOOS=linux GOARCH=amd64 bash "$ROOT/scripts/build-server.sh" --version "$VERSION" "$STAGE/aristotle-server"
+}
+
+build_desktop() {
+  bash "$ROOT/scripts/build-desktop.sh" --version "$VERSION" "$STAGE" || die "the desktop build failed"
 }
 
 write_release_notes() { # the CHANGELOG section from its heading up to the next `## [`
@@ -105,8 +114,20 @@ verify_server_version() {
   echo "release: $line"
 }
 
+verify_desktop_versions() {
+  local name line
+  for name in aristotle-tray aristotle-desktop; do
+    line="$("$STAGE/$name" --version)" || die "$name --version failed"
+    [[ "$line" == "$name $VERSION" ]] || die "$name --version says '$line', want '$name $VERSION'"
+    echo "release: $line"
+  done
+}
+
+BUNDLE_FILES=("aristotle-$VERSION.apk" aristotle-server aristotle-tray aristotle-desktop aristotle-tray.desktop
+  aristotle-desktop.desktop aristotle-server.png install.sh THIRD_PARTY_NOTICES.txt DESKTOP_THIRD_PARTY_NOTICES.txt RELEASE-NOTES.md)
+
 write_checksums() {
-  (cd "$STAGE" && sha256sum "aristotle-$VERSION.apk" aristotle-server install.sh THIRD_PARTY_NOTICES.txt RELEASE-NOTES.md > SHA256SUMS)
+  (cd "$STAGE" && sha256sum "${BUNDLE_FILES[@]}" > SHA256SUMS)
 }
 
 check_semver
@@ -123,16 +144,21 @@ build_apk
 verify_signer "$APKSIGNER"
 build_server
 verify_server_version
+build_desktop
+verify_desktop_versions
 cp "$ROOT/scripts/install.sh" "$STAGE/install.sh"
 chmod 0755 "$STAGE/install.sh"
 cp "$ROOT/server/THIRD_PARTY_NOTICES.txt" "$STAGE/THIRD_PARTY_NOTICES.txt"
 chmod 0644 "$STAGE/THIRD_PARTY_NOTICES.txt"
+cp "$ROOT/desktop/THIRD_PARTY_NOTICES.txt" "$STAGE/DESKTOP_THIRD_PARTY_NOTICES.txt"
+chmod 0644 "$STAGE/DESKTOP_THIRD_PARTY_NOTICES.txt"
 write_release_notes
 chmod 0644 "$STAGE/RELEASE-NOTES.md"
 write_checksums
 chmod 0644 "$STAGE/SHA256SUMS"
 # Bundle modes: executables 755, everything else 644 (cp keeps a source's restrictive mode, e.g. a 600 notices file).
-chmod 0755 "$STAGE/aristotle-server"
+chmod 0755 "$STAGE/aristotle-server" "$STAGE/aristotle-tray" "$STAGE/aristotle-desktop"
+chmod 0644 "$STAGE/aristotle-tray.desktop" "$STAGE/aristotle-desktop.desktop" "$STAGE/aristotle-server.png"
 chmod 0644 "$STAGE/aristotle-$VERSION.apk"
 check_clean_tree # the build must not have changed tracked files
 rm -rf "$BUNDLE"

@@ -507,6 +507,8 @@ Totals: 170 board keys = 169 kept or changed + 1 dropped; 20 new; **189 keys** i
 | `sub_hermunk ★` | This server does not report Hermes. Update it with the installer. | Server ini tidak melaporkan Hermes. Perbarui dengan installer. | UI + tray tooltip |
 | `NoAppTitle` (Rust) | Window app not found | Aplikasi jendela tidak ditemukan | tray notification |
 | `NoAppBody` (Rust) | aristotle-desktop is not installed next to the tray. | aristotle-desktop tidak terpasang di samping tray. | tray notification |
+| `WindowFailedTitle` (Rust) | The window could not open | Jendela tidak bisa dibuka | tray notification |
+| `WindowFailedBody` (Rust) | aristotle-desktop stopped at start. Run it from a terminal to see why. | aristotle-desktop berhenti saat mulai. Jalankan dari terminal untuk melihat penyebabnya. | tray notification |
 | `ADevice` (Rust) | A device | Sebuah perangkat | notification fallback name |
 | `no_listen_up ★` | No network listener is up. | Tidak ada listener jaringan yang aktif. | UI |
 | `working_start ★` | Starting… | Menyalakan… | UI |

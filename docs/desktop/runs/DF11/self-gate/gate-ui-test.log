@@ -1,0 +1,67 @@
+npm notice run aristotle-desktop-ui@0.0.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 /home/justcallmesu/project/personal/Aristotle/desktop/ui
+
+ ✓ src/views/status/StatusView.test.tsx (41 tests) 4921ms
+   ✓ Status: headline rows of design.md 4.1 > row 0: loading, no columns and no Start  467ms
+   ✓ Status: headline rows of design.md 4.1 > row 6 reachable  1035ms
+   ✓ Status: headline rows of design.md 4.1 > row 7 not running  302ms
+ ✓ src/views/terminal/TerminalView.test.tsx (38 tests) 6720ms
+   ✓ Terminal view states > loading: says so until the first poll  494ms
+   ✓ Terminal view states > on: switch on, hint, grants and open terminals with the device name  317ms
+   ✓ Terminal view: D7 enable dialog > has the warning, a red confirm, no remember option, focus on Cancel  483ms
+   ✓ Terminal view: D7 enable dialog > the switch off→on opens the same dialog; confirm runs terminal_enable and shows the result  347ms
+   ✓ Terminal view: grants and banners > the failure banner comes right after the header, before the state row, with no margin wrapper  349ms
+ ✓ src/views/service/ServiceView.test.tsx (34 tests) 6909ms
+   ✓ Service: row 4b state row (P23) > shows the changing headline with the raw word  1287ms
+   ✓ Service: which buttons are on (design.md 4.4) > running but service unknown (started by hand): all off, dis_other with the word  303ms
+   ✓ Service: Stop and Restart confirm (D15) > Stop opens the dialog with the D15 text, focus on Cancel, and Cancel sends nothing  324ms
+   ✓ Service: Stop and Restart confirm (D15) > confirming Stop runs stop once, shows working, all off, until the next poll  449ms
+   ✓ Service: Stop and Restart confirm (D15) > Restart: dialog text, Cancel sends nothing, confirm runs restart  609ms
+ ✓ src/views/logs/logs.test.tsx (22 tests) 4555ms
+   ✓ Logs: stream lifecycle > calls logs_start on open, after subscribing to the line events  512ms
+   ✓ Logs: lines > caps the view at 2,000 lines and says so  2152ms
+   ✓ Logs: wrap and follow > wrap is on by default and the switch turns it off and on  404ms
+ ✓ src/components/components.test.tsx (21 tests) 4158ms
+   ✓ shell > renders the 6 nav items in two groups  1137ms
+   ✓ shell > marks the open view with aria-current and switches views  513ms
+ ✓ src/views/pair/PairView.test.tsx (22 tests) 4679ms
+   ✓ Pair: before a code > opening the view shows the button and issues nothing  414ms
+   ✓ Pair: before a code > sends the optional name, trimmed, or none  900ms
+ ✓ src/state/useCommand.test.tsx (15 tests) 439ms
+ ✓ src/components/shared.test.tsx (19 tests) 2023ms
+   ✓ NeedsServer > names the cause and offers Start when the service can be started  575ms
+   ✓ NeedsServer > starts the service on click and shows the working hint, off while it runs  436ms
+ ✓ src/views/devices/DevicesView.test.tsx (18 tests) 4213ms
+   ✓ Devices: list > shows name, id, paired date, relative last seen with the ISO on hover, and the grant tag  344ms
+   ✓ Devices: states > empty: cause, then the one action, which opens Pair  412ms
+   ✓ Devices: revoke > opens the D15 dialog on Cancel focus; Cancel sends nothing  301ms
+   ✓ Devices: revoke > confirm runs devices_revoke once with the id and does not delete the row itself  566ms
+   ✓ Devices: revoke > the row disappears when the next snapshot no longer lists it  574ms
+   ✓ Devices: revoke > a failed revoke shows CommandFailed and keeps the row  513ms
+ ✓ src/ipc/ipc.test.ts (5 tests) 88ms
+ ✓ src/state/world.test.ts (23 tests) 121ms
+ ✓ src/format/time.test.ts (8 tests) 129ms
+ ✓ src/state/serviceButtons.test.ts (23 tests) 20ms
+ ✓ src/i18n/i18n.test.ts (8 tests) 74ms
+ ✓ src/state/intent.test.tsx (2 tests) 251ms
+stderr | src/state/snapshot.test.tsx > snapshot sequence numbers > does not let the first read replace a newer event
+An update to SnapshotProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/state/snapshot.test.tsx (2 tests) 245ms
+
+ Test Files  16 passed (16)
+      Tests  301 passed (301)
+   Start at  10:48:46
+   Duration  37.87s (transform 2.81s, setup 8.30s, collect 9.28s, tests 39.55s, environment 29.02s, prepare 5.68s)
+

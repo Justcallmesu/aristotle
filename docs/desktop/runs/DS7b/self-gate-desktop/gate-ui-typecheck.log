@@ -1,0 +1,2 @@
+npm notice run aristotle-desktop-ui@0.0.0 typecheck
+npm notice run tsc --noEmit

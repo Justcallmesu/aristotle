@@ -4,6 +4,7 @@ use crate::icons;
 use crate::launcher::{Launch, Launcher};
 use crate::menu::{self, Entry, MenuInput};
 use crate::notifier;
+use crate::offline::{self, SharedOfflineWatch};
 use crate::starting::Starting;
 use aristotle_core::runner::{query, ServerCli};
 use aristotle_core::snapshot::Snapshot;
@@ -14,6 +15,7 @@ use ksni::menu::StandardItem;
 use ksni::{Icon, MenuItem, OfflineReason, ToolTip, Tray};
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
 pub struct AristotleTray {
     pub assessment: Assessment,
@@ -22,6 +24,7 @@ pub struct AristotleTray {
     pub launcher: Arc<Launcher>,
     pub cli: Arc<dyn ServerCli>,
     starting: Starting,
+    offline: SharedOfflineWatch,
 }
 
 impl AristotleTray {
@@ -30,6 +33,7 @@ impl AristotleTray {
         lang: Lang,
         launcher: Arc<Launcher>,
         cli: Arc<dyn ServerCli>,
+        offline: SharedOfflineWatch,
     ) -> Self {
         let mut tray = Self {
             assessment: Assessment {
@@ -41,6 +45,7 @@ impl AristotleTray {
             launcher,
             cli,
             starting: Starting::default(),
+            offline,
         };
         tray.apply(snapshot);
         tray
@@ -156,10 +161,12 @@ impl Tray for AristotleTray {
     }
 
     fn watcher_online(&self) {
+        offline::lock(&self.offline).came_online();
         eprintln!("aristotle-tray: watcher online");
     }
 
     fn watcher_offline(&self, reason: OfflineReason) -> bool {
+        offline::lock(&self.offline).went_offline(Instant::now());
         eprintln!("aristotle-tray: watcher offline ({reason:?}), waiting");
         true
     }
@@ -218,8 +225,9 @@ mod tests {
         let tray = AristotleTray::new(
             &stopped(),
             Lang::from_env(),
-            Launcher::from_env(),
+            Launcher::from_env(|| {}),
             cli.clone(),
+            SharedOfflineWatch::default(),
         );
         (tray, cli, tx)
     }

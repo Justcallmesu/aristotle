@@ -1,0 +1,9 @@
+server notices: up to date
+licences: gap: alloc-stdlib 0.3.0 (Rust crate): no licence file in its package source (declared: BSD-3-Clause)
+licences: gap: dlopen2 0.8.2 (Rust crate): no licence file in its package source (declared: MIT)
+licences: gap: dlopen2_derive 0.4.3 (Rust crate): no licence file in its package source (declared: MIT)
+licences: gap: libappindicator-sys 0.9.0 (Rust crate): no licence file in its package source (declared: Apache-2.0 OR MIT)
+licences: gap: selectors 0.38.0 (Rust crate): no licence file in its package source (declared: MPL-2.0)
+desktop notices: up to date
+licences: assets up to date (6 files)
+licences: OK (check)

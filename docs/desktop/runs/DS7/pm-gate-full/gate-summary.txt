@@ -1,0 +1,7 @@
+PASS server-gofmt (0)
+PASS server-vet (0)
+PASS server-test (0)
+go-tests passed=899 failed=0
+FAIL android (1)
+PASS licences (0)
+PASS scripts (0)

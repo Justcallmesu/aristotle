@@ -30,7 +30,7 @@ commands:
   install [--start] [--force]
                         install as a systemd user service (starts at login)
   uninstall [--purge [--yes]]
-                        remove the service; --purge also deletes devices and certificate
+                        remove the service, the desktop app's menu and autostart entries and icon, and stop a running tray and window app from ~/.local/bin; --purge also deletes devices and certificate
   start | stop | restart
                         start, stop or restart the systemd user service (stop and restart are refused in a remote terminal)
   status [--porcelain]  service state, the listener URLs and Hermes reachability; --porcelain is the stable one-fact-per-line form

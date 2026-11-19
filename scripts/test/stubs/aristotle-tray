@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Test stub of the bundle's aristotle-tray / aristotle-desktop: records that it ran (and its pid, its working directory and
+# the signals it inherited as ignored) and stays alive 30 s (or exits at once when STUB_TRAY_EXITS is set: a second tray that found the lock taken).
+echo "$(basename "$0") start" >> "$STUB_LOG"
+echo $$ > "$STUB_STATE/tray.pid"
+echo "cwd=$(pwd -P) sigign=$(awk '/^SigIgn/ { print $2 }' /proc/self/status)" > "$STUB_STATE/tray.info"
+[[ -z "${STUB_TRAY_EXITS:-}" ]] || exit 0
+exec sleep 30

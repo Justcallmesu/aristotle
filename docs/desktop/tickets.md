@@ -152,3 +152,16 @@ states, `id` strings present for every `en` key; screenshots light + dark in the
 - Then: DS8b brief (review `docs/desktop/runs/DS8/review-report.md` MINOR-1/2 + NITs), PM gate + mutants, commit; DF7/DF8 sweep
   (also: Service shows "Server stopped" while `activating`); then DS7 (bundle, installer menu/autostart only with webkit2gtk-4.1,
   uninstall removes them P8, release, user installs here + cachyos-asus-1, user live checks list in views-wave review report).
+
+## Resume point (2026-11-19 ~14:15, user: "pause after this")
+- In flight: DS7c (last fix round of DS7: tray lock release, launcher test flake, lock integration test, watcher-offline exit P27,
+  installer "Started" truthfulness, nits). Uncommitted tree = DS7 + DF11 + DS7b + DS7c.
+- When DS7c returns: PM full gate + desktop gate + 50x tray test loops; commit if GREEN. Then STOP (user pause). If not green:
+  record the failure here, do not start another fix round.
+- On "go": set `aristotle.version=2.3.0` (versionCode 20300) in `android/gradle.properties`, CHANGELOG `## [2.3.0] - <date>`,
+  commit, `scripts/release.sh --tag 2.3.0` (needs the signing key; first real `tauri build --locked` run); stop the preview tray by
+  pid (`~/.hermes/profiles/pm/cache/scratch/preview/`, no lock); run the bundle's `./install.sh` here with the plasmashell display
+  variables (the agent shell has none). Then user live checks: tray green "Hermes reachable", left click, icons, QR scan,
+  Stop/Restart without a false notice, D7/grant notices, close window = exit, Indonesian, log out/in = one tray (M3). Then the
+  user installs on cachyos-asus-1.
+- Release decisions: version 2.3.0 and "the PM runs the installer here" = user 2026-11-19 ("sure install it").

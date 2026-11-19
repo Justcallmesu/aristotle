@@ -15,7 +15,7 @@ FAILED=0
 export CARGO_TARGET_DIR="$ROOT/desktop/target"
 # Floors for the Rust and Vitest test counts (0 tests = FAIL). Set to the real total; each ticket that adds
 # tests raises them, so a deleted test cannot pass silently.
-MIN_TESTS=187
+MIN_TESTS=211
 MIN_UI_TESTS=301
 # A step that runs past this many seconds is killed and recorded as FAIL (exit 124), never left hanging.
 STEP_TIMEOUT=900
@@ -55,7 +55,7 @@ tray_ldd() {
 # keeps the total above MIN_TESTS, so the total alone cannot catch it. Format: <label>|<binary>.
 REQUIRED_TEST_BINARIES=(
   "tests/diff.rs|diff" "tests/fixtures.rs|fixtures" "tests/poller_stamp.rs|poller_stamp"
-  "tests/runner.rs|runner" "tests/state.rs|state" "tests/strings.rs|strings"
+  "tests/runner.rs|runner" "tests/state.rs|state" "tests/strings.rs|strings" "tests/instance.rs|instance"
   "tests/capabilities.rs|capabilities" "unittests src/lib.rs|aristotle_desktop"
   "unittests src/main.rs|aristotle_tray"
 )

@@ -1,0 +1,277 @@
+   Compiling aristotle-desktop v0.0.0 (/home/justcallmesu/project/personal/Aristotle/desktop/app)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.83s
+     Running unittests src/lib.rs (target/debug/build/aristotle-core/62744eaf1e62d1b2/out/aristotle_core-62744eaf1e62d1b2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/diff.rs (target/debug/build/aristotle-core/1aa68756bd681b91/out/diff-1aa68756bd681b91)
+
+running 32 tests
+test a_failed_terminal_read_is_not_a_transition ... ok
+test a_grant_while_the_switch_is_off_is_its_own_notice ... ok
+test a_removed_grant_is_silent_and_enable_plus_grant_gives_two_notices ... ok
+test already_stopped_does_not_notify_again ... ok
+test an_unknown_grant_list_is_no_information ... ok
+test enable_and_grant_in_one_tick_is_two_different_notices ... ok
+test existing_terminal_is_not_new ... ok
+test failed_poll_is_not_a_transition ... ok
+test first_poll_never_notifies ... ok
+test first_poll_with_the_terminal_on_and_grants_is_the_baseline ... ok
+test grant_of_an_unknown_device_has_no_name ... ok
+test hermes_flap_notifies_once_per_transition ... ok
+test hermes_going_absent_is_silent ... ok
+test hermes_notice_is_not_added_when_the_server_stopped ... ok
+test new_device_is_announced_by_name ... ok
+test new_grant_notifies_by_device_name ... ok
+test new_terminal_names_the_device ... ok
+test device_list_missing_on_one_side_is_silent ... ok
+test new_terminal_with_unknown_device_has_no_name ... ok
+test notices_carry_only_names_ids_and_listeners ... ok
+test only_the_d7_notices_have_no_open_action ... ok
+test stop_with_future_stamp_counts_as_fresh ... ok
+test stamp_in_window_is_symmetric_around_now ... ok
+test stop_with_fresh_stamp_is_silent ... ok
+test stop_with_stale_stamp_notifies ... ok
+test stop_with_stamp_61s_old_notifies ... ok
+test stop_with_stamp_61s_in_the_future_notifies ... ok
+test stop_with_stamp_exactly_at_the_window_edges_is_expected ... ok
+test stop_without_stamp_notifies ... ok
+test hermes_going_not_running_notifies ... ok
+test terminal_switched_on_notifies_once ... ok
+test terminal_switched_off_or_unchanged_is_silent ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/fixtures.rs (target/debug/build/aristotle-core/b1ce4466fab495c3/out/fixtures-b1ce4466fab495c3)
+
+running 11 tests
+test a_server_word_a_newer_server_adds_serialises_as_other ... ok
+test pair_debug_hides_the_code_and_payload ... ok
+test pair_fixture_carries_the_qr_matrix ... ok
+test pair_without_modules_decodes_and_omits_them ... ok
+test no_fixture_is_left_uncovered ... ok
+test every_fixture_decodes ... ok
+test status_full_fields ... ok
+test status_sparse_has_absent_fields ... ok
+test status_not_installed_and_not_running ... ok
+test unknown_fields_are_ignored ... ok
+test terminal_optional_fields ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/poller_stamp.rs (target/debug/build/aristotle-core/6ef4123d51e2f54f/out/poller_stamp-6ef4123d51e2f54f)
+
+running 19 tests
+test a_failed_terminal_read_keeps_the_granted_baseline_so_a_new_grant_notifies_once ... ok
+test a_failed_terminal_poll_keeps_the_baseline_so_a_new_terminal_still_notifies_once ... ok
+test a_failed_devices_poll_keeps_the_baseline_so_a_new_phone_still_notifies_once ... ok
+test a_failed_read_then_a_revoke_and_a_new_grant_notifies_the_new_grant_only ... ok
+test a_grant_while_the_switch_is_off_notifies_once ... ok
+test a_grant_in_a_tick_whose_devices_read_failed_still_has_the_known_name ... ok
+test a_terminal_opened_in_a_tick_whose_devices_read_failed_still_has_the_known_name ... ok
+test existing_grants_after_a_tray_restart_are_the_baseline ... ok
+test delete_if_leaves_a_stamp_written_after_the_read ... ok
+test an_unparsable_stamp_is_deleted_by_the_next_tick ... ok
+test poller_deletes_a_stale_stamp_even_when_no_stop_was_seen ... ok
+test poller_deletes_a_future_stamp_and_the_next_crash_notifies ... ok
+test poller_stop_without_stamp_notifies_and_failed_poll_keeps_the_baseline ... ok
+test poller_stop_with_fresh_stamp_is_silent_and_consumes_the_stamp ... ok
+test poller_keeps_an_in_window_stamp_until_the_stop_is_seen ... ok
+test stamp_write_read_delete_roundtrip ... ok
+test stamp_without_runtime_dir_is_none ... ok
+test restart_without_an_observed_stop_leaves_no_stamp_after_60_s ... ok
+test stamp_garbage_reads_as_none ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/runner.rs (target/debug/build/aristotle-core/d9248ae38244b56b/out/runner-d9248ae38244b56b)
+
+running 20 tests
+test a_binary_without_execute_permission_is_not_installed ... ok
+test a_hung_status_keeps_the_runner_limit ... ok
+test a_grandchild_holding_stdout_is_killed_and_the_output_still_returns ... ok
+test a_hung_devices_read_times_out_after_3_s_and_is_a_failed_read ... ok
+test default_bin_prefers_the_env_override ... ok
+test error_kind_is_a_fixed_code_without_the_message ... ok
+test a_hung_terminal_status_read_times_out_after_3_s_and_is_a_failed_read ... ok
+test a_hung_version_read_times_out_after_3_s_and_leaves_the_check_unchecked ... ok
+test a_read_never_outlasts_the_runners_own_shorter_timeout ... ok
+test query_appends_json_as_the_last_argument ... ok
+test error_object_and_exit_1_is_a_server_error ... ok
+test garbage_stdout_is_bad_output_without_content ... ok
+test missing_binary_is_not_installed ... ok
+test semicolon_argument_is_passed_literally ... ok
+test success_object_is_parsed_with_exit_code ... ok
+test success_object_with_exit_1_is_still_success ... ok
+test the_poll_keeps_the_runner_limit_for_status_so_a_4_s_status_still_answers ... ok
+test timeout_kills_grandchildren_too ... ok
+test timeout_kills_the_process ... ok
+test wrong_shape_is_bad_output ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.28s
+
+     Running tests/state.rs (target/debug/build/aristotle-core/44f3dae1677a4c00/out/state-44f3dae1677a4c00)
+
+running 19 tests
+test a_failed_read_keeps_the_last_good_lists_only_while_the_server_runs ... ok
+test dev_versions_skip_the_check_on_either_side ... ok
+test compare_versions_rules ... ok
+test a_failed_terminal_read_makes_the_grants_unknown_not_empty ... ok
+test poll_devices_failure_keeps_status ... ok
+test poll_dev_build_skips_the_check ... ok
+test poll_cli_mismatch_wins_over_a_matching_running_version ... ok
+test poll_failures_map_to_red_states ... ok
+test poll_running_fetches_version_devices_terminals ... ok
+test poll_failed_version_call_is_retried_next_poll ... ok
+test poll_running_server_version_differs_while_cli_matches_is_red ... ok
+test poll_running_server_dev_version_skips_its_side ... ok
+test poll_stopped_skips_devices_and_terminals ... ok
+test poll_terminal_failure_leaves_the_switch_unknown ... ok
+test tray_state_table ... ok
+test poll_version_mismatch_is_red ... ok
+test running_server_version_is_checked_on_every_poll_not_only_after_a_restart ... ok
+test poll_version_asked_once_and_again_after_restart ... ok
+test version_is_asked_again_every_12_polls ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/strings.rs (target/debug/build/aristotle-core/662836c32f9e64cc/out/strings-662836c32f9e64cc)
+
+running 14 tests
+test board_texts_are_exact ... ok
+test design_md_tray_texts_are_exact ... ok
+test device_names_are_escaped_for_the_notification_markup ... ok
+test every_reason_has_a_tooltip ... ok
+test locale_defaults_to_english ... ok
+test locale_order_is_lc_all_then_lc_messages_then_lang ... ok
+test notice_texts_fill_names_and_fall_back ... ok
+test no_text_names_a_pairing_code_and_no_placeholder_is_left_in_notices ... ok
+test texts_differ_between_languages_except_the_brand_like_ones ... ok
+test every_key_has_text_in_both_tables_with_the_same_placeholders ... ok
+test the_d7_notice_uses_the_design_text_and_no_name ... ok
+test the_grant_notice_uses_the_design_text_with_the_device_name ... ok
+test the_new_reasons_pick_their_own_tooltips ... ok
+test window_failed_texts_are_exact ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/build/aristotle-desktop/a4f6c228612e07cb/out/aristotle_desktop-a4f6c228612e07cb)
+
+running 47 tests
+test args::tests::confirm_with_another_word_or_nothing_is_ignored ... ok
+test args::tests::a_hand_off_before_the_window_reads_its_intent_is_queued_not_emitted ... ok
+test args::tests::confirm_stop_opens_the_service_dialog ... ok
+test args::tests::a_hand_off_after_the_window_read_its_intent_is_emitted_and_not_kept ... ok
+test args::tests::no_arguments_open_the_status_view ... ok
+test args::tests::pair_opens_the_pair_view ... ok
+test args::tests::unknown_arguments_are_ignored_and_the_known_one_still_counts ... ok
+test args::tests::version_flag_is_recognised_only_as_the_first_argument ... ok
+test args::tests::version_line_names_the_binary_and_the_stamped_version ... ok
+test args::tests::serialises_as_a_kebab_tag ... ok
+test backend::tests::guard_allows_an_installed_matching_server ... ok
+test backend::tests::a_failed_terminal_read_keeps_the_last_good_grants_once_here ... ok
+test backend::tests::a_stopped_server_has_no_grants_not_old_ones ... ok
+test backend::tests::each_poll_gets_a_higher_sequence_number_and_current_repeats_the_last ... ok
+test backend::tests::guard_refuses_a_version_mismatch ... ok
+test backend::tests::guard_refuses_when_the_cli_is_missing ... ok
+test backend::tests::plain_arg_rejects_flags_and_empty ... ok
+test backend::tests::guard_refuses_when_the_service_is_not_installed ... ok
+test backend::tests::the_snapshot_carries_the_terminal_switch ... ok
+test devices::tests::an_id_that_looks_like_a_flag_is_refused ... ok
+test devices::tests::revoke_is_refused_while_mismatched ... ok
+test devices::tests::revoke_runs_the_cli_with_the_id ... ok
+test logs::tests::orphan_helper ... ignored, helper process for a_killed_app_does_not_leave_the_log_child
+test logs::tests::a_missing_binary_is_not_installed_and_stop_is_quiet ... ok
+test logs::tests::a_killed_app_does_not_leave_the_log_child ... ok
+test logs::tests::a_stream_that_ends_by_itself_reports_ended_after_its_lines ... ok
+test logs::tests::starting_again_stops_the_previous_child ... ok
+test pairing::tests::a_name_that_looks_like_a_flag_never_reaches_the_cli ... ok
+test pairing::tests::pair_passes_the_name_as_one_token ... ok
+test pairing::tests::pair_without_a_name_runs_plain_pair ... ok
+test pairing::tests::the_ipc_reply_carries_the_qr_modules ... ok
+test pairing::tests::the_result_does_not_print_the_code ... ok
+test service::tests::a_failed_stop_deletes_the_stamp ... ok
+test service::tests::a_mismatched_server_refuses_before_any_stamp_or_command ... ok
+test service::tests::a_stop_that_answers_not_ok_deletes_the_stamp ... ok
+test service::tests::a_stop_that_cannot_run_the_binary_deletes_the_stamp ... ok
+test service::tests::a_stop_that_times_out_keeps_the_stamp ... ok
+test service::tests::a_stop_with_unreadable_output_deletes_the_stamp ... ok
+test service::tests::restart_writes_the_stamp_too ... ok
+test service::tests::start_never_writes_a_stamp ... ok
+test service::tests::stop_writes_the_stamp_before_the_command_runs ... ok
+test terminal::tests::each_command_maps_to_its_cli_call ... ok
+test terminal::tests::the_status_read_has_the_3_s_limit_and_a_timeout_is_an_error ... ok
+test terminal::tests::writes_are_refused_while_mismatched_but_the_read_still_works ... ok
+test logs::tests::stop_kills_the_child_and_its_group_and_reaps_it ... ok
+test logs::tests::stop_returns_in_bounded_time_when_a_process_outside_the_group_holds_the_pipe ... ok
+test logs::tests::two_starts_at_once_leave_exactly_one_stream_running ... ok
+
+test result: ok. 46 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.49s
+
+     Running unittests src/main.rs (target/debug/build/aristotle-desktop/47a4d3be2d39973a/out/aristotle_desktop-47a4d3be2d39973a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/capabilities.rs (target/debug/build/aristotle-desktop/6249e57980062a73/out/capabilities-6249e57980062a73)
+
+running 6 tests
+test the_app_depends_on_no_shell_fs_http_or_opener_plugin ... ok
+test no_plugin_or_broad_core_permission_is_granted ... ok
+test the_capability_file_allows_exactly_the_listed_commands_and_event_listening ... ok
+test only_the_main_window_has_a_capability_and_there_is_one_file ... ok
+test the_tray_does_not_depend_on_tauri_or_the_app ... ok
+test the_csp_is_strict_and_the_global_tauri_object_is_off ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/build/aristotle-tray/37709d981d9124f4/out/aristotle_tray-37709d981d9124f4)
+
+running 29 tests
+test icons::tests::the_16_px_variant_is_solid ... ok
+test icons::tests::every_state_serves_every_declared_size_with_matching_data ... ok
+test icons::tests::opaque_pixels_carry_the_state_colour ... ok
+test icons::tests::the_pixmaps_are_decoded_once_per_state ... ok
+test icons::tests::the_three_states_differ_in_shape_not_only_colour ... ok
+test launcher::tests::a_child_killed_by_a_signal_gives_one_notice ... ok
+test launcher::tests::a_child_that_fails_at_once_gives_one_notice ... ok
+test launcher::tests::no_path_is_reported_as_missing ... ok
+test launcher::tests::second_open_is_deduplicated_while_the_child_runs ... ok
+test launcher::tests::window_bin_absolute_override_wins ... ok
+test launcher::tests::missing_binary_is_reported_not_spawned ... ok
+test launcher::tests::window_bin_relative_override_is_ignored ... ok
+test launcher::tests::window_bin_sits_next_to_the_tray ... ok
+test launcher::tests::window_bin_without_a_usable_exe_path_is_none ... ok
+test menu::tests::hand_started_server_with_inactive_service_shows_start_not_stop ... ok
+test menu::tests::active_service_shows_stop_and_enables_pair ... ok
+test menu::tests::no_answer_with_active_service_keeps_stop_for_recovery ... ok
+test menu::tests::not_installed_shows_neither ... ok
+test menu::tests::stopped_service_shows_start_and_disables_pair ... ok
+test menu::tests::other_service_words_show_neither ... ok
+test menu::tests::unknown_service_state_shows_neither ... ok
+test menu::tests::version_mismatch_shows_neither_and_keeps_open ... ok
+test tests::version_line_falls_back_to_dev ... ok
+test starting::tests::a_second_start_is_refused_until_the_first_ends ... ok
+test tests::version_line_uses_the_build_version ... ok
+test tray::tests::start_is_enabled_again_after_a_failed_start ... ok
+test tray::tests::start_is_disabled_while_a_start_runs_and_enabled_again_after_success ... ok
+test launcher::tests::a_child_that_exits_zero_is_silent ... ok
+test launcher::tests::a_child_that_runs_past_the_window_is_silent_even_when_it_fails_later ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.13s
+
+   Doc-tests aristotle_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests aristotle_desktop
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

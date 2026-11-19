@@ -10,10 +10,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/justcallmesu/aristotle/server/internal/service"
 )
 
 type fakeRunner struct {
@@ -44,11 +48,14 @@ func useFakes(t *testing.T) (*fakeRunner, string, string) {
 	cfg, state := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", cfg)
 	t.Setenv("XDG_STATE_HOME", state)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	f := &fakeRunner{}
-	oldR, oldE, oldI := serviceRunner, executable, stdin
+	oldR, oldE, oldI, oldD := serviceRunner, executable, stdin, desktop
 	serviceRunner = f
 	executable = func() (string, error) { return "/opt/aristotle-server", nil }
-	t.Cleanup(func() { serviceRunner, executable, stdin = oldR, oldE, oldI })
+	// Never the real /proc: a test must not stop the user's own tray.
+	desktop = service.Desktop{ProcRoot: t.TempDir(), Signal: func(int) error { return nil }}
+	t.Cleanup(func() { serviceRunner, executable, stdin, desktop = oldR, oldE, oldI, oldD })
 	return f, filepath.Join(cfg, "systemd", "user", "aristotle-server.service"), filepath.Join(state, "aristotle")
 }
 
@@ -111,6 +118,130 @@ func TestUninstallKeepsState(t *testing.T) {
 	}
 	if f.calls[0] != "systemctl --user disable --now aristotle-server.service" {
 		t.Fatal(f.calls)
+	}
+}
+
+func TestUninstallRemovesTheDesktopApp(t *testing.T) {
+	useFakes(t)
+	files, err := service.DesktopPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	executable = func() (string, error) { return filepath.Join(bin, "aristotle-server"), nil }
+	for _, p := range []string{files.Menu, files.Autostart, files.Icon, filepath.Join(bin, "aristotle-tray"), filepath.Join(bin, "aristotle-desktop")} {
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("x"), 0o755)
+	}
+	proc := t.TempDir()
+	for pid, exe := range map[string]string{"11": bin + "/aristotle-tray", "12": bin + "/aristotle-desktop", "13": "/usr/bin/sleep"} {
+		os.MkdirAll(filepath.Join(proc, pid), 0o755)
+		os.Symlink(exe, filepath.Join(proc, pid, "exe"))
+	}
+	var stopped []int
+	desktop = service.Desktop{ProcRoot: proc, Dir: bin, Signal: func(pid int) error { stopped = append(stopped, pid); return nil }}
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"uninstall"}, "v", &out, &errOut); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut.String())
+	}
+	for _, p := range []string{files.Menu, files.Autostart, files.Icon} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s remains", p)
+		}
+	}
+	sort.Ints(stopped)
+	if len(stopped) != 2 || stopped[0] != 11 || stopped[1] != 12 {
+		t.Errorf("stopped %v, want [11 12]", stopped)
+	}
+	for _, p := range []string{"aristotle-tray", "aristotle-desktop"} {
+		if _, err := os.Stat(filepath.Join(bin, p)); err != nil {
+			t.Errorf("%s was deleted; the binaries are kept like the server's", p)
+		}
+	}
+	if !strings.Contains(out.String(), "Kept the programs in "+bin+" (aristotle-tray, aristotle-desktop)") {
+		t.Errorf("output does not say the programs were kept:\n%s", out.String())
+	}
+}
+
+// The tray is stopped before the service is removed (no false "server stopped" notice, P26 (4)), and only the copy in
+// the installed directory is: a dev-built aristotle-server elsewhere does not move the match (P25 (2)).
+func TestUninstallStopsTheTrayBeforeTheServiceAndOnlyFromTheInstalledDir(t *testing.T) {
+	f, _, _ := useFakes(t)
+	installed, preview := t.TempDir(), t.TempDir()
+	proc := t.TempDir()
+	for pid, exe := range map[string]string{"21": installed + "/aristotle-tray", "22": preview + "/aristotle-tray"} {
+		os.MkdirAll(filepath.Join(proc, pid), 0o755)
+		os.Symlink(exe, filepath.Join(proc, pid, "exe"))
+	}
+	var order []string
+	desktop = service.Desktop{ProcRoot: proc, Dir: installed, Signal: func(pid int) error {
+		order = append(order, "signal "+strconv.Itoa(pid))
+		order = append(order, "after "+strconv.Itoa(len(f.calls))+" service calls")
+		return nil
+	}}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"uninstall"}, "v", &out, &errOut); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut.String())
+	}
+	if len(order) != 2 || order[0] != "signal 21" || order[1] != "after 0 service calls" {
+		t.Fatalf("want only pid 21, signalled before any systemctl call, got %v (calls %v)", order, f.calls)
+	}
+}
+
+// The autostart entry goes before the tray is stopped and before the service is touched: a failing service step must
+// not leave an entry that starts a tray the user just saw stopped (P27 nit).
+func TestUninstallRemovesTheAutostartEntryBeforeStoppingTheTrayAndTheService(t *testing.T) {
+	f, _, _ := useFakes(t)
+	files, err := service.DesktopPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Dir(files.Autostart), 0o755)
+	os.WriteFile(files.Autostart, []byte("x"), 0o644)
+	bin, proc := t.TempDir(), t.TempDir()
+	os.MkdirAll(filepath.Join(proc, "31"), 0o755)
+	os.Symlink(bin+"/aristotle-tray", filepath.Join(proc, "31", "exe"))
+	f.fail = map[string]bool{"systemctl --user daemon-reload": true}
+	autostartGoneAtSignal := false
+	desktop = service.Desktop{ProcRoot: proc, Dir: bin, Signal: func(int) error {
+		_, statErr := os.Stat(files.Autostart)
+		autostartGoneAtSignal = os.IsNotExist(statErr)
+		return nil
+	}}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"uninstall"}, "v", &out, &errOut); code != 1 {
+		t.Fatalf("the failing service step should exit 1, got %d: %s", code, errOut.String())
+	}
+	if !autostartGoneAtSignal {
+		t.Error("the autostart entry was still there when the tray was stopped")
+	}
+	if _, err := os.Stat(files.Autostart); !os.IsNotExist(err) {
+		t.Error("the autostart entry remains after a failed service step")
+	}
+}
+
+// A relative XDG_DATA_HOME falls back to the default, as scripts/install.sh does: uninstall must not exit 1 after
+// "Service removed." (L7), and the files at the fallback location are the ones removed.
+func TestUninstallWithARelativeXDGDataHome(t *testing.T) {
+	useFakes(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "relative/data")
+	menu := filepath.Join(home, ".local", "share", "applications", "aristotle-desktop.desktop")
+	icon := filepath.Join(home, ".local", "share", "icons", "hicolor", "256x256", "apps", "aristotle-server.png")
+	for _, p := range []string{menu, icon} {
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("x"), 0o644)
+	}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"uninstall"}, "v", &out, &errOut); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut.String())
+	}
+	for _, p := range []string{menu, icon} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s was not removed from the default data dir", p)
+		}
 	}
 }
 

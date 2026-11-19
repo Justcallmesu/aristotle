@@ -1,0 +1,10 @@
+=== U1 uninstall stops desktop programs from any dir
+--- FAIL: TestStopDesktopProcessesIgnoresCopiesInOtherDirectories (0.00s)
+--- FAIL: TestStopDesktopProcessesResolvesASymlinkedInstallDir (0.00s)
+KILLED: tests failed (exit 1); restored sha256 match
+exit=0
+=== T1 second tray instance not detected
+test instance::tests::the_first_takes_it_the_second_is_refused_and_a_released_lock_is_free_again ... FAILED
+test result: FAILED. 32 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.01s
+KILLED: tests failed (exit 101); restored sha256 match
+exit=0

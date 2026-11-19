@@ -4,7 +4,7 @@
 #   0. refuses inside the app's remote terminal (the restart would end that session mid-update)
 #      Without --no-gateway it also refuses, before touching anything, when the `hermes` CLI is not installed.
 #   1. checks every file against SHA256SUMS (refuses before touching anything when one does not match, when the
-#      bundle's APK is not listed there, or when its file name has no x.y.z version)
+#      bundle's APK or a desktop file is not listed there, or when the APK's file name has no x.y.z version)
 #   2. copies the bundle's APK + a generated aristotle.json to $XDG_DATA_HOME/aristotle/app (the server serves them to
 #      the phone), then aristotle-server to ~/.local/bin (atomic; the previous binary is kept as aristotle-server.prev).
 #      The app pair goes first: if its copy fails nothing else changed, and a new server never runs without its APK pair.
@@ -16,7 +16,13 @@
 #   6. turns on systemd linger when it is off (the services then survive logout)
 #   7. opens the firewall (ufw or firewalld, via sudo) for the LAN subnet(s) the server serves: <port>/tcp and 5353/udp
 #      from that subnet only; --no-firewall only prints the commands. A firewall problem never fails the install.
-#   8. prints the version, where the APK is, and offers the pairing QR (--pair, or a y/N question when interactive)
+#   8. desktop app (P24), only when the bundle has the desktop files: needs libwebkit2gtk-4.1 (else one line, skipped). Copies
+#      aristotle-tray and aristotle-desktop to ~/.local/bin (atomic; the previous ones are kept as .prev), the icon, the app-menu
+#      entry and the autostart entry (the program path filled in, quoted for the Desktop Entry spec). It first closes an open
+#      aristotle-desktop window and, after the files are in place, stops the running tray (both found by their resolved executable
+#      path in ~/.local/bin, never a copy elsewhere) and starts the new tray detached when a graphical session exists (log:
+#      $XDG_STATE_HOME/aristotle/tray.log). The tray is single-instance, so a second one is harmless. Any failure there only warns.
+#   9. prints the version, where the APK is, and offers the pairing QR (--pair, or a y/N question when interactive)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,11 +93,26 @@ verify_apk_listed() {
   grep -Eq "^[0-9a-f]{64}  ${name//./\\.}\$" SHA256SUMS || { echo "error: SHA256SUMS does not list $name; not installing" >&2; exit 1; }
 }
 
+# The bundle's desktop files (P24); a bundle from before the desktop app has none of them.
+DESKTOP_BINS=(aristotle-tray aristotle-desktop)
+DESKTOP_FILES=(aristotle-tray aristotle-desktop aristotle-tray.desktop aristotle-desktop.desktop aristotle-server.png)
+
+# verify_desktop_listed: a desktop file in the bundle must have its own SHA256SUMS line, so an unlisted (unverified) file is
+# never installed. Runs before anything is touched.
+verify_desktop_listed() {
+  local name
+  for name in "${DESKTOP_FILES[@]}"; do
+    [[ -e "$HERE/$name" ]] || continue
+    grep -Eq "^[0-9a-f]{64}  ${name//./\\.}\$" SHA256SUMS || { echo "error: SHA256SUMS does not list $name; not installing" >&2; exit 1; }
+  done
+}
+
 verify_bundle() {
   cd "$HERE"
   [[ -f SHA256SUMS ]] || { echo "error: SHA256SUMS missing in $HERE; not installing" >&2; exit 1; }
   grep -Eq '^[0-9a-f]{64}  aristotle-server$' SHA256SUMS || { echo "error: SHA256SUMS does not list aristotle-server; not installing" >&2; exit 1; }
   verify_apk_listed
+  verify_desktop_listed
   if ! sha256sum --check --strict --quiet SHA256SUMS; then
     echo "error: checksum mismatch in $HERE (damaged or altered download); nothing was installed" >&2
     exit 1
@@ -479,6 +500,242 @@ open_firewall() {
   esac
 }
 
+# --- desktop app (P24) -------------------------------------------------------------------------------------------------
+# Every function returns non-zero on a problem and is checked with `|| return 1`: install_desktop_files runs inside `||`,
+# where `set -e` does not apply. The step never touches the server.
+
+# xdg_dir prints a base directory: the absolute value of the variable named by $1, else $HOME/<$2>.
+xdg_dir() {
+  local value="${!1:-}"
+  [[ "$value" == /* ]] || value="$HOME/$2"
+  echo "$value"
+}
+
+# has_webkit is true when the dynamic linker cache lists libwebkit2gtk-4.1.so.0 (D12). ldconfig lives in /sbin, often missing
+# from a user's PATH, so SBIN_DIRS count like they do for ufw.
+has_webkit() {
+  local out
+  out="$(PATH="$PATH${SBIN_DIRS:+:$SBIN_DIRS}" ldconfig -p 2> /dev/null)" || return 1
+  [[ "$out" == *libwebkit2gtk-4.1.so.0* ]]
+}
+
+# bundle_has_desktop is true when the bundle carries the desktop app (an older bundle does not: skipped without a word).
+bundle_has_desktop() { [[ -e "$HERE/aristotle-tray" || -e "$HERE/aristotle-desktop" ]]; }
+
+# install_desktop_binary copies one bundle binary next to its target, then renames it into place (atomic); the replaced
+# one, when different, is kept as <name>.prev.
+install_desktop_binary() {
+  local name="$1" target="$BIN_DIR/$1" tmp
+  [[ -f "$HERE/$name" ]] || { warn "the bundle has no $name"; return 1; }
+  mkdir -p "$BIN_DIR" || return 1
+  tmp="$(mktemp "$BIN_DIR/.$name.XXXXXX")" || return 1
+  if ! { cp "$HERE/$name" "$tmp" && chmod 0755 "$tmp"; }; then rm -f "$tmp"; return 1; fi
+  if [[ -f "$target" ]] && ! cmp -s "$target" "$tmp"; then
+    if cp -p "$target" "$target.prev.tmp" && mv -f "$target.prev.tmp" "$target.prev"; then
+      echo "Kept the previous binary as $target.prev"
+    else
+      rm -f "$target.prev.tmp" "$tmp"; return 1
+    fi
+  fi
+  mv -f "$tmp" "$target" || { rm -f "$tmp"; return 1; }
+  echo "Installed $target"
+}
+
+# put_file copies file $1 to directory $2 as name $3 (temp file + rename, mode 0644).
+put_file() {
+  local tmp
+  mkdir -p "$2" || return 1
+  tmp="$(mktemp "$2/.$3.XXXXXX")" || return 1
+  if ! { cp "$1" "$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$2/$3"; }; then rm -f "$tmp"; return 1; fi
+}
+
+# desktop_exec_arg prints the Exec= argument for program path $1: quoted for the Desktop Entry spec. Inside the quotes
+# backslash, double quote, backtick and dollar sign get a backslash; then the key-file escaping doubles every backslash, and
+# a percent sign becomes %% (it would start a field code). A home with a space or a dollar sign stays one argument.
+desktop_exec_arg() {
+  local p="$1"
+  p="${p//\\/\\\\}"
+  p="${p//\"/\\\"}"
+  p="${p//\`/\\\`}"
+  p="${p//\$/\\\$}"
+  p="${p//\\/\\\\}"
+  p="${p//%/%%}"
+  printf '"%s"' "$p"
+}
+
+# replace_token prints text $1 with every $2 replaced by $3, literally (no & or backslash handling, unlike ${//}).
+replace_token() {
+  local rest="$1" out=""
+  while [[ "$rest" == *"$2"* ]]; do
+    out+="${rest%%"$2"*}$3"
+    rest="${rest#*"$2"}"
+  done
+  printf '%s' "$out$rest"
+}
+
+# put_entry writes the .desktop template $1 to directory $2 with `@BIN_DIR@/<program>` (the program is the template's name)
+# replaced by the quoted absolute path of the installed program.
+put_entry() {
+  local tmp text program="${1%.desktop}"
+  mkdir -p "$2" || return 1
+  text="$(cat "$HERE/$1")" || return 1
+  text="$(replace_token "$text" "@BIN_DIR@/$program" "$(desktop_exec_arg "$BIN_DIR/$program")")" || return 1
+  tmp="$(mktemp "$2/.$1.XXXXXX")" || return 1
+  if ! { printf '%s\n' "$text" > "$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$2/$1"; }; then rm -f "$tmp"; return 1; fi
+  echo "Wrote $2/$1"
+}
+
+# BIN_REAL is BIN_DIR with its symlinks resolved. /proc/<pid>/exe is always a resolved path, so a symlinked home or
+# ~/.local/bin (Fedora Atomic's /home -> /var/home, a dotfiles link) would never match BIN_DIR as written (M2).
+BIN_REAL=""
+resolve_bin_dir() {
+  mkdir -p "$BIN_DIR" || return 1
+  BIN_REAL="$(cd "$BIN_DIR" && pwd -P)" || return 1
+}
+
+# desktop_procs prints "<pid> <program>" for every process whose executable is aristotle-tray or aristotle-desktop in the
+# installed directory (BIN_REAL); with $1 only that program. Matching the executable path, not `comm` (cut to 15 characters),
+# finds only this installation's programs, never one started from elsewhere; a replaced binary shows as "<path> (deleted)".
+# One `find` reads every link: a scan is a few milliseconds, not a fork per process.
+desktop_procs() {
+  local dir exe name
+  while read -r dir exe; do
+    [[ "$dir" =~ ^/proc/[0-9]+$ && "$exe" == /* ]] || continue
+    exe="${exe% (deleted)}"
+    name="${exe##*/}"
+    [[ "${exe%/*}" == "$BIN_REAL" ]] || continue
+    case "$name" in
+      aristotle-tray | aristotle-desktop) [[ -z "${1:-}" || "$1" == "$name" ]] && echo "${dir#/proc/} $name" ;;
+    esac
+  done < <(find /proc -mindepth 2 -maxdepth 2 -name exe -printf '%h %l\n' 2> /dev/null)
+  return 0
+}
+
+# wait_desktop_gone [program] polls (one scan per round) for at most $1 seconds; 1 when one still runs.
+wait_desktop_gone() { # seconds [program]
+  local start=$SECONDS
+  while [[ -n "$(desktop_procs "${2:-}")" ]]; do
+    (( SECONDS - start < $1 )) || return 1
+    sleep 0.1
+  done
+  return 0
+}
+
+# stop_desktop_programs [program] ends the running ones and waits until they are gone: SIGTERM, then SIGKILL after about
+# 5 s. Returns 1 when one will not die. Says what it stopped.
+stop_desktop_programs() {
+  local procs pids
+  procs="$(desktop_procs "${1:-}")"
+  [[ -n "$procs" ]] || return 0
+  pids="$(cut -d' ' -f1 <<< "$procs")"
+  # shellcheck disable=SC2086
+  kill $pids 2> /dev/null || true
+  if ! wait_desktop_gone 5 "${1:-}"; then
+    pids="$(desktop_procs "${1:-}" | cut -d' ' -f1)"
+    # shellcheck disable=SC2086
+    if [[ -n "$pids" ]]; then kill -9 $pids 2> /dev/null || true; fi
+    wait_desktop_gone 2 "${1:-}" || return 1
+  fi
+  if [[ "$procs" == *aristotle-tray* ]]; then echo "Stopped the old tray"; fi
+  if [[ "$procs" == *aristotle-desktop* ]]; then echo "Closed the open window (aristotle-desktop)"; fi
+}
+
+has_display() { [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]; }
+
+# start_tray runs the installed tray detached from this terminal: own session, no stdin, its output in tray.log, working
+# directory / (a bundle on a USB stick or share must not stay busy), SIGINT and SIGQUIT back at their defaults (the
+# background job would otherwise pass "ignored" on to the tray and every window it opens).
+start_tray() {
+  local log_dir log pid
+  log_dir="$(xdg_dir XDG_STATE_HOME .local/state)/aristotle"
+  log="$log_dir/tray.log"
+  mkdir -p "$log_dir" || return 1
+  ( cd / && trap - INT QUIT && exec setsid "$BIN_DIR/aristotle-tray" ) >> "$log" 2>&1 < /dev/null &
+  pid=$!
+  disown "$pid" 2> /dev/null || true
+  report_tray_start "$pid" "$log"
+}
+
+# process_alive pid: the process exists and is not a zombie.
+process_alive() {
+  local state
+  state="$(awk '/^State:/ { print $2 }' "/proc/$1/status" 2> /dev/null)" || return 1
+  [[ -n "$state" && "$state" != Z ]]
+}
+
+# other_tray prints "<pid> <exe>" of a running aristotle-tray from any path (not the pid in $1), if there is one.
+other_tray() {
+  local dir exe
+  while read -r dir exe; do
+    [[ "$dir" =~ ^/proc/[0-9]+$ && "$exe" == /* ]] || continue
+    exe="${exe% (deleted)}"
+    [[ "${exe##*/}" == aristotle-tray && "${dir#/proc/}" != "$1" ]] || continue
+    echo "${dir#/proc/} $exe"
+    return 0
+  done < <(find /proc -mindepth 2 -maxdepth 2 -name exe -printf '%h %l\n' 2> /dev/null)
+  return 0
+}
+
+# report_tray_start (P27 (3)) says "Started the tray" only when the process is still alive after about 1 s. A tray that
+# found the single-instance lock taken exits 0 at once; then it names the tray that runs (pid and path) instead.
+report_tray_start() { # pid log
+  local other
+  sleep "${TRAY_START_CHECK_SECONDS:-1}"
+  if process_alive "$1"; then
+    echo "Started the tray (log: $2)"
+    return 0
+  fi
+  other="$(other_tray "$1")"
+  if [[ -n "$other" ]]; then
+    echo "another aristotle-tray is running (pid ${other%% *}, ${other#* }); the new one exits"
+    return 0
+  fi
+  warn "the new tray exited right after it started (log: $2)"
+  return 1
+}
+
+# close_window_app closes an open aristotle-desktop window from the installed directory before its binary is replaced
+# (it is stateless; an old window next to a new server would show the "re-run the installer" banner, L9).
+close_window_app() {
+  resolve_bin_dir || return 1
+  stop_desktop_programs aristotle-desktop || { warn "the open aristotle-desktop window did not close"; return 1; }
+}
+
+# replace_tray stops the running tray (if any), then starts the new one when a graphical session exists.
+replace_tray() {
+  local was_running=no
+  [[ -n "$(desktop_procs aristotle-tray)" ]] && was_running=yes
+  if [[ "$was_running" == yes ]]; then
+    stop_desktop_programs aristotle-tray || { warn "the old tray did not stop; log out and in to run the new one"; return 1; }
+  fi
+  if has_display; then
+    start_tray || return 1
+  elif [[ "$was_running" == yes ]]; then
+    echo "No graphical session here, so the new tray starts at your next login."
+  fi
+}
+
+install_desktop_files() {
+  local name data config
+  data="$(xdg_dir XDG_DATA_HOME .local/share)"
+  config="$(xdg_dir XDG_CONFIG_HOME .config)"
+  for name in "${DESKTOP_BINS[@]}"; do install_desktop_binary "$name" || return 1; done
+  put_file "$HERE/aristotle-server.png" "$data/icons/hicolor/256x256/apps" aristotle-server.png || return 1
+  put_entry aristotle-desktop.desktop "$data/applications" || return 1
+  put_entry aristotle-tray.desktop "$config/autostart" || return 1
+}
+
+# install_desktop (P24): the bundle's desktop app, when the PC can run it. A failure warns and never fails the server install.
+install_desktop() {
+  bundle_has_desktop || return 0
+  if ! has_webkit; then
+    echo "desktop app skipped: webkit2gtk-4.1 not installed"
+    return 0
+  fi
+  if close_window_app && install_desktop_files && replace_tray; then return 0; fi
+  warn "the desktop app was not fully installed (the server is unaffected); see the messages above"
+}
+
 parse_flags "$@"
 refuse_in_app_terminal
 check_hermes_cli
@@ -490,6 +747,7 @@ wait_for_status
 ensure_gateway
 ensure_linger
 open_firewall
+install_desktop
 echo
 echo "Running: $("$TARGET" version)"
 if [[ -f "$PREV" ]]; then
